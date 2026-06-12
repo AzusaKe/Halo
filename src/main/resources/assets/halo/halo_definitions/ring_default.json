@@ -1,0 +1,52 @@
+{
+  "id": "halo:ring_default",
+  "shape": {
+    "type": "billboard",
+    "texture": "halo:textures/halo/ring.png",
+    "size": [0.5, 0.5],
+    "glow": {
+      "texture": "halo:textures/halo/ring_glow.png",
+      "size": [0.6, 0.6],
+      "color": 16777215,
+      "alpha": 0.8,
+      "pulse": {
+        "amplitude": 0.15,
+        "frequency": 2.0,
+        "phase": 0.0
+      }
+    }
+  },
+  "animation": {
+    "positionCurves": [
+      {
+        "axis": "y",
+        "curve": {
+          "type": "oscillate",
+          "amplitude": 0.08,
+          "frequency": 1.5,
+          "phase": 0.0
+        }
+      }
+    ],
+    "rotationCurves": [
+      {
+        "axis": "yaw",
+        "curve": {
+          "type": "linear",
+          "start": 0.0,
+          "speed": 30.0
+        }
+      }
+    ]
+  },
+  "positioning": {
+    "offset": [0.0, 1.8, 0.0],
+    "scale": 1.0
+  },
+  "damping": {
+    "linearFactor": 0.15,
+    "angularFactor": 0.1,
+    "maxLinearDistance": 3.0,
+    "maxAngularDegrees": 180.0
+  }
+}

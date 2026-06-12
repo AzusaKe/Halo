@@ -25,6 +25,10 @@ dependencies {
 
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // Test dependencies
+    testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
+    testImplementation "com.google.code.gson:gson:2.10.1"
 }
 
 processResources {
@@ -49,6 +53,13 @@ java {
 jar {
     from("LICENSE") {
         rename { "${it}_${project.archivesBaseName}" }
+    }
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
     }
 }
 
