@@ -2,6 +2,7 @@ package com.example.halo;
 
 import com.example.halo.data.HaloDefinition;
 import com.example.halo.json.HaloJsonLoader;
+import com.example.halo.server.HaloServerEvents;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import net.fabricmc.api.ModInitializer;
@@ -28,6 +29,9 @@ public class HaloMod implements ModInitializer {
 
         // Register resource reload listeners for JSON halo definitions
         HaloJsonLoader.register();
+
+        // Register server-side event handlers (tick, entity, connection)
+        HaloServerEvents.registerAll();
 
         // Register the /halo dump command for manual verification
         CommandRegistrationCallback.EVENT.register(this::registerCommands);
