@@ -1,0 +1,44 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+out/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.project
+.classpath
+.settings/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Java
+*.class
+*.log
+
+# Minecraft / Fabric Loom
+run/
+logs/
+crash-reports/
+
+# Local dev tools (user-specific, not part of the mod)
+scripts/update-proxy.sh
+
+# Secrets & local config
+*.env
+*.local
+gradle-local.properties
+
+# vibe coding utils
+skills/
+task/

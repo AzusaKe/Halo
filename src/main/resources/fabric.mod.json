@@ -1,0 +1,37 @@
+{
+    "schemaVersion": 1,
+    "id": "halo",
+    "version": "${version}",
+    "name": "Halo Mod",
+    "description": "Halo ring rendering mod for Minecraft",
+    "authors": [
+        "Azusa_Ke"
+    ],
+    "contact": {
+        "homepage": "https://github.com/example/halo",
+        "sources": "https://github.com/example/halo"
+    },
+    "license": "MIT",
+    "icon": "assets/halo/icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "com.example.halo.HaloMod"
+        ],
+        "client": [
+            "com.example.halo.HaloModClient"
+        ]
+    },
+    "mixins": [
+        "halo.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": ">=0.15.0",
+        "fabric-api": "*",
+        "minecraft": "~1.20.1",
+        "java": ">=17"
+    },
+    "suggests": {
+        "another-mod": "*"
+    }
+}
