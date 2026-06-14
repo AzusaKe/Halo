@@ -3,7 +3,8 @@
     "package": "com.example.halo.mixin",
     "compatibilityLevel": "JAVA_17",
     "mixins": [
-        "LivingEntityDataMixin"
+        "LivingEntityDataMixin",
+        "EntityTeleportMixin"
     ],
     "client": [],
     "injectors": {
