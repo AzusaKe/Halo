@@ -133,10 +133,10 @@ public final class EntityHaloTracker {
             instance.markTeleported();
             if (debugMode && currentServer != null) {
                 Vec3d pos = entity.getPos();
-                currentServer.sendMessage(Text.literal(
+                var msg = Text.literal(
                     String.format("§e[HaloDebug] §fTELEPORT §edetected | §7%s §fpos=(§7%.1f, %.1f, %.1f§f) §a-> snap",
-                        entity.getName().getString(), pos.x, pos.y, pos.z)
-                ));
+                        entity.getName().getString(), pos.x, pos.y, pos.z));
+                currentServer.getPlayerManager().broadcast(msg, false);
             }
         }
     }

@@ -63,12 +63,26 @@ test {
     }
 }
 
-// Client run configuration: 2560x1600 window (non-fullscreen by default)
+// Client run configuration: 2560x1600 window, non-fullscreen
 loom {
     runs {
         client {
             programArgs("--width", "2560")
             programArgs("--height", "1600")
+        }
+    }
+}
+
+// Force fullscreen:false before each runClient launch
+tasks.named('runClient') {
+    doFirst {
+        def optionsFile = file('run/options.txt')
+        if (optionsFile.exists()) {
+            def lines = optionsFile.readLines()
+            def modified = lines.collect { line ->
+                line.startsWith('fullscreen:') ? 'fullscreen:false' : line
+            }
+            optionsFile.text = modified.join('\n') + '\n'
         }
     }
 }

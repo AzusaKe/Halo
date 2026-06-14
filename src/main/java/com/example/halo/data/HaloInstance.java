@@ -149,12 +149,12 @@ public class HaloInstance {
             var srv = com.example.halo.lifecycle.EntityHaloTracker.getServer();
             if (srv != null) {
                 double dist = this.prevRelativePosition.distanceTo(this.relativePosition);
-                srv.sendMessage(net.minecraft.text.Text.literal(
+                var msg = net.minecraft.text.Text.literal(
                     String.format("§e[HaloDebug] §fSNAP §acorrected | §7old=(%.1f, %.1f, %.1f) new=(%.1f, %.1f, %.1f) §8dist=§7%.2f",
                         this.prevRelativePosition.x, this.prevRelativePosition.y, this.prevRelativePosition.z,
                         this.relativePosition.x, this.relativePosition.y, this.relativePosition.z,
-                        dist)
-                ));
+                        dist));
+                srv.getPlayerManager().broadcast(msg, false);
             }
         }
 
