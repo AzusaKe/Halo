@@ -2,6 +2,7 @@ package com.example.halo;
 
 import com.example.halo.command.HaloConfigCommand;
 import com.example.halo.json.HaloJsonLoader;
+import com.example.halo.lifecycle.EntityHaloTracker;
 import com.example.halo.server.HaloServerEvents;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -25,6 +26,9 @@ public class HaloMod implements ModInitializer {
 
         // Register per-tick halo physics driver
         com.example.halo.physics.HaloTickHandler.register();
+
+        // Register entity lifecycle tracker (teleport detection, NBT restore, cleanup)
+        EntityHaloTracker.register();
 
         // Register /halo command tree (dump, reload, list, show, hide, config)
         CommandRegistrationCallback.EVENT.register(

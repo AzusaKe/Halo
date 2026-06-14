@@ -63,6 +63,16 @@ test {
     }
 }
 
+// Client run configuration: 2560x1600 window (non-fullscreen by default)
+loom {
+    runs {
+        client {
+            programArgs("--width", "2560")
+            programArgs("--height", "1600")
+        }
+    }
+}
+
 // configure the maven publication
 publishing {
     publications {

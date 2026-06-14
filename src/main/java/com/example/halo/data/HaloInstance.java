@@ -28,6 +28,12 @@ public class HaloInstance {
     // When true the next physics step snaps instantly (ignores damping)
     private boolean needsSnap;
 
+    // Whether this halo instance is currently active (rendered and ticked)
+    private boolean active = true;
+
+    // Epoch-millis timestamp when this instance was created
+    private final long createdAtTime;
+
     // Physics-level damping state (drives computeDampedPosition / computeDampedRotation)
     private final HaloDampingState dampingState = new HaloDampingState();
 
@@ -39,6 +45,8 @@ public class HaloInstance {
         this.prevRelativePosition = Vec3d.ZERO;
         this.prevRelativeRotation = new Quaternionf();
         this.needsSnap = true;
+        this.active = true;
+        this.createdAtTime = System.currentTimeMillis();
     }
 
     // -----------------------------------------------------------------------
@@ -127,13 +135,28 @@ public class HaloInstance {
     public void tickDamping(Vec3d anchorPos, Vec3d haloCenter, HaloDampingConfig damping) {
         // Position damping
         Vec3d currentRel = haloCenter.subtract(anchorPos);
+        boolean wasSnap = dampingState.isNeedsSnap();
         Vec3d newRel = DampingPhysics.computeDampedPosition(
             currentRel, Vec3d.ZERO, damping, dampingState
         );
+        boolean didSnap = wasSnap && !dampingState.isNeedsSnap(); // consumed this tick
 
         // Convert back to world-space and store
         this.prevRelativePosition = this.relativePosition;
         this.relativePosition = anchorPos.add(newRel);
+
+        if (didSnap && com.example.halo.lifecycle.EntityHaloTracker.isDebugMode()) {
+            var srv = com.example.halo.lifecycle.EntityHaloTracker.getServer();
+            if (srv != null) {
+                double dist = this.prevRelativePosition.distanceTo(this.relativePosition);
+                srv.sendMessage(net.minecraft.text.Text.literal(
+                    String.format("§e[HaloDebug] §fSNAP §acorrected | §7old=(%.1f, %.1f, %.1f) new=(%.1f, %.1f, %.1f) §8dist=§7%.2f",
+                        this.prevRelativePosition.x, this.prevRelativePosition.y, this.prevRelativePosition.z,
+                        this.relativePosition.x, this.relativePosition.y, this.relativePosition.z,
+                        dist)
+                ));
+            }
+        }
 
         // Rotation damping
         Quaternionf newRot = DampingPhysics.computeDampedRotation(
@@ -152,6 +175,36 @@ public class HaloInstance {
         this.needsSnap = true;
     }
 
+    // -----------------------------------------------------------------------
+    // Lifecycle
+    // -----------------------------------------------------------------------
+
+    /**
+     * Whether this halo is active (should be rendered and ticked).
+     */
+    public boolean isActive() {
+        return active;
+    }
+
+    /**
+     * Deactivate this halo so it stops rendering and ticking.
+     * Once deactivated the instance cannot be reactivated — create a new one instead.
+     */
+    public void deactivate() {
+        this.active = false;
+    }
+
+    /**
+     * Epoch-millis timestamp when this instance was created.
+     */
+    public long getCreatedAtTime() {
+        return createdAtTime;
+    }
+
+    // -----------------------------------------------------------------------
+    // Render interpolation
+    // -----------------------------------------------------------------------
+
     /**
      * Interpolated position for client-side rendering.
      *
@@ -160,6 +213,16 @@ public class HaloInstance {
      */
     public Vec3d getInterpolatedPosition(double tickDelta) {
         return prevRelativePosition.lerp(relativePosition, tickDelta);
+    }
+
+    /**
+     * Interpolated rotation for client-side rendering.
+     *
+     * @param tickDelta  partial-tick progress (0.0 – 1.0)
+     * @return spherically-linear-interpolated relative rotation quaternion
+     */
+    public Quaternionf getInterpolatedRotation(double tickDelta) {
+        return new Quaternionf(prevRelativeRotation).slerp(relativeRotation, (float) tickDelta);
     }
 
     // -----------------------------------------------------------------------

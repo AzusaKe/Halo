@@ -63,4 +63,11 @@ public class HaloDampingState {
     public void markTeleport() {
         this.needsSnap = true;
     }
+
+    /**
+     * Whether the next damping tick will snap instantly.
+     */
+    public boolean isNeedsSnap() {
+        return needsSnap;
+    }
 }

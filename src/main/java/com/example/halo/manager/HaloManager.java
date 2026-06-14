@@ -3,6 +3,7 @@ package com.example.halo.manager;
 import com.example.halo.HaloMod;
 import com.example.halo.config.HaloConfig;
 import com.example.halo.data.HaloDefinition;
+import com.example.halo.data.HaloEntityData;
 import com.example.halo.data.HaloInstance;
 import com.example.halo.json.HaloJsonLoader;
 import net.minecraft.entity.LivingEntity;
@@ -11,6 +12,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,6 +38,7 @@ public final class HaloManager {
 
     private final HaloConfig config = new HaloConfig();
     private final Map<UUID, HaloInstance> activeHalos = new ConcurrentHashMap<>();
+    private final Map<UUID, LivingEntity> trackedEntities = new ConcurrentHashMap<>();
 
     private HaloManager() {
         // singleton — use getInstance()
@@ -66,6 +69,9 @@ public final class HaloManager {
         HaloInstance instance = new HaloInstance(entity.getUuid(), defId);
         activeHalos.put(entity.getUuid(), instance);
 
+        // Persist to entity NBT so the halo survives world reload
+        HaloEntityData.attachHalo(entity, defId);
+
         HaloMod.LOGGER.debug("Halo '{}' shown on entity {} (uuid={})", defId, entity.getName().getString(), entity.getUuid());
     }
 
@@ -76,6 +82,7 @@ public final class HaloManager {
      */
     public void hideHaloOn(LivingEntity entity) {
         HaloInstance removed = activeHalos.remove(entity.getUuid());
+        HaloEntityData.removeHalo(entity);
         if (removed != null) {
             HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());
         }
@@ -155,6 +162,52 @@ public final class HaloManager {
      */
     public int getActiveCount() {
         return activeHalos.size();
+    }
+
+    // ------------------------------------------------------------------
+    // Entity tracking
+    // ------------------------------------------------------------------
+
+    /**
+     * Register an entity for ongoing position tracking (teleport detection).
+     *
+     * @param entity the living entity to track
+     */
+    public void registerEntity(LivingEntity entity) {
+        trackedEntities.put(entity.getUuid(), entity);
+    }
+
+    /**
+     * Unregister an entity from position tracking and remove its halo.
+     *
+     * @param uuid the entity UUID
+     */
+    public void unregisterEntity(UUID uuid) {
+        trackedEntities.remove(uuid);
+        activeHalos.remove(uuid);
+    }
+
+    /**
+     * Return all active halo instances (no defensive copy — for internal iteration).
+     */
+    public Collection<HaloInstance> getAllInstances() {
+        return activeHalos.values();
+    }
+
+    /**
+     * Persist halo state on world unload / server stop.
+     * Syncs current assignments to world persistent state so they survive a restart.
+     *
+     * @param server the current Minecraft server instance
+     */
+    public void cleanup(MinecraftServer server) {
+        var world = server.getOverworld();
+        if (world != null) {
+            com.example.halo.lifecycle.HaloWorldSaveData data =
+                com.example.halo.lifecycle.HaloWorldSaveData.get(world);
+            data.syncFromManager();
+        }
+        HaloMod.LOGGER.debug("HaloManager: cleanup complete — {} active halo(s) synced", activeHalos.size());
     }
 
     // ------------------------------------------------------------------

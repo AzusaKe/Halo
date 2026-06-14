@@ -2,21 +2,29 @@ package com.example.halo.command;
 
 import com.example.halo.config.HaloConfig;
 import com.example.halo.data.HaloDefinition;
+import com.example.halo.data.HaloEntityData;
+import com.example.halo.data.HaloInstance;
 import com.example.halo.json.HaloJsonLoader;
+import com.example.halo.lifecycle.EntityHaloTracker;
+import com.example.halo.lifecycle.HaloWorldSaveData;
 import com.example.halo.manager.HaloManager;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -33,6 +41,10 @@ import static net.minecraft.server.command.CommandManager.literal;
  * /halo show &lt;entity&gt; &lt;definition&gt; – attach a halo to an entity
  * /halo hide &lt;entity&gt;             – remove a halo from an entity
  * /halo config &lt;param&gt; &lt;value&gt;    – change runtime config
+ * /halo save                      – sync halo data and trigger world save
+ * /halo inspect &lt;entity&gt;          – detailed runtime status of one entity's halo
+ * /halo active                    – list all entities with active halos
+ * /halo debug &lt;true|false&gt;        – toggle teleport/snap debug logging
  * </pre>
  */
 public final class HaloConfigCommand {
@@ -63,6 +75,30 @@ public final class HaloConfigCommand {
         // --- /halo reload (convenience hint) ---
         haloNode.then(literal("reload")
             .executes(HaloConfigCommand::reloadHint)
+        );
+
+        // --- /halo save (sync halo data + trigger world save) ---
+        haloNode.then(literal("save")
+            .executes(HaloConfigCommand::saveHaloData)
+        );
+
+        // --- /halo debug <true|false> ---
+        haloNode.then(literal("debug")
+            .then(argument("enabled", BoolArgumentType.bool())
+                .executes(HaloConfigCommand::debugToggle)
+            )
+        );
+
+        // --- /halo active (list entities with halos) ---
+        haloNode.then(literal("active")
+            .executes(HaloConfigCommand::listActiveHalos)
+        );
+
+        // --- /halo inspect <entity> (detailed halo status) ---
+        haloNode.then(literal("inspect")
+            .then(argument("target", EntityArgumentType.entity())
+                .executes(HaloConfigCommand::inspectHalo)
+            )
         );
 
         // --- /halo show <entity> <definition> ---
@@ -253,6 +289,206 @@ public final class HaloConfigCommand {
         HaloManager.getInstance().hideHaloOn(living);
 
         source.sendFeedback(() -> Text.literal("§aHalo hidden from §f" + living.getDisplayName().getString()), true);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * /halo save — sync halo data to persistent state and trigger a world save-all.
+     * This replaces the need for the vanilla {@code /save-all} command when testing
+     * halo persistence (useful when cheats are not enabled).
+     */
+    private static int saveHaloData(CommandContext<ServerCommandSource> ctx) {
+        ServerCommandSource source = ctx.getSource();
+        MinecraftServer server = source.getServer();
+
+        // Sync halo assignments to world persistent state
+        ServerWorld overworld = server.getOverworld();
+        if (overworld != null) {
+            HaloWorldSaveData data = HaloWorldSaveData.get(overworld);
+            data.syncFromManager();
+        }
+
+        // Trigger save-all so entity NBT (including our mixin data) is written
+        server.saveAll(true, true, true);
+
+        int count = HaloManager.getInstance().getActiveCount();
+        source.sendFeedback(
+            () -> Text.literal("§aWorld saved. §f" + count + "§a active halo(s) persisted."),
+            true
+        );
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * /halo active — list all entities that currently have an active halo.
+     */
+    private static int listActiveHalos(CommandContext<ServerCommandSource> ctx) {
+        ServerCommandSource source = ctx.getSource();
+        Map<UUID, HaloInstance> halos = HaloManager.getInstance().getActiveHalos();
+
+        if (halos.isEmpty()) {
+            source.sendFeedback(() -> Text.literal("§eNo active halos."), false);
+            return Command.SINGLE_SUCCESS;
+        }
+
+        source.sendFeedback(
+            () -> Text.literal("§aActive halos (§f" + halos.size() + "§a):"), false
+        );
+
+        MinecraftServer server = source.getServer();
+        for (var entry : halos.entrySet()) {
+            UUID uuid = entry.getKey();
+            HaloInstance instance = entry.getValue();
+
+            // Try to resolve entity name
+            String entityName = "<unknown>";
+            for (var world : server.getWorlds()) {
+                Entity e = world.getEntity(uuid);
+                if (e != null) {
+                    entityName = e.getDisplayName().getString();
+                    break;
+                }
+            }
+
+            boolean persisted = HaloEntityData.hasHalo(uuid);
+            boolean teleporting = EntityHaloTracker.isTeleporting(uuid);
+            long ageMs = System.currentTimeMillis() - instance.getCreatedAtTime();
+
+            String status = instance.isActive() ? "§aactive" : "§cdead";
+            String nbt = persisted ? "§a✓nbt" : "§c✗nbt";
+            String tp = teleporting ? " §etp" : "";
+
+            final String name = entityName;
+            source.sendFeedback(() -> Text.literal(
+                "  §7- §f" + name +
+                    " §8uuid=§7" + uuid.toString().substring(0, 8) + "..." +
+                    " §8def=§7" + instance.getDefinitionId() +
+                    " §8age=§7" + (ageMs / 1000) + "s" +
+                    " " + status + " " + nbt + tp
+            ), false);
+        }
+        return halos.size();
+    }
+
+    /**
+     * /halo inspect &lt;entity&gt; — detailed runtime status for one entity.
+     * Shows: UUID, definition, active flag, creation time, NBT persistence status,
+     * teleport status, snap flag, position/rotation, and damping state.
+     */
+    private static int inspectHalo(CommandContext<ServerCommandSource> ctx) {
+        ServerCommandSource source = ctx.getSource();
+        Entity target;
+
+        try {
+            target = EntityArgumentType.getEntity(ctx, "target");
+        } catch (Exception e) {
+            source.sendError(Text.literal("Invalid entity selector."));
+            return 0;
+        }
+
+        if (!(target instanceof LivingEntity living)) {
+            source.sendError(Text.literal("Target must be a living entity."));
+            return 0;
+        }
+
+        UUID uuid = living.getUuid();
+        HaloInstance instance = HaloManager.getInstance().getHaloInstance(uuid);
+
+        source.sendFeedback(
+            () -> Text.literal("§6===== Halo Inspect: §f" + living.getDisplayName().getString() + " §6====="),
+            false
+        );
+
+        source.sendFeedback(
+            () -> Text.literal("  §8UUID:      §7" + uuid), false
+        );
+
+        if (instance == null) {
+            source.sendFeedback(
+                () -> Text.literal("  §8Status:    §eNo halo attached"), false
+            );
+
+            // Still check NBT in case entity has stale data
+            boolean hasNbt = HaloEntityData.hasHalo(living);
+            if (hasNbt) {
+                Identifier nbtDef = HaloEntityData.getHaloDefinition(living);
+                source.sendFeedback(
+                    () -> Text.literal("  §8NBT:       §eStale NBT found §7(def=" + nbtDef + ") §e— will restore on reload"),
+                    false
+                );
+            } else {
+                source.sendFeedback(
+                    () -> Text.literal("  §8NBT:       §7No halo NBT"), false
+                );
+            }
+            return Command.SINGLE_SUCCESS;
+        }
+
+        // --- Instance exists ---
+        boolean isActive = instance.isActive();
+        long ageMs = System.currentTimeMillis() - instance.getCreatedAtTime();
+        boolean persisted = HaloEntityData.hasHalo(living);
+        boolean teleporting = EntityHaloTracker.isTeleporting(uuid);
+        boolean needsSnap = instance.isNeedsSnap();
+
+        source.sendFeedback(() -> Text.literal(
+            "  §8Definition: §f" + instance.getDefinitionId()), false
+        );
+        source.sendFeedback(() -> Text.literal(
+            "  §8Status:    " + (isActive ? "§aactive" : "§cdeactivated") +
+            "  §8Age: §7" + (ageMs / 1000) + "s" +
+            "  §8Created: §7" + instance.getCreatedAtTime()), false
+        );
+
+        // NBT persistence
+        source.sendFeedback(() -> Text.literal(
+            "  §8NBT:       " + (persisted ? "§a✓ persisted" : "§c✗ not persisted")), false
+        );
+
+        // Teleport / snap
+        source.sendFeedback(() -> Text.literal(
+            "  §8Teleport:  " + (teleporting ? "§ein grace period" : "§7idle") +
+            "  §8NeedsSnap: " + (needsSnap ? "§etrue" : "§7false")), false
+        );
+
+        // Position (world-space relative offset stored by physics)
+        var pos = instance.getRelativePosition();
+        var prevPos = instance.getPrevRelativePosition();
+        source.sendFeedback(() -> Text.literal(
+            "  §8Position:  §7(" + fmt(pos.x) + ", " + fmt(pos.y) + ", " + fmt(pos.z) + ")"), false
+        );
+        source.sendFeedback(() -> Text.literal(
+            "  §8PrevPos:   §7(" + fmt(prevPos.x) + ", " + fmt(prevPos.y) + ", " + fmt(prevPos.z) + ")"), false
+        );
+
+        // Entity anchor
+        var anchor = living instanceof net.minecraft.entity.player.PlayerEntity p
+            ? p.getEyePos()
+            : living.getPos().add(0, living.getHeight() * 0.85, 0);
+        source.sendFeedback(() -> Text.literal(
+            "  §8Anchor:    §7(" + fmt(anchor.x) + ", " + fmt(anchor.y) + ", " + fmt(anchor.z) + ")"), false
+        );
+
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static String fmt(double d) {
+        return String.format("%.2f", d);
+    }
+
+    /**
+     * /halo debug &lt;true|false&gt; — toggle teleport/snap debug logging.
+     * When enabled, the server console prints a line every time a teleport is
+     * detected and every time a snap correction is applied by the physics tick.
+     */
+    private static int debugToggle(CommandContext<ServerCommandSource> ctx) {
+        boolean enabled = BoolArgumentType.getBool(ctx, "enabled");
+        EntityHaloTracker.setDebugMode(enabled);
+
+        ctx.getSource().sendFeedback(
+            () -> Text.literal("§aHalo debug logging: " + (enabled ? "§eON" : "§7OFF")),
+            true
+        );
         return Command.SINGLE_SUCCESS;
     }
 
