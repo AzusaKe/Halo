@@ -39,6 +39,8 @@ public class HaloTickHandler implements ServerTickEvents.EndTick {
 
     @Override
     public void onEndTick(MinecraftServer server) {
+        // Refresh the server reference so debug chat messages work
+        com.example.halo.lifecycle.EntityHaloTracker.setCurrentServer(server);
         HaloManager.getInstance().tickAll(server);
     }
 }

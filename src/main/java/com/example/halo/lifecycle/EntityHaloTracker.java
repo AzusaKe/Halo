@@ -91,6 +91,14 @@ public final class EntityHaloTracker {
     }
 
     /**
+     * Refresh the server reference. Called by physics tick handler
+     * (which runs before this tracker) so snap debug messages can reach chat.
+     */
+    public static void setCurrentServer(MinecraftServer server) {
+        currentServer = server;
+    }
+
+    /**
      * Register all Fabric event listeners for entity lifecycle tracking.
      *
      * <p>Idempotent — subsequent calls are no-ops.</p>
@@ -200,37 +208,33 @@ public final class EntityHaloTracker {
     private static void onEndTick(MinecraftServer server) {
         currentServer = server;
 
-        try {
-            // ---- Expire old teleport markers ----
-            long now = System.currentTimeMillis();
-            recentlyTeleported.values().removeIf(timestamp ->
-                now - timestamp > TELEPORT_GRACE_PERIOD_MS
-            );
+        // ---- Expire old teleport markers ----
+        long now = System.currentTimeMillis();
+        recentlyTeleported.values().removeIf(timestamp ->
+            now - timestamp > TELEPORT_GRACE_PERIOD_MS
+        );
 
-            // ---- Position-based teleport detection ----
-            // Only check entities that currently have an active halo
-            Map<UUID, HaloInstance> activeHalos = HaloManager.getInstance().getActiveHalos();
-            if (activeHalos.isEmpty()) {
-                return;
+        // ---- Position-based teleport detection ----
+        // Only check entities that currently have an active halo
+        Map<UUID, HaloInstance> activeHalos = HaloManager.getInstance().getActiveHalos();
+        if (activeHalos.isEmpty()) {
+            return;
+        }
+
+        for (UUID uuid : activeHalos.keySet()) {
+            LivingEntity entity = findEntity(server, uuid);
+            if (entity == null) {
+                continue;
             }
 
-            for (UUID uuid : activeHalos.keySet()) {
-                LivingEntity entity = findEntity(server, uuid);
-                if (entity == null) {
-                    continue;
-                }
+            Vec3d currentPos = entity.getPos();
+            Vec3d lastPos = lastKnownPositions.get(uuid);
 
-                Vec3d currentPos = entity.getPos();
-                Vec3d lastPos = lastKnownPositions.get(uuid);
-
-                if (lastPos != null && currentPos.squaredDistanceTo(lastPos) > TELEPORT_DISTANCE_SQ) {
-                    markTeleport(entity);
-                }
-
-                lastKnownPositions.put(uuid, currentPos);
+            if (lastPos != null && currentPos.squaredDistanceTo(lastPos) > TELEPORT_DISTANCE_SQ) {
+                markTeleport(entity);
             }
-        } finally {
-            currentServer = null;
+
+            lastKnownPositions.put(uuid, currentPos);
         }
     }
 
