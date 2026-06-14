@@ -555,4 +555,175 @@ class HaloRendererTest {
             assertEquals(0.0f, clamped, 0.001f);
         }
     }
+
+    // ------------------------------------------------------------------
+    // 8. Frame-rate-independent damping & clamp (renderer path)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("逐帧阻尼与钳制 (per-frame damping & clamp)")
+    class FrameDampingAndClamp {
+
+        /**
+         * Compute k_f from the renderer's actual formula for testing.
+         */
+        private static double computeKF(double k, double dt) {
+            k = Math.max(0.001, Math.min(k, 0.999));
+            double exp = dt / 0.05; // Δt / reference tick
+            if (exp <= 0.0) exp = 1.0;
+            if (exp > 10.0) exp = 10.0;
+            double kF = 1.0 - Math.pow(1.0 - k, exp);
+            return Math.max(0.0, Math.min(1.0, kF));
+        }
+
+        @Test
+        @DisplayName("k_f formula: at dt=0.05, k_f = k (reference tick)")
+        void testKFAtReferenceTick() {
+            // The renderer clamps k to [0.001, 0.999] for numerical stability
+            assertEquals(0.3, computeKF(0.3, 0.05), 0.0001);
+            assertEquals(0.5, computeKF(0.5, 0.05), 0.0001);
+            // k=0 clamped to 0.001: k_f = 1 − (0.999)^1 ≈ 0.001
+            assertTrue(computeKF(0.0, 0.05) < 0.01, "k=0 should give near-zero k_f");
+            // k=1 clamped to 0.999: k_f = 1 − (0.001)^1 = 0.999
+            assertTrue(computeKF(1.0, 0.05) > 0.99, "k=1 should give near-one k_f");
+        }
+
+        @Test
+        @DisplayName("k_f at 60 FPS (dt≈0.0167) is proportionally smaller")
+        void testKFAt60FPS() {
+            double kf60 = computeKF(0.3, 0.0167);
+            // At 60 FPS: k_f = 1 − (1−0.3)^(0.0167/0.05) = 1 − 0.7^0.334 ≈ 0.112
+            assertTrue(kf60 < 0.3, "60 FPS k_f should be smaller than reference tick");
+            assertTrue(kf60 > 0.05, "60 FPS k_f should not be zero");
+        }
+
+        @Test
+        @DisplayName("frame damping: H converges toward T with k_f factor")
+        void testSingleFrameDamping() {
+            // T = (0, 0, 0), H = (10, 0, 0)
+            Vec3d target = Vec3d.ZERO;
+            Vec3d prev = new Vec3d(10, 0, 0);
+
+            double kF = computeKF(0.3, 0.05); // = 0.3
+            // H_new = H + k_f × (T − H)
+            Vec3d halo = prev.add(target.subtract(prev).multiply(kF));
+
+            assertEquals(7.0, halo.x, 0.0001, "10 × (1−0.3) = 7.0");
+            assertEquals(0.0, halo.y, 0.0001);
+            assertEquals(0.0, halo.z, 0.0001);
+        }
+
+        @Test
+        @DisplayName("clamp: d > max_d → halo clamped to max_d from target")
+        void testFrameClampExceedsMaxDist() {
+            // After damping: halo at x=7, target at x=0
+            // d = 7 > max_d = 5 → clamp
+            Vec3d target = Vec3d.ZERO;
+            Vec3d halo = new Vec3d(7.0, 0.0, 0.0); // after damping
+            double maxDist = 5.0;
+
+            double dist = halo.distanceTo(target);
+            assertTrue(dist > maxDist, "precondition: dist must exceed maxDist");
+
+            // Clamp: H_new = T − normalize(T−H) × maxDist
+            Vec3d toTarget = target.subtract(halo).normalize();
+            Vec3d clamped = target.subtract(toTarget.multiply(maxDist));
+
+            assertEquals(5.0, clamped.distanceTo(target), 0.0001,
+                "clamped halo must be exactly maxDist from target");
+            assertEquals(5.0, clamped.x, 0.0001);
+            assertEquals(0.0, clamped.y, 0.0001);
+        }
+
+        @Test
+        @DisplayName("clamp direction is toward target (在 S 方向继续前进)")
+        void testClampDirectionTowardTarget() {
+            // H = (10, 0, 0), T = (0, 0, 0)
+            // S = k_f * (T - H) = 0.3 * (-10, 0, 0) = (-3, 0, 0) → left
+            // After damping: H_new' = (7, 0, 0), d = 7 > max_d = 5
+            // Clamp: continue in S direction (left) until d = 5
+            // H_new = (5, 0, 0) — moved further left from 7, closer to target
+            Vec3d target = Vec3d.ZERO;
+            Vec3d haloAfterDamping = new Vec3d(7.0, 0.0, 0.0);
+            double maxDist = 5.0;
+
+            Vec3d toTarget = target.subtract(haloAfterDamping).normalize();
+            Vec3d clamped = target.subtract(toTarget.multiply(maxDist));
+
+            assertEquals(5.0, clamped.x, 0.0001);
+            assertTrue(clamped.x < haloAfterDamping.x,
+                "clamped halo should move further toward target (from x=7 to x=5)");
+            assertTrue(clamped.x > target.x,
+                "clamped halo should stay between target and original position");
+        }
+
+        @Test
+        @DisplayName("multi-frame simulation: halo NEVER exceeds maxDist from target")
+        void testMultiFrameClampGuarantee() {
+            // Simulate 200 frames with random target movement
+            // The halo must stay within maxDist of target after every frame
+            Vec3d target = Vec3d.ZERO;
+            Vec3d halo = Vec3d.ZERO;
+            double maxDist = 1.0;
+            double k = 0.3;
+            java.util.Random rng = new java.util.Random(12345);
+
+            for (int frame = 0; frame < 200; frame++) {
+                // Target moves randomly (simulating entity movement & rotation)
+                double dx = (rng.nextDouble() - 0.5) * 1.0;
+                double dy = (rng.nextDouble() - 0.5) * 1.0;
+                double dz = (rng.nextDouble() - 0.5) * 1.0;
+                target = target.add(dx, dy, dz);
+
+                // Per-frame damping (simulated at ~60 FPS)
+                double kF = computeKF(k, 0.0167);
+                halo = halo.add(target.subtract(halo).multiply(kF));
+
+                // Clamp: ensure halo never exceeds maxDist
+                double dist = halo.distanceTo(target);
+                if (dist > maxDist) {
+                    Vec3d toTarget = target.subtract(halo).normalize();
+                    halo = target.subtract(toTarget.multiply(maxDist));
+                }
+            }
+
+            // After 200 frames, halo must be within maxDist
+            double finalDist = halo.distanceTo(target);
+            assertTrue(finalDist <= maxDist + 1e-9,
+                String.format("After 200 frames, dist=%.4f must not exceed maxDist=%.4f",
+                    finalDist, maxDist));
+        }
+
+        @Test
+        @DisplayName("extreme: high entity speed, low k (near freeze) → clamp still holds")
+        void testExtremeClampWithLowK() {
+            // k = 0.1 (very little movement per frame)
+            // Entity moves 2 blocks per frame → halo lags severely
+            // Clamp must prevent halo from exceeding maxDist
+            Vec3d target = new Vec3d(0, 0, 0);
+            Vec3d halo = new Vec3d(0, 0, 0);
+            double maxDist = 0.5;
+
+            for (int frame = 0; frame < 60; frame++) {
+                // Entity moves rapidly rightward
+                target = target.add(0.5, 0, 0);
+
+                // Damping with very low k
+                double kF = computeKF(0.1, 0.0167);
+                halo = halo.add(target.subtract(halo).multiply(kF));
+
+                // Clamp
+                double dist = halo.distanceTo(target);
+                if (dist > maxDist) {
+                    Vec3d toTarget = target.subtract(halo).normalize();
+                    halo = target.subtract(toTarget.multiply(maxDist));
+                }
+
+                double distAfter = halo.distanceTo(target);
+                assertTrue(distAfter <= maxDist + 1e-9,
+                    String.format("Frame %d: dist=%.4f > maxDist=%.4f after clamp",
+                        frame, distAfter, maxDist));
+            }
+        }
+    }
 }

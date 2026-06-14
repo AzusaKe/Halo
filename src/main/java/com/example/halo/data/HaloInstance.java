@@ -126,19 +126,20 @@ public class HaloInstance {
     // -----------------------------------------------------------------------
 
     /**
-     * Advance damping physics by one tick.
+     * Advance damping physics by one frame or tick.
      *
      * @param target     world-space position the halo should converge toward
      *                   (entity head anchor + head-relative offset)
      * @param haloCenter current world-space halo centre (previous tick's stored position)
      * @param damping    damping configuration for this halo
+     * @param deltaTime  seconds since the last update (frame or tick)
      */
-    public void tickDamping(Vec3d target, Vec3d haloCenter, HaloDampingConfig damping) {
-        // Position damping: offset from target shrinks by factor k each tick
+    public void tickDamping(Vec3d target, Vec3d haloCenter, HaloDampingConfig damping, double deltaTime) {
+        // Position damping: offset from target shrinks by factor k_f each tick
         Vec3d offsetFromTarget = haloCenter.subtract(target);
         boolean wasSnap = dampingState.isNeedsSnap();
         Vec3d dampedOffset = DampingPhysics.computeDampedPosition(
-            offsetFromTarget, Vec3d.ZERO, damping, dampingState
+            offsetFromTarget, Vec3d.ZERO, damping, dampingState, deltaTime
         );
         boolean didSnap = wasSnap && !dampingState.isNeedsSnap();
 
@@ -168,7 +169,7 @@ public class HaloInstance {
 
         // Rotation damping
         Quaternionf newRot = DampingPhysics.computeDampedRotation(
-            this.relativeRotation, new Quaternionf(), damping, dampingState
+            this.relativeRotation, new Quaternionf(), damping, dampingState, deltaTime
         );
         this.prevRelativeRotation = new Quaternionf(this.relativeRotation);
         this.relativeRotation = newRot;

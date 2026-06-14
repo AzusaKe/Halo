@@ -41,8 +41,12 @@ public final class HaloManager {
     private final Map<UUID, HaloInstance> activeHalos = new ConcurrentHashMap<>();
     private final Map<UUID, LivingEntity> trackedEntities = new ConcurrentHashMap<>();
 
+    /** Nanosecond timestamp of the previous tick, for delta-time calculation. */
+    private long lastTickNanos;
+
     private HaloManager() {
         // singleton — use getInstance()
+        this.lastTickNanos = System.nanoTime();
     }
 
     /** Return the global singleton. */
@@ -107,12 +111,21 @@ public final class HaloManager {
      * <p>Called once per server tick from the tick handler.  Halos whose
      * attached entity is dead or missing are automatically cleaned up.</p>
      *
+     * <p>Uses frame-rate-independent damping with delta-time measurement
+     * so convergence speed is consistent regardless of server TPS.</p>
+     *
      * @param server the current Minecraft server instance
      */
     public void tickAll(MinecraftServer server) {
         if (activeHalos.isEmpty()) {
             return;
         }
+
+        // Compute delta time since last tick (frame-rate-independent damping)
+        long now = System.nanoTime();
+        double dt = (now - lastTickNanos) / 1_000_000_000.0;
+        dt = Math.max(0.001, Math.min(dt, 0.5)); // 1ms–500ms guard
+        lastTickNanos = now;
 
         var iterator = activeHalos.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -129,8 +142,10 @@ public final class HaloManager {
 
             // Look up definition for positioning offset and damping params
             HaloDefinition def = HaloJsonLoader.getDefinition(instance.getDefinitionId()).orElse(null);
-            Vec3d defOffset = def != null ? def.positioning().offset() : Vec3d.ZERO;
-            HaloDampingConfig damping = def != null ? def.damping() : config.toDampingConfig();
+            Vec3d defOffset = def != null ? def.positioning().offset() : config.getPositionOffset();
+
+            // Merge runtime config overrides with definition defaults
+            HaloDampingConfig damping = mergeDampingConfig(def != null ? def.damping() : null, config);
 
             // Compute absolute target: head anchor + head-relative offset
             Vec3d anchorPos = getHeadAnchorPosition(entity);
@@ -138,8 +153,48 @@ public final class HaloManager {
             Vec3d target = anchorPos.add(headRelOffset);
 
             // Tick damping toward the absolute target position
-            instance.tickDamping(target, instance.getRelativePosition(), damping);
+            instance.tickDamping(target, instance.getRelativePosition(), damping, dt);
         }
+    }
+
+    /**
+     * Merge runtime config overrides with definition defaults.
+     * Runtime config values are consulted when the user has explicitly changed them
+     * via {@code /halo config}; otherwise definition values are used as-is.
+     *
+     * <p>The runtime config is considered an <em>override</em>: if the user has
+     * changed any value (detected by comparing against defaults), that override
+     * wins.  Otherwise the definition's damping config is used untouched.</p>
+     *
+     * @param defDamping  the definition's damping config, or {@code null}
+     * @param runtimeCfg  the runtime halo config (may have been changed by user)
+     * @return a merged damping config
+     */
+    private static HaloDampingConfig mergeDampingConfig(
+        HaloDampingConfig defDamping, HaloConfig runtimeCfg
+    ) {
+        if (defDamping == null) {
+            return runtimeCfg.toDampingConfig();
+        }
+        // Use runtime config values if they differ from the HaloConfig defaults,
+        // otherwise keep the definition's values.  The HaloConfig defaults are:
+        //   linearDampingFactor = 0.3, angularDampingFactor = 0.3,
+        //   maxLinearDistance = 1.0, maxAngularDegrees = 45.0
+        boolean runtimeOverridden =
+            Math.abs(runtimeCfg.getLinearDampingFactor() - 0.3) > 1e-9
+            || Math.abs(runtimeCfg.getAngularDampingFactor() - 0.3) > 1e-9
+            || Math.abs(runtimeCfg.getMaxLinearDistance() - 1.0) > 1e-9
+            || Math.abs(runtimeCfg.getMaxAngularDegrees() - 45.0) > 1e-9;
+
+        if (runtimeOverridden) {
+            return new HaloDampingConfig(
+                runtimeCfg.getLinearDampingFactor(),
+                runtimeCfg.getAngularDampingFactor(),
+                runtimeCfg.getMaxLinearDistance(),
+                runtimeCfg.getMaxAngularDegrees()
+            );
+        }
+        return defDamping;
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.example.halo.render;
 
 import com.example.halo.HaloMod;
+import com.example.halo.data.HaloDampingConfig;
 import com.example.halo.data.HaloDefinition;
 import com.example.halo.data.HaloInstance;
 import com.example.halo.json.HaloJsonLoader;
@@ -159,7 +160,11 @@ public final class HaloRenderer {
             return false;
         }
 
-        // === FRAME-BASED halo position (no per-tick physics dependency) ===
+        // ---- merge runtime config overrides with definition defaults ----
+        HaloDampingConfig damping = mergeDampingConfig(def);
+        float scaleOverride = getRuntimeScaleOverride(def);
+
+        // === FRAME-BASED halo position (frame-rate-independent damping) ===
 
         // 1. Interpolated entity state (frame-accurate, not tick-accurate)
         Vec3d headAnchor = getInterpolatedHeadAnchor(entity, tickDelta);
@@ -171,42 +176,60 @@ public final class HaloRenderer {
             entity, def.positioning().offset());
         Vec3d targetPos = headAnchor.add(headRelOffset);
 
-        // 3. Previous frame position (or snap to target on first frame)
+        // 3. Previous frame position — snap on teleport or first frame
         UUID uuid = instance.getEntityUuid();
         Vec3d prevPos = prevFramePos.get(uuid);
-        if (prevPos == null) {
-            prevPos = targetPos; // snap on first frame
+
+        boolean needsSnap = instance.isNeedsSnap();
+        if (prevPos == null || needsSnap) {
+            if (needsSnap && prevPos != null && frameCount % 60 == 0) {
+                LOG.debug("[HaloRenderer] teleport snap: uuid={} prev={} target={}",
+                    uuid, prevPos, targetPos);
+            }
+            prevPos = targetPos;
+            // Clear the snap flag so we don't re-snap every frame
+            if (needsSnap) {
+                instance.setNeedsSnap(false);
+            }
         }
 
-        // 5. Frame-rate-independent exponential damping
-        //    At 20 TPS: factor = 1-(1-linearFactor)^1 = linearFactor
-        //    At 60 FPS: factor = 1-(1-linearFactor)^(1/3) ≈ linearFactor/3
-        double smooth = def.damping().linearFactor();
-        smooth = Math.max(0.001, Math.min(smooth, 0.999)); // avoid degenerate values
-        double exp = dt * 20.0; // scale to 20-TPS-equivalent
-        double factor = 1.0 - Math.pow(1.0 - smooth, exp);
-        if (factor > 1.0) factor = 1.0;
+        // 4. Frame-rate-independent exponential damping
+        //    k_f = 1 − (1 − k)^(Δt / 0.05)
+        //    At 20 TPS (Δt=0.05): k_f = k → full convergence per tick
+        //    At 60 FPS (Δt≈0.017): k_f ≈ k/3 → proportionally smaller
+        double k = damping.linearFactor();
+        k = Math.max(0.001, Math.min(k, 0.999)); // avoid degenerate values
+        double exp = dt / 0.05; // Δt / reference tick
+        if (exp <= 0.0) exp = 1.0;
+        if (exp > 10.0) exp = 10.0;
+        double kF = 1.0 - Math.pow(1.0 - k, exp);
+        kF = Math.max(0.0, Math.min(1.0, kF));
 
-        Vec3d haloWorldPos = prevPos.add(targetPos.subtract(prevPos).multiply(factor));
+        // H_new = H + k_f × (T − H)
+        Vec3d haloWorldPos = prevPos.add(targetPos.subtract(prevPos).multiply(kF));
 
-        // 6. Clamp: never exceed maxLinearDistance from target
+        // 5. Clamp: remaining gap d = |T − H_new| must not exceed maxLinearDistance
         double dist = haloWorldPos.distanceTo(targetPos);
-        double maxDist = def.damping().maxLinearDistance();
-        if (dist > maxDist) {
+        double maxDist = damping.maxLinearDistance();
+        if (dist > maxDist && dist > 1e-9) {
             // Throttled log for debugging clamp behaviour
             if (frameCount % 60 == 0) {
                 LOG.info(String.format(
-                    "[HaloRenderer] CLAMP dist=%.2f > maxDist=%.2f | target=%s prev=%s factor=%.4f dt=%.4f",
-                    dist, maxDist, targetPos, prevPos, factor, dt));
+                    "[HaloRenderer] CLAMP dist=%.2f > maxDist=%.2f | target=%s prev=%s kF=%.4f dt=%.4f",
+                    dist, maxDist, targetPos, prevPos, kF, dt));
             }
-            Vec3d dir = haloWorldPos.subtract(targetPos).normalize();
-            haloWorldPos = targetPos.add(dir.multiply(maxDist));
+            // Clamp: continue in direction −R (toward target) until d = max_d
+            // R = T − H points FROM halo TO target
+            // Move halo so it ends up maxDist from target:
+            // H_new = T − normalize(T − H_old) × maxDist
+            Vec3d toTarget = targetPos.subtract(haloWorldPos).normalize();
+            haloWorldPos = targetPos.subtract(toTarget.multiply(maxDist));
         }
 
-        // 7. Store for next frame
+        // 6. Store for next frame
         prevFramePos.put(uuid, haloWorldPos);
 
-        // 8. Normal: from ACTUAL halo position toward head centre
+        // 7. Normal: from ACTUAL halo position toward head centre
         Vec3d toHead = headAnchor.subtract(haloWorldPos).normalize();
 
         // ---- camera-relative translation ----
@@ -229,9 +252,8 @@ public final class HaloRenderer {
             // Apply interpolated rotation
             applyQuaternionRotation(matrices, instance.getInterpolatedRotation(tickDelta));
 
-            // Uniform scale
-            float scale = (float) def.positioning().scale();
-            matrices.scale(scale, scale, scale);
+            // Uniform scale — runtime config can override definition
+            matrices.scale(scaleOverride, scaleOverride, scaleOverride);
 
             // Render shape — toHead direction computed above from actual halo position
             if (def.shape() instanceof BillboardShape billboard) {
@@ -253,6 +275,45 @@ public final class HaloRenderer {
         }
 
         return true;
+    }
+
+    /**
+     * Merge runtime config overrides with definition defaults.
+     *
+     * <p>When the user runs {@code /halo config linear-damping <value>},
+     * the runtime config carries the override.  If no override has been
+     * set the definition's own damping is used as-is.</p>
+     */
+    private static HaloDampingConfig mergeDampingConfig(HaloDefinition def) {
+        var runtime = com.example.halo.manager.HaloManager.getInstance().getConfig();
+
+        boolean overridden =
+            Math.abs(runtime.getLinearDampingFactor() - 0.3) > 1e-9
+            || Math.abs(runtime.getAngularDampingFactor() - 0.3) > 1e-9
+            || Math.abs(runtime.getMaxLinearDistance() - 1.0) > 1e-9
+            || Math.abs(runtime.getMaxAngularDegrees() - 45.0) > 1e-9;
+
+        if (overridden) {
+            return new HaloDampingConfig(
+                runtime.getLinearDampingFactor(),
+                runtime.getAngularDampingFactor(),
+                runtime.getMaxLinearDistance(),
+                runtime.getMaxAngularDegrees()
+            );
+        }
+        return def.damping();
+    }
+
+    /**
+     * Return the effective scale, preferring the runtime config override
+     * if the user has changed it via {@code /halo config scale}.
+     */
+    private static float getRuntimeScaleOverride(HaloDefinition def) {
+        var runtime = com.example.halo.manager.HaloManager.getInstance().getConfig();
+        if (Math.abs(runtime.getHaloScale() - 1.0) > 1e-9) {
+            return (float) runtime.getHaloScale();
+        }
+        return (float) def.positioning().scale();
     }
 
     // ------------------------------------------------------------------
