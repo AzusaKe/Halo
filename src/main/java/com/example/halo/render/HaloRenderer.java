@@ -41,13 +41,6 @@ public final class HaloRenderer {
 
     private static final HaloRenderer INSTANCE = new HaloRenderer();
 
-    // ---- debug: throttle log output ----
-    private int frameCount;
-    private int renderedCount;
-    private long lastLogTime;
-    private boolean firstRenderLogged;
-    private static final long LOG_INTERVAL_MS = 3000;
-
     public static final boolean DEBUG_RENDERING = false;
 
     // ---- per-frame state (replaces per-tick physics for rendering) ----
@@ -81,28 +74,7 @@ public final class HaloRenderer {
             return;
         }
 
-        frameCount++;
-
-        // One-time confirmation on first render frame
-        if (!firstRenderLogged) {
-            firstRenderLogged = true;
-            int totalDefs = HaloJsonLoader.getDefinitions().size();
-            int totalActive = com.example.halo.manager.HaloManager.getInstance().getActiveCount();
-            LOG.info("[HaloRenderer] FIRST RENDER FRAME — loaded definitions: {}, active halos: {}",
-                totalDefs, totalActive);
-        }
-
         var visible = HaloClientManager.getInstance().getVisibleHalos(camera);
-
-        // Periodic debug summary
-        long now = System.currentTimeMillis();
-        if (now - lastLogTime > LOG_INTERVAL_MS) {
-            int total = com.example.halo.manager.HaloManager.getInstance().getActiveCount();
-            LOG.info("[HaloRenderer] frame={} totalActive={} visible={} rendered={}",
-                frameCount, total, visible.size(), renderedCount);
-            lastLogTime = now;
-            renderedCount = 0;
-        }
 
         // Clean stale entries from prevFramePos
         Set<UUID> activeUuids = new HashSet<>();
@@ -123,9 +95,7 @@ public final class HaloRenderer {
 
         for (HaloInstance instance : visible) {
             try {
-                if (renderSingleHalo(instance, matrices, camera, tickDelta, client, dt)) {
-                    renderedCount++;
-                }
+                renderSingleHalo(instance, matrices, camera, tickDelta, client, dt);
             } catch (Exception e) {
                 LOG.warn("[HaloRenderer] error rendering halo for entity {}: {}",
                     instance.getEntityUuid(), e.getMessage());
@@ -182,12 +152,7 @@ public final class HaloRenderer {
 
         boolean needsSnap = instance.isNeedsSnap();
         if (prevPos == null || needsSnap) {
-            if (needsSnap && prevPos != null && frameCount % 60 == 0) {
-                LOG.debug("[HaloRenderer] teleport snap: uuid={} prev={} target={}",
-                    uuid, prevPos, targetPos);
-            }
             prevPos = targetPos;
-            // Clear the snap flag so we don't re-snap every frame
             if (needsSnap) {
                 instance.setNeedsSnap(false);
             }
@@ -212,12 +177,6 @@ public final class HaloRenderer {
         double dist = haloWorldPos.distanceTo(targetPos);
         double maxDist = damping.maxLinearDistance();
         if (dist > maxDist && dist > 1e-9) {
-            // Throttled log for debugging clamp behaviour
-            if (frameCount % 60 == 0) {
-                LOG.info(String.format(
-                    "[HaloRenderer] CLAMP dist=%.2f > maxDist=%.2f | target=%s prev=%s kF=%.4f dt=%.4f",
-                    dist, maxDist, targetPos, prevPos, kF, dt));
-            }
             // Clamp: continue in direction −R (toward target) until d = max_d
             // R = T − H points FROM halo TO target
             // Move halo so it ends up maxDist from target:
@@ -265,13 +224,6 @@ public final class HaloRenderer {
             }
         } finally {
             matrices.pop();
-        }
-
-        // Log position occasionally (DEBUG level, once per 120 frames per halo)
-        if (frameCount % 120 == 0) {
-            LOG.debug("[HaloRenderer] rendered halo for '{}' — world=({}) camRel=({})",
-                entity.getName().getString(), haloWorldPos,
-                new Vec3d(rx, ry, rz));
         }
 
         return true;
