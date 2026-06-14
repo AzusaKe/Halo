@@ -32,6 +32,10 @@ public final class HaloJsonLoader {
         // utility class
     }
 
+    /** Prevent double-registration of each listener type. */
+    private static volatile boolean serverRegistered;
+    private static volatile boolean clientRegistered;
+
     /**
      * Register resource reload listener for server data packs.
      * <p>Halo definitions live under {@code data/&lt;ns&gt;/halo_definitions/}
@@ -39,10 +43,33 @@ public final class HaloJsonLoader {
      * <p>Safe to call more than once — subsequent calls are no-ops.</p>
      */
     public static void register() {
+        if (serverRegistered) {
+            return;
+        }
+        serverRegistered = true;
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new ServerListener());
 
         LOG.info("HaloJsonLoader registered for SERVER_DATA");
+    }
+
+    /**
+     * Register resource reload listener for client resource packs.
+     * <p>Called from {@code HaloModClient} so that halo definitions are also
+     * available on the logical client for rendering.  In single-player the
+     * server-side listener typically loads first; this ensures client-only
+     * packs can also contribute definitions.</p>
+     * <p>Safe to call more than once — subsequent calls are no-ops.</p>
+     */
+    public static void registerClientResources() {
+        if (clientRegistered) {
+            return;
+        }
+        clientRegistered = true;
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
+            .registerReloadListener(new ClientListener());
+
+        LOG.info("HaloJsonLoader registered for CLIENT_RESOURCES");
     }
 
     /**
@@ -63,15 +90,26 @@ public final class HaloJsonLoader {
     // Reload logic (shared)
     // ------------------------------------------------------------------
 
-    private static void reload(ResourceManager manager) {
-        DEFINITIONS.clear();
+    /**
+     * Scan and load definitions from the given resource manager.
+     *
+     * @param manager the resource manager to scan
+     * @param clear   if {@code true}, clear the registry before loading
+     *                (used by the authoritative server-data listener);
+     *                if {@code false}, add/update entries without clearing
+     *                (used by the supplementary client-resources listener)
+     */
+    private static void reload(ResourceManager manager, boolean clear) {
+        if (clear) {
+            DEFINITIONS.clear();
+        }
 
         Map<Identifier, net.minecraft.resource.Resource> resources = manager.findResources(
             DEFINITIONS_PATH,
             id -> id.getPath().endsWith(".json")
         );
 
-        LOG.info("Found {} halo definition(s) to load", resources.size());
+        LOG.info("Found {} halo definition(s) to load (clear={})", resources.size(), clear);
 
         for (Map.Entry<Identifier, net.minecraft.resource.Resource> entry : resources.entrySet()) {
             Identifier fileId = entry.getKey();
@@ -101,7 +139,19 @@ public final class HaloJsonLoader {
 
         @Override
         public void reload(ResourceManager manager) {
-            HaloJsonLoader.reload(manager);
+            HaloJsonLoader.reload(manager, true);
+        }
+    }
+
+    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
+        @Override
+        public Identifier getFabricId() {
+            return new Identifier(HaloMod.MOD_ID, "halo_definitions_client");
+        }
+
+        @Override
+        public void reload(ResourceManager manager) {
+            HaloJsonLoader.reload(manager, false);
         }
     }
 }
