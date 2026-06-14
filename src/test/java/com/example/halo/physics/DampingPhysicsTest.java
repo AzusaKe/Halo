@@ -61,42 +61,35 @@ class DampingPhysicsTest {
         void testDampingDecay() {
             HaloDampingState state = new HaloDampingState();
             state.needsSnap = false;
-            // Initial offset: 10 blocks along X
-            state.prevRelativePosition = new Vec3d(10.0, 0.0, 0.0);
 
             // linearFactor = 0.5 → k = 1 - 0.5 = 0.5
-            // Formula: damped = current + k * prevRelPos
-            // With current = (0,0,0): damped = 0.5 * prevRelPos
+            // Formula: damped = k * current  (exponential decay toward 0)
             HaloDampingConfig config = new HaloDampingConfig(0.5, 0.1, 100.0, 180.0);
 
+            // Simulate physics loop: each tick, current = previous damped value
+            // (because halo position converges toward anchor)
+            Vec3d current = new Vec3d(10.0, 0.0, 0.0); // initial offset
+
             // --- Tick 1: 10 → 5 (50% decay) ---
-            Vec3d r1 = DampingPhysics.computeDampedPosition(
-                Vec3d.ZERO, Vec3d.ZERO, config, state
-            );
-            assertEquals(5.0, r1.x, 0.0001, "tick 1: x should decay from 10 to 5");
-            assertEquals(0.0, r1.y, 0.0001);
-            assertEquals(0.0, r1.z, 0.0001);
+            current = DampingPhysics.computeDampedPosition(current, Vec3d.ZERO, config, state);
+            assertEquals(5.0, current.x, 0.0001, "tick 1: x should decay from 10 to 5");
+            assertEquals(0.0, current.y, 0.0001);
+            assertEquals(0.0, current.z, 0.0001);
 
             // --- Tick 2: 5 → 2.5 ---
-            Vec3d r2 = DampingPhysics.computeDampedPosition(
-                Vec3d.ZERO, Vec3d.ZERO, config, state
-            );
-            assertEquals(2.5, r2.x, 0.0001, "tick 2: x should decay from 5 to 2.5");
+            current = DampingPhysics.computeDampedPosition(current, Vec3d.ZERO, config, state);
+            assertEquals(2.5, current.x, 0.0001, "tick 2: x should decay from 5 to 2.5");
 
             // --- Tick 3: 2.5 → 1.25 ---
-            Vec3d r3 = DampingPhysics.computeDampedPosition(
-                Vec3d.ZERO, Vec3d.ZERO, config, state
-            );
-            assertEquals(1.25, r3.x, 0.0001, "tick 3: x should decay from 2.5 to 1.25");
+            current = DampingPhysics.computeDampedPosition(current, Vec3d.ZERO, config, state);
+            assertEquals(1.25, current.x, 0.0001, "tick 3: x should decay from 2.5 to 1.25");
 
             // --- Tick 4: 1.25 → 0.625 ---
-            Vec3d r4 = DampingPhysics.computeDampedPosition(
-                Vec3d.ZERO, Vec3d.ZERO, config, state
-            );
-            assertEquals(0.625, r4.x, 0.0001, "tick 4: x should decay from 1.25 to 0.625");
+            current = DampingPhysics.computeDampedPosition(current, Vec3d.ZERO, config, state);
+            assertEquals(0.625, current.x, 0.0001, "tick 4: x should decay from 1.25 to 0.625");
 
             // Sanity: after 4 ticks the total decay is 10 * 0.5^4 = 0.625
-            assertEquals(10.0 * Math.pow(0.5, 4), r4.x, 1e-9);
+            assertEquals(10.0 * Math.pow(0.5, 4), current.x, 1e-9);
         }
     }
 
@@ -113,16 +106,14 @@ class DampingPhysicsTest {
         void testClampDistance() {
             HaloDampingState state = new HaloDampingState();
             state.needsSnap = false;
-            // prevRelPos = (6, 8, 0) → length = 10
-            state.prevRelativePosition = new Vec3d(6.0, 8.0, 0.0);
 
-            // linearFactor = 0.0 → k = 1.0 → damped = current + 1.0*prev
-            // With current = (0,0,0): damped = (6, 8, 0), length = 10
+            // linearFactor = 0.0 → k = 1.0 → damped = 1.0*current
+            // current = (6, 8, 0) → length = 10
             // maxLinearDistance = 3.0 → clamp to length 3
             HaloDampingConfig config = new HaloDampingConfig(0.0, 0.1, 3.0, 180.0);
 
             Vec3d result = DampingPhysics.computeDampedPosition(
-                Vec3d.ZERO, Vec3d.ZERO, config, state
+                new Vec3d(6.0, 8.0, 0.0), Vec3d.ZERO, config, state
             );
 
             // Length must be exactly maxLinearDistance
@@ -141,14 +132,12 @@ class DampingPhysicsTest {
         void testNoClampWhenWithinLimit() {
             HaloDampingState state = new HaloDampingState();
             state.needsSnap = false;
-            // prevRelPos length = 1 (well within limit)
-            state.prevRelativePosition = new Vec3d(0.0, 1.0, 0.0);
 
             // k = 1.0, maxDist = 5.0 (> 1.0)
             HaloDampingConfig config = new HaloDampingConfig(0.0, 0.1, 5.0, 180.0);
 
             Vec3d result = DampingPhysics.computeDampedPosition(
-                Vec3d.ZERO, Vec3d.ZERO, config, state
+                new Vec3d(0.0, 1.0, 0.0), Vec3d.ZERO, config, state
             );
 
             assertEquals(1.0, result.length(), 0.0001,

@@ -142,20 +142,34 @@ public final class HaloRenderer {
         }
 
         // ---- compute world-space halo centre ----
-        // Physics stores world-space position (anchor + damped offset).
-        // BUT: before the first physics tick, position is still Vec3d.ZERO.
-        // Fall back to the entity's head anchor in that case.
-        Vec3d physicsCenter = instance.getInterpolatedPosition(tickDelta);
+        // Physics stores the absolute world-space halo position
+        // (anchor + damped offset + head-relative offset).
+        Vec3d haloWorldPos = instance.getInterpolatedPosition(tickDelta);
         Vec3d headAnchor = getHeadAnchorPosition(entity);
 
-        if (physicsCenter.lengthSquared() < 0.001) {
-            // Physics hasn't initialised yet — use entity head directly
-            physicsCenter = headAnchor;
-            LOG.debug("[HaloRenderer] physics not yet initialised for {}, using head anchor ({})",
-                entity.getName().getString(), headAnchor);
+        if (haloWorldPos.lengthSquared() < 0.001) {
+            // Physics hasn't initialised yet — use head anchor
+            haloWorldPos = headAnchor;
         }
 
-        Vec3d haloWorldPos = physicsCenter.add(def.positioning().offset());
+        // ---- target = head anchor + head-relative offset ----
+        // Compute target so we can clamp to it (not just to head anchor).
+        Vec3d headRelOffset = computeHeadRelativeOffset(
+            entity, def.positioning().offset());
+        Vec3d targetPos = headAnchor.add(headRelOffset);
+
+        // ---- clamp: halo must NEVER be more than maxDist from TARGET ----
+        // Physics clamps per-tick, but interpolation between ticks can
+        // produce intermediate positions that exceed the limit.
+        double distToTarget = haloWorldPos.distanceTo(targetPos);
+        double maxDist = def.damping().maxLinearDistance();
+        if (distToTarget > maxDist + 0.001) {
+            Vec3d dir = haloWorldPos.subtract(targetPos).normalize();
+            haloWorldPos = targetPos.add(dir.multiply(maxDist));
+        }
+
+        // Normal: from ACTUAL halo position toward head centre
+        Vec3d toHead = headAnchor.subtract(haloWorldPos).normalize();
 
         // ---- camera-relative translation ----
         Vec3d camPos = camera.getPos();
@@ -181,13 +195,12 @@ public final class HaloRenderer {
             float scale = (float) def.positioning().scale();
             matrices.scale(scale, scale, scale);
 
-            // Render shape
-            float entityYaw = entity.getYaw();
+            // Render shape — toHead direction computed above from actual halo position
             if (def.shape() instanceof BillboardShape billboard) {
-                renderBillboard(billboard, matrices, camera, entityYaw);
+                renderBillboard(billboard, matrices, camera, toHead);
             } else if (def.shape() instanceof MultiBillboardShape multi) {
                 for (BillboardShape layer : multi.layers()) {
-                    renderBillboard(layer, matrices, camera, entityYaw);
+                    renderBillboard(layer, matrices, camera, toHead);
                 }
             }
         } finally {
@@ -209,18 +222,27 @@ public final class HaloRenderer {
     // ------------------------------------------------------------------
 
     /**
-     * Draw a single billboard quad whose normal points toward the entity's head.
-     * The quad is horizontal (XZ plane), rotating with the entity's yaw.
+     * Draw a single billboard quad whose +Z normal points toward {@code toHead}.
      */
     private void renderBillboard(BillboardShape billboard, MatrixStack matrices,
-                                  Camera camera, float entityYaw) {
+                                  Camera camera, Vec3d toHead) {
         matrices.push();
         try {
-            // ---- head-facing billboard: normal points toward head ----
-            // First tilt the quad from XY plane to XZ plane (horizontal),
-            // then rotate with the entity's yaw.
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(entityYaw));
-            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90.0f));
+            // ---- face billboard normal toward head ----
+            // Compute a rotation that aligns local +Z (the quad normal) with toHead.
+            Vec3d localZ = new Vec3d(0, 0, 1);
+            Vec3d axis = localZ.crossProduct(toHead).normalize();
+            double dot = Math.max(-1.0, Math.min(1.0, localZ.dotProduct(toHead)));
+            float angle = (float) Math.acos(dot);
+
+            if (angle > 0.001f && axis.length() > 0.001f) {
+                // Apply rotation around the computed axis
+                matrices.multiply(new Quaternionf()
+                    .rotateAxis(angle, (float) axis.x, (float) axis.y, (float) axis.z));
+            } else if (dot < -0.999f) {
+                // localZ and toHead are opposite — flip 180° around X
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180.0f));
+            }
 
             float hw = billboard.size().x / 2.0f;
             float hh = billboard.size().y / 2.0f;
@@ -289,7 +311,7 @@ public final class HaloRenderer {
 
         // ---- glow layer ----
         if (billboard.glow() != null) {
-            renderGlowLayer(billboard.glow(), matrices, camera, entityYaw);
+            renderGlowLayer(billboard.glow(), matrices, camera, toHead);
         }
     }
 
@@ -298,11 +320,21 @@ public final class HaloRenderer {
     // ------------------------------------------------------------------
 
     private void renderGlowLayer(GlowLayer glow, MatrixStack matrices,
-                                  Camera camera, float entityYaw) {
+                                  Camera camera, Vec3d toHead) {
         matrices.push();
         try {
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(entityYaw));
-            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90.0f));
+            // Same billboard rotation as the base quad
+            Vec3d localZg = new Vec3d(0, 0, 1);
+            Vec3d axisG = localZg.crossProduct(toHead).normalize();
+            double dotG = Math.max(-1.0, Math.min(1.0, localZg.dotProduct(toHead)));
+            float angleG = (float) Math.acos(dotG);
+
+            if (angleG > 0.001f && axisG.length() > 0.001f) {
+                matrices.multiply(new Quaternionf()
+                    .rotateAxis(angleG, (float) axisG.x, (float) axisG.y, (float) axisG.z));
+            } else if (dotG < -0.999f) {
+                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180.0f));
+            }
 
             Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
 
@@ -387,15 +419,41 @@ public final class HaloRenderer {
 
     /**
      * Compute the world-space anchor point for a halo on the given entity.
-     *
-     * <p>Players use eye position; other entities use ~85 % of their
-     * bounding-box height above foot position.</p>
      */
     static Vec3d getHeadAnchorPosition(LivingEntity entity) {
         if (entity instanceof PlayerEntity player) {
             return player.getEyePos();
         }
         return entity.getPos().add(0.0, entity.getHeight() * 0.85, 0.0);
+    }
+
+    /**
+     * Convert a definition offset from head-relative space to world space.
+     * offset.x = right, offset.y = head-up, offset.z = behind.
+     */
+    static Vec3d computeHeadRelativeOffset(LivingEntity entity, Vec3d offset) {
+        float yawRad = (float) Math.toRadians(entity.getHeadYaw());
+        float pitchRad = (float) Math.toRadians(entity.getPitch());
+
+        Vec3d forward = new Vec3d(
+            -Math.sin(yawRad) * Math.cos(pitchRad),
+            -Math.sin(pitchRad),
+            Math.cos(yawRad) * Math.cos(pitchRad)
+        ).normalize();
+
+        Vec3d worldUp = new Vec3d(0, 1, 0);
+        Vec3d right;
+        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
+            right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
+        } else {
+            right = worldUp.crossProduct(forward).normalize();
+        }
+        Vec3d headUp = forward.crossProduct(right).normalize();
+        Vec3d behind = forward.multiply(-1);
+
+        return right.multiply(offset.x)
+            .add(headUp.multiply(offset.y))
+            .add(behind.multiply(offset.z));
     }
 
     /**

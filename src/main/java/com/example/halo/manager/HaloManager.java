@@ -2,6 +2,7 @@ package com.example.halo.manager;
 
 import com.example.halo.HaloMod;
 import com.example.halo.config.HaloConfig;
+import com.example.halo.data.HaloDampingConfig;
 import com.example.halo.data.HaloDefinition;
 import com.example.halo.data.HaloEntityData;
 import com.example.halo.data.HaloInstance;
@@ -126,10 +127,18 @@ public final class HaloManager {
                 continue;
             }
 
+            // Look up definition for positioning offset and damping params
+            HaloDefinition def = HaloJsonLoader.getDefinition(instance.getDefinitionId()).orElse(null);
+            Vec3d defOffset = def != null ? def.positioning().offset() : Vec3d.ZERO;
+            HaloDampingConfig damping = def != null ? def.damping() : config.toDampingConfig();
+
+            // Compute absolute target: head anchor + head-relative offset
             Vec3d anchorPos = getHeadAnchorPosition(entity);
-            // getRelativePosition() is stored as world-space inside tickDamping(),
-            // so pass it directly as the halo centre (no need to re-add anchorPos).
-            instance.tickDamping(anchorPos, instance.getRelativePosition(), config.toDampingConfig());
+            Vec3d headRelOffset = computeHeadRelativeOffset(entity, defOffset);
+            Vec3d target = anchorPos.add(headRelOffset);
+
+            // Tick damping toward the absolute target position
+            instance.tickDamping(target, instance.getRelativePosition(), damping);
         }
     }
 
@@ -228,6 +237,35 @@ public final class HaloManager {
             return player.getEyePos();
         }
         return entity.getPos().add(0, entity.getHeight() * 0.85, 0);
+    }
+
+    /**
+     * Convert a definition offset from head-relative space to world space.
+     * offset.x = right, offset.y = head-up, offset.z = behind.
+     */
+    private static Vec3d computeHeadRelativeOffset(LivingEntity entity, Vec3d offset) {
+        float yawRad = (float) Math.toRadians(entity.getHeadYaw());
+        float pitchRad = (float) Math.toRadians(entity.getPitch());
+
+        Vec3d forward = new Vec3d(
+            -Math.sin(yawRad) * Math.cos(pitchRad),
+            -Math.sin(pitchRad),
+            Math.cos(yawRad) * Math.cos(pitchRad)
+        ).normalize();
+
+        Vec3d worldUp = new Vec3d(0, 1, 0);
+        Vec3d right;
+        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
+            right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
+        } else {
+            right = worldUp.crossProduct(forward).normalize();
+        }
+        Vec3d headUp = forward.crossProduct(right).normalize();
+        Vec3d behind = forward.multiply(-1);
+
+        return right.multiply(offset.x)
+            .add(headUp.multiply(offset.y))
+            .add(behind.multiply(offset.z));
     }
 
     /**

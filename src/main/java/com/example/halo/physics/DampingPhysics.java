@@ -54,12 +54,12 @@ public final class DampingPhysics {
             return Vec3d.ZERO;
         }
 
-        // Relative offset from the previous frame
-        Vec3d offset = state.prevRelativePosition;
-
-        // Damping blend: new = current + k * prevRelPos
+        // Exponential convergence: damped = k * current + (1-k) * target
+        // where k = 1 − linearFactor.  Each tick the offset shrinks toward
+        // the target by factor k.  With linearFactor=0.15 → k=0.85,
+        // the offset shrinks to 85% of its value each tick.
         double k = 1.0 - damping.linearFactor();
-        Vec3d damped = current.add(offset.multiply(k));
+        Vec3d damped = current.multiply(k).add(target.multiply(1.0 - k));
 
         // Hard-clamp to max distance (prevent runaway drift)
         double distance = damped.length();

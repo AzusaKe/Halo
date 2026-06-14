@@ -128,22 +128,30 @@ public class HaloInstance {
     /**
      * Advance damping physics by one tick.
      *
-     * @param anchorPos  world-space position of the entity head anchor
-     * @param haloCenter current world-space halo centre
-     * @param damping    damping configuration for this halo definition
+     * @param target     world-space position the halo should converge toward
+     *                   (entity head anchor + head-relative offset)
+     * @param haloCenter current world-space halo centre (previous tick's stored position)
+     * @param damping    damping configuration for this halo
      */
-    public void tickDamping(Vec3d anchorPos, Vec3d haloCenter, HaloDampingConfig damping) {
-        // Position damping
-        Vec3d currentRel = haloCenter.subtract(anchorPos);
+    public void tickDamping(Vec3d target, Vec3d haloCenter, HaloDampingConfig damping) {
+        // Position damping: offset from target shrinks by factor k each tick
+        Vec3d offsetFromTarget = haloCenter.subtract(target);
         boolean wasSnap = dampingState.isNeedsSnap();
-        Vec3d newRel = DampingPhysics.computeDampedPosition(
-            currentRel, Vec3d.ZERO, damping, dampingState
+        Vec3d dampedOffset = DampingPhysics.computeDampedPosition(
+            offsetFromTarget, Vec3d.ZERO, damping, dampingState
         );
-        boolean didSnap = wasSnap && !dampingState.isNeedsSnap(); // consumed this tick
+        boolean didSnap = wasSnap && !dampingState.isNeedsSnap();
 
-        // Convert back to world-space and store
+        // Store absolute world-space halo position
         this.prevRelativePosition = this.relativePosition;
-        this.relativePosition = anchorPos.add(newRel);
+        this.relativePosition = target.add(dampedOffset);
+
+        // After a snap (first spawn or teleport), prev and current may be
+        // thousands of blocks apart, causing interpolation to sweep across
+        // the map.  Equalise them so the renderer shows a single stable position.
+        if (didSnap || this.prevRelativePosition.lengthSquared() < 0.001) {
+            this.prevRelativePosition = this.relativePosition;
+        }
 
         if (didSnap && com.example.halo.lifecycle.EntityHaloTracker.isDebugMode()) {
             var srv = com.example.halo.lifecycle.EntityHaloTracker.getServer();
