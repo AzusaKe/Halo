@@ -23,16 +23,16 @@ import org.joml.Quaternionf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.*;
 import java.util.UUID;
 
 /**
- * Renders halo billboards on entity heads using OpenGL.
+ * Renders halo billboards on entity heads.
  *
- * <p>Each halo is drawn as a camera-facing textured quad (billboard) with an
- * optional additive glow layer.  Positions and rotations are frame-interpolated
- * via {@link HaloInstance#getInterpolatedPosition(double)} and
- * {@link HaloInstance#getInterpolatedRotation(double)} for smooth motion
- * independent of frame rate.</p>
+ * <p>Position is computed EVERY FRAME (not per-tick) using the entity's
+ * interpolated position and head orientation.  Frame-rate-independent
+ * exponential damping provides smooth follow behaviour.  The halo is
+ * clamped to never exceed {@code maxLinearDistance} from its target.</p>
  */
 public final class HaloRenderer {
 
@@ -45,19 +45,19 @@ public final class HaloRenderer {
     private int renderedCount;
     private long lastLogTime;
     private boolean firstRenderLogged;
-    private static final long LOG_INTERVAL_MS = 3000; // log summary every 3 s
+    private static final long LOG_INTERVAL_MS = 3000;
 
-    /**
-     * Toggle to enable debug rendering overrides.
-     * When {@code true}: depth test and face culling are disabled,
-     * the quad is drawn 5× larger, and magenta fallback is always used.
-     * Set to {@code false} for normal gameplay.
-     */
     public static final boolean DEBUG_RENDERING = false;
 
-    private HaloRenderer() {
-        // singleton
-    }
+    // ---- per-frame state (replaces per-tick physics for rendering) ----
+    /** Previous frame halo world position, keyed by entity UUID. */
+    private final Map<UUID, Vec3d> prevFramePos = new HashMap<>();
+    /** Timestamp (nanoTime) of the previous render frame. */
+    private long prevFrameNanos;
+    /** Whether we have seen at least one frame. */
+    private boolean firstFrame = true;
+
+    private HaloRenderer() { /* singleton */ }
 
     public static HaloRenderer getInstance() {
         return INSTANCE;
@@ -103,9 +103,26 @@ public final class HaloRenderer {
             renderedCount = 0;
         }
 
+        // Clean stale entries from prevFramePos
+        Set<UUID> activeUuids = new HashSet<>();
+        for (HaloInstance inst : visible) activeUuids.add(inst.getEntityUuid());
+        prevFramePos.keySet().retainAll(activeUuids);
+
+        // Compute frame delta once (shared by all halos this frame)
+        long frameNanos = System.nanoTime();
+        double dt;
+        if (firstFrame) {
+            dt = 0.0;
+            firstFrame = false;
+        } else {
+            dt = (frameNanos - prevFrameNanos) / 1_000_000_000.0;
+            dt = Math.max(0.001, Math.min(dt, 0.1)); // 1ms–100ms
+        }
+        prevFrameNanos = frameNanos;
+
         for (HaloInstance instance : visible) {
             try {
-                if (renderSingleHalo(instance, matrices, camera, tickDelta, client)) {
+                if (renderSingleHalo(instance, matrices, camera, tickDelta, client, dt)) {
                     renderedCount++;
                 }
             } catch (Exception e) {
@@ -123,7 +140,8 @@ public final class HaloRenderer {
      * @return {@code true} if the halo was actually drawn
      */
     private boolean renderSingleHalo(HaloInstance instance, MatrixStack matrices,
-                                      Camera camera, float tickDelta, MinecraftClient client) {
+                                      Camera camera, float tickDelta, MinecraftClient client,
+                                      double dt) {
         // ---- resolve entity ----
         LivingEntity entity = findEntityByUuid(client, instance.getEntityUuid());
         if (entity == null) {
@@ -141,34 +159,54 @@ public final class HaloRenderer {
             return false;
         }
 
-        // ---- compute world-space halo centre ----
-        // Physics stores the absolute world-space halo position
-        // (anchor + damped offset + head-relative offset).
-        Vec3d haloWorldPos = instance.getInterpolatedPosition(tickDelta);
-        Vec3d headAnchor = getHeadAnchorPosition(entity);
+        // === FRAME-BASED halo position (no per-tick physics dependency) ===
 
-        if (haloWorldPos.lengthSquared() < 0.001) {
-            // Physics hasn't initialised yet — use head anchor
-            haloWorldPos = headAnchor;
-        }
+        // 1. Interpolated entity state (frame-accurate, not tick-accurate)
+        Vec3d headAnchor = getInterpolatedHeadAnchor(entity, tickDelta);
+        float yaw = getInterpolatedHeadYaw(entity, tickDelta);
+        float pitch = entity.prevPitch + (entity.getPitch() - entity.prevPitch) * tickDelta;
 
-        // ---- target = head anchor + head-relative offset ----
-        // Compute target so we can clamp to it (not just to head anchor).
-        Vec3d headRelOffset = computeHeadRelativeOffset(
+        // 2. Target position: head anchor + head-relative offset
+        Vec3d headRelOffset = computeHeadRelativeOffset(yaw, pitch,
             entity, def.positioning().offset());
         Vec3d targetPos = headAnchor.add(headRelOffset);
 
-        // ---- clamp: halo must NEVER be more than maxDist from TARGET ----
-        // Physics clamps per-tick, but interpolation between ticks can
-        // produce intermediate positions that exceed the limit.
-        double distToTarget = haloWorldPos.distanceTo(targetPos);
+        // 3. Previous frame position (or snap to target on first frame)
+        UUID uuid = instance.getEntityUuid();
+        Vec3d prevPos = prevFramePos.get(uuid);
+        if (prevPos == null) {
+            prevPos = targetPos; // snap on first frame
+        }
+
+        // 5. Frame-rate-independent exponential damping
+        //    At 20 TPS: factor = 1-(1-linearFactor)^1 = linearFactor
+        //    At 60 FPS: factor = 1-(1-linearFactor)^(1/3) ≈ linearFactor/3
+        double smooth = def.damping().linearFactor();
+        smooth = Math.max(0.001, Math.min(smooth, 0.999)); // avoid degenerate values
+        double exp = dt * 20.0; // scale to 20-TPS-equivalent
+        double factor = 1.0 - Math.pow(1.0 - smooth, exp);
+        if (factor > 1.0) factor = 1.0;
+
+        Vec3d haloWorldPos = prevPos.add(targetPos.subtract(prevPos).multiply(factor));
+
+        // 6. Clamp: never exceed maxLinearDistance from target
+        double dist = haloWorldPos.distanceTo(targetPos);
         double maxDist = def.damping().maxLinearDistance();
-        if (distToTarget > maxDist + 0.001) {
+        if (dist > maxDist) {
+            // Throttled log for debugging clamp behaviour
+            if (frameCount % 60 == 0) {
+                LOG.info(String.format(
+                    "[HaloRenderer] CLAMP dist=%.2f > maxDist=%.2f | target=%s prev=%s factor=%.4f dt=%.4f",
+                    dist, maxDist, targetPos, prevPos, factor, dt));
+            }
             Vec3d dir = haloWorldPos.subtract(targetPos).normalize();
             haloWorldPos = targetPos.add(dir.multiply(maxDist));
         }
 
-        // Normal: from ACTUAL halo position toward head centre
+        // 7. Store for next frame
+        prevFramePos.put(uuid, haloWorldPos);
+
+        // 8. Normal: from ACTUAL halo position toward head centre
         Vec3d toHead = headAnchor.subtract(haloWorldPos).normalize();
 
         // ---- camera-relative translation ----
@@ -418,22 +456,39 @@ public final class HaloRenderer {
     // ------------------------------------------------------------------
 
     /**
-     * Compute the world-space anchor point for a halo on the given entity.
+     * Interpolated head anchor position (frame-accurate).
      */
-    static Vec3d getHeadAnchorPosition(LivingEntity entity) {
+    private static Vec3d getInterpolatedHeadAnchor(LivingEntity entity, float tickDelta) {
+        double x = entity.prevX + (entity.getX() - entity.prevX) * tickDelta;
+        double y = entity.prevY + (entity.getY() - entity.prevY) * tickDelta;
+        double z = entity.prevZ + (entity.getZ() - entity.prevZ) * tickDelta;
         if (entity instanceof PlayerEntity player) {
-            return player.getEyePos();
+            return new Vec3d(x, y + player.getStandingEyeHeight(), z);
         }
-        return entity.getPos().add(0.0, entity.getHeight() * 0.85, 0.0);
+        return new Vec3d(x, y + entity.getHeight() * 0.85, z);
     }
 
     /**
-     * Convert a definition offset from head-relative space to world space.
-     * offset.x = right, offset.y = head-up, offset.z = behind.
+     * Interpolated head yaw (frame-accurate).
      */
-    static Vec3d computeHeadRelativeOffset(LivingEntity entity, Vec3d offset) {
-        float yawRad = (float) Math.toRadians(entity.getHeadYaw());
-        float pitchRad = (float) Math.toRadians(entity.getPitch());
+    private static float getInterpolatedHeadYaw(LivingEntity entity, float tickDelta) {
+        float prev = entity.prevHeadYaw;
+        float curr = entity.headYaw;
+        // Handle angle wrapping
+        float diff = curr - prev;
+        if (diff > 180f) diff -= 360f;
+        if (diff < -180f) diff += 360f;
+        return prev + diff * tickDelta;
+    }
+
+    /**
+     * Convert a definition offset from head-relative space to world space,
+     * using the given interpolated yaw and pitch.
+     */
+    static Vec3d computeHeadRelativeOffset(float yawDeg, float pitchDeg,
+                                            LivingEntity entity, Vec3d offset) {
+        float yawRad = (float) Math.toRadians(yawDeg);
+        float pitchRad = (float) Math.toRadians(pitchDeg);
 
         Vec3d forward = new Vec3d(
             -Math.sin(yawRad) * Math.cos(pitchRad),
