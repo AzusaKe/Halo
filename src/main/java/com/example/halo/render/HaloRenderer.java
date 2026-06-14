@@ -365,6 +365,12 @@ public final class HaloRenderer {
             if (DEBUG_RENDERING) {
                 RenderSystem.disableDepthTest();
                 RenderSystem.depthMask(false);
+            } else {
+                // Ensure halos participate in normal depth testing so they are
+                // properly occluded by walls, blocks, and other entities instead
+                // of rendering on top of everything.
+                RenderSystem.enableDepthTest();
+                RenderSystem.depthMask(true);
             }
 
             if (hasTexture) {
@@ -464,6 +470,12 @@ public final class HaloRenderer {
             if (DEBUG_RENDERING) {
                 RenderSystem.disableDepthTest();
                 RenderSystem.depthMask(false);
+            } else {
+                // Glow must be occluded by walls, but additive blending means
+                // we must NOT write depth — otherwise the glow quad would block
+                // other translucent geometry rendered behind it.
+                RenderSystem.enableDepthTest();
+                RenderSystem.depthMask(false);
             }
 
             // Additive blending
@@ -490,9 +502,13 @@ public final class HaloRenderer {
 
             tessellator.draw();
 
+            // Restore depth state
             if (DEBUG_RENDERING) {
                 RenderSystem.depthMask(true);
                 RenderSystem.enableDepthTest();
+            } else {
+                // Restore depthMask to true (was set false for additive glow)
+                RenderSystem.depthMask(true);
             }
             RenderSystem.disableBlend();
         } finally {

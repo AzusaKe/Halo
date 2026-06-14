@@ -29,13 +29,13 @@
     ]
   },
   "positioning": {
-    "offset": [0.0, 0.3, 0.5],
+    "offset": [0.0, 0.4, 0.35],
     "scale": 1.0
   },
   "damping": {
     "linearFactor": 0.15,
     "angularFactor": 0.1,
-    "maxLinearDistance": 1.0,
+    "maxLinearDistance": 0.5,
     "maxAngularDegrees": 180.0
   }
 }
