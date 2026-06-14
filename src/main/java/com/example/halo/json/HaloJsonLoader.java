@@ -33,17 +33,16 @@ public final class HaloJsonLoader {
     }
 
     /**
-     * Register resource reload listeners for both server data and client resources.
-     * Safe to call more than once — subsequent calls are no-ops.
+     * Register resource reload listener for server data packs.
+     * <p>Halo definitions live under {@code data/&lt;ns&gt;/halo_definitions/}
+     * and are loaded by the server-side resource manager.</p>
+     * <p>Safe to call more than once — subsequent calls are no-ops.</p>
      */
     public static void register() {
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new ServerListener());
 
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
-            .registerReloadListener(new ClientListener());
-
-        LOG.info("HaloJsonLoader registered for SERVER_DATA and CLIENT_RESOURCES");
+        LOG.info("HaloJsonLoader registered for SERVER_DATA");
     }
 
     /**
@@ -67,7 +66,6 @@ public final class HaloJsonLoader {
     private static void reload(ResourceManager manager) {
         DEFINITIONS.clear();
 
-        Identifier scanRoot = new Identifier(HaloMod.MOD_ID, DEFINITIONS_PATH);
         Map<Identifier, net.minecraft.resource.Resource> resources = manager.findResources(
             DEFINITIONS_PATH,
             id -> id.getPath().endsWith(".json")
@@ -98,19 +96,7 @@ public final class HaloJsonLoader {
     private static class ServerListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "halo_definitions_server");
-        }
-
-        @Override
-        public void reload(ResourceManager manager) {
-            HaloJsonLoader.reload(manager);
-        }
-    }
-
-    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "halo_definitions_client");
+            return new Identifier(HaloMod.MOD_ID, "halo_definitions");
         }
 
         @Override

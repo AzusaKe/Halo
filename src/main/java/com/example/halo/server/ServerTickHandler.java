@@ -44,8 +44,8 @@ public class ServerTickHandler implements ServerTickEvents.EndTick {
             );
         }
 
-        // Future entry-points (uncomment as tasks are completed):
-        //   HaloManager.getInstance().tick(server);
+        // Halo physics is driven by HaloTickHandler (calls HaloManager.tickAll).
+        // This handler remains as a lightweight heartbeat / tracer.
     }
 
     /**

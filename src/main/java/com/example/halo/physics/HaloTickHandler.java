@@ -1,6 +1,7 @@
 package com.example.halo.physics;
 
 import com.example.halo.HaloMod;
+import com.example.halo.manager.HaloManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 
@@ -9,8 +10,9 @@ import net.minecraft.server.MinecraftServer;
  *
  * <p>Registered as a {@link ServerTickEvents.EndTick} listener so damping
  * calculations run once per server tick <em>after</em> entity movement has
- * been processed.  Each loaded halo instance has its
- * {@link com.example.halo.data.HaloInstance#tickDamping} method called.</p>
+ * been processed.  Delegates to {@link HaloManager#tickAll} which iterates
+ * every active {@link com.example.halo.data.HaloInstance} and calls
+ * {@link com.example.halo.data.HaloInstance#tickDamping}.</p>
  *
  * <p>Registration is a one-liner:</p>
  * <pre>{@code
@@ -37,14 +39,6 @@ public class HaloTickHandler implements ServerTickEvents.EndTick {
 
     @Override
     public void onEndTick(MinecraftServer server) {
-        // TODO: Iterate all active HaloInstances and call tickDamping().
-        //       Requires HaloManager (future task).
-        //
-        //   HaloManager.getInstance().forEachActive((instance, entity) -> {
-        //       Vec3d anchorPos = entity.getEyePos();
-        //       Vec3d haloCenter = instance.getRelativePosition().add(anchorPos);
-        //       HaloDampingConfig damping = getDefinition(instance).damping();
-        //       instance.tickDamping(anchorPos, haloCenter, damping);
-        //   });
+        HaloManager.getInstance().tickAll(server);
     }
 }

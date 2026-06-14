@@ -1,6 +1,7 @@
 package com.example.halo.server;
 
 import com.example.halo.HaloMod;
+import com.example.halo.manager.HaloManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -44,7 +45,7 @@ public final class HaloServerEvents {
                 "HaloServerEvents: entity unloaded – uuid={}, type={}",
                 entity.getUuid(), entity.getType().getName().getString()
             );
-            // Future: HaloManager.removeHalo(entity.getUuid())
+            HaloManager.getInstance().removeHalo(entity.getUuid());
         });
     }
 
@@ -54,7 +55,7 @@ public final class HaloServerEvents {
                 "HaloServerEvents: player disconnected – uuid={}, name={}",
                 handler.getPlayer().getUuid(), handler.getPlayer().getName().getString()
             );
-            // Future: HaloManager.removeHalo(handler.getPlayer().getUuid())
+            HaloManager.getInstance().removeHalo(handler.getPlayer().getUuid());
         });
     }
 }
