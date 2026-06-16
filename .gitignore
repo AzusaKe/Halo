@@ -42,3 +42,7 @@ gradle-local.properties
 # vibe coding utils
 skills/
 task/
+
+# halo model file that may trigger copy protection
+shiroko.png
+shiroko.json
