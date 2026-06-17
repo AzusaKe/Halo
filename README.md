@@ -8,55 +8,60 @@ English | [中文](README_ZH.md)
 
 ## Table of Contents
 
-- [Introduction](#introduction)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Commands](#commands)
-  - [Custom Halo Definitions](#custom-halo-definitions)
-- [Building from Source](#building-from-source)
-  - [Prerequisites](#prerequisites)
-  - [Build](#build)
-  - [Run Tests](#run-tests)
-  - [Run Client / Server](#run-client--server)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
+- [Halo Mod](#halo-mod)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Features](#features)
+  - [Installation](#installation)
+  - [Usage](#usage)
+    - [Commands](#commands)
+    - [Custom Halo Definitions](#custom-halo-definitions)
+  - [Building from Source](#building-from-source)
+    - [Prerequisites](#prerequisites)
+    - [Build](#build)
+    - [Run Tests](#run-tests)
+    - [Run Client / Server](#run-client--server)
+  - [Project Structure](#project-structure)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 <a id="introduction"></a>
 
 ## Introduction
 
-**Halo** is a Fabric mod for Minecraft 1.20.1 that renders decorative ring-shaped billboards (called "halos") above entities' heads. Halos are smooth, configurable, persistent, and fully command-driven — no GUI required.
+**Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
+Currently only available in Minecraft 1.20.1 with Fabric.
 
-> The halo uses frame-rate-independent exponential damping physics, so it smoothly trails the entity's head movement instead of being stiffly glued to it. It survives world reloads, server restarts, and even teleports instantly snap into position.
+> **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
+
+> Halos use frame-rate-independent discrete position tracking with configurable follow speed and maximum distance clamping. Position resets after entity teleportation.
 
 <a id="features"></a>
 
 ## Features
 
-- [x] **Command-Driven**: Full `/halo` command tree with tab completion — attach, detach, configure, inspect, and list halos, all from chat.
-- [x] **Smooth Damping Physics**: Frame-rate-independent exponential damping for both position and rotation. Configurable linear/angular follow speed, max distance, and hard-clamping limits.
-- [x] **Persistent**: Halos survive world reloads and server restarts via entity NBT and world persistent state. Automatic restoration on entity load.
-- [x] **Teleport-Aware**: When the entity teleports (or crosses dimensions), the halo instantly snaps to the new position — no sliding across the map.
-- [x] **Glow-Capable**: Each halo can have an optional additive-blended glow layer with pulsing alpha animation.
-- [x] **Animated**: Halo definitions support position animation curves (oscillate, linear, constant) and rotation animation curves (continuous spin, etc.).
-- [x] **Runtime Configurable**: Damping factor, max distance, scale, position offset, and rotation offset can all be changed live with `/halo config`.
-- [x] **Resource-Pack Friendly**: Halo definitions are JSON files loaded from `assets/<namespace>/halo_definitions/`. Add new halos via resource packs or data packs and run `/reload`.
-- [x] **Multi-Layer Shapes**: Beyond single billboards, halos can use `MultiBillboardShape` for layered quad effects.
-- [x] **Distance Culling**: Halos beyond 1000 blocks from the camera are automatically skipped for performance.
+- [x] **Command-Driven**: Full `/halo` command tree with tab completion — attach, remove, configure, inspect, and list halos all from chat. See details below.
+- [x] **Smooth Damping Physics**: Frame-rate-independent exponential damping for position and rotation. Configurable linear/angular follow speed and maximum distance clamping.
+- [x] **Persistent**: Halos survive world reloads and server restarts through entity NBT and world persistent state. Automatically restored on entity load.
+- [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
+- [x] **Glow Effects**: Each halo can have an optional additive-blended glow layer with pulsing alpha animation.
+- [x] **Animation Support**: Halo definitions support position animation curves (oscillate, linear, constant) and rotation animation curves (continuous spin, etc.). **This feature is still in planning, with model support and more animations to be added.**
+- [x] **Runtime Configuration**: Damping factors, maximum distance, scale, position offset, and rotation offset can all be modified live via `/halo config`. **Note: Currently cannot configure these parameters for specific individuals and halos. Please manually adjust the individual halo definition file (JSON format) if needed.**
+- [x] **Resource Pack Friendly**: Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`. Add new halos via resource packs or data packs and run `/reload` to take effect. **The structure of data packs and resource packs is not yet finalized.**
+- [x] **Multi-Layer Shapes**: Beyond single billboards, halos can use `MultiBillboardShape` for layered quad effects. **More customization features coming soon!**
+- [x] **Distance Culling**: Halos beyond 1000 blocks from the camera are automatically skipped for performance optimization.
 
 <a id="installation"></a>
 
 ## Installation
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.20.1.
-2. Download the [Fabric API](https://modrinth.com/mod/fabric-api) (0.92.0+ for 1.20.1).
-3. Download the latest **Halo** mod JAR from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
-4. Place both JARs into the `mods` folder of your Minecraft installation directory.
+2. Download [Fabric API](https://modrinth.com/mod/fabric-api) (version 0.92.0+ for 1.20.1).
+3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
+4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
 5. Launch Minecraft with the Fabric profile.
 
-> **Multiplayer**: Install the mod on both the server and all clients that need to see halos. The halo state (which entity has which halo) is server-authoritative; rendering is client-side.
+> **Multiplayer**: Install this mod on both the server and all clients that need to see halos. The halo state (which entity has which halo) is managed server-side; rendering is done client-side.
 
 <a id="usage"></a>
 
@@ -68,23 +73,23 @@ English | [中文](README_ZH.md)
 
 All commands require permission level 2 (operator). Use `/halo` with tab completion to explore available subcommands.
 
-| Command | Description |
-|---|---|
-| `/halo list` | List all loaded halo definitions |
-| `/halo dump` | Detailed dump of definitions with shape, animation, and damping info |
-| `/halo show <entity> <definition>` | Attach a halo to an entity |
-| `/halo hide <entity>` | Remove a halo from an entity |
-| `/halo active` | List all entities currently wearing a halo |
-| `/halo inspect <entity>` | Detailed per-entity halo runtime status |
-| `/halo config linear-damping <0-1>` | Set linear follow speed (0 = frozen, 1 = instant) |
-| `/halo config angular-damping <0-1>` | Set angular follow speed |
-| `/halo config max-linear-distance <n>` | Set max distance before hard-clamping (blocks) |
-| `/halo config max-angular-degrees <n>` | Set max angular deviation (degrees) |
-| `/halo config scale <0.1-5.0>` | Set uniform scale multiplier |
-| `/halo save` | Sync halo data to world persistence and trigger save-all |
-| `/halo debug <true/false>` | Toggle teleport/snap debug logging to chat |
-| `/halo reload` | Hint to use `/reload` to reload halo definitions |
-| `/halo config reload` | Reload halo definitions from resource/data packs |
+| Command                                | Description                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `/halo list`                           | List all loaded halo definitions                                                 |
+| `/halo dump`                           | Detailed output of halo definitions including shape, animation, and damping info |
+| `/halo show <entity> <definition>`     | Attach a halo to an entity                                                       |
+| `/halo hide <entity>`                  | Remove a halo from an entity                                                     |
+| `/halo active`                         | List all entities currently wearing a halo                                       |
+| `/halo inspect <entity>`               | View detailed runtime status of an entity's halo                                 |
+| `/halo config linear-damping <0-1>`    | Set linear follow speed (0 = no follow, 1 = instant follow)                      |
+| `/halo config angular-damping <0-1>`   | Set angular follow speed                                                         |
+| `/halo config max-linear-distance <n>` | Set maximum distance before hard clamping (blocks)                               |
+| `/halo config max-angular-degrees <n>` | Set maximum angular deviation (degrees)                                          |
+| `/halo config scale <0.1-5.0>`         | Set uniform scale multiplier                                                     |
+| `/halo save`                           | Sync halo data to world persistence and trigger save-all                         |
+| `/halo debug <true/false>`             | Toggle teleport/snap debug logging to chat                                       |
+| `/halo reload`                         | Hint to use `/reload` to reload halo definitions                                 |
+| `/halo config reload`                  | Reload halo definitions from resource/data packs                                 |
 
 **Examples:**
 
@@ -98,11 +103,11 @@ All commands require permission level 2 (operator). Use `/halo` with tab complet
 # Remove your halo
 /halo hide @s
 
-# Make halos respond faster
+# Make the halo respond faster
 /halo config linear-damping 0.3
 /halo config angular-damping 0.2
 
-# Make the halo render larger
+# Render the halo larger
 /halo config scale 1.5
 ```
 
@@ -110,9 +115,11 @@ All commands require permission level 2 (operator). Use `/halo` with tab complet
 
 ### Custom Halo Definitions
 
-Halo definitions are JSON files placed under `assets/<namespace>/halo_definitions/` (resource pack) or `data/<namespace>/halo_definitions/` (data pack).
+> **This section will be updated**
 
-**Example definition** (`ring_default.json`):
+Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/` (resource packs) or `data/<namespace>/halo_definitions/` (data packs).
+
+**Definition Example** (`ring_default.json`):
 
 ```json
 {
@@ -124,11 +131,9 @@ Halo definitions are JSON files placed under `assets/<namespace>/halo_definition
   },
   "animation": {
     "positionCurves": [
-      {"type": "oscillate", "axis": "Y", "amplitude": 0.05, "frequency": 1.0}
+      { "type": "oscillate", "axis": "Y", "amplitude": 0.05, "frequency": 1.0 }
     ],
-    "rotationCurves": [
-      {"type": "spin", "axis": "Z", "speed": 30.0}
-    ]
+    "rotationCurves": [{ "type": "spin", "axis": "Z", "speed": 30.0 }]
   },
   "positioning": {
     "offset": [0.0, 0.2, 0.5],
@@ -143,22 +148,22 @@ Halo definitions are JSON files placed under `assets/<namespace>/halo_definition
 }
 ```
 
-| Field | Description |
-|---|---|
-| `id` | Unique identifier in `namespace:name` format |
-| `shape.type` | `billboard` (single quad) or `multi_billboard` (layered quads) |
-| `shape.texture` | Texture path relative to `assets/` |
-| `shape.size` | `[width, height]` in blocks |
-| `animation.positionCurves` | Array of position animations (`oscillate`, `linear`, `constant`) |
-| `animation.rotationCurves` | Array of rotation animations (`spin`, etc.) |
-| `positioning.offset` | `[X, Y, Z]` offset from entity head in blocks |
-| `positioning.scale` | Default scale multiplier |
-| `damping.linearFactor` | Linear interpolation speed per tick at 20 TPS (0 = frozen, 1 = instant) |
-| `damping.angularFactor` | Angular interpolation speed (same range) |
-| `damping.maxLinearDistance` | Maximum distance in blocks before hard-clamping |
-| `damping.maxAngularDegrees` | Maximum angular deviation in degrees |
+| Field                       | Description                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `id`                        | Unique identifier in format `namespace:name`                                      |
+| `shape.type`                | `billboard` (single quad) or `multi_billboard` (layered quads)                    |
+| `shape.texture`             | Texture path relative to `assets/`                                                |
+| `shape.size`                | `[width, height]` in blocks                                                       |
+| `animation.positionCurves`  | Array of position animations (`oscillate`, `linear`, `constant`)                  |
+| `animation.rotationCurves`  | Array of rotation animations (`spin`, etc.)                                       |
+| `positioning.offset`        | `[X, Y, Z]` offset relative to entity head (blocks)                               |
+| `positioning.scale`         | Default scale multiplier                                                          |
+| `damping.linearFactor`      | Linear interpolation speed per tick at 20 TPS (0 = no follow, 1 = instant follow) |
+| `damping.angularFactor`     | Angular interpolation speed (same range as above)                                 |
+| `damping.maxLinearDistance` | Hard clamp maximum distance (blocks)                                              |
+| `damping.maxAngularDegrees` | Maximum angular deviation (degrees)                                               |
 
-> After adding or modifying halo definitions, run `/reload` (or `/halo config reload`) to reload them.
+> After adding or modifying halo definitions, run `/reload` (or `/halo config reload`) to reload.
 
 <a id="building-from-source"></a>
 
@@ -168,8 +173,8 @@ Halo definitions are JSON files placed under `assets/<namespace>/halo_definition
 
 ### Prerequisites
 
-- **JDK 17** — required for Minecraft 1.20.1
-- An internet connection (Gradle downloads dependencies from Maven repositories)
+- **JDK 17** — Required for Minecraft 1.20.1
+- Internet connection (Gradle downloads dependencies from Maven repositories)
 
 <a id="build"></a>
 
@@ -181,7 +186,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR will be at `build/libs/halo-0.1.0.jar`.
+The compiled JAR file will be at `build/libs/halo-0.1.0.jar`.
 
 <a id="run-tests"></a>
 
@@ -199,7 +204,7 @@ The compiled JAR will be at `build/libs/halo-0.1.0.jar`.
 # Launch Minecraft client with the mod
 ./gradlew runClient
 
-# Launch a dedicated server with the mod
+# Launch dedicated server with the mod
 ./gradlew runServer
 ```
 
@@ -210,22 +215,22 @@ The compiled JAR will be at `build/libs/halo-0.1.0.jar`.
 ```
 src/main/
   java/com/example/halo/
-    HaloMod.java              — Mod initializer (server-side entry point)
-    HaloModClient.java         — Client initializer (client-side entry point)
+    HaloMod.java              — Mod initializer (server entry point)
+    HaloModClient.java         — Client initializer (client entry point)
     animation/                 — Animation curves (Linear, Oscillate, Constant)
     command/                   — /halo Brigadier command tree
-    config/                    — Runtime HaloConfig (damping, scale, offsets)
+    config/                    — Runtime HaloConfig (damping, scale, offset)
     data/                      — HaloDefinition, HaloInstance, HaloEntityData, etc.
-    json/                      — JSON deserializer and resource loader
+    json/                      — JSON deserializers and resource loaders
     lifecycle/                 — EntityHaloTracker, HaloWorldSaveData, event handlers
-    manager/                   — HaloManager (singleton, owns all active halos)
+    manager/                   — HaloManager (singleton managing all active halos)
     mixin/                     — EntityTeleportMixin, LivingEntityDataMixin
     physics/                   — DampingPhysics, HaloDampingState, HaloTickHandler
     render/                    — HaloRenderer, HaloClientManager, HaloRenderListener
     server/                    — HaloServerEvents, ServerTickHandler
     shape/                     — BillboardShape, MultiBillboardShape, GlowLayer
   resources/
-    fabric.mod.json            — Mod metadata (entrypoints, mixins, dependencies)
+    fabric.mod.json            — Mod metadata (entry points, mixins, dependencies)
     halo.mixins.json            — Mixin configuration
     assets/halo/
       halo_definitions/        — JSON halo definition files
@@ -236,10 +241,10 @@ src/main/
 
 ## Contributing
 
-Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please open an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
+Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please submit an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
 
-- **Environment**: Minecraft 1.20.1 + Fabric Loader 0.15+
-- **IDE**: IntelliJ IDEA (recommended, with Minecraft Development plugin) or VS Code
+- **Development Environment**: Minecraft 1.20.1 + Fabric Loader 0.15+
+- **IDE**: Recommended IntelliJ IDEA (with Minecraft Development plugin) or VS Code
 
 <a id="license"></a>
 
