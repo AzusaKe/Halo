@@ -10,6 +10,7 @@ name: Java CI with Gradle
 on:
   push:
     branches: ["main"]
+    tags: ["v*"]
   pull_request:
     branches: ["main"]
 
@@ -34,6 +35,25 @@ jobs:
 
       - name: Build with Gradle Wrapper
         run: ./gradlew build
+
+      # Upload JAR as workflow artifact (always available for download)
+      - name: Upload JAR artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Halo-Mod
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+      # Create GitHub Release when pushing a version tag (e.g. v0.1.0)
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/libs/*.jar
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   dependency-submission:
     runs-on: ubuntu-latest
