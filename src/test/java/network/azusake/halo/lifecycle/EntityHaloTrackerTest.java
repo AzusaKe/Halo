@@ -16,8 +16,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for {@link EntityHaloTracker}, {@link HaloEntityEventHandler},
- * and {@link HaloEntityData} — the entity lifecycle and NBT persistence layer.
+ * Unit tests for {@link EntityHaloTracker} and {@link HaloEntityData}
+ * — the entity lifecycle and NBT persistence layer.
  *
  * <p>These tests exercise the NBT round-trip, teleport marking/grace period,
  * position tracking, and cleanup logic <em>without</em> requiring a running
@@ -237,41 +237,42 @@ class EntityHaloTrackerTest {
     class PositionDetection {
 
         @Test
-        @DisplayName("movement > 20 blocks in one tick triggers teleport flag")
+        @DisplayName("movement > 1000 blocks in one tick triggers teleport flag")
         void testLargeMovementTriggersTeleport() {
             UUID uuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(uuid,
                 new Identifier("halo", "ring_default"));
             instance.setNeedsSnap(false);
 
-            // Simulate: entity was at (0,0,0), now at (50,0,0) — 50 block jump
-            double distanceSq = 50.0 * 50.0; // = 2500
-            double thresholdSq = 20.0 * 20.0; // = 400
+            // Simulate: entity was at (0,0,0), now at (2000,0,0) — 2000 block jump
+            // Threshold is 1000² as a last-resort safety net (primary detection is via mixin hooks)
+            double distanceSq = 2000.0 * 2000.0; // = 4,000,000
+            double thresholdSq = 1000.0 * 1000.0; // = 1,000,000
 
             assertTrue(distanceSq > thresholdSq,
-                "50-block jump must exceed the 20-block teleport threshold");
+                "2000-block jump must exceed the 1000-block teleport threshold");
 
-            // This is what HaloEntityEventHandler.onEntityMove checks
-            // If distance > threshold, markTeleport is called
+            // This mirrors the logic in EntityHaloTracker.onEndTick:
+            // if distance > threshold, markTeleport is called
             instance.markTeleported();
             assertTrue(instance.isNeedsSnap(),
-                ">20 block movement must trigger needsSnap");
+                ">1000 block movement must trigger needsSnap");
         }
 
         @Test
-        @DisplayName("movement ≤ 20 blocks does NOT trigger teleport flag")
+        @DisplayName("movement ≤ 1000 blocks does NOT trigger teleport flag")
         void testSmallMovementDoesNotTrigger() {
             UUID uuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(uuid,
                 new Identifier("halo", "ring_default"));
             instance.setNeedsSnap(false);
 
-            // Simulate: entity moved 5 blocks (normal walking)
-            double distanceSq = 5.0 * 5.0; // = 25
-            double thresholdSq = 20.0 * 20.0; // = 400
+            // Simulate: entity moved 50 blocks (normal fast travel)
+            double distanceSq = 50.0 * 50.0; // = 2500
+            double thresholdSq = 1000.0 * 1000.0; // = 1,000,000
 
             assertFalse(distanceSq > thresholdSq,
-                "5-block movement must NOT exceed the 20-block teleport threshold");
+                "50-block movement must NOT exceed the 1000-block teleport threshold");
 
             // No teleport → needsSnap stays false
             assertFalse(instance.isNeedsSnap(),
@@ -279,14 +280,14 @@ class EntityHaloTrackerTest {
         }
 
         @Test
-        @DisplayName("movement exactly 20 blocks does NOT trigger (boundary)")
+        @DisplayName("movement exactly 1000 blocks does NOT trigger (boundary)")
         void testBoundaryDistance() {
-            double distanceSq = 20.0 * 20.0; // exactly 400
-            double thresholdSq = 20.0 * 20.0; // = 400
+            double distanceSq = 1000.0 * 1000.0; // exactly 1,000,000
+            double thresholdSq = 1000.0 * 1000.0; // = 1,000,000
 
             // Strict inequality: > threshold triggers, == does not
             assertFalse(distanceSq > thresholdSq,
-                "exactly 20 block movement must NOT trigger (strict > check)");
+                "exactly 1000 block movement must NOT trigger (strict > check)");
         }
     }
 

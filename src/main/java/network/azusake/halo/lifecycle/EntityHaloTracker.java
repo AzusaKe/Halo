@@ -20,17 +20,64 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Per-entity halo lifecycle tracker.
  *
- * <p>Responsibilities:</p>
- * <ul>
- *   <li>Detect teleports (distance &gt; 20 blocks in one tick) and trigger damping snap.</li>
- *   <li>Clean up halos when entities die or unload.</li>
- *   <li>Restore halos from entity persistent NBT when an entity loads.</li>
- *   <li>Maintain a grace-period set so short-lived teleport markers don't leak.</li>
- * </ul>
+ * <h3>Teleport detection — two-tier strategy</h3>
  *
- * <p>Thread-safety: all shared maps use {@link ConcurrentHashMap}.  Fabric
- * events fire on the server thread, but the public static API is safe to
- * call from command handlers running on netty threads as well.</p>
+ * <p><b>Tier 1 — Mixin hooks (primary, precise):</b>
+ * {@link network.azusake.halo.mixin.EntityTeleportMixin} injects into
+ * {@code Entity.requestTeleport()} and {@code Entity.refreshPositionAfterTeleport()}
+ * — the two canonical teleport methods in the Minecraft {@code Entity} base class.
+ * Every vanilla teleport path ({@code /tp}, ender pearl, nether portal, chorus fruit,
+ * {@code /spreadplayers}, respawn, {@code /spectate}, boat dismount, dimension change,
+ * end gateway) funnels through one of these two methods, so the mixin captures all of them.
+ * When a teleport is detected, {@link #markTeleport(LivingEntity)} is called immediately,
+ * setting the {@code needsSnap} flag so the halo snaps to the new position on the next
+ * physics tick without any damping slide.</p>
+ *
+ * <p><b>Tier 2 — Position discontinuity check (safety net):</b>
+ * Each server tick, for every entity with an active halo, we compare its current
+ * world-space position against the previous tick's position. A jump larger than
+ * {@value #TELEPORT_DISTANCE_SQ} blocks² is treated as a teleport.
+ * This threshold is deliberately high ({@code 1000²}) — it should never trigger
+ * under normal vanilla gameplay; it exists solely as a last-resort safety net against
+ * other mods that might set entity positions directly without calling either of the
+ * canonical teleport methods.</p>
+ *
+ * <h3>Grace period</h3>
+ *
+ * <p>After a teleport is detected, the entity's UUID is stored in
+ * {@code recentlyTeleported} for {@value #TELEPORT_GRACE_PERIOD_MS} ms.
+ * This serves two purposes:</p>
+ * <ul>
+ *   <li>Display: {@code /halo list} and {@code /halo inspect} show a "tp" indicator
+ *       while the entity is within the grace period.</li>
+ *   <li>Debounce: prevents redundant snap triggers if multiple teleport hooks fire
+ *       for the same logical teleport (e.g. dimension changes may call both
+ *       {@code requestTeleport} and {@code refreshPositionAfterTeleport}).</li>
+ * </ul>
+ * <p>The grace period does <em>not</em> gate the snap itself — that is driven by
+ * {@link HaloInstance#markTeleported()} which fires immediately. Even if the grace
+ * period expires before the next physics tick (possible under low TPS), the snap
+ * has already been scheduled.</p>
+ *
+ * <p>The 250 ms value was chosen to comfortably survive a dimension change under
+ * 10 TPS (100 ms/tick) with margin for chunk-loading lag. It is long enough to
+ * debounce multi-hook teleports without being so long that the "tp" indicator
+ * overstays.</p>
+ *
+ * <h3>Thread safety</h3>
+ *
+ * <p>All shared maps use {@link ConcurrentHashMap}. Fabric events fire on the
+ * server thread, but the public static API is safe to call from command handlers
+ * running on netty threads as well.</p>
+ *
+ * <h3>Removed: HaloEntityEventHandler</h3>
+ *
+ * <p>The {@code HaloEntityEventHandler} class was an event-bridge layer intended
+ * to sit between Minecraft events and this tracker. It was never wired up — no
+ * code ever called {@code onEntityMove()}, {@code onEntityTeleport()}, or
+ * {@code onEntityRemove()}. The mixin hooks (Tier 1) and the per-tick position
+ * check (Tier 2) already covered everything it was designed to do. Removed in
+ * Phase 1 to eliminate dead code and the duplicate distance-threshold constant.</p>
  */
 public final class EntityHaloTracker {
 
@@ -41,18 +88,30 @@ public final class EntityHaloTracker {
     /** Entities that have teleported recently, with their teleport timestamp (epoch ms). */
     private static final Map<UUID, Long> recentlyTeleported = new ConcurrentHashMap<>();
 
-    /** How long (ms) after a teleport the entity is considered "still teleporting". */
-    private static final long TELEPORT_GRACE_PERIOD_MS = 100;
+    /**
+     * How long (ms) after a teleport the entity is considered "still teleporting".
+     *
+     * <p>250 ms gives ~2.5 ticks at 20 TPS, ~1 tick at 10 TPS — enough to survive
+     * dimension-change chunk loading while keeping the "tp" indicator short-lived.</p>
+     */
+    private static final long TELEPORT_GRACE_PERIOD_MS = 250;
 
     // ------------------------------------------------------------------
-    // Position tracking (for teleport detection)
+    // Position tracking (for teleport detection safety net)
     // ------------------------------------------------------------------
 
     /** Last known world-space position of each tracked entity. */
     private static final Map<UUID, Vec3d> lastKnownPositions = new ConcurrentHashMap<>();
 
-    /** Distance threshold squared (blocks²) for teleport detection. */
-    private static final double TELEPORT_DISTANCE_SQ = 20.0 * 20.0;
+    /**
+     * Distance threshold squared (blocks²) for teleport detection via position
+     * discontinuity. Set to 1000² as a last-resort safety net — the primary
+     * detection mechanism is the mixin hooks on {@code Entity.requestTeleport()}
+     * and {@code Entity.refreshPositionAfterTeleport()}. This threshold should
+     * never trigger under normal vanilla gameplay; it exists to catch teleports
+     * from other mods that bypass both canonical teleport methods.
+     */
+    private static final double TELEPORT_DISTANCE_SQ = 1000.0 * 1000.0;
 
     // ------------------------------------------------------------------
     // Registration flag (idempotent)
@@ -174,30 +233,6 @@ public final class EntityHaloTracker {
     }
 
     // ------------------------------------------------------------------
-    // Position tracking (package-private for HaloEntityEventHandler)
-    // ------------------------------------------------------------------
-
-    /**
-     * Update the stored position for an entity (called from the movement hook).
-     *
-     * @param entityUuid the entity UUID
-     * @param pos        current world-space position
-     */
-    static void updatePosition(UUID entityUuid, Vec3d pos) {
-        lastKnownPositions.put(entityUuid, pos);
-    }
-
-    /**
-     * Retrieve the last known position for an entity.
-     *
-     * @param entityUuid the entity UUID
-     * @return the last stored position, or {@code null} if never recorded
-     */
-    static Vec3d getLastKnownPosition(UUID entityUuid) {
-        return lastKnownPositions.get(entityUuid);
-    }
-
-    // ------------------------------------------------------------------
     // Internal helpers
     // ------------------------------------------------------------------
 
@@ -214,7 +249,7 @@ public final class EntityHaloTracker {
             now - timestamp > TELEPORT_GRACE_PERIOD_MS
         );
 
-        // ---- Position-based teleport detection ----
+        // ---- Position-based teleport detection (safety net) ----
         // Only check entities that currently have an active halo
         Map<UUID, HaloInstance> activeHalos = HaloManager.getInstance().getActiveHalos();
         if (activeHalos.isEmpty()) {
