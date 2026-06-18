@@ -55,6 +55,8 @@ public final class HaloRenderer {
     private long prevFrameNanos;
     /** Whether we have seen at least one frame. */
     private boolean firstFrame = true;
+    /** EMA-smoothed frame delta-time, to suppress nanoTime jitter. */
+    private double smoothedDt = -1;
 
     private HaloRenderer() { /* singleton */ }
 
@@ -83,17 +85,26 @@ public final class HaloRenderer {
             .collect(Collectors.toSet());
         frameCalculator.retainOnly(activeUuids);
 
-        // Compute frame delta once
+        // Compute frame delta with EMA smoothing to suppress nanoTime jitter
         long frameNanos = System.nanoTime();
-        double dt;
+        double rawDt;
         if (firstFrame) {
-            dt = 0.0;
+            rawDt = 0.0;
             firstFrame = false;
         } else {
-            dt = (frameNanos - prevFrameNanos) / 1_000_000_000.0;
-            dt = Math.max(0.001, Math.min(dt, 0.1));
+            rawDt = (frameNanos - prevFrameNanos) / 1_000_000_000.0;
+            rawDt = Math.max(0.001, Math.min(rawDt, 0.1));
         }
         prevFrameNanos = frameNanos;
+
+        // EMA smoothing: blend raw frame-time into a rolling average
+        if (smoothedDt < 0) {
+            smoothedDt = rawDt;
+        } else {
+            // Weight new frame at 20% — smooth but responsive
+            smoothedDt = smoothedDt * 0.8 + rawDt * 0.2;
+        }
+        final double dt = smoothedDt;
 
         for (HaloInstance instance : visible) {
             try {

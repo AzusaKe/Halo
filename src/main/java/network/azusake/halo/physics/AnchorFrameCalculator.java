@@ -43,11 +43,21 @@ public final class AnchorFrameCalculator {
     /** Reference tick duration in seconds (50 ms = 20 TPS). */
     private static final double REFERENCE_TICK = 0.05;
 
+    /**
+     * Angular damping factor for LOCKED-mode spin.
+     * High enough to follow the player's look responsively,
+     * but with enough smoothing to eliminate head-yaw noise.
+     */
+    private static final double LOCKED_ANGULAR_K = 0.5;
+
     // ---- per-frame position state ----
     private final Map<UUID, Vec3d> prevFramePos = new HashMap<>();
 
     // ---- per-instance rotation / spin damping state ----
     private final Map<UUID, HaloDampingState> rotationStates = new HashMap<>();
+
+    // ---- per-instance locked-spin quaternion (damped) ----
+    private final Map<UUID, Quaternionf> lockedSpinStates = new HashMap<>();
 
     private AnchorFrameCalculator() { /* singleton */ }
 
@@ -149,9 +159,32 @@ public final class AnchorFrameCalculator {
 
         switch (mode) {
             case LOCKED -> {
-                // Spin locked to player horizontal look direction
-                Quaternionf Q_spin = computeLockedSpin(Q_lookAt, toHead, playerLookDir);
-                worldOrientation = Q_spin.mul(Q_lookAt, new Quaternionf());
+                // Compute the ideal spin that would align +Z with player look
+                Quaternionf Q_target = computeLockedSpin(Q_lookAt, toHead, playerLookDir);
+
+                // Retrieve or initialise the damped locked-spin state
+                Quaternionf prevSpin = lockedSpinStates.get(uuid);
+                if (prevSpin == null || needsSnap) {
+                    prevSpin = new Quaternionf(); // identity — no spin offset
+                }
+                if (needsSnap) {
+                    // Snap to target immediately
+                    lockedSpinStates.put(uuid, new Quaternionf(Q_target));
+                    worldOrientation = Q_target.mul(Q_lookAt, new Quaternionf());
+                } else {
+                    // Frame-rate-independent slerp toward the target spin
+                    double spinExp = frameDt / REFERENCE_TICK;
+                    if (spinExp <= 0.0) spinExp = 1.0;
+                    if (spinExp > 10.0) spinExp = 10.0;
+                    double spinKF = 1.0 - Math.pow(1.0 - LOCKED_ANGULAR_K, spinExp);
+                    spinKF = Math.max(0.0, Math.min(1.0, spinKF));
+
+                    Quaternionf dampedSpin = new Quaternionf(prevSpin);
+                    dampedSpin.slerp(Q_target, (float) spinKF);
+
+                    lockedSpinStates.put(uuid, new Quaternionf(dampedSpin));
+                    worldOrientation = dampedSpin.mul(Q_lookAt, new Quaternionf());
+                }
                 worldForward = new Vec3d(0, 0, 1); // will be rotated below
             }
             case FREE -> {
@@ -196,6 +229,7 @@ public final class AnchorFrameCalculator {
     public void retainOnly(Set<UUID> activeUuids) {
         prevFramePos.keySet().retainAll(activeUuids);
         rotationStates.keySet().retainAll(activeUuids);
+        lockedSpinStates.keySet().retainAll(activeUuids);
     }
 
     // ------------------------------------------------------------------
