@@ -8,18 +8,18 @@
         "Azusa_Ke"
     ],
     "contact": {
-        "homepage": "https://github.com/example/halo",
-        "sources": "https://github.com/example/halo"
+        "homepage": "https://github.com/azusake/halo",
+        "sources": "https://github.com/azusake/halo"
     },
     "license": "MIT",
     "icon": "assets/halo/icon.png",
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.example.halo.HaloMod"
+            "network.azusake.halo.HaloMod"
         ],
         "client": [
-            "com.example.halo.HaloModClient"
+            "network.azusake.halo.HaloModClient"
         ]
     },
     "mixins": [
