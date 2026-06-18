@@ -2,16 +2,13 @@ package network.azusake.halo.manager;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.config.HaloConfig;
-import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
 
 import java.util.Collection;
 import java.util.Map;
@@ -25,9 +22,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Responsibilities:</p>
  * <ul>
  *   <li>Create / destroy {@link HaloInstance} objects via commands.</li>
- *   <li>Drive per-tick damping physics via {@link #tickAll(MinecraftServer)}.</li>
+ *   <li>Periodic entity cleanup via {@link #tickAll(MinecraftServer)} —
+ *       removes halos whose attached entity has died or despawned.</li>
  *   <li>Hold the shared {@link HaloConfig} that can be tuned in-game.</li>
  * </ul>
+ *
+ * <p>All pose computation and damping physics have moved to
+ * {@link network.azusake.halo.physics.HaloPoseCalculator} on the render
+ * thread.  The server tick no longer performs any damping — halos are a
+ * visual-only effect and do not need server-authoritative physics.</p>
  *
  * <p>Thread-safety: the active halo map uses {@link ConcurrentHashMap} so
  * command handlers (netty threads) and the server tick thread can both
@@ -41,12 +44,8 @@ public final class HaloManager {
     private final Map<UUID, HaloInstance> activeHalos = new ConcurrentHashMap<>();
     private final Map<UUID, LivingEntity> trackedEntities = new ConcurrentHashMap<>();
 
-    /** Nanosecond timestamp of the previous tick, for delta-time calculation. */
-    private long lastTickNanos;
-
     private HaloManager() {
         // singleton — use getInstance()
-        this.lastTickNanos = System.nanoTime();
     }
 
     /** Return the global singleton. */
@@ -106,13 +105,12 @@ public final class HaloManager {
     }
 
     /**
-     * Drive per-tick damping physics for every active halo instance.
+     * Periodic entity cleanup — removes halos whose attached entity has
+     * died or despawned.
      *
-     * <p>Called once per server tick from the tick handler.  Halos whose
-     * attached entity is dead or missing are automatically cleaned up.</p>
-     *
-     * <p>Uses frame-rate-independent damping with delta-time measurement
-     * so convergence speed is consistent regardless of server TPS.</p>
+     * <p>Called once per server tick from {@code HaloTickHandler}.
+     * No physics computation is performed here — halo pose is computed
+     * entirely on the render thread by {@code HaloPoseCalculator}.</p>
      *
      * @param server the current Minecraft server instance
      */
@@ -121,80 +119,17 @@ public final class HaloManager {
             return;
         }
 
-        // Compute delta time since last tick (frame-rate-independent damping)
-        long now = System.nanoTime();
-        double dt = (now - lastTickNanos) / 1_000_000_000.0;
-        dt = Math.max(0.001, Math.min(dt, 0.5)); // 1ms–500ms guard
-        lastTickNanos = now;
-
         var iterator = activeHalos.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
             UUID uuid = entry.getKey();
-            HaloInstance instance = entry.getValue();
 
             LivingEntity entity = findEntityByUuid(server, uuid);
             if (entity == null || !entity.isAlive()) {
                 iterator.remove();
                 HaloMod.LOGGER.debug("Halo cleaned up: entity uuid={} is gone or dead", uuid);
-                continue;
             }
-
-            // Look up definition for positioning offset and damping params
-            HaloDefinition def = HaloJsonLoader.getDefinition(instance.getDefinitionId()).orElse(null);
-            Vec3d defOffset = def != null ? def.positioning().offset() : config.getPositionOffset();
-
-            // Merge runtime config overrides with definition defaults
-            HaloDampingConfig damping = mergeDampingConfig(def != null ? def.damping() : null, config);
-
-            // Compute absolute target: head anchor + head-relative offset
-            Vec3d anchorPos = getHeadAnchorPosition(entity);
-            Vec3d headRelOffset = computeHeadRelativeOffset(entity, defOffset);
-            Vec3d target = anchorPos.add(headRelOffset);
-
-            // Tick damping toward the absolute target position
-            instance.tickDamping(target, instance.getRelativePosition(), damping, dt);
         }
-    }
-
-    /**
-     * Merge runtime config overrides with definition defaults.
-     * Runtime config values are consulted when the user has explicitly changed them
-     * via {@code /halo config}; otherwise definition values are used as-is.
-     *
-     * <p>The runtime config is considered an <em>override</em>: if the user has
-     * changed any value (detected by comparing against defaults), that override
-     * wins.  Otherwise the definition's damping config is used untouched.</p>
-     *
-     * @param defDamping  the definition's damping config, or {@code null}
-     * @param runtimeCfg  the runtime halo config (may have been changed by user)
-     * @return a merged damping config
-     */
-    private static HaloDampingConfig mergeDampingConfig(
-        HaloDampingConfig defDamping, HaloConfig runtimeCfg
-    ) {
-        if (defDamping == null) {
-            return runtimeCfg.toDampingConfig();
-        }
-        // Use runtime config values if they differ from the HaloConfig defaults,
-        // otherwise keep the definition's values.  The HaloConfig defaults are:
-        //   linearDampingFactor = 0.3, angularDampingFactor = 0.3,
-        //   maxLinearDistance = 1.0, maxAngularDegrees = 45.0
-        boolean runtimeOverridden =
-            Math.abs(runtimeCfg.getLinearDampingFactor() - 0.3) > 1e-9
-            || Math.abs(runtimeCfg.getAngularDampingFactor() - 0.3) > 1e-9
-            || Math.abs(runtimeCfg.getMaxLinearDistance() - 1.0) > 1e-9
-            || Math.abs(runtimeCfg.getMaxAngularDegrees() - 45.0) > 1e-9;
-
-        if (runtimeOverridden) {
-            return new HaloDampingConfig(
-                runtimeCfg.getLinearDampingFactor(),
-                runtimeCfg.getAngularDampingFactor(),
-                runtimeCfg.getMaxLinearDistance(),
-                runtimeCfg.getMaxAngularDegrees()
-            );
-        }
-        return defDamping;
     }
 
     /**
@@ -279,58 +214,13 @@ public final class HaloManager {
     // ------------------------------------------------------------------
 
     /**
-     * Compute the world-space anchor point for a halo on the given entity.
-     *
-     * <p>Players use their eye position; other entities use 85 % of their
-     * bounding-box height above their foot position.</p>
-     *
-     * @param entity the living entity
-     * @return world-space position where the halo should be centred
-     */
-    private Vec3d getHeadAnchorPosition(LivingEntity entity) {
-        if (entity instanceof PlayerEntity player) {
-            return player.getEyePos();
-        }
-        return entity.getPos().add(0, entity.getHeight() * 0.85, 0);
-    }
-
-    /**
-     * Convert a definition offset from head-relative space to world space.
-     * offset.x = right, offset.y = head-up, offset.z = behind.
-     */
-    private static Vec3d computeHeadRelativeOffset(LivingEntity entity, Vec3d offset) {
-        float yawRad = (float) Math.toRadians(entity.getHeadYaw());
-        float pitchRad = (float) Math.toRadians(entity.getPitch());
-
-        Vec3d forward = new Vec3d(
-            -Math.sin(yawRad) * Math.cos(pitchRad),
-            -Math.sin(pitchRad),
-            Math.cos(yawRad) * Math.cos(pitchRad)
-        ).normalize();
-
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        Vec3d right;
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-            right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
-        } else {
-            right = worldUp.crossProduct(forward).normalize();
-        }
-        Vec3d headUp = forward.crossProduct(right).normalize();
-        Vec3d behind = forward.multiply(-1);
-
-        return right.multiply(offset.x)
-            .add(headUp.multiply(offset.y))
-            .add(behind.multiply(offset.z));
-    }
-
-    /**
      * Find a living entity by UUID across all server worlds.
      *
      * @param server the Minecraft server instance
      * @param uuid   the entity UUID to look up
      * @return the entity, or {@code null} if not found
      */
-    private LivingEntity findEntityByUuid(MinecraftServer server, UUID uuid) {
+    private static LivingEntity findEntityByUuid(MinecraftServer server, UUID uuid) {
         for (var world : server.getWorlds()) {
             var entity = world.getEntity(uuid);
             if (entity instanceof LivingEntity living) {

@@ -451,22 +451,13 @@ public final class HaloConfigCommand {
             "  §8NeedsSnap: " + (needsSnap ? "§etrue" : "§7false")), false
         );
 
-        // Position (world-space relative offset stored by physics)
-        var pos = instance.getRelativePosition();
-        var prevPos = instance.getPrevRelativePosition();
-        source.sendFeedback(() -> Text.literal(
-            "  §8Position:  §7(" + fmt(pos.x) + ", " + fmt(pos.y) + ", " + fmt(pos.z) + ")"), false
-        );
-        source.sendFeedback(() -> Text.literal(
-            "  §8PrevPos:   §7(" + fmt(prevPos.x) + ", " + fmt(prevPos.y) + ", " + fmt(prevPos.z) + ")"), false
-        );
-
         // Entity anchor
         var anchor = living instanceof net.minecraft.entity.player.PlayerEntity p
             ? p.getEyePos()
             : living.getPos().add(0, living.getHeight() * 0.85, 0);
         source.sendFeedback(() -> Text.literal(
-            "  §8Anchor:    §7(" + fmt(anchor.x) + ", " + fmt(anchor.y) + ", " + fmt(anchor.z) + ")"), false
+            "  §8Anchor:    §7(" + fmt(anchor.x) + ", " + fmt(anchor.y) + ", " + fmt(anchor.z) + ")"
+                + "  §8(pose computed client-side)"), false
         );
 
         return Command.SINGLE_SUCCESS;

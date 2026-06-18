@@ -90,7 +90,6 @@ class HaloDataTest {
                 new Identifier("halo", "ring_default")
             );
             assertTrue(inst.isNeedsSnap());
-            assertEquals(Vec3d.ZERO, inst.getRelativePosition());
         }
 
         @Test
@@ -105,48 +104,10 @@ class HaloDataTest {
             inst.markNeedsSnap();
             assertTrue(inst.isNeedsSnap());
         }
-
-        @Test
-        @DisplayName("advanceFrame copies current to previous")
-        void advanceFrame() {
-            HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(),
-                new Identifier("halo", "ring_default")
-            );
-            Vec3d newPos = new Vec3d(0, 2.0, 0);
-            inst.setRelativePosition(newPos);
-            inst.advanceFrame();
-            assertEquals(newPos, inst.getPrevRelativePosition());
-        }
     }
 
     // ------------------------------------------------------------------
-    // 3. HaloRenderState
-    // ------------------------------------------------------------------
-
-    @Test
-    @DisplayName("HaloRenderState: interpolated state record")
-    void renderState() {
-        Vec3d pos = new Vec3d(0, 2.0, 0);
-        org.joml.Quaternionf rot = new org.joml.Quaternionf();
-        HaloDefinition def = new HaloDefinition(
-            new Identifier("halo", "test"),
-            new BillboardShape(new Identifier("halo", "t"), new Vector2f(1, 1), null),
-            HaloAnimation.EMPTY,
-            new HaloPositioning(Vec3d.ZERO, 1.0),
-            new HaloDampingConfig(0.1, 0.1, 1.0, 90.0)
-        );
-        HaloRenderState state = new HaloRenderState(
-            java.util.UUID.randomUUID(), pos, rot, def, 0.5f
-        );
-
-        assertEquals(0.5f, state.tickDelta());
-        assertEquals(pos, state.interpolatedPosition());
-        assertEquals(def, state.definition());
-    }
-
-    // ------------------------------------------------------------------
-    // 4. Shape sealed hierarchy
+    // 3. Shape sealed hierarchy
     // ------------------------------------------------------------------
 
     @Nested
@@ -192,7 +153,7 @@ class HaloDataTest {
     }
 
     // ------------------------------------------------------------------
-    // 5. Animation sealed hierarchy
+    // 4. Animation sealed hierarchy
     // ------------------------------------------------------------------
 
     @Nested
@@ -243,7 +204,7 @@ class HaloDataTest {
     }
 
     // ------------------------------------------------------------------
-    // 6. JSON round-trip
+    // 5. JSON round-trip
     // ------------------------------------------------------------------
 
     @Nested

@@ -6,18 +6,15 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * Per-tick physics driver for all active halo instances.
+ * Per-tick server handler for halo lifecycle maintenance.
  *
- * <p>Registered as a {@link ServerTickEvents.EndTick} listener so damping
- * calculations run once per server tick <em>after</em> entity movement has
- * been processed.  Delegates to {@link HaloManager#tickAll} which iterates
- * every active {@link network.azusake.halo.data.HaloInstance} and calls
- * {@link network.azusake.halo.data.HaloInstance#tickDamping}.</p>
+ * <p>Registered as a {@link ServerTickEvents.EndTick} listener.  Delegates
+ * to {@link HaloManager#tickAll} which performs periodic entity cleanup
+ * (removing halos whose attached entity has died or despawned).</p>
  *
- * <p>Registration is a one-liner:</p>
- * <pre>{@code
- *   HaloTickHandler.register();
- * }</pre>
+ * <p>All pose computation and damping physics have moved to
+ * {@link HaloPoseCalculator} on the render thread — this handler
+ * no longer performs any physics work.</p>
  */
 public class HaloTickHandler implements ServerTickEvents.EndTick {
 
@@ -29,8 +26,6 @@ public class HaloTickHandler implements ServerTickEvents.EndTick {
 
     /**
      * Register this handler on the Fabric tick event bus.
-     * Safe to call multiple times (Fabric events support multiple
-     * registrations, though the caller should only invoke this once).
      */
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(INSTANCE);

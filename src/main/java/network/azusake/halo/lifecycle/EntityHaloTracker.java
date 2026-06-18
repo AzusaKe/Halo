@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * end gateway) funnels through one of these two methods, so the mixin captures all of them.
  * When a teleport is detected, {@link #markTeleport(LivingEntity)} is called immediately,
  * setting the {@code needsSnap} flag so the halo snaps to the new position on the next
- * physics tick without any damping slide.</p>
+ * pose calculation without any damping slide.</p>
  *
  * <p><b>Tier 2 — Position discontinuity check (safety net):</b>
  * Each server tick, for every entity with an active halo, we compare its current
@@ -56,7 +56,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  * <p>The grace period does <em>not</em> gate the snap itself — that is driven by
  * {@link HaloInstance#markTeleported()} which fires immediately. Even if the grace
- * period expires before the next physics tick (possible under low TPS), the snap
+ * period expires before the next pose calculation (possible under low TPS), the snap
  * has already been scheduled.</p>
  *
  * <p>The 250 ms value was chosen to comfortably survive a dimension change under
@@ -187,7 +187,7 @@ public final class EntityHaloTracker {
     }
 
     /**
-     * Mark an entity as having teleported so its halo snaps on the next physics tick.
+     * Mark an entity as having teleported so its halo snaps on the next pose calculation.
      *
      * @param entity the living entity that teleported
      */

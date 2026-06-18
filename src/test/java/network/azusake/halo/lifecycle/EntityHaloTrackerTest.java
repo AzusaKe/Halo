@@ -374,65 +374,6 @@ class EntityHaloTrackerTest {
             assertTrue(instance.getCreatedAtTime() <= after,
                 "createdAtTime must be <= the timestamp after construction");
         }
-
-        @Test
-        @DisplayName("getInterpolatedPosition lerps between prev and current")
-        void testInterpolatedPosition() {
-            UUID uuid = UUID.randomUUID();
-            HaloInstance instance = new HaloInstance(uuid,
-                new Identifier("halo", "ring_default"));
-
-            // Set up known world-space positions
-            net.minecraft.util.math.Vec3d prev = new net.minecraft.util.math.Vec3d(0, 0, 0);
-            net.minecraft.util.math.Vec3d current = new net.minecraft.util.math.Vec3d(10, 0, 0);
-
-            instance.setPrevRelativePosition(prev);
-            instance.setRelativePosition(current);
-
-            // At tickDelta=0.0 → prev
-            net.minecraft.util.math.Vec3d at0 = instance.getInterpolatedPosition(0.0);
-            assertEquals(0.0, at0.x, 0.0001);
-            assertEquals(0.0, at0.y, 0.0001);
-            assertEquals(0.0, at0.z, 0.0001);
-
-            // At tickDelta=0.5 → midpoint
-            net.minecraft.util.math.Vec3d at05 = instance.getInterpolatedPosition(0.5);
-            assertEquals(5.0, at05.x, 0.0001);
-
-            // At tickDelta=1.0 → current
-            net.minecraft.util.math.Vec3d at1 = instance.getInterpolatedPosition(1.0);
-            assertEquals(10.0, at1.x, 0.0001);
-        }
-
-        @Test
-        @DisplayName("getInterpolatedRotation slerps between prev and current quaternions")
-        void testInterpolatedRotation() {
-            UUID uuid = UUID.randomUUID();
-            HaloInstance instance = new HaloInstance(uuid,
-                new Identifier("halo", "ring_default"));
-
-            org.joml.Quaternionf identity = new org.joml.Quaternionf();
-            org.joml.Quaternionf rotated90Y = new org.joml.Quaternionf()
-                .rotateY((float) Math.toRadians(90.0));
-
-            instance.setPrevRelativeRotation(identity);
-            instance.setRelativeRotation(rotated90Y);
-
-            // At tickDelta=0.0 → identity (0°)
-            org.joml.Quaternionf at0 = instance.getInterpolatedRotation(0.0);
-            double angle0 = Math.toDegrees(2.0 * Math.acos(Math.min(1.0, Math.abs(at0.w))));
-            assertEquals(0.0, angle0, 0.01);
-
-            // At tickDelta=0.5 → 45° around Y
-            org.joml.Quaternionf at05 = instance.getInterpolatedRotation(0.5);
-            double angle05 = Math.toDegrees(2.0 * Math.acos(Math.min(1.0, Math.abs(at05.w))));
-            assertEquals(45.0, angle05, 0.01);
-
-            // At tickDelta=1.0 → 90° around Y
-            org.joml.Quaternionf at1 = instance.getInterpolatedRotation(1.0);
-            double angle1 = Math.toDegrees(2.0 * Math.acos(Math.min(1.0, Math.abs(at1.w))));
-            assertEquals(90.0, angle1, 0.01);
-        }
     }
 
     // ------------------------------------------------------------------
