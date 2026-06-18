@@ -200,7 +200,7 @@ public final class HaloConfigCommand {
         for (HaloDefinition def : defs.values()) {
             source.sendFeedback(() -> Text.literal(
                 "§7  - §f" + def.id() +
-                    " §8shape=§7" + def.shape().getClass().getSimpleName() +
+                    " §8layers=§7" + def.model().layers().size() +
                     " §8anim=§7" + def.animation().positionCurves().size() + "p/" + def.animation().rotationCurves().size() + "r" +
                     " §8damping=§7k=" + def.damping().linearFactor()
             ), false);

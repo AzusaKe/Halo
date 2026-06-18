@@ -10,7 +10,7 @@ import java.util.UUID;
  * <p>After the pose/rendering decoupling this class is a lightweight
  * lifecycle marker — it stores the entity binding, definition reference,
  * snap flag, and creation timestamp.  All physics and pose computation
- * has moved to {@link network.azusake.halo.physics.HaloPoseCalculator}
+ * has moved to {@link network.azusake.halo.physics.AnchorFrameCalculator}
  * on the render thread.</p>
  *
  * <p>Mutable only for {@code needsSnap} (set by teleport hooks on the

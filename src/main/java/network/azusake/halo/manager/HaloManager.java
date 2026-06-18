@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  *
  * <p>All pose computation and damping physics have moved to
- * {@link network.azusake.halo.physics.HaloPoseCalculator} on the render
+ * {@link network.azusake.halo.physics.AnchorFrameCalculator} on the render
  * thread.  The server tick no longer performs any damping — halos are a
  * visual-only effect and do not need server-authoritative physics.</p>
  *
@@ -110,7 +110,7 @@ public final class HaloManager {
      *
      * <p>Called once per server tick from {@code HaloTickHandler}.
      * No physics computation is performed here — halo pose is computed
-     * entirely on the render thread by {@code HaloPoseCalculator}.</p>
+     * entirely on the render thread by {@code AnchorFrameCalculator}.</p>
      *
      * @param server the current Minecraft server instance
      */

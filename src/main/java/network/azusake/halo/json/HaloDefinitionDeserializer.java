@@ -4,10 +4,12 @@ import network.azusake.halo.animation.*;
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloPositioning;
+import network.azusake.halo.data.OrientationMode;
 import network.azusake.halo.shape.*;
 import com.google.gson.*;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
+import org.joml.Quaternionf;
 import org.joml.Vector2f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,12 +17,13 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Gson {@link JsonDeserializer} for {@link HaloDefinition}.
- * <p>
- * Handles polymorphic shape and curve types via a {@code "type"} discriminator field.
- * Also registers custom adapters for {@link Vec3d}, {@link Vector2f}, and {@link Identifier}.
+ *
+ * <p>Handles the new layered model format with per-layer transforms,
+ * orientation mode, and polymorphic primitive types.</p>
  */
 public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefinition> {
 
@@ -36,9 +39,6 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             .create();
     }
 
-    /**
-     * Return the pre-configured Gson instance for standalone use (e.g. in tests).
-     */
     public Gson getGson() {
         return gson;
     }
@@ -54,49 +54,118 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         JsonObject root = json.getAsJsonObject();
 
         Identifier id = parseId(root, "id");
-        HaloShape shape = parseShape(root.getAsJsonObject("shape"));
+        HaloModel model = parseModel(root);
         HaloAnimation animation = parseAnimation(root.getAsJsonObject("animation"));
         HaloPositioning positioning = parsePositioning(root.getAsJsonObject("positioning"));
         HaloDampingConfig damping = parseDamping(root.getAsJsonObject("damping"));
 
-        return new HaloDefinition(id, shape, animation, positioning, damping);
+        return new HaloDefinition(id, model, animation, positioning, damping);
     }
 
     // ------------------------------------------------------------------
-    // Sub-parsers
+    // Model & Layers (new format)
     // ------------------------------------------------------------------
 
-    private Identifier parseId(JsonObject root, String key) {
-        String raw = root.get(key).getAsString();
-        return Identifier.tryParse(raw);
+    private HaloModel parseModel(JsonObject root) {
+        // Orientation mode: "locked" (default) or "free"
+        OrientationMode mode = OrientationMode.LOCKED;
+        if (root.has("orientation_mode")) {
+            String modeStr = root.get("orientation_mode").getAsString().toLowerCase();
+            mode = switch (modeStr) {
+                case "free" -> OrientationMode.FREE;
+                default -> OrientationMode.LOCKED;
+            };
+        }
+
+        // Layers array (replaces old "shape")
+        List<HaloLayer> layers = new ArrayList<>();
+        if (root.has("layers")) {
+            for (JsonElement elem : root.getAsJsonArray("layers")) {
+                layers.add(parseLayer(elem.getAsJsonObject()));
+            }
+        }
+        // Backward compat: old "shape" field → single layer with locked mode
+        else if (root.has("shape")) {
+            JsonObject shapeObj = root.getAsJsonObject("shape");
+            layers.addAll(convertLegacyShape(shapeObj));
+        }
+
+        return new HaloModel(mode, layers);
     }
 
-    private HaloShape parseShape(JsonObject obj) {
-        if (obj == null) return null;
+    private HaloLayer parseLayer(JsonObject obj) {
+        // Optional id
+        Optional<String> id = obj.has("id")
+            ? Optional.of(obj.get("id").getAsString())
+            : Optional.empty();
+
+        // Position (default origin)
+        Vec3d position = obj.has("position")
+            ? gson.fromJson(obj.get("position"), Vec3d.class)
+            : Vec3d.ZERO;
+
+        // Rotation: Euler [yaw, pitch, roll] in degrees → Quaternionf
+        Quaternionf rotation = new Quaternionf();
+        if (obj.has("rotation")) {
+            JsonArray rotArr = obj.getAsJsonArray("rotation");
+            float yaw   = (float) Math.toRadians(rotArr.get(0).getAsDouble());
+            float pitch = (float) Math.toRadians(rotArr.get(1).getAsDouble());
+            float roll  = rotArr.size() > 2 ? (float) Math.toRadians(rotArr.get(2).getAsDouble()) : 0f;
+            // YXZ order: yaw (Y), pitch (X), roll (Z)
+            rotation.rotateY(yaw).rotateX(pitch).rotateZ(roll);
+        }
+
+        // Scale (default 1.0)
+        float scale = obj.has("scale") ? obj.get("scale").getAsFloat() : 1.0f;
+
+        // Primitive
+        HaloPrimitive primitive = parsePrimitive(obj.getAsJsonObject("primitive"));
+
+        return new HaloLayer(id, position, rotation, scale, primitive);
+    }
+
+    private HaloPrimitive parsePrimitive(JsonObject obj) {
+        if (obj == null) throw new JsonParseException("Missing primitive object in layer");
         String type = obj.get("type").getAsString();
         return switch (type) {
-            case "billboard" -> parseBillboard(obj);
-            case "multi_billboard" -> parseMultiBillboard(obj);
-            default -> throw new JsonParseException("Unknown shape type: " + type);
+            case "billboard" -> parseBillboardPrimitive(obj);
+            default -> throw new JsonParseException("Unknown primitive type: " + type);
         };
     }
 
-    private BillboardShape parseBillboard(JsonObject obj) {
+    private BillboardPrimitive parseBillboardPrimitive(JsonObject obj) {
         Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
         Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
         GlowLayer glow = obj.has("glow") && !obj.get("glow").isJsonNull()
             ? parseGlowLayer(obj.getAsJsonObject("glow"))
             : null;
-        return new BillboardShape(texture, size, glow);
+        return new BillboardPrimitive(texture, size, glow);
     }
 
-    private MultiBillboardShape parseMultiBillboard(JsonObject obj) {
-        List<BillboardShape> layers = new ArrayList<>();
-        for (JsonElement elem : obj.getAsJsonArray("layers")) {
-            layers.add(parseBillboard(elem.getAsJsonObject()));
+    /**
+     * Convert old-style "shape" block to a list of layers for backward compatibility.
+     */
+    private List<HaloLayer> convertLegacyShape(JsonObject shapeObj) {
+        List<HaloLayer> layers = new ArrayList<>();
+        String type = shapeObj.get("type").getAsString();
+
+        switch (type) {
+            case "billboard" -> {
+                BillboardPrimitive bp = parseBillboardPrimitive(shapeObj);
+                layers.add(new HaloLayer(Vec3d.ZERO, bp));
+            }
+            case "multi_billboard" -> {
+                for (JsonElement elem : shapeObj.getAsJsonArray("layers")) {
+                    BillboardPrimitive bp = parseBillboardPrimitive(elem.getAsJsonObject());
+                    layers.add(new HaloLayer(Vec3d.ZERO, bp));
+                }
+            }
+            default -> throw new JsonParseException("Unknown legacy shape type: " + type);
         }
-        return new MultiBillboardShape(layers);
+        return layers;
     }
+
+    // --- Glow & Pulse (unchanged) ---
 
     private GlowLayer parseGlowLayer(JsonObject obj) {
         Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
@@ -116,7 +185,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         return new PulseConfig(amplitude, frequency, phase);
     }
 
-    // --- Animation ---
+    // --- Animation (unchanged) ---
 
     private HaloAnimation parseAnimation(JsonObject obj) {
         if (obj == null) return HaloAnimation.EMPTY;
@@ -162,7 +231,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         };
     }
 
-    // --- Positioning & Damping ---
+    // --- Positioning & Damping (unchanged) ---
 
     private HaloPositioning parsePositioning(JsonObject obj) {
         if (obj == null) return new HaloPositioning(Vec3d.ZERO, 1.0);
@@ -184,12 +253,18 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     }
 
     // ------------------------------------------------------------------
+    // Sub-parsers
+    // ------------------------------------------------------------------
+
+    private Identifier parseId(JsonObject root, String key) {
+        String raw = root.get(key).getAsString();
+        return Identifier.tryParse(raw);
+    }
+
+    // ------------------------------------------------------------------
     // Custom type adapters
     // ------------------------------------------------------------------
 
-    /**
-     * Adapter: JSON array {@code [x, y, z]} ⇄ {@link Vec3d}.
-     */
     private static class Vec3dAdapter implements JsonDeserializer<Vec3d>, JsonSerializer<Vec3d> {
         @Override
         public Vec3d deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
@@ -207,9 +282,6 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         }
     }
 
-    /**
-     * Adapter: JSON array {@code [x, y]} ⇄ {@link Vector2f}.
-     */
     private static class Vec2fAdapter implements JsonDeserializer<Vector2f>, JsonSerializer<Vector2f> {
         @Override
         public Vector2f deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
@@ -226,9 +298,6 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         }
     }
 
-    /**
-     * Adapter: JSON string {@code "namespace:path"} ⇄ {@link Identifier}.
-     */
     private static class IdentifierAdapter implements JsonDeserializer<Identifier>, JsonSerializer<Identifier> {
         @Override
         public Identifier deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {

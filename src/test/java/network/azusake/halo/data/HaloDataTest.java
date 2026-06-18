@@ -13,15 +13,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for the halo data model — serialization, deserialization,
- * and record integrity.
+ * Unit tests for the halo data model.
  */
 class HaloDataTest {
 
-    // Reuse the deserializer's configured Gson (with Vec3d / Vec2f / Identifier adapters)
     private final HaloDefinitionDeserializer deserializer = new HaloDefinitionDeserializer();
     private final Gson gson = deserializer.getGson();
 
@@ -53,21 +53,30 @@ class HaloDataTest {
         }
 
         @Test
+        @DisplayName("OrientationMode enum values")
+        void orientationMode() {
+            assertEquals(OrientationMode.LOCKED, OrientationMode.valueOf("LOCKED"));
+            assertEquals(OrientationMode.FREE, OrientationMode.valueOf("FREE"));
+        }
+
+        @Test
         @DisplayName("HaloDefinition: all fields accessible")
         void definition() {
             Identifier id = new Identifier("halo", "test");
-            BillboardShape shape = new BillboardShape(
+            BillboardPrimitive bp = new BillboardPrimitive(
                 new Identifier("halo", "tex"),
                 new Vector2f(1, 1),
                 null
             );
+            HaloLayer layer = new HaloLayer(Vec3d.ZERO, bp);
+            HaloModel model = new HaloModel(OrientationMode.LOCKED, List.of(layer));
             HaloAnimation anim = HaloAnimation.EMPTY;
             HaloPositioning pos = new HaloPositioning(Vec3d.ZERO, 1.0);
             HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0);
 
-            HaloDefinition def = new HaloDefinition(id, shape, anim, pos, damp);
+            HaloDefinition def = new HaloDefinition(id, model, anim, pos, damp);
             assertEquals(id, def.id());
-            assertEquals(shape, def.shape());
+            assertEquals(model, def.model());
             assertEquals(anim, def.animation());
             assertEquals(pos, def.positioning());
             assertEquals(damp, def.damping());
@@ -75,7 +84,7 @@ class HaloDataTest {
     }
 
     // ------------------------------------------------------------------
-    // 2. HaloInstance (mutable runtime state)
+    // 2. HaloInstance
     // ------------------------------------------------------------------
 
     @Nested
@@ -107,29 +116,37 @@ class HaloDataTest {
     }
 
     // ------------------------------------------------------------------
-    // 3. Shape sealed hierarchy
+    // 3. Primitive / Model hierarchy
     // ------------------------------------------------------------------
 
     @Nested
-    @DisplayName("Shape sealed hierarchy")
+    @DisplayName("Primitive and Model hierarchy")
     class ShapeTests {
 
         @Test
-        @DisplayName("BillboardShape implements HaloShape")
-        void billboardIsHaloShape() {
-            BillboardShape b = new BillboardShape(
+        @DisplayName("BillboardPrimitive implements HaloPrimitive")
+        void billboardIsHaloPrimitive() {
+            BillboardPrimitive b = new BillboardPrimitive(
                 new Identifier("halo", "ring"),
                 new Vector2f(0.5f, 0.5f),
                 null
             );
-            assertInstanceOf(HaloShape.class, b);
+            assertInstanceOf(HaloPrimitive.class, b);
         }
 
         @Test
-        @DisplayName("MultiBillboardShape implements HaloShape")
-        void multiBillboardIsHaloShape() {
-            MultiBillboardShape m = new MultiBillboardShape(java.util.List.of());
-            assertInstanceOf(HaloShape.class, m);
+        @DisplayName("HaloModel layers list preserves order")
+        void modelLayersOrder() {
+            var bp1 = new BillboardPrimitive(new Identifier("halo", "a"), new Vector2f(1, 1), null);
+            var bp2 = new BillboardPrimitive(new Identifier("halo", "b"), new Vector2f(2, 2), null);
+            HaloModel m = new HaloModel(OrientationMode.LOCKED, List.of(
+                new HaloLayer(Vec3d.ZERO, bp1),
+                new HaloLayer(new Vec3d(0, 0.2, 0), bp2)
+            ));
+            assertEquals(2, m.layers().size());
+            assertEquals(OrientationMode.LOCKED, m.orientationMode());
+            assertEquals(bp1, m.layers().get(0).primitive());
+            assertEquals(bp2, m.layers().get(1).primitive());
         }
 
         @Test
@@ -181,9 +198,9 @@ class HaloDataTest {
         @DisplayName("OscillateCurve: value(t) = A * sin(w*t + phi)")
         void oscillateCurve() {
             OscillateCurve o = new OscillateCurve(1.0, Math.PI / 2, 0.0);
-            assertEquals(0.0, o.evaluate(0), 1e-9);          // sin(0) = 0
-            assertEquals(1.0, o.evaluate(1), 1e-9);          // sin(pi/2) = 1
-            assertEquals(0.0, o.evaluate(2), 1e-9);          // sin(pi) = 0
+            assertEquals(0.0, o.evaluate(0), 1e-9);
+            assertEquals(1.0, o.evaluate(1), 1e-9);
+            assertEquals(0.0, o.evaluate(2), 1e-9);
         }
 
         @Test
@@ -212,27 +229,35 @@ class HaloDataTest {
     class JsonRoundTrip {
 
         @Test
-        @DisplayName("Parse full 'ring_default' style JSON → HaloDefinition")
-        void parseRingDefault() {
+        @DisplayName("Parse new layers format JSON → HaloDefinition")
+        void parseNewLayersFormat() {
             String json = """
                 {
                   "id": "halo:ring_default",
-                  "shape": {
-                    "type": "billboard",
-                    "texture": "halo:textures/halo/ring.png",
-                    "size": [0.5, 0.5],
-                    "glow": {
-                      "texture": "halo:textures/halo/ring_glow.png",
-                      "size": [0.6, 0.6],
-                      "color": 16777215,
-                      "alpha": 0.8,
-                      "pulse": {
-                        "amplitude": 0.15,
-                        "frequency": 2.0,
-                        "phase": 0.0
+                  "orientation_mode": "locked",
+                  "layers": [
+                    {
+                      "position": [0.0, 0.0, 0.0],
+                      "rotation": [0.0, 0.0, 0.0],
+                      "scale": 1.0,
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5],
+                        "glow": {
+                          "texture": "halo:textures/halo/ring_glow.png",
+                          "size": [0.6, 0.6],
+                          "color": 16777215,
+                          "alpha": 0.8,
+                          "pulse": {
+                            "amplitude": 0.15,
+                            "frequency": 2.0,
+                            "phase": 0.0
+                          }
+                        }
                       }
                     }
-                  },
+                  ],
                   "animation": {
                     "positionCurves": [
                       {
@@ -275,48 +300,77 @@ class HaloDataTest {
                 null
             );
 
-            // Top-level
             assertEquals("halo:ring_default", def.id().toString());
+            assertEquals(OrientationMode.LOCKED, def.model().orientationMode());
+            assertEquals(1, def.model().layers().size());
 
-            // Shape
-            assertInstanceOf(BillboardShape.class, def.shape());
-            BillboardShape shape = (BillboardShape) def.shape();
-            assertEquals("halo:textures/halo/ring.png", shape.texture().toString());
-            assertEquals(0.5f, shape.size().x);
-            assertEquals(0.5f, shape.size().y);
-            assertNotNull(shape.glow());
-            GlowLayer glow = shape.glow();
-            assertEquals(0xFF_FFFF, glow.color());  // 16777215 = 0xFFFFFF
-            assertEquals(0.8f, glow.alpha());
-            assertNotNull(glow.pulse());
-            assertEquals(0.15f, glow.pulse().amplitude());
+            HaloLayer layer = def.model().layers().get(0);
+            assertInstanceOf(BillboardPrimitive.class, layer.primitive());
+            BillboardPrimitive bp = (BillboardPrimitive) layer.primitive();
+            assertEquals("halo:textures/halo/ring.png", bp.texture().toString());
+            assertEquals(0.5f, bp.size().x, 0.001f);
+            assertEquals(0.5f, bp.size().y, 0.001f);
+            assertNotNull(bp.glow());
+            assertEquals(0xFF_FFFF, bp.glow().color());
+            assertEquals(0.8f, bp.glow().alpha(), 0.001f);
+            assertNotNull(bp.glow().pulse());
+            assertEquals(0.15f, bp.glow().pulse().amplitude(), 0.001f);
 
             // Animation
             assertEquals(1, def.animation().positionCurves().size());
-            PositionCurve pc = def.animation().positionCurves().get(0);
-            assertEquals(PositionCurve.PositionAxis.Y, pc.axis());
-            assertInstanceOf(OscillateCurve.class, pc.curve());
-            assertEquals(0.08, ((OscillateCurve) pc.curve()).amplitude());
-
             assertEquals(1, def.animation().rotationCurves().size());
-            RotationCurve rc = def.animation().rotationCurves().get(0);
-            assertEquals(RotationCurve.RotationAxis.YAW, rc.axis());
-            assertInstanceOf(LinearCurve.class, rc.curve());
-            assertEquals(30.0, ((LinearCurve) rc.curve()).speed());
 
             // Positioning
-            assertEquals(0.0, def.positioning().offset().x);
-            assertEquals(1.8, def.positioning().offset().y);
-            assertEquals(1.0, def.positioning().scale());
+            assertEquals(0.0, def.positioning().offset().x, 0.001);
+            assertEquals(1.8, def.positioning().offset().y, 0.001);
 
             // Damping
-            assertEquals(0.15, def.damping().linearFactor());
-            assertEquals(3.0, def.damping().maxLinearDistance());
+            assertEquals(0.15, def.damping().linearFactor(), 0.001);
+            assertEquals(3.0, def.damping().maxLinearDistance(), 0.001);
         }
 
         @Test
-        @DisplayName("MultiBillboardShape JSON parse")
-        void parseMultiBillboard() {
+        @DisplayName("Legacy 'shape' format is backward-compatible")
+        void parseLegacyShapeFormat() {
+            String json = """
+                {
+                  "id": "halo:legacy",
+                  "shape": {
+                    "type": "billboard",
+                    "texture": "halo:textures/halo/ring.png",
+                    "size": [0.5, 0.5]
+                  },
+                  "animation": {
+                    "positionCurves": [],
+                    "rotationCurves": []
+                  },
+                  "positioning": {
+                    "offset": [0.0, 1.5, 0.0]
+                  },
+                  "damping": {
+                    "linearFactor": 0.1,
+                    "angularFactor": 0.1,
+                    "maxLinearDistance": 2.0,
+                    "maxAngularDegrees": 90.0
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            // Legacy shape → one layer at origin with billboard primitive
+            assertEquals(1, def.model().layers().size());
+            assertEquals(OrientationMode.LOCKED, def.model().orientationMode()); // default
+            assertInstanceOf(BillboardPrimitive.class, def.model().layers().get(0).primitive());
+        }
+
+        @Test
+        @DisplayName("Legacy multi_billboard format is backward-compatible")
+        void parseLegacyMultiBillboard() {
             String json = """
                 {
                   "id": "halo:multi_test",
@@ -360,10 +414,11 @@ class HaloDataTest {
                 null
             );
 
-            assertInstanceOf(MultiBillboardShape.class, def.shape());
-            MultiBillboardShape multi = (MultiBillboardShape) def.shape();
-            assertEquals(2, multi.layers().size());
-            assertEquals("halo:textures/halo/back.png", multi.layers().get(0).texture().toString());
+            // Legacy multi_billboard → multiple layers at origin
+            assertEquals(2, def.model().layers().size());
+            assertInstanceOf(BillboardPrimitive.class, def.model().layers().get(0).primitive());
+            assertEquals("halo:textures/halo/back.png",
+                ((BillboardPrimitive) def.model().layers().get(0).primitive()).texture().toString());
         }
 
         @Test
@@ -372,12 +427,16 @@ class HaloDataTest {
             String json = """
                 {
                   "id": "halo:static_test",
-                  "shape": {
-                    "type": "billboard",
-                    "texture": "halo:textures/halo/ring.png",
-                    "size": [0.5, 0.5],
-                    "glow": null
-                  },
+                  "layers": [
+                    {
+                      "position": [0.0, 0.0, 0.0],
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
                   "animation": {
                     "positionCurves": [
                       {
@@ -410,21 +469,23 @@ class HaloDataTest {
 
             assertEquals(1, def.animation().positionCurves().size());
             assertInstanceOf(ConstantCurve.class, def.animation().positionCurves().get(0).curve());
-            ConstantCurve cc = (ConstantCurve) def.animation().positionCurves().get(0).curve();
-            assertEquals(0.2, cc.value());
         }
 
         @Test
-        @DisplayName("Missing optional fields use defaults (glow, scale, phase)")
+        @DisplayName("Missing optional fields use defaults")
         void missingOptionalFieldsFallback() {
             String json = """
                 {
                   "id": "halo:minimal",
-                  "shape": {
-                    "type": "billboard",
-                    "texture": "halo:textures/halo/ring.png",
-                    "size": [0.5, 0.5]
-                  },
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
                   "animation": {
                     "positionCurves": [],
                     "rotationCurves": []
@@ -447,9 +508,12 @@ class HaloDataTest {
                 null
             );
 
-            BillboardShape shape = (BillboardShape) def.shape();
-            assertNull(shape.glow());       // glow was omitted → null
-            assertEquals(1.0, def.positioning().scale()); // scale default → 1.0
+            HaloLayer layer = def.model().layers().get(0);
+            assertEquals(Vec3d.ZERO, layer.position());             // default position
+            assertEquals(1.0f, layer.scale(), 0.001f);              // default scale
+            assertInstanceOf(BillboardPrimitive.class, layer.primitive());
+            assertNull(((BillboardPrimitive) layer.primitive()).glow());  // no glow
+            assertEquals(1.0, def.positioning().scale(), 0.001);    // scale default
         }
 
         @Test

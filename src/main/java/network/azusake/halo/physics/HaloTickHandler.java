@@ -13,7 +13,7 @@ import net.minecraft.server.MinecraftServer;
  * (removing halos whose attached entity has died or despawned).</p>
  *
  * <p>All pose computation and damping physics have moved to
- * {@link HaloPoseCalculator} on the render thread — this handler
+ * {@link AnchorFrameCalculator} on the render thread — this handler
  * no longer performs any physics work.</p>
  */
 public class HaloTickHandler implements ServerTickEvents.EndTick {

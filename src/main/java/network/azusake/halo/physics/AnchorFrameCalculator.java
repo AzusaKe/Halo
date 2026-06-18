@@ -4,6 +4,7 @@ import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
+import network.azusake.halo.data.OrientationMode;
 import network.azusake.halo.manager.HaloManager;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.LivingEntity;
@@ -17,54 +18,40 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Computes the world-space {@link HaloPose} for a halo instance each render
- * frame, using frame-rate-independent exponential damping.
+ * Computes the world-space {@link AnchorFrame} for a halo instance each
+ * render frame, using frame-rate-independent exponential damping.
  *
- * <h3>Responsibilities</h3>
+ * <h3>Orientation modes</h3>
+ * <p>In both {@link OrientationMode#LOCKED} and {@link OrientationMode#FREE},
+ * the halo normal (definition -Y) always points toward the entity's head.
+ * The difference is only in the spin <em>around</em> the normal axis:</p>
  * <ul>
- *   <li>Interpolate entity head position / orientation from tick state.</li>
- *   <li>Compute the halo target position from the definition's
- *       {@link network.azusake.halo.data.HaloPositioning#offset()} and the
- *       entity's current yaw/pitch (head-relative coordinate frame).</li>
- *   <li>Apply frame-rate-independent exponential damping so the halo
- *       converges to its target at a consistent real-time speed regardless
- *       of FPS.</li>
- *   <li>Compute the {@code toHead} direction vector used for billboard
- *       face-toward-camera rendering.</li>
- *   <li>Merge runtime {@link HaloConfig} overrides with definition defaults
- *       for both damping parameters and uniform scale.</li>
+ *   <li><b>LOCKED</b> — spin is locked to the player's horizontal look
+ *       direction.  An arrow on the halo maintains a fixed angle relative
+ *       to where the player is looking.</li>
+ *   <li><b>FREE</b> — spin is independently damped toward identity,
+ *       giving the halo its own rotational inertia.</li>
  * </ul>
  *
  * <h3>Threading</h3>
- * <p>This class runs exclusively on the render thread.  Per-instance state
- * ({@code prevFramePos}, {@code rotationStates}) is not synchronised because
- * no other thread accesses it.</p>
- *
- * <h3>Relationship to {@link DampingPhysics}</h3>
- * <p>Position damping uses the same exponential-decay formula as
- * {@link DampingPhysics} but works with absolute world-space coordinates
- * for simplicity (matching the legacy {@code HaloRenderer} behaviour).
- * Rotation damping delegates directly to
- * {@link DampingPhysics#computeDampedRotation} for quaternion slerp and
- * angular clamping.</p>
+ * <p>This class runs exclusively on the render thread.</p>
  */
-public final class HaloPoseCalculator {
+public final class AnchorFrameCalculator {
 
-    private static final HaloPoseCalculator INSTANCE = new HaloPoseCalculator();
+    private static final AnchorFrameCalculator INSTANCE = new AnchorFrameCalculator();
 
     /** Reference tick duration in seconds (50 ms = 20 TPS). */
     private static final double REFERENCE_TICK = 0.05;
 
     // ---- per-frame position state ----
-    /** Previous frame halo world position, keyed by entity UUID. */
     private final Map<UUID, Vec3d> prevFramePos = new HashMap<>();
 
-    // ---- per-instance rotation damping state ----
+    // ---- per-instance rotation / spin damping state ----
     private final Map<UUID, HaloDampingState> rotationStates = new HashMap<>();
 
-    private HaloPoseCalculator() { /* singleton */ }
+    private AnchorFrameCalculator() { /* singleton */ }
 
-    public static HaloPoseCalculator getInstance() {
+    public static AnchorFrameCalculator getInstance() {
         return INSTANCE;
     }
 
@@ -73,17 +60,17 @@ public final class HaloPoseCalculator {
     // ------------------------------------------------------------------
 
     /**
-     * Compute the world-space pose for one halo instance this frame.
+     * Compute the world-space anchor frame for one halo instance this frame.
      *
      * @param instance   the halo instance (provides UUID, snap flag)
      * @param entity     the living entity this halo is attached to
-     * @param definition the parsed halo definition (offset, damping, scale)
+     * @param definition the parsed halo definition (model, offset, damping, scale)
      * @param camera     the player camera (for camera-relative coordinates)
      * @param tickDelta  partial-tick progress (0.0–1.0) for entity interpolation
      * @param frameDt    seconds since the previous render frame
-     * @return a fully computed {@link HaloPose} ready for the renderer
+     * @return a fully computed {@link AnchorFrame} ready for the renderer
      */
-    public HaloPose calculate(
+    public AnchorFrame calculate(
         HaloInstance instance,
         LivingEntity entity,
         HaloDefinition definition,
@@ -97,13 +84,14 @@ public final class HaloPoseCalculator {
         Vec3d headAnchor = getInterpolatedHeadAnchor(entity, tickDelta);
         float yaw = getInterpolatedHeadYaw(entity, tickDelta);
         float pitch = entity.prevPitch + (entity.getPitch() - entity.prevPitch) * tickDelta;
+        float yawRad = (float) Math.toRadians(yaw);
 
         // 2. Head-relative offset → world-space target position
         Vec3d offset = getEffectiveOffset(definition);
         Vec3d headRelOffset = computeHeadRelativeOffset(yaw, pitch, offset);
         Vec3d targetPos = headAnchor.add(headRelOffset);
 
-        // 3. Merge damping config (definition defaults vs runtime overrides)
+        // 3. Merge damping config
         HaloDampingConfig damping = mergeDampingConfig(definition);
 
         // 4. Frame-rate-independent position damping
@@ -138,24 +126,60 @@ public final class HaloPoseCalculator {
         // 5. toHead direction: from halo centre toward entity head
         Vec3d toHead = headAnchor.subtract(haloWorldPos).normalize();
 
-        // 6. Rotation damping (converges toward identity)
+        // 6. Player horizontal look direction (XZ plane, ignoring pitch)
+        Vec3d playerLookDir = new Vec3d(-Math.sin(yawRad), 0, Math.cos(yawRad));
+
+        // 7. Look-at orientation: shortest-arc rotation mapping definition -Y → toHead.
+        //    This preserves the "up" direction as close to world-up as the
+        //    rotation allows — matching the old axis-angle billboard-facing behaviour.
+        Quaternionf Q_lookAt = computeLookAtOrientation(toHead);
+
+        // 8. Per-instance rotation state
         HaloDampingState rotState = rotationStates.computeIfAbsent(uuid,
             k2 -> new HaloDampingState());
         if (needsSnap) {
             rotState.markTeleport();
         }
-        Quaternionf orientation = DampingPhysics.computeDampedRotation(
-            rotState.prevRelativeRotation,
-            new Quaternionf(),          // target = identity
-            damping,
-            rotState,
-            frameDt
-        );
 
-        // 7. Scale (definition default vs runtime override)
+        // 9. Orientation mode — both modes start from Q_lookAt; only the spin
+        //    around the normal axis differs.
+        OrientationMode mode = definition.model().orientationMode();
+        Quaternionf worldOrientation;
+        Vec3d worldForward;
+
+        switch (mode) {
+            case LOCKED -> {
+                // Spin locked to player horizontal look direction
+                Quaternionf Q_spin = computeLockedSpin(Q_lookAt, toHead, playerLookDir);
+                worldOrientation = Q_spin.mul(Q_lookAt, new Quaternionf());
+                worldForward = new Vec3d(0, 0, 1); // will be rotated below
+            }
+            case FREE -> {
+                // Damp the spin angle around the normal independently toward identity
+                DampingPhysics.computeDampedRotation(
+                    rotState.prevRelativeRotation,
+                    new Quaternionf(),          // target = identity (no spin)
+                    damping,
+                    rotState,
+                    frameDt
+                );
+                Quaternionf Q_spin = new Quaternionf(rotState.prevRelativeRotation);
+                worldOrientation = Q_spin.mul(Q_lookAt, new Quaternionf());
+                worldForward = new Vec3d(0, 0, 1);
+            }
+            default -> {
+                worldOrientation = Q_lookAt;
+                worldForward = new Vec3d(0, 0, 1);
+            }
+        }
+
+        // Rotate definition +Z through world orientation to get world forward
+        worldForward = rotate(worldForward, worldOrientation);
+
+        // 10. Scale
         float scale = getRuntimeScaleOverride(definition);
 
-        // 8. Camera-relative position
+        // 11. Camera-relative position
         Vec3d camPos = camera.getPos();
         Vec3d camRelPos = new Vec3d(
             haloWorldPos.x - camPos.x,
@@ -163,14 +187,11 @@ public final class HaloPoseCalculator {
             haloWorldPos.z - camPos.z
         );
 
-        return new HaloPose(haloWorldPos, camRelPos, orientation, scale, toHead);
+        return new AnchorFrame(haloWorldPos, camRelPos, worldOrientation, worldForward, toHead, scale);
     }
 
     /**
-     * Remove state entries for UUIDs that are no longer visible, preventing
-     * unbounded growth of the internal maps over long sessions.
-     *
-     * @param activeUuids the set of entity UUIDs that are currently visible
+     * Remove state entries for UUIDs that are no longer visible.
      */
     public void retainOnly(Set<UUID> activeUuids) {
         prevFramePos.keySet().retainAll(activeUuids);
@@ -178,12 +199,100 @@ public final class HaloPoseCalculator {
     }
 
     // ------------------------------------------------------------------
-    // Entity interpolation helpers
+    // Orientation math
     // ------------------------------------------------------------------
 
     /**
-     * Interpolated head anchor position (frame-accurate, not tick-accurate).
+     * Compute the shortest-arc quaternion that maps definition -Y (the halo
+     * normal) to {@code toHead}.
+     *
+     * <p>This is equivalent to the axis-angle billboard-facing rotation used
+     * in the old code — it preserves the definition +Y axis as close to
+     * world-up as the rotation allows, which keeps the texture orientation
+     * stable regardless of which direction the entity faces.</p>
+     *
+     * @param toHead unit vector from halo toward entity head (world space)
+     * @return quaternion that rotates definition -Y to toHead
      */
+    static Quaternionf computeLookAtOrientation(Vec3d toHead) {
+        Vec3d from = new Vec3d(0, -1, 0); // definition -Y (billboard normal)
+        double dot = from.dotProduct(toHead);
+        if (dot > 0.9999) {
+            return new Quaternionf(); // identity — already aligned
+        }
+        if (dot < -0.9999) {
+            // Opposite directions — 180° around any ⟂ axis; use +X
+            return new Quaternionf().rotateAxis((float) Math.PI, 1, 0, 0);
+        }
+        Vec3d axis = from.crossProduct(toHead).normalize();
+        float angle = (float) Math.acos(dot);
+        return new Quaternionf().rotateAxis(angle, (float) axis.x, (float) axis.y, (float) axis.z);
+    }
+
+    /**
+     * Compute a spin quaternion around {@code toHead} (the normal axis)
+     * that aligns definition +Z (as transformed by {@code Q_lookAt}) with
+     * the projection of {@code playerLookDir} onto the plane
+     * perpendicular to {@code toHead}.
+     *
+     * <p>This is used in {@link OrientationMode#LOCKED} — the full
+     * orientation is {@code Q_spin * Q_lookAt}.</p>
+     *
+     * @param Q_lookAt      shortest-arc rotation mapping definition -Y → toHead
+     * @param toHead        unit vector from halo toward entity head
+     * @param playerLookDir player's horizontal look direction (XZ plane)
+     * @return spin quaternion around toHead
+     */
+    static Quaternionf computeLockedSpin(Quaternionf Q_lookAt, Vec3d toHead, Vec3d playerLookDir) {
+        // Where does definition +Z end up after the look-at rotation?
+        Vec3d Z_current = rotate(new Vec3d(0, 0, 1), Q_lookAt);
+
+        // Where we want +Z to go: playerLookDir projected onto plane ⟂ toHead
+        double dotFN = playerLookDir.dotProduct(toHead);
+        Vec3d F_proj = playerLookDir.subtract(toHead.multiply(dotFN));
+        double fLen = F_proj.length();
+        Vec3d Z_target;
+        if (fLen > 1e-9) {
+            Z_target = F_proj.normalize();
+        } else {
+            // Degenerate: player looking exactly along normal — no correction needed
+            return new Quaternionf(); // identity spin
+        }
+
+        // Both Z_current and Z_target should be ⟂ toHead
+        double cosPhi = Z_current.dotProduct(Z_target);
+        cosPhi = Math.max(-1.0, Math.min(1.0, cosPhi));
+        double phi = Math.acos(cosPhi);
+
+        // Determine sign: cross(Z_current, Z_target) relative to toHead
+        Vec3d crossZF = Z_current.crossProduct(Z_target);
+        if (crossZF.dotProduct(toHead) < 0) {
+            phi = -phi;
+        }
+
+        if (Math.abs(phi) < 1e-9) {
+            return new Quaternionf(); // identity spin
+        }
+
+        return new Quaternionf().rotateAxis(
+            (float) phi, (float) toHead.x, (float) toHead.y, (float) toHead.z);
+    }
+
+    /**
+     * Rotate a vector by a quaternion.
+     */
+    private static Vec3d rotate(Vec3d v, Quaternionf q) {
+        // q * v * q⁻¹
+        Quaternionf qv = new Quaternionf((float) v.x, (float) v.y, (float) v.z, 0);
+        Quaternionf qConj = new Quaternionf(q).conjugate();
+        Quaternionf result = q.mul(qv, new Quaternionf()).mul(qConj);
+        return new Vec3d(result.x, result.y, result.z);
+    }
+
+    // ------------------------------------------------------------------
+    // Entity interpolation helpers
+    // ------------------------------------------------------------------
+
     private static Vec3d getInterpolatedHeadAnchor(LivingEntity entity, float tickDelta) {
         double x = entity.prevX + (entity.getX() - entity.prevX) * tickDelta;
         double y = entity.prevY + (entity.getY() - entity.prevY) * tickDelta;
@@ -194,9 +303,6 @@ public final class HaloPoseCalculator {
         return new Vec3d(x, y + entity.getHeight() * 0.85, z);
     }
 
-    /**
-     * Interpolated head yaw (frame-accurate), with angle-wrapping correction.
-     */
     private static float getInterpolatedHeadYaw(LivingEntity entity, float tickDelta) {
         float prev = entity.prevHeadYaw;
         float curr = entity.headYaw;
@@ -210,15 +316,9 @@ public final class HaloPoseCalculator {
     // Head-relative offset
     // ------------------------------------------------------------------
 
-    /**
-     * Resolve the effective head-relative offset, preferring the runtime
-     * config override ({@code /halo config offset}) if the user has changed
-     * it, otherwise using the definition's {@code positioning.offset}.
-     */
     private static Vec3d getEffectiveOffset(HaloDefinition definition) {
         HaloConfig runtime = HaloManager.getInstance().getConfig();
         Vec3d rtOffset = runtime.getPositionOffset();
-        // Default runtime offset is (0, 0.2, 0) — if unchanged, use definition
         if (Math.abs(rtOffset.x) < 1e-9
             && Math.abs(rtOffset.y - 0.2) < 1e-9
             && Math.abs(rtOffset.z) < 1e-9) {
@@ -227,21 +327,6 @@ public final class HaloPoseCalculator {
         return rtOffset;
     }
 
-    /**
-     * Convert a head-relative offset to a world-space direction vector.
-     *
-     * <p>Coordinate convention (right-handed, Minecraft entity frame):</p>
-     * <ul>
-     *   <li>{@code offset.x} → right of the entity</li>
-     *   <li>{@code offset.y} → above the entity's head</li>
-     *   <li>{@code offset.z} → behind the entity (positive = behind)</li>
-     * </ul>
-     *
-     * @param yawDeg   interpolated head yaw in degrees
-     * @param pitchDeg interpolated head pitch in degrees
-     * @param offset   the head-relative offset vector [right, up, behind]
-     * @return world-space direction vector to add to the head anchor
-     */
     static Vec3d computeHeadRelativeOffset(float yawDeg, float pitchDeg, Vec3d offset) {
         float yawRad = (float) Math.toRadians(yawDeg);
         float pitchRad = (float) Math.toRadians(pitchDeg);
@@ -271,14 +356,6 @@ public final class HaloPoseCalculator {
     // Config merging
     // ------------------------------------------------------------------
 
-    /**
-     * Merge runtime config overrides with definition defaults.
-     *
-     * <p>When the user runs {@code /halo config linear-damping <value>},
-     * the runtime config carries the override.  If no override has been
-     * set (all values match their HaloConfig defaults), the definition's
-     * own damping config is used as-is.</p>
-     */
     static HaloDampingConfig mergeDampingConfig(HaloDefinition definition) {
         HaloConfig runtime = HaloManager.getInstance().getConfig();
 
@@ -299,10 +376,6 @@ public final class HaloPoseCalculator {
         return definition.damping();
     }
 
-    /**
-     * Return the effective scale, preferring the runtime config override
-     * if the user has changed it via {@code /halo config scale}.
-     */
     private static float getRuntimeScaleOverride(HaloDefinition definition) {
         HaloConfig runtime = HaloManager.getInstance().getConfig();
         if (Math.abs(runtime.getHaloScale() - 1.0) > 1e-9) {
