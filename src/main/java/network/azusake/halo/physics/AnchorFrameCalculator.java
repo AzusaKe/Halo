@@ -136,8 +136,22 @@ public final class AnchorFrameCalculator {
         // 5. toHead direction: from halo centre toward entity head
         Vec3d toHead = headAnchor.subtract(haloWorldPos).normalize();
 
-        // 6. Player horizontal look direction (XZ plane, ignoring pitch)
-        Vec3d playerLookDir = new Vec3d(-Math.sin(yawRad), 0, Math.cos(yawRad));
+        // 6. Head frame vectors (world space): forward, right, headUp
+        //    Reuse the same computation as computeHeadRelativeOffset for consistency.
+        float pitchRad = (float) Math.toRadians(pitch);
+        Vec3d forward = new Vec3d(
+            -Math.sin(yawRad) * Math.cos(pitchRad),
+            -Math.sin(pitchRad),
+            Math.cos(yawRad) * Math.cos(pitchRad)
+        ).normalize();
+        Vec3d worldUp = new Vec3d(0, 1, 0);
+        Vec3d right;
+        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
+            right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
+        } else {
+            right = worldUp.crossProduct(forward).normalize();
+        }
+        Vec3d headUp = forward.crossProduct(right).normalize();
 
         // 7. Look-at orientation: shortest-arc rotation mapping definition -Y → toHead.
         //    This preserves the "up" direction as close to world-up as the
@@ -159,8 +173,12 @@ public final class AnchorFrameCalculator {
 
         switch (mode) {
             case LOCKED -> {
-                // Compute the ideal spin that would align +Z with player look
-                Quaternionf Q_target = computeLockedSpin(Q_lookAt, toHead, playerLookDir);
+                // Sphere-model LOCKED spin (see computeLockedSpin javadoc):
+                // The anchor point P = direction from head to halo target on the sphere.
+                // The "up pole" is 90° from P along the headUp great circle.
+                // The halo's +Z should point toward this pole like a compass.
+                Vec3d P = headRelOffset.normalize(); // anchor-point radial direction
+                Quaternionf Q_target = computeLockedSpin(Q_lookAt, toHead, headUp, P);
 
                 // Retrieve or initialise the damped locked-spin state
                 Quaternionf prevSpin = lockedSpinStates.get(uuid);
@@ -264,41 +282,80 @@ public final class AnchorFrameCalculator {
     }
 
     /**
-     * Compute a spin quaternion around {@code toHead} (the normal axis)
-     * that aligns definition +Z (as transformed by {@code Q_lookAt}) with
-     * the projection of {@code playerLookDir} onto the plane
-     * perpendicular to {@code toHead}.
+     * Compute a spin quaternion around {@code toHead} that aligns the halo's
+     * definition +Z with the <em>up pole</em> of the sphere model.
      *
-     * <p>This is used in {@link OrientationMode#LOCKED} — the full
-     * orientation is {@code Q_spin * Q_lookAt}.</p>
+     * <h3>Sphere model</h3>
+     * <p>Imagine a sphere centred at the entity's head.  The halo's anchor
+     * point {@code P} lies on this sphere at the offset direction from the
+     * head.  At {@code P} we draw four great-circle lines on the sphere
+     * (up / down / left / right).  The up line follows the {@code headUp}
+     * direction; its midpoint between {@code P} and the antipode {@code -P}
+     * is the <b>up pole</b> — a fixed reference point 90° from {@code P}
+     * along the head-up great circle.</p>
      *
-     * @param Q_lookAt      shortest-arc rotation mapping definition -Y → toHead
-     * @param toHead        unit vector from halo toward entity head
-     * @param playerLookDir player's horizontal look direction (XZ plane)
+     * <p>In {@link OrientationMode#LOCKED}, the halo's +Z axis should point
+     * toward this up pole like a compass needle.  This keeps the relative
+     * orientation between halo and head consistent regardless of how the
+     * player tilts their head, and <b>avoids the 180° flip</b> that occurs
+     * when a horizontal-only reference direction becomes parallel to the
+     * normal.</p>
+     *
+     * @param Q_lookAt shortest-arc rotation mapping definition -Y → toHead
+     * @param toHead   unit vector from halo toward entity head (halo normal)
+     * @param headUp   entity's head-up direction (world space)
+     * @param P        unit vector from head to the halo's anchor point
+     *                 (= {@code normalize(headRelOffset)})
      * @return spin quaternion around toHead
      */
-    static Quaternionf computeLockedSpin(Quaternionf Q_lookAt, Vec3d toHead, Vec3d playerLookDir) {
-        // Where does definition +Z end up after the look-at rotation?
-        Vec3d Z_current = rotate(new Vec3d(0, 0, 1), Q_lookAt);
-
-        // Where we want +Z to go: playerLookDir projected onto plane ⟂ toHead
-        double dotFN = playerLookDir.dotProduct(toHead);
-        Vec3d F_proj = playerLookDir.subtract(toHead.multiply(dotFN));
-        double fLen = F_proj.length();
-        Vec3d Z_target;
-        if (fLen > 1e-9) {
-            Z_target = F_proj.normalize();
+    static Quaternionf computeLockedSpin(Quaternionf Q_lookAt, Vec3d toHead,
+                                          Vec3d headUp, Vec3d P) {
+        // ---- 1. Locate the "up pole" on the sphere ----
+        // The up pole is headUp projected onto the tangent plane at P (⟂ P),
+        // then normalized.  It is a fixed point 90° from P on the sphere.
+        double dotUP = headUp.dotProduct(P);
+        Vec3d t_up_raw = headUp.subtract(P.multiply(dotUP));
+        double tLen = t_up_raw.length();
+        Vec3d Pole_up; // unit vector — the up pole position on the sphere
+        if (tLen > 1e-9) {
+            Pole_up = t_up_raw.normalize();
         } else {
-            // Degenerate: player looking exactly along normal — no correction needed
+            // headUp is parallel to P — fall back to world-up projected onto ⟂ P
+            Vec3d fallback = new Vec3d(0, 1, 0).subtract(P.multiply(P.y));
+            double fbLen = fallback.length();
+            if (fbLen > 1e-9) {
+                Pole_up = fallback.normalize();
+            } else {
+                // P is also world-up → use an arbitrary horizontal reference
+                Pole_up = Math.abs(P.x) < 0.9
+                    ? new Vec3d(1, 0, 0).crossProduct(P).normalize()
+                    : new Vec3d(0, 0, 1).crossProduct(P).normalize();
+            }
+        }
+
+        // ---- 2. Direction from halo to the up pole ----
+        // The halo sits at radial direction R = -toHead on the sphere.
+        // The great-circle direction from R toward Pole_up is Pole_up projected
+        // onto the halo's tangent plane (⟂ toHead).
+        double dotPT = Pole_up.dotProduct(toHead);
+        Vec3d Z_proj = Pole_up.subtract(toHead.multiply(dotPT));
+        double zLen = Z_proj.length();
+        Vec3d Z_target; // where definition +Z SHOULD point (world space)
+        if (zLen > 1e-9) {
+            Z_target = Z_proj.normalize();
+        } else {
+            // Pole is parallel to toHead → spin is irrelevant; no correction
             return new Quaternionf(); // identity spin
         }
 
-        // Both Z_current and Z_target should be ⟂ toHead
+        // ---- 3. Where definition +Z currently points after Q_lookAt ----
+        Vec3d Z_current = rotate(new Vec3d(0, 0, 1), Q_lookAt);
+
+        // ---- 4. Signed angle from Z_current to Z_target around toHead ----
         double cosPhi = Z_current.dotProduct(Z_target);
         cosPhi = Math.max(-1.0, Math.min(1.0, cosPhi));
         double phi = Math.acos(cosPhi);
 
-        // Determine sign: cross(Z_current, Z_target) relative to toHead
         Vec3d crossZF = Z_current.crossProduct(Z_target);
         if (crossZF.dotProduct(toHead) < 0) {
             phi = -phi;
