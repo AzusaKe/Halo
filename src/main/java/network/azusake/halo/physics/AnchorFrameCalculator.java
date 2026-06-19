@@ -150,7 +150,8 @@ public final class AnchorFrameCalculator {
         Vec3d worldUp = new Vec3d(0, 1, 0);
         Vec3d right;
         if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-            right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
+            // Match computeHeadRelativeOffset fallback — see comment there.
+            right = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
         } else {
             right = forward.crossProduct(worldUp).normalize();
         }
@@ -470,7 +471,13 @@ public final class AnchorFrameCalculator {
         Vec3d worldUp = new Vec3d(0, 1, 0);
         Vec3d right;
         if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-            right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
+            // When forward is nearly parallel to worldUp, the cross product
+            // degenerates.  Use a fallback that is continuous with the
+            // cross-product result:  forward × worldUp  normalised to
+            // (–cos yaw, 0, –sin yaw) for cos(pitch) > 0 (the MC pitch
+            // range).  Negating keeps headUp from flipping and avoids the
+            // halo jumping from front to back.
+            right = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
         } else {
             right = forward.crossProduct(worldUp).normalize();
         }
