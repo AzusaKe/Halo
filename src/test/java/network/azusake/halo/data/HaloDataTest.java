@@ -8,6 +8,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
+import org.joml.Quaternionf;
 import org.joml.Vector2f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -57,6 +58,7 @@ class HaloDataTest {
         void orientationMode() {
             assertEquals(OrientationMode.LOCKED, OrientationMode.valueOf("LOCKED"));
             assertEquals(OrientationMode.FREE, OrientationMode.valueOf("FREE"));
+            assertEquals(OrientationMode.SYNC, OrientationMode.valueOf("SYNC"));
         }
 
         @Test
@@ -327,6 +329,56 @@ class HaloDataTest {
             // Damping
             assertEquals(0.15, def.damping().linearFactor(), 0.001);
             assertEquals(3.0, def.damping().maxLinearDistance(), 0.001);
+        }
+
+        @Test
+        @DisplayName("Parse SYNC mode with sync_offset")
+        void parseSyncMode() {
+            String json = """
+                {
+                  "id": "halo:sync_test",
+                  "orientation_mode": "sync",
+                  "sync_offset": [15.0, -5.0, 0.0],
+                  "layers": [
+                    {
+                      "position": [0.0, 0.0, 0.0],
+                      "rotation": [0.0, 0.0, 0.0],
+                      "scale": 1.0,
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": {
+                    "offset": [0.0, 0.4, 0.35],
+                    "scale": 1.0
+                  },
+                  "damping": {
+                    "linearFactor": 0.15,
+                    "angularFactor": 0.1,
+                    "maxLinearDistance": 1.0,
+                    "maxAngularDegrees": 180.0
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertEquals(OrientationMode.SYNC, def.model().orientationMode());
+            assertEquals(1, def.model().layers().size());
+
+            // sync_offset should be a non-identity quaternion
+            Quaternionf off = def.model().syncOffset();
+            assertNotNull(off);
+            // It should NOT be identity (15° yaw, -5° pitch)
+            float angle = off.angle();
+            assertTrue(angle > 0.001f, "SYNC offset quaternion should be non-identity");
         }
 
         @Test

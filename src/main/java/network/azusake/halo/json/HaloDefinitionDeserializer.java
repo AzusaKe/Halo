@@ -67,12 +67,13 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     // ------------------------------------------------------------------
 
     private HaloModel parseModel(JsonObject root) {
-        // Orientation mode: "locked" (default) or "free"
+        // Orientation mode: "locked" (default), "free", or "sync"
         OrientationMode mode = OrientationMode.LOCKED;
         if (root.has("orientation_mode")) {
             String modeStr = root.get("orientation_mode").getAsString().toLowerCase();
             mode = switch (modeStr) {
                 case "free" -> OrientationMode.FREE;
+                case "sync" -> OrientationMode.SYNC;
                 default -> OrientationMode.LOCKED;
             };
         }
@@ -90,7 +91,18 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             layers.addAll(convertLegacyShape(shapeObj));
         }
 
-        return new HaloModel(mode, layers);
+        // SYNC mode: configurable angular offset (Euler YXZ in degrees)
+        Quaternionf syncOffset = new Quaternionf(); // identity default
+        if (mode == OrientationMode.SYNC && root.has("sync_offset")) {
+            JsonArray offArr = root.getAsJsonArray("sync_offset");
+            float offYaw   = (float) Math.toRadians(offArr.get(0).getAsDouble());
+            float offPitch = (float) Math.toRadians(offArr.get(1).getAsDouble());
+            float offRoll  = offArr.size() > 2 ? (float) Math.toRadians(offArr.get(2).getAsDouble()) : 0f;
+            // Same YXZ order as layer rotations: yaw (Y), pitch (X), roll (Z)
+            syncOffset.rotateY(offYaw).rotateX(offPitch).rotateZ(offRoll);
+        }
+
+        return new HaloModel(mode, layers, syncOffset);
     }
 
     private HaloLayer parseLayer(JsonObject obj) {

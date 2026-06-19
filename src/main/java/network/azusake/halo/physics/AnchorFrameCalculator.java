@@ -59,6 +59,9 @@ public final class AnchorFrameCalculator {
     // ---- per-instance locked-spin quaternion (damped) ----
     private final Map<UUID, Quaternionf> lockedSpinStates = new HashMap<>();
 
+    // ---- per-instance SYNC relative orientation (captured on first frame) ----
+    private final Map<UUID, Quaternionf> syncRelativeStates = new HashMap<>();
+
     private AnchorFrameCalculator() { /* singleton */ }
 
     public static AnchorFrameCalculator getInstance() {
@@ -149,9 +152,9 @@ public final class AnchorFrameCalculator {
         if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
             right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
         } else {
-            right = worldUp.crossProduct(forward).normalize();
+            right = forward.crossProduct(worldUp).normalize();
         }
-        Vec3d headUp = forward.crossProduct(right).normalize();
+        Vec3d headUp = right.crossProduct(forward).normalize();
 
         // 7. Look-at orientation: shortest-arc rotation mapping definition -Y → toHead.
         //    This preserves the "up" direction as close to world-up as the
@@ -218,6 +221,41 @@ public final class AnchorFrameCalculator {
                 worldOrientation = Q_spin.mul(Q_lookAt, new Quaternionf());
                 worldForward = new Vec3d(0, 0, 1);
             }
+            case SYNC -> {
+                // Head orientation from Euler angles (no roll component).
+                // rotateY(−yaw) × rotateX(pitch) reproduces Minecraft's
+                // forward = (−sin yaw·cos pitch, −sin pitch, cos yaw·cos pitch).
+                // def +Z → look direction, def +Y → ≈ world‑up.
+                Quaternionf Q_head = new Quaternionf()
+                    .rotateY(-yawRad)
+                    .rotateX(pitchRad);
+
+                // Retrieve or capture the fixed relative rotation.
+                // First frame: Q_halo(0) = Q_syncOffset × Q_LOCKED.
+                //   Q_rel = Q_head(0)⁻¹ × Q_halo(0)
+                // Subsequent frames:
+                //   Q_halo(t) = Q_head(t) × Q_rel
+                //            = Q_head(t) × Q_head(0)⁻¹ × Q_syncOffset × Q_LOCKED(0)
+                // The head delta Q_head(t) × Q_head(0)⁻¹ is applied on the
+                // OUTSIDE — the halo rotates with the head in world space.
+                Quaternionf Q_rel = syncRelativeStates.get(uuid);
+                if (Q_rel == null || needsSnap) {
+                    Vec3d P = headRelOffset.normalize();
+                    Quaternionf Q_lockedSpin = computeLockedSpin(Q_lookAt, toHead, headUp, P);
+                    Quaternionf Q_LOCKED = Q_lockedSpin.mul(Q_lookAt, new Quaternionf());
+
+                    Quaternionf Q_syncOffset = definition.model().syncOffset();
+                    Quaternionf Q_halo_0 = new Quaternionf(Q_syncOffset).mul(Q_LOCKED);
+                    Quaternionf Q_head_0_inv = new Quaternionf(Q_head).conjugate();
+                    Q_rel = new Quaternionf(Q_head_0_inv).mul(Q_halo_0);
+
+                    syncRelativeStates.put(uuid, new Quaternionf(Q_rel));
+                }
+
+                // Q_halo(t) = Q_head(t) × Q_rel
+                worldOrientation = new Quaternionf(Q_head).mul(Q_rel);
+                worldForward = new Vec3d(0, 0, 1);
+            }
             default -> {
                 worldOrientation = Q_lookAt;
                 worldForward = new Vec3d(0, 0, 1);
@@ -248,6 +286,7 @@ public final class AnchorFrameCalculator {
         prevFramePos.keySet().retainAll(activeUuids);
         rotationStates.keySet().retainAll(activeUuids);
         lockedSpinStates.keySet().retainAll(activeUuids);
+        syncRelativeStates.keySet().retainAll(activeUuids);
     }
 
     // ------------------------------------------------------------------
@@ -433,9 +472,9 @@ public final class AnchorFrameCalculator {
         if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
             right = new Vec3d(Math.cos(yawRad), 0, Math.sin(yawRad));
         } else {
-            right = worldUp.crossProduct(forward).normalize();
+            right = forward.crossProduct(worldUp).normalize();
         }
-        Vec3d headUp = forward.crossProduct(right).normalize();
+        Vec3d headUp = right.crossProduct(forward).normalize();
         Vec3d behind = forward.multiply(-1);
 
         return right.multiply(offset.x)
