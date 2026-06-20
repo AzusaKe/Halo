@@ -17,7 +17,9 @@ import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.LightType;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
@@ -145,6 +147,16 @@ public final class HaloRenderer {
             return false;
         }
 
+        // ---- compute light at halo position for non-glowing layers ----
+        BlockPos lightPos = BlockPos.ofFloored(frame.worldPosition());
+        int blockLight = client.world.getLightingProvider().get(LightType.BLOCK).getLightLevel(lightPos);
+        int skyLight = client.world.getLightingProvider().get(LightType.SKY).getLightLevel(lightPos);
+        // Brightness multiplier: use the stronger of block/sky light, with a floor so
+        // the layer never vanishes completely.  This approximates the lightmap without
+        // depending on its texture unit being bound — works with both vanilla and Iris.
+        float brightness = Math.max(blockLight, skyLight) / 15.0f;
+        brightness = Math.max(brightness, 0.04f);
+
         // ---- render model layers ----
         var model = def.model();
         if (model.layers().isEmpty()) {
@@ -167,7 +179,7 @@ public final class HaloRenderer {
                     matrices.scale(layer.scale(), layer.scale(), layer.scale());
 
                     if (layer.primitive() instanceof BillboardPrimitive bp) {
-                        renderBillboard(bp, matrices);
+                        renderBillboard(bp, matrices, layer.glowing(), brightness);
                     }
                 } finally {
                     matrices.pop();
@@ -189,7 +201,7 @@ public final class HaloRenderer {
      * The layer's accumulated matrix-stack transform provides the
      * world-space placement — no per-quad facing rotation is applied.
      */
-    private void renderBillboard(BillboardPrimitive billboard, MatrixStack matrices) {
+    private void renderBillboard(BillboardPrimitive billboard, MatrixStack matrices, boolean glowing, float brightness) {
         float hw = billboard.size().x / 2.0f;  // half-width (X)
         float hd = billboard.size().y / 2.0f;  // half-depth (Z) — size.y maps to Z axis
 
@@ -219,15 +231,27 @@ public final class HaloRenderer {
         if (hasTexture) {
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
-            RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-            builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
             // XZ plane at Y=0, normal = -Y (faces downward toward entity head).
             // Vertex winding from BELOW (-Y) is CCW → front face faces -Y:
             // (-hw, 0, -hd)  →  (+hw, 0, -hd)  →  (+hw, 0, +hd)  →  (-hw, 0, +hd)
-            builder.vertex(positionMatrix, -hw, 0.0f, -hd).texture(0.0f, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, -hd).texture(1.0f, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, +hd).texture(1.0f, 0.0f).next();
-            builder.vertex(positionMatrix, -hw, 0.0f, +hd).texture(0.0f, 0.0f).next();
+            if (glowing) {
+                // Original fullbright path — unchanged from before glowing toggle was added.
+                // Always renders at max brightness regardless of shader packs.
+                RenderSystem.setShader(GameRenderer::getPositionTexProgram);
+                builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
+                builder.vertex(positionMatrix, -hw, 0.0f, -hd).texture(0.0f, 1.0f).next();
+                builder.vertex(positionMatrix,  hw, 0.0f, -hd).texture(1.0f, 1.0f).next();
+                builder.vertex(positionMatrix,  hw, 0.0f, +hd).texture(1.0f, 0.0f).next();
+                builder.vertex(positionMatrix, -hw, 0.0f, +hd).texture(0.0f, 0.0f).next();
+            } else {
+                // Light-responsive: tint texture by ambient light level at halo position
+                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+                builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+                builder.vertex(positionMatrix, -hw, 0.0f, -hd).texture(0.0f, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                builder.vertex(positionMatrix,  hw, 0.0f, -hd).texture(1.0f, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                builder.vertex(positionMatrix,  hw, 0.0f, +hd).texture(1.0f, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                builder.vertex(positionMatrix, -hw, 0.0f, +hd).texture(0.0f, 0.0f).color(brightness, brightness, brightness, 1f).next();
+            }
         } else {
             RenderSystem.setShader(GameRenderer::getPositionColorProgram);
             if (DEBUG_RENDERING) {
@@ -237,10 +261,16 @@ public final class HaloRenderer {
                 RenderSystem.defaultBlendFunc();
             }
             builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-            builder.vertex(positionMatrix, -hw, 0.0f, -hd).color(1.0f, 1.0f, 1.0f, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, -hd).color(1.0f, 1.0f, 1.0f, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, +hd).color(1.0f, 1.0f, 1.0f, 1.0f).next();
-            builder.vertex(positionMatrix, -hw, 0.0f, +hd).color(1.0f, 1.0f, 1.0f, 1.0f).next();
+            float r, g, b;
+            if (glowing) {
+                r = 1f; g = 1f; b = 1f;
+            } else {
+                r = brightness; g = brightness; b = brightness;
+            }
+            builder.vertex(positionMatrix, -hw, 0.0f, -hd).color(r, g, b, 1.0f).next();
+            builder.vertex(positionMatrix,  hw, 0.0f, -hd).color(r, g, b, 1.0f).next();
+            builder.vertex(positionMatrix,  hw, 0.0f, +hd).color(r, g, b, 1.0f).next();
+            builder.vertex(positionMatrix, -hw, 0.0f, +hd).color(r, g, b, 1.0f).next();
         }
 
         tessellator.draw();
@@ -254,7 +284,7 @@ public final class HaloRenderer {
         RenderSystem.disableBlend();
 
         // ---- glow layer (also XZ plane) ----
-        if (billboard.glow() != null) {
+        if (glowing && billboard.glow() != null) {
             renderGlowLayer(billboard.glow(), matrices);
         }
     }

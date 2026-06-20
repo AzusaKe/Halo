@@ -130,10 +130,13 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         // Scale (default 1.0)
         float scale = obj.has("scale") ? obj.get("scale").getAsFloat() : 1.0f;
 
+        // Glowing toggle (default true)
+        boolean glowing = !obj.has("glowing") || obj.get("glowing").getAsBoolean();
+
         // Primitive
         HaloPrimitive primitive = parsePrimitive(obj.getAsJsonObject("primitive"));
 
-        return new HaloLayer(id, position, rotation, scale, primitive);
+        return new HaloLayer(id, position, rotation, scale, primitive, glowing);
     }
 
     private HaloPrimitive parsePrimitive(JsonObject obj) {

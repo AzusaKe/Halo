@@ -18,21 +18,23 @@ import java.util.Optional;
  *                   (stored as a quaternion; converted from Euler at load time)
  * @param scale      uniform scale multiplier for this layer (default 1.0)
  * @param primitive  the renderable primitive (billboard, future 3D model)
+ * @param glowing    whether the glow layer renders for this layer (default true)
  */
 public record HaloLayer(
     Optional<String> id,
     Vec3d position,
     Quaternionf rotation,
     float scale,
-    HaloPrimitive primitive
+    HaloPrimitive primitive,
+    boolean glowing
 ) {
     /** Convenience constructor with identity rotation and unit scale. */
     public HaloLayer(Vec3d position, HaloPrimitive primitive) {
-        this(Optional.empty(), position, new Quaternionf(), 1.0f, primitive);
+        this(Optional.empty(), position, new Quaternionf(), 1.0f, primitive, true);
     }
 
     /** Convenience constructor with explicit rotation. */
     public HaloLayer(Vec3d position, Quaternionf rotation, HaloPrimitive primitive) {
-        this(Optional.empty(), position, rotation, 1.0f, primitive);
+        this(Optional.empty(), position, rotation, 1.0f, primitive, true);
     }
 }
