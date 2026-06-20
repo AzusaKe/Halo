@@ -80,17 +80,23 @@ public sealed interface AnimationTerm
     }
 
     /**
-     * Constant-rate linear progression: {@code speed * t}.
+     * Constant-rate linear progression: {@code start + speed * t}.
      *
      * <p>For rotation axes this produces a steady spin; for position axes
      * it produces a constant-velocity drift.</p>
      *
+     * @param start initial value at {@code t = 0}
      * @param speed rate of change per second
      */
-    record Linear(double speed) implements AnimationTerm {
+    record Linear(double start, double speed) implements AnimationTerm {
+        /** Convenience constructor with start = 0. */
+        public Linear(double speed) {
+            this(0.0, speed);
+        }
+
         @Override
         public double evaluate(double t) {
-            return speed * t;
+            return start + speed * t;
         }
     }
 }

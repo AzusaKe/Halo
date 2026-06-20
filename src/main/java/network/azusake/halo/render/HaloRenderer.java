@@ -129,13 +129,16 @@ public final class HaloRenderer {
         // ---- resolve entity ----
         LivingEntity entity = findEntityByUuid(client, instance.getEntityUuid());
         if (entity == null || !entity.isAlive()) {
+            instance.deactivate();
             return false;
         }
 
         // ---- resolve definition ----
         HaloDefinition def = HaloJsonLoader.getDefinition(instance.getDefinitionId()).orElse(null);
         if (def == null) {
-            LOG.warn("[HaloRenderer] definition not found: id={}", instance.getDefinitionId());
+            LOG.warn("[HaloRenderer] definition not found, deactivating halo: entity={} def={}",
+                instance.getEntityUuid(), instance.getDefinitionId());
+            instance.deactivate();
             return false;
         }
 

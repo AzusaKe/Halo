@@ -193,6 +193,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
                     t.get("omega").getAsDouble(),
                     t.has("phi") ? t.get("phi").getAsDouble() : 0.0);
                 case "linear" -> new AnimationTerm.Linear(
+                    t.has("start") ? t.get("start").getAsDouble() : 0.0,
                     t.get("speed").getAsDouble());
                 default -> throw new JsonParseException("Unknown animation term function: " + function);
             });
