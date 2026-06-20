@@ -201,7 +201,7 @@ public final class HaloConfigCommand {
             source.sendFeedback(() -> Text.literal(
                 "§7  - §f" + def.id() +
                     " §8layers=§7" + def.model().layers().size() +
-                    " §8anim=§7" + def.animation().positionCurves().size() + "p/" + def.animation().rotationCurves().size() + "r" +
+                    " §8anim=§7" + (def.animation().isPresent() ? "yes" : "no") +
                     " §8damping=§7k=" + def.damping().linearFactor()
             ), false);
         }

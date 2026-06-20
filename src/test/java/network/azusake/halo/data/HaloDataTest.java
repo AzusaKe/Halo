@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -72,14 +73,13 @@ class HaloDataTest {
             );
             HaloLayer layer = new HaloLayer(Vec3d.ZERO, bp);
             HaloModel model = new HaloModel(OrientationMode.LOCKED, List.of(layer));
-            HaloAnimation anim = HaloAnimation.EMPTY;
             HaloPositioning pos = new HaloPositioning(Vec3d.ZERO, 1.0);
             HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0);
 
-            HaloDefinition def = new HaloDefinition(id, model, anim, pos, damp);
+            HaloDefinition def = new HaloDefinition(id, model, Optional.empty(), pos, damp);
             assertEquals(id, def.id());
             assertEquals(model, def.model());
-            assertEquals(anim, def.animation());
+            assertTrue(def.animation().isEmpty());
             assertEquals(pos, def.positioning());
             assertEquals(damp, def.damping());
         }
@@ -223,6 +223,220 @@ class HaloDataTest {
     }
 
     // ------------------------------------------------------------------
+    // 4b. AnimationTerm hierarchy (per-layer trig/linear terms)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("AnimationTerm hierarchy")
+    class AnimationTermTests {
+
+        @Test
+        @DisplayName("Sin: evaluate(0) = 0")
+        void sinTermAtZeroReturnsZero() {
+            AnimationTerm.Sin s = new AnimationTerm.Sin(1.0, 1.0, 0.0);
+            assertEquals(0.0, s.evaluate(0.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("Sin: evaluate(0.5) = A with omega=1 (quarter-period)")
+        void sinTermQuarterPeriod() {
+            AnimationTerm.Sin s = new AnimationTerm.Sin(1.0, 1.0, 0.0);
+            // omega=1 → angular freq = π rad/s → at t=0.5, arg = π/2, sin = 1
+            assertEquals(1.0, s.evaluate(0.5), 1e-9);
+        }
+
+        @Test
+        @DisplayName("Sin: omega=2 has period 1 s")
+        void sinTermOmegaTwoPeriod() {
+            AnimationTerm.Sin s = new AnimationTerm.Sin(1.0, 2.0, 0.0);
+            assertEquals(0.0, s.evaluate(0.0), 1e-9);
+            assertEquals(0.0, s.evaluate(0.5), 1e-9);   // sin(π)=0
+            assertEquals(0.0, s.evaluate(1.0), 1e-9);   // sin(2π)=0
+        }
+
+        @Test
+        @DisplayName("Sin: with phi=π/2 acts like cos")
+        void sinTermPhaseShift() {
+            AnimationTerm.Sin s = new AnimationTerm.Sin(1.0, 1.0, Math.PI / 2);
+            assertEquals(1.0, s.evaluate(0.0), 1e-9);   // sin(π/2)=1 = cos(0)
+        }
+
+        @Test
+        @DisplayName("Sin: amplitude scales output")
+        void sinTermAmplitude() {
+            AnimationTerm.Sin s = new AnimationTerm.Sin(3.0, 1.0, 0.0);
+            assertEquals(3.0, s.evaluate(0.5), 1e-9);   // 3 * sin(π/2)
+        }
+
+        @Test
+        @DisplayName("Cos: evaluate(0) = A")
+        void cosTermAtZeroReturnsAmplitude() {
+            AnimationTerm.Cos c = new AnimationTerm.Cos(1.0, 1.0, 0.0);
+            assertEquals(1.0, c.evaluate(0.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("Cos: evaluate(0.5) = 0 with omega=1")
+        void cosTermQuarterPeriod() {
+            AnimationTerm.Cos c = new AnimationTerm.Cos(1.0, 1.0, 0.0);
+            assertEquals(0.0, c.evaluate(0.5), 1e-9);   // cos(π/2)=0
+        }
+
+        @Test
+        @DisplayName("Cos: convenience constructor defaults phi=0")
+        void cosTermDefaultPhi() {
+            AnimationTerm.Cos c = new AnimationTerm.Cos(1.0, 1.0);
+            assertEquals(1.0, c.evaluate(0.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("Linear: value(t) = speed * t")
+        void linearTerm() {
+            AnimationTerm.Linear l = new AnimationTerm.Linear(30.0);
+            assertEquals(0.0, l.evaluate(0.0), 1e-9);
+            assertEquals(30.0, l.evaluate(1.0), 1e-9);
+            assertEquals(150.0, l.evaluate(5.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("Linear: negative speed for reverse rotation")
+        void linearTermNegativeSpeed() {
+            AnimationTerm.Linear l = new AnimationTerm.Linear(-15.0);
+            assertEquals(-15.0, l.evaluate(1.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("AnimationTerm is sealed and permits only Sin, Cos, Linear")
+        void sealedHierarchy() {
+            assertInstanceOf(AnimationTerm.class, new AnimationTerm.Sin(1.0, 1.0));
+            assertInstanceOf(AnimationTerm.class, new AnimationTerm.Cos(1.0, 1.0));
+            assertInstanceOf(AnimationTerm.class, new AnimationTerm.Linear(1.0));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 4c. LayerAnimation evaluation
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("LayerAnimation evaluation")
+    class LayerAnimationTests {
+
+        @Test
+        @DisplayName("EMPTY evaluates to Vec3d.ZERO offset")
+        void emptyEvaluatesToZeroOffset() {
+            Vec3d off = LayerAnimation.EMPTY.evaluateOffset(0.0);
+            assertEquals(0.0, off.x, 1e-9);
+            assertEquals(0.0, off.y, 1e-9);
+            assertEquals(0.0, off.z, 1e-9);
+        }
+
+        @Test
+        @DisplayName("EMPTY evaluates to identity quaternion")
+        void emptyEvaluatesToIdentityRotation() {
+            Quaternionf q = LayerAnimation.EMPTY.evaluateRotation(0.0);
+            assertEquals(0.0f, q.x(), 1e-6f);
+            assertEquals(0.0f, q.y(), 1e-6f);
+            assertEquals(0.0f, q.z(), 1e-6f);
+            assertEquals(1.0f, q.w(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("isEmpty returns true for EMPTY")
+        void emptyIsEmpty() {
+            assertTrue(LayerAnimation.EMPTY.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Single Y offset sin term evaluates correctly")
+        void singleYOffset() {
+            LayerAnimation anim = new LayerAnimation(
+                List.of(),                                        // offsetX
+                List.of(new AnimationTerm.Sin(0.08, 1.5, 0.0)),  // offsetY
+                List.of(),                                        // offsetZ
+                List.of(), List.of(), List.of()                   // rotations
+            );
+            assertFalse(anim.isEmpty());
+            Vec3d off = anim.evaluateOffset(1.0 / 3.0);
+            // omega=1.5 → ωπ = 1.5π → at t=1/3: arg = 1.5π/3 = π/2, sin=1
+            assertEquals(0.08, off.y, 1e-9);
+            assertEquals(0.0, off.x, 1e-9);
+            assertEquals(0.0, off.z, 1e-9);
+        }
+
+        @Test
+        @DisplayName("Superposition: two terms on same axis are summed")
+        void superpositionOnSameAxis() {
+            // sin(A=1, ω=1) at t=0.5 → sin(π/2)=1
+            // cos(A=0.5, ω=2) at t=0 → cos(0)=0.5
+            // Together at t=0: 0 + 0.5 = 0.5
+            LayerAnimation anim = new LayerAnimation(
+                List.of(new AnimationTerm.Sin(1.0, 1.0, 0.0),
+                        new AnimationTerm.Cos(0.5, 2.0, 0.0)),
+                List.of(), List.of(),
+                List.of(), List.of(), List.of()
+            );
+            Vec3d off = anim.evaluateOffset(0.0);
+            assertEquals(0.5, off.x, 1e-9);
+        }
+
+        @Test
+        @DisplayName("Rotation yaw linear term: degrees converted to radians")
+        void rotationYawLinear() {
+            // 30 deg/s at t=2 → 60 degrees → Math.toRadians(60)
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(30.0)),  // yaw
+                List.of(),                                // pitch
+                List.of()                                 // roll
+            );
+            Quaternionf q = anim.evaluateRotation(2.0);
+            // A pure yaw rotation around Y: should produce non-identity quaternion
+            assertNotEquals(0.0f, q.y(), 1e-6f, "Y component should be non-zero for yaw rotation");
+            assertEquals(0.0f, q.x(), 1e-6f);
+            assertEquals(0.0f, q.z(), 1e-6f);
+            assertTrue(q.w() > 0.0f, "W should be positive for 60-degree rotation");
+        }
+
+        @Test
+        @DisplayName("Rotation pitch sin term: oscillation in degrees")
+        void rotationPitchSin() {
+            // sin(A=5°, ω=1) at t=0.5 → 5 * sin(π/2) = 5 degrees → radians
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(),                                          // yaw
+                List.of(new AnimationTerm.Sin(5.0, 1.0, 0.0)),     // pitch
+                List.of()                                           // roll
+            );
+            Quaternionf q = anim.evaluateRotation(0.5);
+            // A pure pitch rotation around X: should produce non-identity quaternion
+            assertTrue(Math.abs(q.x()) > 0.0f || Math.abs(q.y()) > 0.0f || Math.abs(q.z()) > 0.0f,
+                "Quaternion should be non-identity for 5-degree pitch");
+        }
+
+        @Test
+        @DisplayName("Combined offset and rotation evaluate independently")
+        void combinedOffsetAndRotation() {
+            LayerAnimation anim = new LayerAnimation(
+                List.of(new AnimationTerm.Linear(0.1)),  // offsetX: drift 0.1 blocks/s
+                List.of(new AnimationTerm.Sin(0.08, 1.0)),
+                List.of(),
+                List.of(new AnimationTerm.Linear(30.0)), // yaw: spin 30 deg/s
+                List.of(),
+                List.of()
+            );
+            assertFalse(anim.isEmpty());
+
+            Vec3d off = anim.evaluateOffset(1.0);
+            assertEquals(0.1, off.x, 1e-9);
+            assertEquals(0.0, off.y, 1e-9);  // sin(π)=0
+
+            Quaternionf q = anim.evaluateRotation(1.0);
+            assertNotEquals(0.0f, q.y(), 1e-6f, "30-degree yaw should produce non-zero Y quat component");
+        }
+    }
+
+    // ------------------------------------------------------------------
     // 5. JSON round-trip
     // ------------------------------------------------------------------
 
@@ -261,27 +475,16 @@ class HaloDataTest {
                     }
                   ],
                   "animation": {
-                    "positionCurves": [
-                      {
-                        "axis": "y",
-                        "curve": {
-                          "type": "oscillate",
-                          "amplitude": 0.08,
-                          "frequency": 1.5,
-                          "phase": 0.0
-                        }
-                      }
-                    ],
-                    "rotationCurves": [
-                      {
-                        "axis": "yaw",
-                        "curve": {
-                          "type": "linear",
-                          "start": 0.0,
-                          "speed": 30.0
-                        }
-                      }
-                    ]
+                    "offset": {
+                      "y": [
+                        {"function": "sin", "A": 0.08, "omega": 0.5}
+                      ]
+                    },
+                    "rotation": {
+                      "yaw": [
+                        {"function": "linear", "speed": 30.0}
+                      ]
+                    }
                   },
                   "positioning": {
                     "offset": [0.0, 1.8, 0.0],
@@ -319,8 +522,11 @@ class HaloDataTest {
             assertEquals(0.15f, bp.glow().pulse().amplitude(), 0.001f);
 
             // Animation
-            assertEquals(1, def.animation().positionCurves().size());
-            assertEquals(1, def.animation().rotationCurves().size());
+            assertTrue(def.animation().isPresent());
+            LayerAnimation anim = def.animation().get();
+            assertEquals(1, anim.offsetY().size());
+            assertEquals(1, anim.rotationYaw().size());
+            assertFalse(anim.isEmpty());
 
             // Positioning
             assertEquals(0.0, def.positioning().offset().x, 0.001);
@@ -392,10 +598,7 @@ class HaloDataTest {
                     "texture": "halo:textures/halo/ring.png",
                     "size": [0.5, 0.5]
                   },
-                  "animation": {
-                    "positionCurves": [],
-                    "rotationCurves": []
-                  },
+                  "animation": {},
                   "positioning": {
                     "offset": [0.0, 1.5, 0.0]
                   },
@@ -443,10 +646,7 @@ class HaloDataTest {
                       }
                     ]
                   },
-                  "animation": {
-                    "positionCurves": [],
-                    "rotationCurves": []
-                  },
+                  "animation": {},
                   "positioning": {
                     "offset": [0.0, 1.5, 0.0],
                     "scale": 1.0
@@ -474,8 +674,8 @@ class HaloDataTest {
         }
 
         @Test
-        @DisplayName("ConstantCurve JSON parse")
-        void parseConstantCurve() {
+        @DisplayName("Animation JSON parse with new format")
+        void parseAnimationNewFormat() {
             String json = """
                 {
                   "id": "halo:static_test",
@@ -490,16 +690,11 @@ class HaloDataTest {
                     }
                   ],
                   "animation": {
-                    "positionCurves": [
-                      {
-                        "axis": "y",
-                        "curve": {
-                          "type": "constant",
-                          "value": 0.2
-                        }
-                      }
-                    ],
-                    "rotationCurves": []
+                    "offset": {
+                      "y": [
+                        {"function": "sin", "A": 0.2, "omega": 1.0}
+                      ]
+                    }
                   },
                   "positioning": {
                     "offset": [0.0, 2.0, 0.0]
@@ -519,8 +714,9 @@ class HaloDataTest {
                 null
             );
 
-            assertEquals(1, def.animation().positionCurves().size());
-            assertInstanceOf(ConstantCurve.class, def.animation().positionCurves().get(0).curve());
+            assertTrue(def.animation().isPresent());
+            assertEquals(1, def.animation().get().offsetY().size());
+            assertInstanceOf(AnimationTerm.Sin.class, def.animation().get().offsetY().get(0));
         }
 
         @Test
@@ -538,10 +734,7 @@ class HaloDataTest {
                       }
                     }
                   ],
-                  "animation": {
-                    "positionCurves": [],
-                    "rotationCurves": []
-                  },
+                  "animation": {},
                   "positioning": {
                     "offset": [0.0, 1.8, 0.0]
                   },
@@ -566,6 +759,157 @@ class HaloDataTest {
             assertInstanceOf(BillboardPrimitive.class, layer.primitive());
             assertNull(((BillboardPrimitive) layer.primitive()).glow());  // no glow
             assertEquals(1.0, def.positioning().scale(), 0.001);    // scale default
+        }
+
+        @Test
+        @DisplayName("Per-layer animation block parsed correctly")
+        void parseLayerAnimation() {
+            String json = """
+                {
+                  "id": "halo:animated_test",
+                  "layers": [
+                    {
+                      "position": [0.0, 0.03, 0.0],
+                      "rotation": [0.0, 0.0, 0.0],
+                      "scale": 1.0,
+                      "animation": {
+                        "offset": {
+                          "x": [
+                            {"function": "sin", "A": 1.0, "omega": 1.0, "phi": 0.0},
+                            {"function": "cos", "A": 0.5, "omega": 2.0}
+                          ],
+                          "y": [
+                            {"function": "sin", "A": 0.08, "omega": 1.5}
+                          ]
+                        },
+                        "rotation": {
+                          "yaw": [
+                            {"function": "linear", "speed": 30.0},
+                            {"function": "sin", "A": 5.0, "omega": 0.5}
+                          ]
+                        }
+                      },
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "animation": {},
+                  "positioning": {
+                    "offset": [0.0, 0.4, 0.35],
+                    "scale": 1.0
+                  },
+                  "damping": {
+                    "linearFactor": 0.15,
+                    "angularFactor": 0.1,
+                    "maxLinearDistance": 3.0,
+                    "maxAngularDegrees": 180.0
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            HaloLayer layer = def.model().layers().get(0);
+            assertTrue(layer.animation().isPresent(), "Layer should have animation");
+            LayerAnimation anim = layer.animation().get();
+
+            // offsetX: 2 terms (sin + cos)
+            assertEquals(2, anim.offsetX().size());
+            assertInstanceOf(AnimationTerm.Sin.class, anim.offsetX().get(0));
+            assertEquals(1.0, ((AnimationTerm.Sin) anim.offsetX().get(0)).A(), 1e-9);
+            assertEquals(1.0, ((AnimationTerm.Sin) anim.offsetX().get(0)).omega(), 1e-9);
+            assertInstanceOf(AnimationTerm.Cos.class, anim.offsetX().get(1));
+            assertEquals(0.5, ((AnimationTerm.Cos) anim.offsetX().get(1)).A(), 1e-9);
+
+            // offsetY: 1 term
+            assertEquals(1, anim.offsetY().size());
+
+            // offsetZ: empty
+            assertEquals(0, anim.offsetZ().size());
+
+            // rotationYaw: 2 terms (linear + sin)
+            assertEquals(2, anim.rotationYaw().size());
+            assertInstanceOf(AnimationTerm.Linear.class, anim.rotationYaw().get(0));
+            assertEquals(30.0, ((AnimationTerm.Linear) anim.rotationYaw().get(0)).speed(), 1e-9);
+            assertInstanceOf(AnimationTerm.Sin.class, anim.rotationYaw().get(1));
+
+            // rotationPitch and roll: empty
+            assertEquals(0, anim.rotationPitch().size());
+            assertEquals(0, anim.rotationRoll().size());
+
+            assertFalse(anim.isEmpty(), "Animation should not be empty");
+        }
+
+        @Test
+        @DisplayName("Per-layer animation missing block returns Optional.empty()")
+        void missingLayerAnimationIsEmpty() {
+            String json = """
+                {
+                  "id": "halo:no_anim",
+                  "layers": [
+                    {
+                      "position": [0.0, 0.0, 0.0],
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "animation": {},
+                  "positioning": { "offset": [0.0, 0.4, 0.35], "scale": 1.0 },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertTrue(def.model().layers().get(0).animation().isEmpty(),
+                "Layer without animation block should have empty Optional");
+        }
+
+        @Test
+        @DisplayName("Per-layer animation with empty offset/rotation is Optional.empty()")
+        void emptyAnimationBlockIsEmpty() {
+            String json = """
+                {
+                  "id": "halo:empty_anim",
+                  "layers": [
+                    {
+                      "position": [0.0, 0.0, 0.0],
+                      "animation": {},
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "animation": {},
+                  "positioning": { "offset": [0.0, 0.4, 0.35], "scale": 1.0 },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertTrue(def.model().layers().get(0).animation().isEmpty(),
+                "Layer with empty animation object should have empty Optional");
         }
 
         @Test

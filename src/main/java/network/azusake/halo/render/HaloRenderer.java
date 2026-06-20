@@ -1,6 +1,7 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
+import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -147,6 +148,10 @@ public final class HaloRenderer {
             return false;
         }
 
+        // ---- elapsed time since halo creation (avoids float precision loss
+        //      with large epoch-based wall-clock values for linear terms) ----
+        final double animTime = (System.currentTimeMillis() - instance.getCreatedAtTime()) / 1000.0;
+
         // ---- compute light at halo position for non-glowing layers ----
         BlockPos lightPos = BlockPos.ofFloored(frame.worldPosition());
         int blockLight = client.world.getLightingProvider().get(LightType.BLOCK).getLightLevel(lightPos);
@@ -170,13 +175,33 @@ public final class HaloRenderer {
             applyQuaternionRotation(matrices, frame.worldOrientation());
             matrices.scale(frame.scale(), frame.scale(), frame.scale());
 
-            // Step 2: Per-layer local transform + primitive draw
+            // Step 2: Definition-level animation (whole-halo-body, visual only)
+            def.animation().ifPresent(anim -> {
+                if (!anim.isEmpty()) {
+                    Vec3d defOffset = anim.evaluateOffset(animTime);
+                    Quaternionf defRot = anim.evaluateRotation(animTime);
+                    matrices.translate(defOffset.x, defOffset.y, defOffset.z);
+                    applyQuaternionRotation(matrices, defRot);
+                }
+            });
+
+            // Step 3: Per-layer local transform + primitive draw
             for (HaloLayer layer : model.layers()) {
                 matrices.push();
                 try {
                     matrices.translate(layer.position().x, layer.position().y, layer.position().z);
                     applyQuaternionRotation(matrices, layer.rotation());
                     matrices.scale(layer.scale(), layer.scale(), layer.scale());
+
+                    // Per-layer visual animation (offset + rotation)
+                    layer.animation().ifPresent(anim -> {
+                        if (!anim.isEmpty()) {
+                            Vec3d animOff = anim.evaluateOffset(animTime);
+                            Quaternionf animRot = anim.evaluateRotation(animTime);
+                            matrices.translate(animOff.x, animOff.y, animOff.z);
+                            applyQuaternionRotation(matrices, animRot);
+                        }
+                    });
 
                     if (layer.primitive() instanceof BillboardPrimitive bp) {
                         renderBillboard(bp, matrices, layer.glowing(), brightness);

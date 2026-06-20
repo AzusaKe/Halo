@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,7 +56,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
 
         Identifier id = parseId(root, "id");
         HaloModel model = parseModel(root);
-        HaloAnimation animation = parseAnimation(root.getAsJsonObject("animation"));
+        Optional<LayerAnimation> animation = parseLayerAnimation(root.get("animation"));
         HaloPositioning positioning = parsePositioning(root.getAsJsonObject("positioning"));
         HaloDampingConfig damping = parseDamping(root.getAsJsonObject("damping"));
 
@@ -133,10 +134,70 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         // Glowing toggle (default true)
         boolean glowing = !obj.has("glowing") || obj.get("glowing").getAsBoolean();
 
+        // Layer animation (per-layer, visual-only, optional)
+        Optional<LayerAnimation> layerAnim = parseLayerAnimation(obj.get("animation"));
+
         // Primitive
         HaloPrimitive primitive = parsePrimitive(obj.getAsJsonObject("primitive"));
 
-        return new HaloLayer(id, position, rotation, scale, primitive, glowing);
+        return new HaloLayer(id, position, rotation, scale, primitive, glowing, layerAnim);
+    }
+
+    // --- Layer animation (per-layer visual animation) ---
+
+    /**
+     * Parse an optional per-layer animation block.
+     * Returns {@code Optional.empty()} if the block is missing, null, or empty.
+     */
+    private Optional<LayerAnimation> parseLayerAnimation(JsonElement element) {
+        if (element == null || element.isJsonNull()) return Optional.empty();
+        JsonObject animObj = element.getAsJsonObject();
+        if (animObj.size() == 0) return Optional.empty();
+
+        List<AnimationTerm> ox = parseAnimationTerms(animObj, "offset", "x");
+        List<AnimationTerm> oy = parseAnimationTerms(animObj, "offset", "y");
+        List<AnimationTerm> oz = parseAnimationTerms(animObj, "offset", "z");
+        List<AnimationTerm> ry = parseAnimationTerms(animObj, "rotation", "yaw");
+        List<AnimationTerm> rp = parseAnimationTerms(animObj, "rotation", "pitch");
+        List<AnimationTerm> rr = parseAnimationTerms(animObj, "rotation", "roll");
+
+        LayerAnimation result = new LayerAnimation(ox, oy, oz, ry, rp, rr);
+        return result.isEmpty() ? Optional.empty() : Optional.of(result);
+    }
+
+    /**
+     * Extract a list of {@link AnimationTerm}s from a nested JSON structure:
+     * {@code parent.group.axis → [...]}.
+     * Returns an empty list if any level of the path is missing.
+     */
+    private List<AnimationTerm> parseAnimationTerms(JsonObject parent, String group, String axis) {
+        if (!parent.has(group)) return List.of();
+        JsonElement groupElem = parent.get(group);
+        if (groupElem.isJsonNull()) return List.of();
+        JsonObject groupObj = groupElem.getAsJsonObject();
+        if (!groupObj.has(axis)) return List.of();
+        JsonArray arr = groupObj.getAsJsonArray(axis);
+        if (arr.isEmpty()) return List.of();
+
+        List<AnimationTerm> terms = new ArrayList<>(arr.size());
+        for (JsonElement elem : arr) {
+            JsonObject t = elem.getAsJsonObject();
+            String function = t.get("function").getAsString().toLowerCase();
+            terms.add(switch (function) {
+                case "sin" -> new AnimationTerm.Sin(
+                    t.get("A").getAsDouble(),
+                    t.get("omega").getAsDouble(),
+                    t.has("phi") ? t.get("phi").getAsDouble() : 0.0);
+                case "cos" -> new AnimationTerm.Cos(
+                    t.get("A").getAsDouble(),
+                    t.get("omega").getAsDouble(),
+                    t.has("phi") ? t.get("phi").getAsDouble() : 0.0);
+                case "linear" -> new AnimationTerm.Linear(
+                    t.get("speed").getAsDouble());
+                default -> throw new JsonParseException("Unknown animation term function: " + function);
+            });
+        }
+        return Collections.unmodifiableList(terms);
     }
 
     private HaloPrimitive parsePrimitive(JsonObject obj) {
@@ -198,52 +259,6 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         float frequency = obj.get("frequency").getAsFloat();
         float phase = obj.has("phase") ? obj.get("phase").getAsFloat() : 0f;
         return new PulseConfig(amplitude, frequency, phase);
-    }
-
-    // --- Animation (unchanged) ---
-
-    private HaloAnimation parseAnimation(JsonObject obj) {
-        if (obj == null) return HaloAnimation.EMPTY;
-
-        List<PositionCurve> posCurves = new ArrayList<>();
-        if (obj.has("positionCurves")) {
-            for (JsonElement elem : obj.getAsJsonArray("positionCurves")) {
-                JsonObject c = elem.getAsJsonObject();
-                PositionCurve.PositionAxis axis = PositionCurve.PositionAxis.valueOf(
-                    c.get("axis").getAsString().toUpperCase());
-                AnimationCurve curve = parseCurve(c.getAsJsonObject("curve"));
-                posCurves.add(new PositionCurve(axis, curve));
-            }
-        }
-
-        List<RotationCurve> rotCurves = new ArrayList<>();
-        if (obj.has("rotationCurves")) {
-            for (JsonElement elem : obj.getAsJsonArray("rotationCurves")) {
-                JsonObject c = elem.getAsJsonObject();
-                RotationCurve.RotationAxis axis = RotationCurve.RotationAxis.valueOf(
-                    c.get("axis").getAsString().toUpperCase());
-                AnimationCurve curve = parseCurve(c.getAsJsonObject("curve"));
-                rotCurves.add(new RotationCurve(axis, curve));
-            }
-        }
-
-        return new HaloAnimation(posCurves, rotCurves);
-    }
-
-    private AnimationCurve parseCurve(JsonObject obj) {
-        if (obj == null) throw new JsonParseException("Missing curve object");
-        String type = obj.get("type").getAsString();
-        return switch (type) {
-            case "constant" -> new ConstantCurve(obj.get("value").getAsDouble());
-            case "linear" -> new LinearCurve(
-                obj.get("start").getAsDouble(),
-                obj.get("speed").getAsDouble());
-            case "oscillate" -> new OscillateCurve(
-                obj.get("amplitude").getAsDouble(),
-                obj.get("frequency").getAsDouble(),
-                obj.has("phase") ? obj.get("phase").getAsDouble() : 0.0);
-            default -> throw new JsonParseException("Unknown curve type: " + type);
-        };
     }
 
     // --- Positioning & Damping (unchanged) ---

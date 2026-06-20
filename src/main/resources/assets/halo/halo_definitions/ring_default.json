@@ -14,27 +14,16 @@
     }
   ],
   "animation": {
-    "positionCurves": [
-      {
-        "axis": "y",
-        "curve": {
-          "type": "oscillate",
-          "amplitude": 0.08,
-          "frequency": 1.5,
-          "phase": 0.0
-        }
-      }
-    ],
-    "rotationCurves": [
-      {
-        "axis": "yaw",
-        "curve": {
-          "type": "linear",
-          "start": 0.0,
-          "speed": 30.0
-        }
-      }
-    ]
+    "offset": {
+      "y": [
+        {"function": "sin", "A": 0.08, "omega": 0.5}
+      ]
+    },
+    "rotation": {
+      "yaw": [
+        {"function": "linear", "speed": 30.0}
+      ]
+    }
   },
   "positioning": {
     "offset": [0.0, 0.2, 0.5],
