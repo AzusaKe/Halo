@@ -28,6 +28,12 @@ public final class HaloJsonLoader {
     private static final Map<Identifier, HaloDefinition> DEFINITIONS = new LinkedHashMap<>();
     private static final HaloDefinitionDeserializer DESERIALIZER = new HaloDefinitionDeserializer();
 
+    /** Definitions loaded by the server (data-pack) listener.  Cleared and repopulated on reload. */
+    private static final Set<Identifier> serverLoadedIds = new LinkedHashSet<>();
+
+    /** Definitions loaded by the client (resource-pack) listener.  Cleared and repopulated on reload. */
+    private static final Set<Identifier> clientLoadedIds = new LinkedHashSet<>();
+
     private HaloJsonLoader() {
         // utility class
     }
@@ -91,25 +97,28 @@ public final class HaloJsonLoader {
     // ------------------------------------------------------------------
 
     /**
-     * Scan and load definitions from the given resource manager.
+     * Scan and load definitions from the given resource manager, tracking them
+     * in {@code sourceSet} so that a later reload from the same source replaces
+     * only its own definitions — definitions loaded by the other source are
+     * left untouched.
      *
-     * @param manager the resource manager to scan
-     * @param clear   if {@code true}, clear the registry before loading
-     *                (used by the authoritative server-data listener);
-     *                if {@code false}, add/update entries without clearing
-     *                (used by the supplementary client-resources listener)
+     * @param manager   the resource manager to scan
+     * @param sourceSet the set of IDs previously loaded by this source;
+     *                  will be cleared and repopulated with the new IDs
      */
-    private static void reload(ResourceManager manager, boolean clear) {
-        if (clear) {
-            DEFINITIONS.clear();
+    private static void reload(ResourceManager manager, Set<Identifier> sourceSet) {
+        // Remove only the definitions that were previously loaded from this source
+        for (Identifier id : sourceSet) {
+            DEFINITIONS.remove(id);
         }
+        sourceSet.clear();
 
         Map<Identifier, net.minecraft.resource.Resource> resources = manager.findResources(
             DEFINITIONS_PATH,
             id -> id.getPath().endsWith(".json")
         );
 
-        LOG.info("Found {} halo definition(s) to load (clear={})", resources.size(), clear);
+        LOG.info("Found {} halo definition(s) to load", resources.size());
 
         for (Map.Entry<Identifier, net.minecraft.resource.Resource> entry : resources.entrySet()) {
             Identifier fileId = entry.getKey();
@@ -118,6 +127,7 @@ public final class HaloJsonLoader {
                 HaloDefinition def = DESERIALIZER.deserialize(root, HaloDefinition.class, null);
 
                 DEFINITIONS.put(def.id(), def);
+                sourceSet.add(def.id());
                 LOG.info("  Loaded halo definition: {}", def.id());
             } catch (Exception e) {
                 LOG.warn("  Skipping malformed halo definition {}: {}", fileId, e.getMessage());
@@ -139,7 +149,7 @@ public final class HaloJsonLoader {
 
         @Override
         public void reload(ResourceManager manager) {
-            HaloJsonLoader.reload(manager, true);
+            HaloJsonLoader.reload(manager, serverLoadedIds);
         }
     }
 
@@ -151,7 +161,7 @@ public final class HaloJsonLoader {
 
         @Override
         public void reload(ResourceManager manager) {
-            HaloJsonLoader.reload(manager, false);
+            HaloJsonLoader.reload(manager, clientLoadedIds);
         }
     }
 }
