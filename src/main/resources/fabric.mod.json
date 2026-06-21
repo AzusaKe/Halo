@@ -12,7 +12,7 @@
         "sources": "https://github.com/azusake/halo"
     },
     "license": "MIT",
-    "icon": "assets/halo/icon.png",
+    "icon": "assets/halo/textures/halo/ring.png",
     "environment": "*",
     "entrypoints": {
         "main": [

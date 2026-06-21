@@ -1,4 +1,7 @@
-# Halo Mod（光环模组）
+<h1>
+  <img src="src/main/resources/assets/halo/textures/halo/ring.png" alt="封面" height="40" style="vertical-align:middle;margin-right:12px">
+  Halo Mod（光环模组）
+</h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
 ![MC版本](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)

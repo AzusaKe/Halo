@@ -1,4 +1,7 @@
-# Halo Mod
+<h1>
+  <img src="./src/main/resources/assets/halo/textures/halo/ring.png" alt="cover" height="40" style="vertical-align:middle;margin-right:12px">
+  Halo Mod
+</h1>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![MC Version](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
@@ -8,22 +11,21 @@ English | [中文](README_ZH.md)
 
 ## Table of Contents
 
-- [Halo Mod](#halo-mod)
-  - [Table of Contents](#table-of-contents)
-  - [Introduction](#introduction)
-  - [Features](#features)
-  - [Installation](#installation)
-  - [Usage](#usage)
-    - [Commands](#commands)
-    - [Custom Halo Definitions](#custom-halo-definitions)
-  - [Building from Source](#building-from-source)
-    - [Prerequisites](#prerequisites)
-    - [Build](#build)
-    - [Run Tests](#run-tests)
-    - [Run Client / Server](#run-client--server)
-  - [Project Structure](#project-structure)
-  - [Contributing](#contributing)
-  - [License](#license)
+- [Table of Contents](#table-of-contents)
+- [Introduction](#introduction)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Commands](#commands)
+  - [Custom Halo Definitions](#custom-halo-definitions)
+- [Building from Source](#building-from-source)
+  - [Prerequisites](#prerequisites)
+  - [Build](#build)
+  - [Run Tests](#run-tests)
+  - [Run Client / Server](#run-client--server)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+- [License](#license)
 
 <a id="introduction"></a>
 
