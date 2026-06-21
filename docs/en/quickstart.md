@@ -182,11 +182,14 @@ Each halo layer is rendered on a flat quad (billboard) with no thickness. When a
 
 ### Install the Resource Pack
 
-1. Copy the entire `yourhalo_pack` folder into Minecraft's `resourcepacks` directory
-2. Launch the game, go to **Options → Resource Packs**, find "My First Halo Resource Pack", and click the arrow to move it to the "Enabled" list on the right
+1. Place the `yourhalo_pack` folder (or the compressed `.zip` file) into Minecraft's `resourcepacks` directory
+   - If you're not sure where the `resourcepacks` directory is: launch the game, then go to **Options → Resource Packs → Open Pack Folder** to open it directly
+2. Launch the game (if already running, restart so Minecraft can detect the new pack), go to **Options → Resource Packs**, find "My First Halo Resource Pack", and click the arrow to move it to the "Enabled" list on the right
 3. Click "Done" to apply
 
-> **Tip**: Once finished, we recommend compressing the entire `yourhalo_pack` folder into a `.zip` file. This makes it easy to share with friends or drop into another Minecraft instance's `resourcepacks` directory. **Important**: When zipping, make sure `pack.mcmeta` is at the top level of the archive — opening the zip should directly show `pack.mcmeta` and the `assets/` folder, not another nested folder inside.
+> **Tip**: Minecraft supports both folder-form and `.zip` resource packs — you can drop the entire folder directly into `resourcepacks`, or use a compressed `.zip` file. `.zip` is better for sharing and transferring. **Important**: When zipping, make sure `pack.mcmeta` is at the top level of the archive — opening the zip should directly show `pack.mcmeta` and the `assets/` folder, not another nested folder inside.
+>
+> **Convenience Tool**: If you don't want to manually create the zip, use [Halo-Packing-Tool](https://github.com/AzusaKe/Halo-Packing-Tool) to bundle JSONs and PNGs into resource packs in one step.
 
 ### Load the Halo
 

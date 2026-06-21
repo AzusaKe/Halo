@@ -182,11 +182,14 @@ yourhalo_pack/
 
 ### 安装资源包
 
-1. 将整个 `yourhalo_pack` 文件夹复制到 Minecraft 的 `resourcepacks` 目录中
-2. 启动游戏，进入 **选项 → 资源包**，找到"我的第一个光环资源包"，点击箭头将其移到右侧"已启用"列表
+1. 将 `yourhalo_pack` 文件夹（或压缩好的 `.zip` 文件）放入 Minecraft 的 `resourcepacks` 目录中
+   - 如果你不知道 `resourcepacks` 目录在哪：启动游戏后进入 **选项 → 资源包 → 打开资源包文件夹**，即可直接打开
+2. 启动游戏（如果已启动，先退出再重新启动，以便 Minecraft 识别新资源包），进入 **选项 → 资源包**，找到"我的第一个光环资源包"，点击箭头将其移到右侧"已启用"列表
 3. 点击"完成"应用
 
-> **提示**：完成后，建议将整个 `yourhalo_pack` 文件夹压缩为 `.zip` 文件。这样可以方便地分享给朋友，也可以直接放入其他 Minecraft 实例的 `resourcepacks` 目录使用。**注意**：压缩时请确保 `pack.mcmeta` 在压缩包的最上层——即直接进入压缩包就能看到 `pack.mcmeta` 和 `assets/` 文件夹，而不是里面还套了一层文件夹。
+> **提示**：Minecraft 同时支持文件夹形式和 `.zip` 形式的资源包——你可以将整个文件夹直接放入 `resourcepacks`，也可以使用压缩后的 `.zip` 文件。`.zip` 更适合分享和转移。**注意**：压缩时请确保 `pack.mcmeta` 在压缩包的最上层——即直接进入压缩包就能看到 `pack.mcmeta` 和 `assets/` 文件夹，而不是里面还套了一层文件夹。
+>
+> **便捷工具**：如果你不想手动打包，可以使用 [Halo-Packing-Tool](https://github.com/AzusaKe/Halo-Packing-Tool)，一键将 JSON 和 PNG 打包为资源包。
 
 ### 加载光环
 
