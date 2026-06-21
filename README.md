@@ -53,6 +53,17 @@ Currently only available in Minecraft 1.20.1 with Fabric.
 - [x] **Multi-Layer Shapes**: Beyond single billboards, halos can use `MultiBillboardShape` for layered quad effects. **More customization features coming soon!**
 - [x] **Distance Culling**: Halos beyond 1000 blocks from the camera are automatically skipped for performance optimization.
 
+## Planned Features
+
+- [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
+- [ ] **More Animations**: Add pulse glow, scale animations, and "intro animations"
+- [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files), `ring` (similar to `billboard`, a ring with no thickness but with width and diameter displayed using a single texture)
+- [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
+- [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
+- [ ] **Remove Server Dependency**: Use vanilla mechanics to transmit halo information in multiplayer, so only the client needs the mod installed for players to see each other's halos
+- [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
+- [ ] Other bug fixes — issues are welcome
+
 <a id="installation"></a>
 
 ## Installation
