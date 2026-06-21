@@ -112,14 +112,14 @@ yourhalo_pack/
 
 | 字段 | 说明 |
 |------|------|
-| `id` | 光环的唯一标识符。格式为 `命名空间:名称`，此处 `halo:yourhalo` 即 Halo 模组命名空间下的 `yourhalo` 光环。后续用 `/halo show` 命令时需要用到这个 ID。 |
+| `id` | 光环的唯一标识符。格式为 `命名空间:名称`。命名空间与文件夹对应：`halo:yourhalo` 表示该定义文件位于 `assets/halo/` 下。你可以使用自己的命名空间（如 `mypack:myhalo`），此时定义文件应放在 `assets/mypack/` 下。后续用 `/halo show` 命令时需要用到这个 ID。 |
 | `orientation_mode` | 光环的朝向模式。`"sync"` 表示光环跟随实体头部的旋转——玩家抬头时光环也抬头，转头时光环也转头。本教程以 `sync` 作为示例。（灵感来源于 Blue Archive 的光环跟随方式。） |
 | `layers` | 图层数组。每个光环可以由多个图层叠加组成。图层通过各自的位置（`position`）决定空间中的前后关系，而非数组中的排列顺序。这里我们只用了一个图层。 |
 | `layers[0].position` | 该图层在光环局部空间中的位置 `[X, Y, Z]`（单位为格）。`[0, 0, 0]` 代表光环的**原点**——这个原点会和阻尼物理计算出的跟随位置对齐。图层在空间中的实际位置 = 阻尼跟随位置 + 此处定义的偏移。 |
 | `layers[0].rotation` | 该图层的初始旋转角度 `[pitch, yaw, roll]`（单位为度）。`[0, 0, 0]` 表示不做旋转。 |
 | `layers[0].scale` | 该图层的缩放倍率。`1.0` 为原始大小。 |
 | `layers[0].primitive` | 该图层的渲染方式。`"billboard"` 是一个无厚度的四边形面片（因其没有厚度而得名），这是当前唯一可用的图元类型。 |
-| `layers[0].primitive.texture` | 贴图路径。格式为 `命名空间:textures/halo/文件名.png`。注意这个路径以 `assets/` 为根目录，所以 `halo:textures/halo/yourhalo.png` 对应文件系统中的 `assets/halo/textures/halo/yourhalo.png`。 |
+| `layers[0].primitive.texture` | 贴图路径。格式为 `命名空间:textures/halo/文件名.png`。这个路径以 `assets/` 为根目录，其中**命名空间**对应 `assets/` 下的文件夹名。例如 `halo:textures/halo/yourhalo.png` 中 `halo` 是命名空间，对应 `assets/halo/` 文件夹。如果你使用自己的命名空间（如 `mypack`），则将文件放在 `assets/mypack/` 下，贴图路径写为 `mypack:textures/halo/yourhalo.png`。 |
 | `layers[0].primitive.size` | 面片的尺寸 `[宽, 高]`（单位为格）。`[0.5, 0.5]` 是一个 0.5×0.5 格的正方形。 |
 | `animation` | 光环整体的动画。这里我们添加了一个 Y 轴的正弦浮动效果——光环会以微小的幅度上下浮动，让光环看起来更有"活着"的感觉。 |
 | `animation.offset.y` | Y 轴偏移动画。`A: 0.01` 是振幅（0.01 格），`omega: 0.5` 是频率。值越大浮动越明显。 |

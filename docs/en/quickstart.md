@@ -112,14 +112,14 @@ Here is what each field in this JSON means:
 
 | Field | Description |
 |------|------|
-| `id` | The unique identifier for the halo. Format: `namespace:name`. Here `halo:yourhalo` means the `yourhalo` halo under the Halo mod namespace. You'll use this ID with the `/halo show` command. |
+| `id` | The unique identifier for the halo. Format: `namespace:name`. The namespace maps to a folder under `assets/` — e.g. `halo:yourhalo` means the definition file lives under `assets/halo/`. You can use your own namespace (e.g. `mypack:myhalo`), in which case the definition file should be placed under `assets/mypack/`. You'll use this ID with the `/halo show` command. |
 | `orientation_mode` | The halo's orientation mode. `"sync"` means the halo follows the entity's head rotation — when the player looks up, the halo tilts up; when the player turns, the halo turns. This tutorial uses `sync` as the example. (Inspired by the halo-following style in Blue Archive.) |
 | `layers` | Array of layers. Each halo can be composed of multiple layers stacked together. Layers determine their front-to-back spatial relationship through their `position` values, not their array order. Here we only use one layer. |
 | `layers[0].position` | This layer's position in the halo's local space `[X, Y, Z]` (in blocks). `[0, 0, 0]` represents the halo's **origin** — this origin will be aligned with the position computed by damping physics. The layer's actual position in space = damped follow position + the offset defined here. |
 | `layers[0].rotation` | This layer's initial rotation `[pitch, yaw, roll]` (in degrees). `[0, 0, 0]` means no rotation. |
 | `layers[0].scale` | This layer's scale multiplier. `1.0` is the original size. |
 | `layers[0].primitive` | The rendering primitive for this layer. `"billboard"` is a flat quad with no thickness (named for its lack of depth) — this is currently the only available primitive type. |
-| `layers[0].primitive.texture` | The texture path. Format: `namespace:textures/halo/filename.png`. Note that this path is relative to `assets/`, so `halo:textures/halo/yourhalo.png` maps to `assets/halo/textures/halo/yourhalo.png` in the filesystem. |
+| `layers[0].primitive.texture` | The texture path. Format: `namespace:textures/halo/filename.png`. This path is relative to `assets/`, where the **namespace** corresponds to a folder name under `assets/`. For example, in `halo:textures/halo/yourhalo.png`, `halo` is the namespace and maps to the `assets/halo/` folder. If you use your own namespace (e.g. `mypack`), place files under `assets/mypack/` and write the path as `mypack:textures/halo/yourhalo.png`. |
 | `layers[0].primitive.size` | The quad's dimensions `[width, height]` (in blocks). `[0.5, 0.5]` is a 0.5×0.5-block square. |
 | `animation` | The halo's overall animation. Here we've added a Y-axis sinusoidal bobbing effect — the halo gently floats up and down, giving it a lively feel. |
 | `animation.offset.y` | Y-axis offset animation. `A: 0.01` is the amplitude (0.01 blocks), `omega: 0.5` is the frequency. Larger values produce more pronounced bobbing. |

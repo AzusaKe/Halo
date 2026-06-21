@@ -41,7 +41,7 @@ A halo definition JSON file contains the following top-level fields:
 - **Type**: String
 - **Required**: Yes
 - **Format**: `namespace:name`, e.g. `"halo:yourhalo"`
-- **Description**: The halo's unique identifier. The namespace is typically `halo`. When referencing via `/halo show <entity> <name>`, the mod automatically fills in the `halo:` prefix.
+- **Description**: The halo's unique identifier. The namespace maps to a folder under `assets/` — `halo:yourhalo` means the definition file lives under `assets/halo/`. You can use your own namespace (e.g. `mypack:myhalo`), in which case the definition file should be placed under `assets/mypack/`. When referencing via `/halo show <entity> <name>`, the mod automatically fills in the `halo:` prefix.
 
 ### `orientation_mode`
 
@@ -170,7 +170,7 @@ The only currently supported primitive type is `"billboard"` — a flat quad wit
 | Field | Type | Required | Description |
 |------|------|------|------|
 | `type` | String | **Yes** | Fixed value `"billboard"` |
-| `texture` | String | **Yes** | Texture resource path. Format: `namespace:textures/halo/filename.png`. The path is relative to `assets/`. |
+| `texture` | String | **Yes** | Texture resource path. Format: `namespace:textures/halo/filename.png`. The path is relative to `assets/`, where the **namespace** corresponds to a folder name under `assets/`. For example, in `halo:textures/halo/example.png`, `halo` is the namespace and maps to the `assets/halo/` folder. When using your own namespace (e.g. `mypack`), place files under `assets/mypack/` and write the path as `mypack:textures/halo/example.png`. |
 | `size` | `[width, depth]` | **Yes** | The quad's dimensions `[width, depth]` on the XZ plane (in blocks). Usually square, e.g. `[0.5, 0.5]`. |
 | `glow` | Object | No | Optional glow overlay layer. No glow effect when absent. |
 

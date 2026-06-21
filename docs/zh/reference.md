@@ -41,7 +41,7 @@
 - **类型**：字符串
 - **必需**：是
 - **格式**：`命名空间:名称`，例如 `"halo:yourhalo"`
-- **说明**：光环的唯一标识符。命名空间通常使用 `halo`。后续通过 `/halo show <实体> <名称>` 引用时，模组会自动补全 `halo:` 前缀。
+- **说明**：光环的唯一标识符。命名空间映射到 `assets/` 下的文件夹——`halo:yourhalo` 表示定义文件位于 `assets/halo/` 下。你可以使用自己的命名空间（如 `mypack:myhalo`），此时定义文件应放在 `assets/mypack/` 下。后续通过 `/halo show <实体> <名称>` 引用时，模组会自动补全 `halo:` 前缀。
 
 ### `orientation_mode`
 
@@ -170,7 +170,7 @@
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `type` | 字符串 | **是** | 固定值 `"billboard"` |
-| `texture` | 字符串 | **是** | 贴图资源路径。格式：`命名空间:textures/halo/文件名.png`。路径以 `assets/` 为根目录。 |
+| `texture` | 字符串 | **是** | 贴图资源路径。格式：`命名空间:textures/halo/文件名.png`。路径以 `assets/` 为根目录，其中**命名空间**对应 `assets/` 下的文件夹名。例如 `halo:textures/halo/example.png` 中 `halo` 是命名空间，对应 `assets/halo/` 文件夹。使用自己的命名空间（如 `mypack`）时，将文件放在 `assets/mypack/` 下，路径写为 `mypack:textures/halo/example.png`。 |
 | `size` | `[width, depth]` | **是** | 面片在 XZ 平面上的尺寸 `[宽, 深]`（格）。通常设为正方形，如 `[0.5, 0.5]`。 |
 | `glow` | 对象 | 否 | 可选的发光叠加层。不存在时表示无发光效果。 |
 
