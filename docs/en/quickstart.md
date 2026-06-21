@@ -174,7 +174,7 @@ Each halo layer is rendered on a flat quad (billboard) with no thickness. When a
 
 **Summary**: The halo texture is **correct when viewed from the inside** (looking outward from the player's head, it matches your image editor exactly), and **flipped left-to-right when viewed from the outside** (looking at the player from the front). The up-down orientation never changes.
 
-> **Tip**: If the text description isn't clear enough, check out the built-in example halo definitions and their corresponding textures in the open-source repository [AzusaKe/Halo](https://github.com/AzusaKe/Halo) — comparing them side by side helps build intuition.
+> **Tip**: If the text description isn't clear enough, check out the built-in example halo definitions and their corresponding textures in the open-source repository [AzusaKe/Halo](https://github.com/AzusaKe/Halo) — comparing them side by side helps build intuition. You can also look at the ready-made Blue Archive character halo resource packs in [Ba-Halo-Definition](https://github.com/AzusaKe/Ba-Halo-Definition) for real-world examples.
 
 ---
 
@@ -265,6 +265,8 @@ Congratulations! You've successfully created your first custom halo. From here, 
   - `sync` (the mode used in this tutorial): The initial pose is determined by the first frame of `locked` mode, then synchronizes rotation with the player's head
 
 > A detailed field reference manual is in the works — it will cover every available field, animation function, and common patterns. Stay tuned!
+>
+> **Reference Examples**: You can also check out the ready-made Blue Archive character halo resource packs at [Ba-Halo-Definition](https://github.com/AzusaKe/Ba-Halo-Definition) for real project examples.
 
 ---
 

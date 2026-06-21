@@ -174,7 +174,7 @@ yourhalo_pack/
 
 **总结**：光环贴图**对内是正的**（从玩家头部向外看时，与图片浏览器中看到的完全一致），**对外是左右翻转的**（从外部看向玩家时，贴图为水平镜像）。上下方向始终不变。
 
-> **提示**：如果光看文字仍不确定，可以去开源仓库 [AzusaKe/Halo](https://github.com/AzusaKe/Halo) 查看内置的示例光环定义和对应贴图，对比它们的写法来加深理解。
+> **提示**：如果光看文字仍不确定，可以去开源仓库 [AzusaKe/Halo](https://github.com/AzusaKe/Halo) 查看内置的示例光环定义和对应贴图，对比它们的写法来加深理解。你也可以参考 [Ba-Halo-Definition](https://github.com/AzusaKe/Ba-Halo-Definition) 仓库中已制作好的 Blue Archive 人物光环资源包作为示例。
 
 ---
 
@@ -265,6 +265,8 @@ yourhalo_pack/
   - `sync`（本教程使用的模式）：初始姿态由 `locked` 模式的首帧确定，随后与玩家头部同步旋转
 
 > 详细的字段参考手册正在编写中，届时会涵盖所有可用字段、动画函数和常见模式。敬请期待！
+>
+> **参考示例**：你也可以直接查看 [Ba-Halo-Definition](https://github.com/AzusaKe/Ba-Halo-Definition) 仓库中已制作完成的 Blue Archive 人物光环资源包，作为实际项目的参考。
 
 ---
 
