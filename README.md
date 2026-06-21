@@ -14,6 +14,7 @@ English | [中文](README_ZH.md)
 - [Table of Contents](#table-of-contents)
 - [Introduction](#introduction)
 - [Features](#features)
+- [Planned Features](#planned-features)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Commands](#commands)
@@ -62,6 +63,7 @@ Currently only available in Minecraft 1.20.1 with Fabric.
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
 - [ ] **Remove Server Dependency**: Use vanilla mechanics to transmit halo information in multiplayer, so only the client needs the mod installed for players to see each other's halos
 - [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
+- [ ] fix bug that halo can not be seen in multi-player
 - [ ] Other bug fixes — issues are welcome
 
 <a id="installation"></a>
