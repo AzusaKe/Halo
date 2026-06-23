@@ -59,8 +59,11 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         Optional<LayerAnimation> animation = parseLayerAnimation(root.get("animation"));
         HaloPositioning positioning = parsePositioning(root.getAsJsonObject("positioning"));
         HaloDampingConfig damping = parseDamping(root.getAsJsonObject("damping"));
+        boolean hideOnSleep = root.has("hide_on_sleep")
+            ? root.get("hide_on_sleep").getAsBoolean()
+            : false;
 
-        return new HaloDefinition(id, model, animation, positioning, damping);
+        return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep);
     }
 
     // ------------------------------------------------------------------

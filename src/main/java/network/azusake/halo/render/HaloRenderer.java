@@ -142,6 +142,11 @@ public final class HaloRenderer {
             return false;
         }
 
+        // ---- hide while sleeping ----
+        if (def.hideOnSleep() && entity.isSleeping()) {
+            return false;
+        }
+
         // ---- compute anchor frame ----
         AnchorFrame frame = frameCalculator.calculate(instance, entity, def, camera, tickDelta, dt);
 

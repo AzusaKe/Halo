@@ -14,12 +14,14 @@ import java.util.Optional;
  * @param model       visual model with layers and orientation mode
  * @param animation   optional whole-body visual animation (offset + rotation over time)
  * @param positioning static offset and scale applied to the halo
- * @param damping     physics damping / interpolation parameters
+ * @param damping         physics damping / interpolation parameters
+ * @param hideOnSleep      when true, the halo stops rendering while the entity is sleeping
  */
 public record HaloDefinition(
     Identifier id,
     HaloModel model,
     Optional<LayerAnimation> animation,
     HaloPositioning positioning,
-    HaloDampingConfig damping
+    HaloDampingConfig damping,
+    boolean hideOnSleep
 ) {}

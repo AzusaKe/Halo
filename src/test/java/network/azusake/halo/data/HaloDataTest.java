@@ -76,7 +76,7 @@ class HaloDataTest {
             HaloPositioning pos = new HaloPositioning(Vec3d.ZERO, 1.0);
             HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0);
 
-            HaloDefinition def = new HaloDefinition(id, model, Optional.empty(), pos, damp);
+            HaloDefinition def = new HaloDefinition(id, model, Optional.empty(), pos, damp, false);
             assertEquals(id, def.id());
             assertEquals(model, def.model());
             assertTrue(def.animation().isEmpty());
