@@ -93,6 +93,7 @@ Put the following content into `yourhalo.json`:
       "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
     }
   },
+  "hide_on_sleep": false,
   "positioning": {
     "offset": [0.0, 0.4, 0.35],
     "scale": 1.5
@@ -123,6 +124,7 @@ Here is what each field in this JSON means:
 | `layers[0].primitive.size` | The quad's dimensions `[width, height]` (in blocks). `[0.5, 0.5]` is a 0.5×0.5-block square. |
 | `animation` | The halo's overall animation. Here we've added a Y-axis sinusoidal bobbing effect — the halo gently floats up and down, giving it a lively feel. |
 | `animation.offset.y` | Y-axis offset animation. `A: 0.01` is the amplitude (0.01 blocks), `omega: 0.5` is the frequency. Larger values produce more pronounced bobbing. |
+| `hide_on_sleep` | Whether to hide the halo while the entity is sleeping. `true` = stop rendering during sleep, auto-resume upon waking; `false` (default) = always render. |
 | `positioning.offset` | The halo's overall position offset relative to the entity's head `[X, Y, Z]`. `[0, 0.4, 0.35]` means 0.4 blocks above the head and 0.35 blocks behind. |
 | `positioning.scale` | The halo's overall scale multiplier. `1.5` scales it up by 50%. |
 | `damping` | Physics follow parameters that control how smoothly the halo tracks the entity. |

@@ -31,6 +31,7 @@ A halo definition JSON file contains the following top-level fields:
   "sync_offset": [0.0, 0.0, 0.0],
   "layers": [ ... ],
   "animation": { ... },
+  "hide_on_sleep": false,
   "positioning": { ... },
   "damping": { ... }
 }
@@ -68,6 +69,13 @@ A halo definition JSON file contains the following top-level fields:
 - **Type**: Animation object
 - **Required**: No
 - **Description**: Halo-level overall animation. Has the same structure as per-layer animation. Set to `{}` for no animation. See [Animation System](#animation-system) for details.
+
+### `hide_on_sleep`
+
+- **Type**: Boolean
+- **Required**: No
+- **Default**: `false`
+- **Description**: When set to `true`, the halo temporarily stops rendering while the entity is sleeping (player in bed, fox resting, etc.). Rendering resumes automatically when the entity wakes up. When `false`, the halo always renders regardless of sleep state.
 
 ### `positioning`
 
