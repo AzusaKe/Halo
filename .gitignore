@@ -45,6 +45,9 @@ task/
 plan/
 .claude/
 
+# stray copy of a Fabric API source file (not part of the mod)
+net/
+
 # halo model file that may trigger copy protection
 shiroko*.png
 shiroko*.json

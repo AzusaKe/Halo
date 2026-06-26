@@ -39,6 +39,8 @@
 
 > 光环采用帧率无关的方式进行离散位置跟随，可以配置跟随速度和最大距离钳制。并在传送后重置位置
 
+> ⚠️ **暂不支持多人游戏。** 光环目前仅在单人游戏中渲染。跨客户端同步（在服务器上看到其他玩家的光环）**尚未实现**——详见 [未来将会添加的特性](#未来将会添加的特性)。目前请将 Halo 当作单人 / 本地存档模组使用。
+
 <a id="特性"></a>
 
 ## 特性
@@ -56,14 +58,13 @@
 
 ## 未来将会添加的特性
 
+- [ ] **多人游戏支持（尚未实现）**：目前光环仅在单人游戏中渲染。计划使用原版机制（记分板标签 Scoreboard Tag）传递光环信息，使玩家之间能互相看见对方的光环——并力争做到只需客户端安装模组即可。这是当前缺失的最大功能。
 - [ ] **在物品栏内可见** : 目前模组的光环不会在物品栏中的玩家模型头部渲染，等待后续加入
-- [ ] **更多动画** : 添加脉冲发光、缩放动画、以及“启动动画”
+- [ ] **更多动画** : 添加脉冲发光、缩放动画、以及"启动动画"
 - [ ] **更多光环layer种类** : 预计将添加`mesh`（以`.obj`为载体的网格），`ring`（与`billboard`类似，用一张材质即可显示的没有厚度只有宽度和直径的圆环）
 - [ ] **更多的layer字段** : 将加入thickness，采用精灵图挤出的方法使billboard拥有厚度，但可能在材质较大的情况下影响性能
 - [ ] **更完善的自发光** : 兼容更多光影、质感更强
-- [ ] **去除服务器依赖** : 使用原版特性在多人游戏中传递光环信息，只需客户端安装模组即可互相看见
 - [ ] **更多实体和姿态适配** : 目前光环的显示位置和动画在部分实体上存在问题，等待修复
-- [ ] 修复多人服务器不可见光环的问题
 - [ ] 其他各项bug修复，欢迎提交issue
 
 <a id="安装"></a>
@@ -76,7 +77,7 @@
 4. 将两个 JAR 文件放入 Minecraft 安装目录的 `mods` 文件夹中。
 5. 使用 Fabric 配置文件启动 Minecraft。
 
-> **多人游戏**：在服务端和所有需要看到光环的客户端都安装此模组。光环状态（哪个实体有哪个光环）由服务端权威管理；渲染在客户端进行。
+> **多人游戏**：暂不支持。光环目前仅在单人存档中渲染；在专用服务器上，其他客户端看不到光环。跨客户端同步已在规划中但尚未实现——详见 [未来将会添加的特性](#未来将会添加的特性)。
 
 <a id="使用方法"></a>
 
@@ -130,53 +131,68 @@
 
 ### 自定义光环定义
 
-> **该条目即将修改**
+光环定义是存放在 `data/<namespace>/halo_definitions/`（数据包）或 `assets/<namespace>/halo_definitions/`（资源包）下的 JSON 文件。
 
-光环定义是存放在 `assets/<namespace>/halo_definitions/`（资源包）或 `data/<namespace>/halo_definitions/`（数据包）下的 JSON 文件。
+> **完整的分步教程和字段参考请见文档：**
+> [快速上手](docs/zh/quickstart.md) · [字段参考](docs/zh/reference.md)
 
 **定义示例**（`ring_default.json`）：
 
 ```json
 {
   "id": "halo:ring_default",
-  "shape": {
-    "type": "billboard",
-    "texture": "halo:textures/halo/ring.png",
-    "size": [0.5, 0.5]
-  },
-  "animation": {
-    "positionCurves": [
-      { "type": "oscillate", "axis": "Y", "amplitude": 0.05, "frequency": 1.0 }
-    ],
-    "rotationCurves": [{ "type": "spin", "axis": "Z", "speed": 30.0 }]
-  },
+  "orientation_mode": "locked",
+  "layers": [
+    {
+      "position": [0.0, 0.0, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        },
+        "rotation": {
+          "yaw": [{ "function": "linear", "start": 0, "speed": -0.1 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_00.png",
+        "size": [0.5, 0.5]
+      }
+    }
+  ],
   "positioning": {
-    "offset": [0.0, 0.2, 0.5],
+    "offset": [0.0, 0.4, 0.35],
     "scale": 1.0
   },
   "damping": {
-    "linearFactor": 0.15,
+    "linearFactor": 0.45,
     "angularFactor": 0.1,
-    "maxLinearDistance": 1.0,
+    "maxLinearDistance": 0.5,
     "maxAngularDegrees": 180.0
   }
 }
 ```
 
-| 字段                        | 描述                                                        |
-| --------------------------- | ----------------------------------------------------------- |
-| `id`                        | 唯一标识符，格式为 `命名空间:名称`                          |
-| `shape.type`                | `billboard`（单个四边形）或 `multi_billboard`（多层四边形） |
-| `shape.texture`             | 纹理路径，相对于 `assets/`                                  |
-| `shape.size`                | `[宽度, 高度]`，单位为格                                    |
-| `animation.positionCurves`  | 位置动画数组（`oscillate`、`linear`、`constant`）           |
-| `animation.rotationCurves`  | 旋转动画数组（`spin` 等）                                   |
-| `positioning.offset`        | `[X, Y, Z]` 相对实体头部的偏移量（格）                      |
-| `positioning.scale`         | 默认缩放倍率                                                |
-| `damping.linearFactor`      | 20 TPS 下每 tick 的线性插值速度（0 = 不跟随，1 = 瞬间跟随） |
-| `damping.angularFactor`     | 角度插值速度（范围同上）                                    |
-| `damping.maxLinearDistance` | 硬夹断最大距离（格）                                        |
-| `damping.maxAngularDegrees` | 最大角度偏差（度）                                          |
+| 字段                          | 描述                                                        |
+| ----------------------------- | ----------------------------------------------------------- |
+| `id`                          | 唯一标识符，格式为 `命名空间:名称`                          |
+| `orientation_mode`            | `locked`、`free` 或 `sync` —— 光环相对实体头部的朝向方式    |
+| `layers`                      | 图层数组；每个图层是一个带有独立变换与动画的 primitive      |
+| `layers[].position`           | 该图层相对锚点帧的 `[X, Y, Z]` 偏移（格）                   |
+| `layers[].rotation`           | 该图层的 `[X, Y, Z]` 欧拉旋转（度）                         |
+| `layers[].scale`              | 该图层的缩放倍率                                            |
+| `layers[].animation`          | 该图层的 `offset` / `rotation` 动画曲线（详见参考文档）     |
+| `layers[].primitive.type`     | `billboard`（单个带纹理的四边形）                           |
+| `layers[].primitive.texture`  | 纹理路径，如 `halo:textures/halo/ring_00.png`               |
+| `layers[].primitive.size`     | `[宽度, 高度]`，单位为格                                    |
+| `positioning.offset`          | `[X, Y, Z]` 相对实体头部的偏移量（格）                      |
+| `positioning.scale`           | 默认缩放倍率                                                |
+| `damping.linearFactor`        | 20 TPS 下每 tick 的线性插值速度（0 = 不跟随，1 = 瞬间跟随） |
+| `damping.angularFactor`       | 角度插值速度（范围同上）                                    |
+| `damping.maxLinearDistance`   | 硬夹断最大距离（格）                                        |
+| `damping.maxAngularDegrees`   | 最大角度偏差（度）                                          |
 
 > 添加或修改光环定义后，运行 `/reload`（或 `/halo config reload`）重新加载。
 
@@ -201,7 +217,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-0.1.0.jar`。
+编译好的 JAR 文件位于 `build/libs/halo-1.0.2.jar`。
 
 <a id="运行测试"></a>
 
@@ -229,7 +245,7 @@ cd Halo
 
 ```
 src/main/
-  java/com/example/halo/
+  java/network/azusake/halo/
     HaloMod.java              — 模组初始化器（服务端入口）
     HaloModClient.java         — 客户端初始化器（客户端入口）
     animation/                 — 动画曲线（Linear、Oscillate、Constant）
@@ -240,15 +256,16 @@ src/main/
     lifecycle/                 — EntityHaloTracker、HaloWorldSaveData、事件处理器
     manager/                   — HaloManager（单例，管理所有活跃光环）
     mixin/                     — EntityTeleportMixin、LivingEntityDataMixin
-    physics/                   — DampingPhysics、HaloDampingState、HaloTickHandler
+    physics/                   — AnchorFrameCalculator、DampingPhysics、HaloTickHandler
     render/                    — HaloRenderer、HaloClientManager、HaloRenderListener
     server/                    — HaloServerEvents、ServerTickHandler
-    shape/                     — BillboardShape、MultiBillboardShape、GlowLayer
+    shape/                     — BillboardPrimitive、HaloModel、HaloLayer、GlowLayer
   resources/
     fabric.mod.json            — 模组元数据（入口点、Mixin、依赖）
     halo.mixins.json            — Mixin 配置
+    data/halo/
+      halo_definitions/        — JSON 光环定义文件（数据包）
     assets/halo/
-      halo_definitions/        — JSON 光环定义文件
       textures/halo/           — 光环与发光纹理
 ```
 

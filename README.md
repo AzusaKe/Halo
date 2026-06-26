@@ -39,6 +39,8 @@ Currently only available in Minecraft 1.20.1 with Fabric.
 
 > Halos use frame-rate-independent discrete position tracking with configurable follow speed and maximum distance clamping. Position resets after entity teleportation.
 
+> ⚠️ **Multiplayer is not yet supported.** Halos currently render only in single-player. Cross-client synchronization (seeing other players' halos on a server) is **not implemented yet** — see [Planned Features](#planned-features). For now, treat Halo as a single-player / local-world mod.
+
 <a id="features"></a>
 
 ## Features
@@ -56,14 +58,13 @@ Currently only available in Minecraft 1.20.1 with Fabric.
 
 ## Planned Features
 
+- [ ] **Multiplayer Support (not implemented yet)**: Currently halos render only in single-player. The plan is to use vanilla mechanics (scoreboard tags) to transmit halo information so other players can see each other's halos — and ideally so only the client needs the mod installed. This is the single largest missing feature.
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
 - [ ] **More Animations**: Add pulse glow, scale animations, and "intro animations"
 - [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files), `ring` (similar to `billboard`, a ring with no thickness but with width and diameter displayed using a single texture)
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
-- [ ] **Remove Server Dependency**: Use vanilla mechanics to transmit halo information in multiplayer, so only the client needs the mod installed for players to see each other's halos
 - [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
-- [ ] fix bug that halo can not be seen in multi-player
 - [ ] Other bug fixes — issues are welcome
 
 <a id="installation"></a>
@@ -76,7 +77,7 @@ Currently only available in Minecraft 1.20.1 with Fabric.
 4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
 5. Launch Minecraft with the Fabric profile.
 
-> **Multiplayer**: Install this mod on both the server and all clients that need to see halos. The halo state (which entity has which halo) is managed server-side; rendering is done client-side.
+> **Multiplayer**: Not supported yet. Halos currently render only in single-player worlds; on a dedicated server other clients will not see them. Cross-client synchronization is planned but not implemented — see [Planned Features](#planned-features).
 
 <a id="usage"></a>
 
@@ -130,34 +131,45 @@ All commands require permission level 2 (operator). Use `/halo` with tab complet
 
 ### Custom Halo Definitions
 
-> **This section will be updated**
+Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (data packs) or `assets/<namespace>/halo_definitions/` (resource packs).
 
-Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/` (resource packs) or `data/<namespace>/halo_definitions/` (data packs).
+> **For a full step-by-step tutorial and the complete field reference, see the docs:**
+> [Quickstart](docs/en/quickstart.md) · [Field Reference](docs/en/reference.md)
 
 **Definition Example** (`ring_default.json`):
 
 ```json
 {
   "id": "halo:ring_default",
-  "shape": {
-    "type": "billboard",
-    "texture": "halo:textures/halo/ring.png",
-    "size": [0.5, 0.5]
-  },
-  "animation": {
-    "positionCurves": [
-      { "type": "oscillate", "axis": "Y", "amplitude": 0.05, "frequency": 1.0 }
-    ],
-    "rotationCurves": [{ "type": "spin", "axis": "Z", "speed": 30.0 }]
-  },
+  "orientation_mode": "locked",
+  "layers": [
+    {
+      "position": [0.0, 0.0, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        },
+        "rotation": {
+          "yaw": [{ "function": "linear", "start": 0, "speed": -0.1 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_00.png",
+        "size": [0.5, 0.5]
+      }
+    }
+  ],
   "positioning": {
-    "offset": [0.0, 0.2, 0.5],
+    "offset": [0.0, 0.4, 0.35],
     "scale": 1.0
   },
   "damping": {
-    "linearFactor": 0.15,
+    "linearFactor": 0.45,
     "angularFactor": 0.1,
-    "maxLinearDistance": 1.0,
+    "maxLinearDistance": 0.5,
     "maxAngularDegrees": 180.0
   }
 }
@@ -166,11 +178,15 @@ Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`
 | Field                       | Description                                                                       |
 | --------------------------- | --------------------------------------------------------------------------------- |
 | `id`                        | Unique identifier in format `namespace:name`                                      |
-| `shape.type`                | `billboard` (single quad) or `multi_billboard` (layered quads)                    |
-| `shape.texture`             | Texture path relative to `assets/`                                                |
-| `shape.size`                | `[width, height]` in blocks                                                       |
-| `animation.positionCurves`  | Array of position animations (`oscillate`, `linear`, `constant`)                  |
-| `animation.rotationCurves`  | Array of rotation animations (`spin`, etc.)                                       |
+| `orientation_mode`          | `locked`, `free`, or `sync` — how the halo orients relative to the entity head    |
+| `layers`                    | Array of layers; each layer is a primitive with its own transform and animation   |
+| `layers[].position`         | `[X, Y, Z]` offset of this layer relative to the anchor frame (blocks)            |
+| `layers[].rotation`         | `[X, Y, Z]` Euler rotation of this layer (degrees)                                |
+| `layers[].scale`            | Per-layer scale multiplier                                                        |
+| `layers[].animation`        | Per-layer `offset` / `rotation` animation curves (see reference)                  |
+| `layers[].primitive.type`   | `billboard` (single textured quad)                                                |
+| `layers[].primitive.texture`| Texture path, e.g. `halo:textures/halo/ring_00.png`                               |
+| `layers[].primitive.size`   | `[width, height]` in blocks                                                       |
 | `positioning.offset`        | `[X, Y, Z]` offset relative to entity head (blocks)                               |
 | `positioning.scale`         | Default scale multiplier                                                          |
 | `damping.linearFactor`      | Linear interpolation speed per tick at 20 TPS (0 = no follow, 1 = instant follow) |
@@ -201,7 +217,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR file will be at `build/libs/halo-0.1.0.jar`.
+The compiled JAR file will be at `build/libs/halo-1.0.2.jar`.
 
 <a id="run-tests"></a>
 
@@ -229,7 +245,7 @@ The compiled JAR file will be at `build/libs/halo-0.1.0.jar`.
 
 ```
 src/main/
-  java/com/example/halo/
+  java/network/azusake/halo/
     HaloMod.java              — Mod initializer (server entry point)
     HaloModClient.java         — Client initializer (client entry point)
     animation/                 — Animation curves (Linear, Oscillate, Constant)
@@ -240,15 +256,16 @@ src/main/
     lifecycle/                 — EntityHaloTracker, HaloWorldSaveData, event handlers
     manager/                   — HaloManager (singleton managing all active halos)
     mixin/                     — EntityTeleportMixin, LivingEntityDataMixin
-    physics/                   — DampingPhysics, HaloDampingState, HaloTickHandler
+    physics/                   — AnchorFrameCalculator, DampingPhysics, HaloTickHandler
     render/                    — HaloRenderer, HaloClientManager, HaloRenderListener
     server/                    — HaloServerEvents, ServerTickHandler
-    shape/                     — BillboardShape, MultiBillboardShape, GlowLayer
+    shape/                     — BillboardPrimitive, HaloModel, HaloLayer, GlowLayer
   resources/
     fabric.mod.json            — Mod metadata (entry points, mixins, dependencies)
     halo.mixins.json            — Mixin configuration
+    data/halo/
+      halo_definitions/        — JSON halo definition files (data pack)
     assets/halo/
-      halo_definitions/        — JSON halo definition files
       textures/halo/           — Halo and glow textures
 ```
 
