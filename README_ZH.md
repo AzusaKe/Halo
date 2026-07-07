@@ -217,7 +217,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-1.0.2.jar`。
+编译好的 JAR 文件位于 `build/libs/halo-1.0.3.jar`。
 
 <a id="运行测试"></a>
 

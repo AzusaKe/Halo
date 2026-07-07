@@ -12,9 +12,12 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.command.argument.EntityArgumentType;
+import net.minecraft.command.argument.IdentifierArgumentType;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.server.MinecraftServer;
@@ -25,6 +28,7 @@ import net.minecraft.util.Identifier;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -102,10 +106,11 @@ public final class HaloConfigCommand {
         );
 
         // --- /halo show <entity> <definition> ---
-        // Use greedyString() because regular string()/word() disallow ':' in unquoted input
+        // Use IdentifierArgumentType which allows ':' in unquoted input, unlike word()/string()
         haloNode.then(literal("show")
             .then(argument("target", EntityArgumentType.entity())
-                .then(argument("definition", StringArgumentType.greedyString())
+                .then(argument("definition", IdentifierArgumentType.identifier())
+                    .suggests(HaloConfigCommand::suggestDefinitions)
                     .executes(HaloConfigCommand::showHalo)
                 )
             )
@@ -236,12 +241,7 @@ public final class HaloConfigCommand {
             return 0;
         }
 
-        String defIdRaw = StringArgumentType.getString(ctx, "definition");
-        Identifier defId = Identifier.tryParse(defIdRaw);
-        if (defId == null) {
-            source.sendError(Text.literal("Invalid definition identifier: " + defIdRaw));
-            return 0;
-        }
+        Identifier defId = IdentifierArgumentType.getIdentifier(ctx, "definition");
 
         // Namespace fallback: if the user omits the namespace (defaults to "minecraft"),
         // try "halo" namespace first since halo definitions are registered under "halo:"
@@ -265,6 +265,47 @@ public final class HaloConfigCommand {
 
         source.sendFeedback(() -> Text.literal("§aHalo §f" + resolvedId + "§a shown on §f" + living.getDisplayName().getString()), true);
         return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Provides tab-completion suggestions for halo definition identifiers.
+     *
+     * <p>Two matching strategies are used:
+     * <ol>
+     *   <li><b>Full prefix match:</b> the definition ID starts with the remaining
+     *       text (e.g., "halo:rin" matches "halo:ring_default")</li>
+     *   <li><b>Path-only match:</b> when the user omits the namespace, the
+     *       definition's path starts with the remaining text
+     *       (e.g., "ring" matches "halo:ring_default", "sh" matches
+     *       "abydos:shiroko")</li>
+     * </ol>
+     *
+     * @param ctx     the command context (unused)
+     * @param builder the suggestions builder
+     * @return a future resolving to the filtered suggestions
+     */
+    private static CompletableFuture<Suggestions> suggestDefinitions(
+        CommandContext<ServerCommandSource> ctx, SuggestionsBuilder builder
+    ) {
+        String remaining = builder.getRemaining().toLowerCase();
+        Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+
+        for (Identifier id : defs.keySet()) {
+            String idStr = id.toString();
+
+            // Strategy 1: full identifier prefix match
+            if (idStr.toLowerCase().startsWith(remaining)) {
+                builder.suggest(idStr);
+                continue;
+            }
+
+            // Strategy 2: path-only prefix match when user omits namespace
+            if (!remaining.contains(":") && id.getPath().toLowerCase().startsWith(remaining)) {
+                builder.suggest(idStr);
+            }
+        }
+
+        return builder.buildFuture();
     }
 
     /**

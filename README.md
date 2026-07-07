@@ -217,7 +217,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR file will be at `build/libs/halo-1.0.2.jar`.
+The compiled JAR file will be at `build/libs/halo-1.0.3.jar`.
 
 <a id="run-tests"></a>
 
