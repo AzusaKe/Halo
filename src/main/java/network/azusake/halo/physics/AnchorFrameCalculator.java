@@ -62,6 +62,10 @@ public final class AnchorFrameCalculator {
     // ---- per-instance SYNC relative orientation (captured on first frame) ----
     private final Map<UUID, Quaternionf> syncRelativeStates = new HashMap<>();
 
+    // ---- per-instance per-entity-type anchor providers ----
+    private final PlayerAnchorProvider playerProvider = PlayerAnchorProvider.getInstance();
+    private final FallbackAnchorProvider fallbackProvider = FallbackAnchorProvider.getInstance();
+
     private AnchorFrameCalculator() { /* singleton */ }
 
     public static AnchorFrameCalculator getInstance() {
@@ -93,10 +97,14 @@ public final class AnchorFrameCalculator {
     ) {
         UUID uuid = instance.getEntityUuid();
 
-        // 1. Interpolated entity head state
-        Vec3d headAnchor = getInterpolatedHeadAnchor(entity, tickDelta);
-        float yaw = getInterpolatedHeadYaw(entity, tickDelta);
-        float pitch = entity.prevPitch + (entity.getPitch() - entity.prevPitch) * tickDelta;
+        // 1. Pose-aware head anchor via provider (player vs fallback)
+        EntityAnchorProvider provider = (entity instanceof PlayerEntity)
+            ? playerProvider
+            : fallbackProvider;
+        HeadAnchor ha = provider.resolve(entity, tickDelta);
+        Vec3d headAnchor = ha.headCenter();
+        float yaw = ha.yaw();
+        float pitch = ha.pitch();
         float yawRad = (float) Math.toRadians(yaw);
 
         // 2. Head-relative offset → world-space target position
@@ -418,29 +426,6 @@ public final class AnchorFrameCalculator {
         Quaternionf qConj = new Quaternionf(q).conjugate();
         Quaternionf result = q.mul(qv, new Quaternionf()).mul(qConj);
         return new Vec3d(result.x, result.y, result.z);
-    }
-
-    // ------------------------------------------------------------------
-    // Entity interpolation helpers
-    // ------------------------------------------------------------------
-
-    private static Vec3d getInterpolatedHeadAnchor(LivingEntity entity, float tickDelta) {
-        double x = entity.prevX + (entity.getX() - entity.prevX) * tickDelta;
-        double y = entity.prevY + (entity.getY() - entity.prevY) * tickDelta;
-        double z = entity.prevZ + (entity.getZ() - entity.prevZ) * tickDelta;
-        if (entity instanceof PlayerEntity player) {
-            return new Vec3d(x, y + player.getStandingEyeHeight(), z);
-        }
-        return new Vec3d(x, y + entity.getHeight() * 0.85, z);
-    }
-
-    private static float getInterpolatedHeadYaw(LivingEntity entity, float tickDelta) {
-        float prev = entity.prevHeadYaw;
-        float curr = entity.headYaw;
-        float diff = curr - prev;
-        if (diff > 180f) diff -= 360f;
-        if (diff < -180f) diff += 360f;
-        return prev + diff * tickDelta;
     }
 
     // ------------------------------------------------------------------

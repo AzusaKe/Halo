@@ -21,6 +21,9 @@ public class HaloMod implements ModInitializer {
         // Register resource reload listeners for JSON halo definitions
         HaloJsonLoader.register();
 
+        // Register resource reload listeners for entity anchor profiles
+        network.azusake.halo.json.EntityAnchorLoader.register();
+
         // Register server-side event handlers (tick, entity, connection)
         HaloServerEvents.registerAll();
 

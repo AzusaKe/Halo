@@ -21,6 +21,10 @@ public class HaloModClient implements ClientModInitializer {
         // definitions are bundled in a client resource pack.
         HaloJsonLoader.registerClientResources();
 
+        // Register entity-anchor profile loader on the client side (mirrors
+        // HaloJsonLoader — enables resource-pack overrides of player.json etc.)
+        network.azusake.halo.json.EntityAnchorLoader.registerClientResources();
+
         // Register the halo renderer with Fabric's world-render pipeline
         HaloRenderListener.register();
 
