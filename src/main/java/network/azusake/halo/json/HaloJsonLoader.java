@@ -177,6 +177,14 @@ public final class HaloJsonLoader {
     }
 
     /**
+     * Return the definition IDs reported by a single player, or an empty set
+     * if that player hasn't reported yet.
+     */
+    public static Set<Identifier> getClientReportedDefs(UUID playerUuid) {
+        return clientReportedDefs.getOrDefault(playerUuid, Set.of());
+    }
+
+    /**
      * Return all known definition IDs — server-loaded definitions plus
      * client-reported ones.  Used by {@code /halo list} and tab-completion.
      */

@@ -182,6 +182,11 @@ public final class HaloConfigCommand {
         Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
         Set<Identifier> clientIds = HaloJsonLoader.getClientReportedDefIds();
 
+        // Current player's own reported IDs — highlighted in green
+        UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUuid() : null;
+        Set<Identifier> myDefs = playerUuid != null
+            ? HaloJsonLoader.getClientReportedDefs(playerUuid) : Set.of();
+
         // Client-only IDs: reported by clients but not in the server registry
         Set<Identifier> clientOnlyIds = new LinkedHashSet<>();
         for (Identifier id : clientIds) {
@@ -201,7 +206,11 @@ public final class HaloConfigCommand {
             source.sendFeedback(() -> Text.literal("  §7- §f" + id), false);
         }
         for (Identifier id : clientOnlyIds) {
-            source.sendFeedback(() -> Text.literal("  §7- §d" + id + " §8(client-side)"), false);
+            if (myDefs.contains(id)) {
+                source.sendFeedback(() -> Text.literal("  §7- §a" + id + " §8(client-side, installed locally)"), false);
+            } else {
+                source.sendFeedback(() -> Text.literal("  §7- §d" + id + " §8(client-side)"), false);
+            }
         }
         return total;
     }
@@ -212,6 +221,10 @@ public final class HaloConfigCommand {
     private static int dumpDefinitions(CommandContext<ServerCommandSource> ctx) {
         ServerCommandSource source = ctx.getSource();
         Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+
+        UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUuid() : null;
+        Set<Identifier> myDefs = playerUuid != null
+            ? HaloJsonLoader.getClientReportedDefs(playerUuid) : Set.of();
 
         if (defs.isEmpty()) {
             source.sendFeedback(() -> Text.literal("§eNo halo definitions loaded. Run §f/reload§e first."), false);
@@ -240,7 +253,11 @@ public final class HaloConfigCommand {
             source.sendFeedback(() -> Text.literal("§d=== Client-side definitions in use (" + clientOnlyIds.size() + ") ===\n"
                 + "§8(JSON not installed on server — provided by client resource packs)"), false);
             for (Identifier id : clientOnlyIds) {
-                source.sendFeedback(() -> Text.literal("  §7- §d" + id), false);
+                if (myDefs.contains(id)) {
+                    source.sendFeedback(() -> Text.literal("  §7- §a" + id + " §8(installed locally)"), false);
+                } else {
+                    source.sendFeedback(() -> Text.literal("  §7- §d" + id), false);
+                }
             }
         }
         return defs.size();
