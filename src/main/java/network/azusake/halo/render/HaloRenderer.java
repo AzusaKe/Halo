@@ -1,7 +1,6 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
-import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;

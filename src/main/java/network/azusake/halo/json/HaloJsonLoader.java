@@ -35,15 +35,6 @@ public final class HaloJsonLoader {
     /** Definitions loaded by the client (resource-pack) listener.  Cleared and repopulated on reload. */
     private static final Set<Identifier> clientLoadedIds = new LinkedHashSet<>();
 
-    /**
-     * Definitions loaded by the client's {@code SERVER_DATA} listener.
-     * On a dedicated-server client only {@code SERVER_DATA} has access to the
-     * mod's bundled {@code data/halo/halo_definitions/} files — {@code CLIENT_RESOURCES}
-     * only scans {@code assets/}.  This set isolates client-side data-pack definitions
-     * from actual server-side (integrated-server) definitions so reloads don't cross-talk.
-     */
-    private static final Set<Identifier> clientServerDataIds = new LinkedHashSet<>();
-
     private HaloJsonLoader() {
         // utility class
     }
@@ -51,7 +42,6 @@ public final class HaloJsonLoader {
     /** Prevent double-registration of each listener type. */
     private static volatile boolean serverRegistered;
     private static volatile boolean clientRegistered;
-    private static volatile boolean clientServerDataRegistered;
 
     // ------------------------------------------------------------------
     // Client-reported definition IDs (C2S defs_report)
@@ -99,36 +89,6 @@ public final class HaloJsonLoader {
             .registerReloadListener(new ClientListener());
 
         LOG.info("HaloJsonLoader registered for CLIENT_RESOURCES");
-    }
-
-    /**
-     * Register a SERVER_DATA resource reload listener on the physical client.
-     *
-     * <p>This is required on a dedicated-server client because the mod's bundled
-     * halo-definition JSON files live under {@code data/halo/halo_definitions/},
-     * which belongs to the {@code SERVER_DATA} resource type.  The
-     * {@code CLIENT_RESOURCES} listener (registered above) only scans
-     * {@code assets/} and will never see those files.  Without this listener a
-     * dedicated-server client has zero halo definitions loaded and every halo
-     * falls through to the magenta placeholder.</p>
-     *
-     * <p>On an integrated server the {@code HaloMod#onInitialize} listener
-     * already covers {@code SERVER_DATA}, so this listener is an <em>extra</em>
-     * client-side pass.  Its IDs are tracked separately
-     * ({@link #clientServerDataIds}) so that reloads do not interfere with
-     * the server-managed registry.</p>
-     *
-     * <p>Safe to call more than once — subsequent calls are no-ops.</p>
-     */
-    public static void registerClientServerDataResources() {
-        if (clientServerDataRegistered) {
-            return;
-        }
-        clientServerDataRegistered = true;
-        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
-            .registerReloadListener(new ClientServerDataListener());
-
-        LOG.info("HaloJsonLoader registered for SERVER_DATA (client-side)");
     }
 
     /**
@@ -192,14 +152,6 @@ public final class HaloJsonLoader {
         Set<Identifier> all = new LinkedHashSet<>(DEFINITIONS.keySet());
         all.addAll(getClientReportedDefIds());
         return all;
-    }
-
-    /**
-     * Whether a definition ID is present in the server's own registry
-     * (i.e. its JSON is installed on the server).
-     */
-    public static boolean isServerLoaded(Identifier id) {
-        return DEFINITIONS.containsKey(id);
     }
 
     // ------------------------------------------------------------------
@@ -272,26 +224,6 @@ public final class HaloJsonLoader {
         @Override
         public void reload(ResourceManager manager) {
             HaloJsonLoader.reload(manager, clientLoadedIds);
-        }
-    }
-
-    /**
-     * Client-side SERVER_DATA listener.
-     *
-     * <p>Registers under a distinct Fabric ID so it coexists with the
-     * server-side SERVER_DATA listener on an integrated server without
-     * id collisions.  Tracks loaded IDs in {@link #clientServerDataIds}
-     * so reloads only replace definitions this listener owns.</p>
-     */
-    private static class ClientServerDataListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "halo_definitions_client_data");
-        }
-
-        @Override
-        public void reload(ResourceManager manager) {
-            HaloJsonLoader.reload(manager, clientServerDataIds);
         }
     }
 }

@@ -2,7 +2,6 @@ package network.azusake.halo.manager;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.config.HaloConfig;
-import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -41,7 +40,6 @@ public final class HaloManager {
 
     private final HaloConfig config = new HaloConfig();
     private final Map<UUID, HaloInstance> activeHalos = new ConcurrentHashMap<>();
-    private final Map<UUID, LivingEntity> trackedEntities = new ConcurrentHashMap<>();
 
     private HaloManager() {
         // singleton — use getInstance()
@@ -108,18 +106,6 @@ public final class HaloManager {
 
         if (removed != null) {
             HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());
-        }
-    }
-
-    /**
-     * Remove a halo by entity UUID (e.g. on entity unload / player disconnect).
-     *
-     * @param entityUuid the entity UUID
-     */
-    public void removeHalo(UUID entityUuid) {
-        HaloInstance removed = activeHalos.remove(entityUuid);
-        if (removed != null) {
-            HaloMod.LOGGER.debug("Halo removed for uuid={}", entityUuid);
         }
     }
 
@@ -237,50 +223,11 @@ public final class HaloManager {
         return activeHalos.size();
     }
 
-    // ------------------------------------------------------------------
-    // Entity tracking
-    // ------------------------------------------------------------------
-
-    /**
-     * Register an entity for ongoing position tracking (teleport detection).
-     *
-     * @param entity the living entity to track
-     */
-    public void registerEntity(LivingEntity entity) {
-        trackedEntities.put(entity.getUuid(), entity);
-    }
-
-    /**
-     * Unregister an entity from position tracking and remove its halo.
-     *
-     * @param uuid the entity UUID
-     */
-    public void unregisterEntity(UUID uuid) {
-        trackedEntities.remove(uuid);
-        activeHalos.remove(uuid);
-    }
-
     /**
      * Return all active halo instances (no defensive copy — for internal iteration).
      */
     public Collection<HaloInstance> getAllInstances() {
         return activeHalos.values();
-    }
-
-    /**
-     * Persist halo state on world unload / server stop.
-     * Syncs current assignments to world persistent state so they survive a restart.
-     *
-     * @param server the current Minecraft server instance
-     */
-    public void cleanup(MinecraftServer server) {
-        var world = server.getOverworld();
-        if (world != null) {
-            network.azusake.halo.lifecycle.HaloWorldSaveData data =
-                network.azusake.halo.lifecycle.HaloWorldSaveData.get(world);
-            data.syncFromManager();
-        }
-        HaloMod.LOGGER.debug("HaloManager: cleanup complete — {} active halo(s) synced", activeHalos.size());
     }
 
     // ------------------------------------------------------------------

@@ -1,6 +1,5 @@
 package network.azusake.halo.render;
 
-import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.manager.HaloManager;
 import net.minecraft.client.MinecraftClient;
@@ -8,8 +7,6 @@ import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Vec3d;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,8 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * support a networking layer will be needed in a future phase.</p>
  */
 public final class HaloClientManager {
-
-    private static final Logger LOG = LoggerFactory.getLogger(HaloMod.MOD_ID);
 
     private static final HaloClientManager INSTANCE = new HaloClientManager();
 

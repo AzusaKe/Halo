@@ -293,7 +293,6 @@ public final class EntityHaloTracker {
 
         // Re-create the halo instance via HaloManager
         HaloManager.getInstance().showHaloOn(entity, defId);
-        HaloManager.getInstance().registerEntity(entity);
 
         // Mark as teleported so the halo snaps to the entity immediately
         // rather than sliding in from the world origin
