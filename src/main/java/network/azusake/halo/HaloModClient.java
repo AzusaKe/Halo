@@ -62,7 +62,13 @@ public class HaloModClient implements ClientModInitializer {
                 }
                 @Override
                 public void reload(ResourceManager manager) {
-                    HaloNetworkClient.sendDefsReport();
+                    // The reload callback fires on the render thread from inside
+                    // the resource-reload lifecycle.  Fabric's resource reload
+                    // registry does not guarantee networking is ready at this
+                    // point, so we defer the actual send by one tick.
+                    net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
+                        HaloNetworkClient.sendDefsReport();
+                    });
                 }
             });
 
