@@ -1,10 +1,13 @@
 package network.azusake.halo.server;
 
 import network.azusake.halo.HaloMod;
+import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+
+import java.util.UUID;
 
 /**
  * Central registry for all server-side Fabric API event callbacks.
@@ -45,17 +48,29 @@ public final class HaloServerEvents {
                 "HaloServerEvents: entity unloaded – uuid={}, type={}",
                 entity.getUuid(), entity.getType().getName().getString()
             );
-            HaloManager.getInstance().removeHalo(entity.getUuid());
+            HaloManager.getInstance().removeHalo(entity.getUuid(), world.getServer());
         });
     }
 
     static void registerConnectionEvents() {
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        // Player join → send full halo state snapshot
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             HaloMod.LOGGER.debug(
-                "HaloServerEvents: player disconnected – uuid={}, name={}",
+                "HaloServerEvents: player joined – uuid={}, name={}",
                 handler.getPlayer().getUuid(), handler.getPlayer().getName().getString()
             );
-            HaloManager.getInstance().removeHalo(handler.getPlayer().getUuid());
+            network.azusake.halo.network.HaloNetwork.sendFullSync(handler.getPlayer());
+        });
+
+        // Player disconnect → remove halos and clean up reported definitions
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            UUID uuid = handler.getPlayer().getUuid();
+            HaloMod.LOGGER.debug(
+                "HaloServerEvents: player disconnected – uuid={}, name={}",
+                uuid, handler.getPlayer().getName().getString()
+            );
+            HaloManager.getInstance().removeHalo(uuid, server);
+            HaloJsonLoader.removeClientReportedDefs(uuid);
         });
     }
 }

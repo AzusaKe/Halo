@@ -38,6 +38,9 @@ public class HaloMod implements ModInitializer {
             (dispatcher, registryAccess, environment) -> HaloConfigCommand.register(dispatcher)
         );
 
+        // Register networking channels for multiplayer halo synchronisation
+        network.azusake.halo.network.HaloNetwork.register();
+
         LOGGER.info("Halo mod initialized");
     }
 }

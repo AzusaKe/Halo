@@ -17,6 +17,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -51,6 +52,13 @@ public final class HaloRenderer {
     private static final HaloRenderer INSTANCE = new HaloRenderer();
 
     public static final boolean DEBUG_RENDERING = false;
+
+    /**
+     * Throttle chat warnings for missing definitions — only show one per
+     * halo instance per 30 seconds to avoid spamming the chat during
+     * frame-by-frame rendering.
+     */
+    private long lastMissingDefWarningTime;
 
     private final AnchorFrameCalculator frameCalculator = AnchorFrameCalculator.getInstance();
 
@@ -139,6 +147,17 @@ public final class HaloRenderer {
             LOG.warn("[HaloRenderer] definition not found, deactivating halo: entity={} def={}",
                 instance.getEntityUuid(), instance.getDefinitionId());
             instance.deactivate();
+
+            // Notify the local player through chat so they know a resource pack is missing.
+            // Throttled to at most one warning per 30 seconds to avoid chat spam.
+            long now = System.currentTimeMillis();
+            if (client.player != null && now - lastMissingDefWarningTime > 30_000) {
+                lastMissingDefWarningTime = now;
+                client.player.sendMessage(Text.literal(
+                    "§e[Halo] Missing definition: §f" + instance.getDefinitionId() +
+                    "§e — install the resource pack or ask the server admin."
+                ), false);
+            }
             return false;
         }
 

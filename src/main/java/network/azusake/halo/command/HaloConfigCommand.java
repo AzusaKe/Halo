@@ -26,7 +26,9 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -171,22 +173,37 @@ public final class HaloConfigCommand {
     // ------------------------------------------------------------------
 
     /**
-     * /halo list — show a compact listing of all loaded halo definitions.
+     * /halo list — show a compact listing of all server-loaded halo definitions
+     * plus any definition IDs currently in use that the server doesn't know about
+     * (provided by client resource packs).
      */
     private static int listDefinitions(CommandContext<ServerCommandSource> ctx) {
         ServerCommandSource source = ctx.getSource();
         Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+        Set<Identifier> clientIds = HaloJsonLoader.getClientReportedDefIds();
 
-        if (defs.isEmpty()) {
+        // Client-only IDs: reported by clients but not in the server registry
+        Set<Identifier> clientOnlyIds = new LinkedHashSet<>();
+        for (Identifier id : clientIds) {
+            if (!defs.containsKey(id)) {
+                clientOnlyIds.add(id);
+            }
+        }
+
+        int total = defs.size() + clientOnlyIds.size();
+        if (total == 0) {
             source.sendFeedback(() -> Text.literal("§eNo halo definitions loaded."), false);
             return Command.SINGLE_SUCCESS;
         }
 
-        source.sendFeedback(() -> Text.literal("§aLoaded halo definitions (" + defs.size() + "):"), false);
+        source.sendFeedback(() -> Text.literal("§aLoaded halo definitions (" + total + "):"), false);
         for (Identifier id : defs.keySet()) {
             source.sendFeedback(() -> Text.literal("  §7- §f" + id), false);
         }
-        return defs.size();
+        for (Identifier id : clientOnlyIds) {
+            source.sendFeedback(() -> Text.literal("  §7- §d" + id + " §8(client-side)"), false);
+        }
+        return total;
     }
 
     /**
@@ -210,6 +227,22 @@ public final class HaloConfigCommand {
                     " §8damping=§7k=" + def.damping().linearFactor()
             ), false);
         }
+
+        // Also show client-side-only definitions currently known
+        Set<Identifier> clientIds = HaloJsonLoader.getClientReportedDefIds();
+        Set<Identifier> clientOnlyIds = new LinkedHashSet<>();
+        for (Identifier id : clientIds) {
+            if (!defs.containsKey(id)) {
+                clientOnlyIds.add(id);
+            }
+        }
+        if (!clientOnlyIds.isEmpty()) {
+            source.sendFeedback(() -> Text.literal("§d=== Client-side definitions in use (" + clientOnlyIds.size() + ") ===\n"
+                + "§8(JSON not installed on server — provided by client resource packs)"), false);
+            for (Identifier id : clientOnlyIds) {
+                source.sendFeedback(() -> Text.literal("  §7- §d" + id), false);
+            }
+        }
         return defs.size();
     }
 
@@ -224,6 +257,10 @@ public final class HaloConfigCommand {
 
     /**
      * /halo show &lt;entity&gt; &lt;definition&gt; — attach a halo to a living entity.
+     *
+     * <p>The server accepts any valid {@link Identifier} — it does not require
+     * the definition JSON to be installed locally.  Clients are responsible for
+     * providing the actual halo definition via their own resource packs.</p>
      */
     private static int showHalo(CommandContext<ServerCommandSource> ctx) {
         ServerCommandSource source = ctx.getSource();
@@ -243,25 +280,13 @@ public final class HaloConfigCommand {
 
         Identifier defId = IdentifierArgumentType.getIdentifier(ctx, "definition");
 
-        // Namespace fallback: if the user omits the namespace (defaults to "minecraft"),
-        // try "halo" namespace first since halo definitions are registered under "halo:"
-        if ("minecraft".equals(defId.getNamespace())) {
-            Identifier haloNsId = new Identifier("halo", defId.getPath());
-            if (HaloJsonLoader.getDefinition(haloNsId).isPresent()) {
-                defId = haloNsId;
-            }
-        }
+        // (no namespace fallback — the server is a thin authority that accepts any
+        // valid identifier; the namespace comes directly from tab-completion)
 
         // Capture a final copy for use in lambdas below
         final Identifier resolvedId = defId;
 
         HaloManager.getInstance().showHaloOn(living, resolvedId);
-
-        // Check if the definition was actually loaded
-        if (HaloManager.getInstance().getHaloInstance(living.getUuid()) == null) {
-            source.sendError(Text.literal("Unknown halo definition: " + resolvedId));
-            return 0;
-        }
 
         source.sendFeedback(() -> Text.literal("§aHalo §f" + resolvedId + "§a shown on §f" + living.getDisplayName().getString()), true);
         return Command.SINGLE_SUCCESS;
@@ -288,24 +313,22 @@ public final class HaloConfigCommand {
         CommandContext<ServerCommandSource> ctx, SuggestionsBuilder builder
     ) {
         String remaining = builder.getRemaining().toLowerCase();
-        Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+        Set<Identifier> allIds = HaloJsonLoader.getAllKnownDefinitionIds();
 
-        for (Identifier id : defs.keySet()) {
-            String idStr = id.toString();
-
-            // Strategy 1: full identifier prefix match
-            if (idStr.toLowerCase().startsWith(remaining)) {
-                builder.suggest(idStr);
-                continue;
-            }
-
-            // Strategy 2: path-only prefix match when user omits namespace
-            if (!remaining.contains(":") && id.getPath().toLowerCase().startsWith(remaining)) {
-                builder.suggest(idStr);
-            }
+        for (Identifier id : allIds) {
+            suggestIfMatch(builder, id, remaining);
         }
 
         return builder.buildFuture();
+    }
+
+    private static void suggestIfMatch(SuggestionsBuilder builder, Identifier id, String remaining) {
+        String idStr = id.toString();
+        if (idStr.toLowerCase().startsWith(remaining)) {
+            builder.suggest(idStr);
+        } else if (!remaining.contains(":") && id.getPath().toLowerCase().startsWith(remaining)) {
+            builder.suggest(idStr);
+        }
     }
 
     /**

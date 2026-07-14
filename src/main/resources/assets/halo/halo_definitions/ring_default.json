@@ -1,0 +1,131 @@
+{
+  "id": "halo:ring_default",
+  "orientation_mode": "locked",
+  "layers": [
+    {
+      "position": [0.0, -0.001, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_03.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.0, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        },
+        "rotation": {
+          "yaw": [{ "function": "linear", "start": 0, "speed": -0.008333 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_00.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.001, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        },
+        "rotation": {
+          "yaw": [{ "function": "linear", "start": 0, "speed": -0.1 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_01.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.002, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        },
+        "rotation": {
+          "yaw": [{ "function": "linear", "start": 0, "speed": -6.0 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_02.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.003, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_03.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.015, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5, "phi": 0.5 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_1.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.045, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5, "phi": 1.0 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_2.png",
+        "size": [0.5, 0.5]
+      }
+    }
+  ],
+  "animation": {},
+  "positioning": {
+    "offset": [0.0, 0.4, 0.35],
+    "scale": 1.0
+  },
+  "damping": {
+    "linearFactor": 0.45,
+    "angularFactor": 0.1,
+    "maxLinearDistance": 0.5,
+    "maxAngularDegrees": 180.0
+  }
+}

@@ -12,7 +12,6 @@ import net.minecraft.util.Identifier;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -60,14 +59,21 @@ public final class HaloManager {
     /**
      * Spawn (or replace) a halo on the given entity using the named definition.
      *
+     * <p>The server acts as a thin authority — it stores the (entity, definitionId)
+     * mapping regardless of whether it has the definition JSON locally.  Clients are
+     * responsible for providing the actual definition via their own resource packs.
+     * This allows players to share custom halo definitions without the server
+     * needing to install every resource pack.</p>
+     *
      * @param entity the target living entity
-     * @param defId  identifier of a loaded {@link HaloDefinition}
+     * @param defId  identifier of the halo definition to attach
      */
     public void showHaloOn(LivingEntity entity, Identifier defId) {
-        Optional<HaloDefinition> optDef = HaloJsonLoader.getDefinition(defId);
-        if (optDef.isEmpty()) {
-            HaloMod.LOGGER.warn("Unknown halo definition: {}", defId);
-            return;
+        // Accept any identifier — the server is a dumb authority.
+        // If a client doesn't have the definition, it will log a warning
+        // and skip rendering rather than crashing.
+        if (!HaloJsonLoader.getDefinition(defId).isPresent()) {
+            HaloMod.LOGGER.info("Halo definition '{}' not installed on server — accepting anyway (clients may have it)", defId);
         }
 
         HaloInstance instance = new HaloInstance(entity.getUuid(), defId);
@@ -75,6 +81,12 @@ public final class HaloManager {
 
         // Persist to entity NBT so the halo survives world reload
         HaloEntityData.attachHalo(entity, defId);
+
+        // Broadcast to all players on a dedicated server
+        MinecraftServer server = entity.getServer();
+        if (server != null) {
+            network.azusake.halo.network.HaloNetwork.sendHaloAttach(server, entity.getUuid(), defId);
+        }
 
         HaloMod.LOGGER.debug("Halo '{}' shown on entity {} (uuid={})", defId, entity.getName().getString(), entity.getUuid());
     }
@@ -87,6 +99,13 @@ public final class HaloManager {
     public void hideHaloOn(LivingEntity entity) {
         HaloInstance removed = activeHalos.remove(entity.getUuid());
         HaloEntityData.removeHalo(entity);
+
+        // Broadcast to all players on a dedicated server
+        MinecraftServer server = entity.getServer();
+        if (server != null && removed != null) {
+            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid());
+        }
+
         if (removed != null) {
             HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());
         }
@@ -101,6 +120,59 @@ public final class HaloManager {
         HaloInstance removed = activeHalos.remove(entityUuid);
         if (removed != null) {
             HaloMod.LOGGER.debug("Halo removed for uuid={}", entityUuid);
+        }
+    }
+
+    /**
+     * Remove a halo by entity UUID and broadcast the removal to all online players.
+     *
+     * @param entityUuid the entity UUID
+     * @param server     the current Minecraft server (for broadcasting)
+     */
+    public void removeHalo(UUID entityUuid, MinecraftServer server) {
+        HaloInstance removed = activeHalos.remove(entityUuid);
+        if (removed != null) {
+            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entityUuid);
+            HaloMod.LOGGER.debug("Halo removed for uuid={}", entityUuid);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Client-side write API (called from network receivers)
+    // ------------------------------------------------------------------
+
+    /**
+     * Directly insert a halo instance into the local map without broadcasting
+     * or NBT persistence.  Called by the client network layer when receiving
+     * halo state from a dedicated server.
+     *
+     * @param entityUuid the entity UUID
+     * @param defId      the halo definition identifier
+     */
+    public void putClientHalo(UUID entityUuid, Identifier defId) {
+        activeHalos.put(entityUuid, new HaloInstance(entityUuid, defId));
+    }
+
+    /**
+     * Directly remove a halo instance from the local map.  Called by the
+     * client network layer on removal notifications from a dedicated server.
+     *
+     * @param entityUuid the entity UUID
+     */
+    public void removeClientHalo(UUID entityUuid) {
+        activeHalos.remove(entityUuid);
+    }
+
+    /**
+     * Replace the entire local halo map with a fresh snapshot from the server.
+     * Called on join (full sync) to set the initial state.
+     *
+     * @param snapshot map of entity UUID → definition ID
+     */
+    public void replaceAllClientHalos(Map<UUID, Identifier> snapshot) {
+        activeHalos.clear();
+        for (var entry : snapshot.entrySet()) {
+            activeHalos.put(entry.getKey(), new HaloInstance(entry.getKey(), entry.getValue()));
         }
     }
 
@@ -127,6 +199,8 @@ public final class HaloManager {
             LivingEntity entity = findEntityByUuid(server, uuid);
             if (entity == null || !entity.isAlive()) {
                 iterator.remove();
+                // Broadcast removal so all clients drop the dead halo
+                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, uuid);
                 HaloMod.LOGGER.debug("Halo cleaned up: entity uuid={} is gone or dead", uuid);
             }
         }

@@ -47,8 +47,17 @@ public final class EntityAnchorLoader {
     /** IDs loaded by the client listener. */
     private static final Set<Identifier> clientLoadedIds = new LinkedHashSet<>();
 
+    /**
+     * IDs loaded by the client's {@code SERVER_DATA} listener.
+     * See {@link HaloJsonLoader#registerClientServerDataResources()} for the
+     * rationale — entity anchor profiles live under {@code data/} and need a
+     * client-side {@code SERVER_DATA} pass on dedicated-server clients.
+     */
+    private static final Set<Identifier> clientServerDataIds = new LinkedHashSet<>();
+
     private static volatile boolean serverRegistered;
     private static volatile boolean clientRegistered;
+    private static volatile boolean clientServerDataRegistered;
 
     // Gson: reuse HaloDefinitionDeserializer's Vec3dAdapter approach
     private static final Gson GSON = new GsonBuilder()
@@ -86,6 +95,24 @@ public final class EntityAnchorLoader {
         ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
             .registerReloadListener(new ClientListener());
         LOG.info("EntityAnchorLoader registered for CLIENT_RESOURCES");
+    }
+
+    /**
+     * Register a client-side SERVER_DATA listener.
+     *
+     * <p>Needed on dedicated-server clients because entity-anchor profiles live
+     * under {@code data/halo/entity_anchors/} which belongs to
+     * {@code SERVER_DATA} — the {@code CLIENT_RESOURCES} listener only scans
+     * {@code assets/} and won't find them.</p>
+     */
+    public static void registerClientServerDataResources() {
+        if (clientServerDataRegistered) {
+            return;
+        }
+        clientServerDataRegistered = true;
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+            .registerReloadListener(new ClientServerDataListener());
+        LOG.info("EntityAnchorLoader registered for SERVER_DATA (client-side)");
     }
 
     // ------------------------------------------------------------------
@@ -192,6 +219,18 @@ public final class EntityAnchorLoader {
         @Override
         public void reload(ResourceManager manager) {
             EntityAnchorLoader.reload(manager, clientLoadedIds);
+        }
+    }
+
+    private static class ClientServerDataListener implements SimpleSynchronousResourceReloadListener {
+        @Override
+        public Identifier getFabricId() {
+            return new Identifier(HaloMod.MOD_ID, "entity_anchors_client_data");
+        }
+
+        @Override
+        public void reload(ResourceManager manager) {
+            EntityAnchorLoader.reload(manager, clientServerDataIds);
         }
     }
 

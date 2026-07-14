@@ -69,6 +69,14 @@ loom {
         client {
             programArgs("--width", "2560")
             programArgs("--height", "1600")
+            programArgs("--username", "Dev1")
+        }
+        // Second client for local multiplayer testing — launch with:
+        //   ./gradlew runClient2
+        client2 {
+            inherit client
+            programArgs("--username", "Dev2")
+            runDir = "run2"
         }
     }
 }
