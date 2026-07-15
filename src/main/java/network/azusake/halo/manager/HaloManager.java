@@ -217,6 +217,14 @@ public final class HaloManager {
     }
 
     /**
+     * Clear all halo instances from the active map. Used on disconnect to
+     * prevent data from a previous server session leaking into the next one.
+     */
+    public void clearAllClientHalos() {
+        activeHalos.clear();
+    }
+
+    /**
      * How many halos are currently active.
      */
     public int getActiveCount() {

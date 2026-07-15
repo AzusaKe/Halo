@@ -1,5 +1,6 @@
 package network.azusake.halo.network;
 
+import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import net.fabricmc.api.EnvType;
@@ -71,6 +72,16 @@ public final class HaloNetworkClient {
                         HaloManager.getInstance().removeClientHalo(uuid)
                     );
                 }
+            }
+        );
+
+        // ---- Handshake hello (server has mod → transition to MULTIPLAYER) ----
+        ClientPlayNetworking.registerGlobalReceiver(
+            HaloNetwork.CHANNEL_HELLO,
+            (client, handler, buf, responseSender) -> {
+                client.execute(() ->
+                    HaloPhaseTracker.getInstance().transitionToMultiplayer()
+                );
             }
         );
     }

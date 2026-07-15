@@ -39,6 +39,9 @@ public final class HaloNetwork {
     /** C2S — client reports its locally-available definition IDs. */
     public static final Identifier CHANNEL_DEFS_REPORT = new Identifier("halo", "defs_report");
 
+    /** S2C — handshake, sent on player join to signal "server has the mod installed". */
+    public static final Identifier CHANNEL_HELLO = new Identifier("halo", "hello");
+
     private HaloNetwork() {
         // utility class
     }
@@ -47,8 +50,8 @@ public final class HaloNetwork {
      * Initialise the network layer (currently a no-op for S2C-only channels).
      */
     public static void register() {
-        HaloMod.LOGGER.info("HaloNetwork: S2C channels registered (sync={}, update={}, defs_report={})",
-            CHANNEL_SYNC, CHANNEL_UPDATE, CHANNEL_DEFS_REPORT);
+        HaloMod.LOGGER.info("HaloNetwork: S2C channels registered (sync={}, update={}, defs_report={}, hello={})",
+            CHANNEL_SYNC, CHANNEL_UPDATE, CHANNEL_DEFS_REPORT, CHANNEL_HELLO);
         registerServerReceivers();
     }
 
@@ -133,6 +136,19 @@ public final class HaloNetwork {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);
         }
+    }
+
+    /**
+     * Send the handshake hello packet to a single player, signalling that the
+     * server has the Halo mod installed.  The empty payload is intentional —
+     * the channel ID itself is the signal.  Future protocol version negotiation
+     * can extend the payload if needed.
+     *
+     * @param player the player to notify
+     */
+    public static void sendHello(ServerPlayerEntity player) {
+        var buf = PacketByteBufs.create();
+        ServerPlayNetworking.send(player, CHANNEL_HELLO, buf);
     }
 
     // ------------------------------------------------------------------

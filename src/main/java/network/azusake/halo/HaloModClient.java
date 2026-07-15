@@ -1,5 +1,8 @@
 package network.azusake.halo;
 
+import network.azusake.halo.client.FabricHaloCommandInterceptor;
+import network.azusake.halo.client.HaloLocalManager;
+import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
 import network.azusake.halo.render.HaloClientManager;
@@ -23,6 +26,11 @@ public class HaloModClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
 
+        // Force initialisation of the phase tracker singleton.  The client
+        // starts in LOCAL phase and transitions to MULTIPLAYER when
+        // halo:hello is received from a modded server.
+        HaloPhaseTracker.getInstance();
+
         // Register halo-definition resource loader on the client side so
         // definitions are available for rendering in single-player and when
         // definitions are bundled in a client resource pack.
@@ -43,6 +51,11 @@ public class HaloModClient implements ClientModInitializer {
                 HaloClientManager.getInstance().onEntityUnloaded(entity.getUuid());
             }
         });
+
+        // Register the command interceptor — the Fabric implementation hooks
+        // into ClientCommandRegistrationCallback and dispatches /halo commands
+        // either locally (LOCAL phase) or to the server (MULTIPLAYER / singleplayer).
+        new FabricHaloCommandInterceptor().register();
 
         // Register networking packet receivers for multiplayer halo sync.
         // These write directly into HaloManager so the existing single-player
@@ -68,16 +81,22 @@ public class HaloModClient implements ClientModInitializer {
                 }
             });
 
-        // Also fire when actually joining a server — the resource-reload
-        // listener fires at the main menu where networking isn't ready yet,
-        // so this ensures the first report arrives at the right moment.
+        // Reset phase to LOCAL on every join, BEFORE the server can send
+        // halo:hello.  This prevents state pollution from a previous session
+        // (e.g. exiting singleplayer → joining a vanilla server — phase was
+        // still MULTIPLAYER because integrated-server disconnect doesn't fire
+        // DISCONNECT callback, and no hello arrives from the vanilla server).
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            HaloPhaseTracker.getInstance().resetToLocal();
             HaloNetworkClient.sendDefsReport();
         });
 
-        // Clear network-populated halo state when disconnecting from a server
+        // Clear runtime halo state when disconnecting from a server.
+        // Only HaloManager (runtime) is cleared; HaloLocalManager (persistent)
+        // retains local halos so they survive reconnects to the same server.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            network.azusake.halo.manager.HaloManager.getInstance().getActiveHalos().clear();
+            network.azusake.halo.manager.HaloManager.getInstance().clearAllClientHalos();
+            HaloPhaseTracker.getInstance().resetToLocal();
         });
 
         LOGGER.info("Halo client initialized");

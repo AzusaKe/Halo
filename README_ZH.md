@@ -58,7 +58,7 @@
 
 ## 未来将会添加的特性
 
-- [ ] **多人游戏支持（尚未实现）**：目前光环仅在单人游戏中渲染。计划使用原版机制（记分板标签 Scoreboard Tag）传递光环信息，使玩家之间能互相看见对方的光环——并力争做到只需客户端安装模组即可。这是当前缺失的最大功能。
+- [x] **多人游戏支持（尚未实现）**：目前光环仅在单人游戏中渲染。计划使用原版机制（记分板标签 Scoreboard Tag）传递光环信息，使玩家之间能互相看见对方的光环——并力争做到只需客户端安装模组即可。这是当前缺失的最大功能。
 - [ ] **在物品栏内可见** : 目前模组的光环不会在物品栏中的玩家模型头部渲染，等待后续加入
 - [ ] **更多动画** : 添加脉冲发光、缩放动画、以及"启动动画"
 - [ ] **更多光环layer种类** : 预计将添加`mesh`（以`.obj`为载体的网格），`ring`（与`billboard`类似，用一张材质即可显示的没有厚度只有宽度和直径的圆环）
@@ -175,24 +175,24 @@
 }
 ```
 
-| 字段                          | 描述                                                        |
-| ----------------------------- | ----------------------------------------------------------- |
-| `id`                          | 唯一标识符，格式为 `命名空间:名称`                          |
-| `orientation_mode`            | `locked`、`free` 或 `sync` —— 光环相对实体头部的朝向方式    |
-| `layers`                      | 图层数组；每个图层是一个带有独立变换与动画的 primitive      |
-| `layers[].position`           | 该图层相对锚点帧的 `[X, Y, Z]` 偏移（格）                   |
-| `layers[].rotation`           | 该图层的 `[X, Y, Z]` 欧拉旋转（度）                         |
-| `layers[].scale`              | 该图层的缩放倍率                                            |
-| `layers[].animation`          | 该图层的 `offset` / `rotation` 动画曲线（详见参考文档）     |
-| `layers[].primitive.type`     | `billboard`（单个带纹理的四边形）                           |
-| `layers[].primitive.texture`  | 纹理路径，如 `halo:textures/halo/ring_00.png`               |
-| `layers[].primitive.size`     | `[宽度, 高度]`，单位为格                                    |
-| `positioning.offset`          | `[X, Y, Z]` 相对实体头部的偏移量（格）                      |
-| `positioning.scale`           | 默认缩放倍率                                                |
-| `damping.linearFactor`        | 20 TPS 下每 tick 的线性插值速度（0 = 不跟随，1 = 瞬间跟随） |
-| `damping.angularFactor`       | 角度插值速度（范围同上）                                    |
-| `damping.maxLinearDistance`   | 硬夹断最大距离（格）                                        |
-| `damping.maxAngularDegrees`   | 最大角度偏差（度）                                          |
+| 字段                         | 描述                                                        |
+| ---------------------------- | ----------------------------------------------------------- |
+| `id`                         | 唯一标识符，格式为 `命名空间:名称`                          |
+| `orientation_mode`           | `locked`、`free` 或 `sync` —— 光环相对实体头部的朝向方式    |
+| `layers`                     | 图层数组；每个图层是一个带有独立变换与动画的 primitive      |
+| `layers[].position`          | 该图层相对锚点帧的 `[X, Y, Z]` 偏移（格）                   |
+| `layers[].rotation`          | 该图层的 `[X, Y, Z]` 欧拉旋转（度）                         |
+| `layers[].scale`             | 该图层的缩放倍率                                            |
+| `layers[].animation`         | 该图层的 `offset` / `rotation` 动画曲线（详见参考文档）     |
+| `layers[].primitive.type`    | `billboard`（单个带纹理的四边形）                           |
+| `layers[].primitive.texture` | 纹理路径，如 `halo:textures/halo/ring_00.png`               |
+| `layers[].primitive.size`    | `[宽度, 高度]`，单位为格                                    |
+| `positioning.offset`         | `[X, Y, Z]` 相对实体头部的偏移量（格）                      |
+| `positioning.scale`          | 默认缩放倍率                                                |
+| `damping.linearFactor`       | 20 TPS 下每 tick 的线性插值速度（0 = 不跟随，1 = 瞬间跟随） |
+| `damping.angularFactor`      | 角度插值速度（范围同上）                                    |
+| `damping.maxLinearDistance`  | 硬夹断最大距离（格）                                        |
+| `damping.maxAngularDegrees`  | 最大角度偏差（度）                                          |
 
 > 添加或修改光环定义后，运行 `/reload`（或 `/halo config reload`）重新加载。
 

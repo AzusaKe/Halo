@@ -58,7 +58,7 @@ Currently only available in Minecraft 1.20.1 with Fabric.
 
 ## Planned Features
 
-- [ ] **Multiplayer Support (not implemented yet)**: Currently halos render only in single-player. The plan is to use vanilla mechanics (scoreboard tags) to transmit halo information so other players can see each other's halos — and ideally so only the client needs the mod installed. This is the single largest missing feature.
+- [x] **Multiplayer Support (not implemented yet)**: Currently halos render only in single-player. The plan is to use vanilla mechanics (scoreboard tags) to transmit halo information so other players can see each other's halos — and ideally so only the client needs the mod installed. This is the single largest missing feature.
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
 - [ ] **More Animations**: Add pulse glow, scale animations, and "intro animations"
 - [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files), `ring` (similar to `billboard`, a ring with no thickness but with width and diameter displayed using a single texture)
@@ -175,24 +175,24 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 }
 ```
 
-| Field                       | Description                                                                       |
-| --------------------------- | --------------------------------------------------------------------------------- |
-| `id`                        | Unique identifier in format `namespace:name`                                      |
-| `orientation_mode`          | `locked`, `free`, or `sync` — how the halo orients relative to the entity head    |
-| `layers`                    | Array of layers; each layer is a primitive with its own transform and animation   |
-| `layers[].position`         | `[X, Y, Z]` offset of this layer relative to the anchor frame (blocks)            |
-| `layers[].rotation`         | `[X, Y, Z]` Euler rotation of this layer (degrees)                                |
-| `layers[].scale`            | Per-layer scale multiplier                                                        |
-| `layers[].animation`        | Per-layer `offset` / `rotation` animation curves (see reference)                  |
-| `layers[].primitive.type`   | `billboard` (single textured quad)                                                |
-| `layers[].primitive.texture`| Texture path, e.g. `halo:textures/halo/ring_00.png`                               |
-| `layers[].primitive.size`   | `[width, height]` in blocks                                                       |
-| `positioning.offset`        | `[X, Y, Z]` offset relative to entity head (blocks)                               |
-| `positioning.scale`         | Default scale multiplier                                                          |
-| `damping.linearFactor`      | Linear interpolation speed per tick at 20 TPS (0 = no follow, 1 = instant follow) |
-| `damping.angularFactor`     | Angular interpolation speed (same range as above)                                 |
-| `damping.maxLinearDistance` | Hard clamp maximum distance (blocks)                                              |
-| `damping.maxAngularDegrees` | Maximum angular deviation (degrees)                                               |
+| Field                        | Description                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| `id`                         | Unique identifier in format `namespace:name`                                      |
+| `orientation_mode`           | `locked`, `free`, or `sync` — how the halo orients relative to the entity head    |
+| `layers`                     | Array of layers; each layer is a primitive with its own transform and animation   |
+| `layers[].position`          | `[X, Y, Z]` offset of this layer relative to the anchor frame (blocks)            |
+| `layers[].rotation`          | `[X, Y, Z]` Euler rotation of this layer (degrees)                                |
+| `layers[].scale`             | Per-layer scale multiplier                                                        |
+| `layers[].animation`         | Per-layer `offset` / `rotation` animation curves (see reference)                  |
+| `layers[].primitive.type`    | `billboard` (single textured quad)                                                |
+| `layers[].primitive.texture` | Texture path, e.g. `halo:textures/halo/ring_00.png`                               |
+| `layers[].primitive.size`    | `[width, height]` in blocks                                                       |
+| `positioning.offset`         | `[X, Y, Z]` offset relative to entity head (blocks)                               |
+| `positioning.scale`          | Default scale multiplier                                                          |
+| `damping.linearFactor`       | Linear interpolation speed per tick at 20 TPS (0 = no follow, 1 = instant follow) |
+| `damping.angularFactor`      | Angular interpolation speed (same range as above)                                 |
+| `damping.maxLinearDistance`  | Hard clamp maximum distance (blocks)                                              |
+| `damping.maxAngularDegrees`  | Maximum angular deviation (degrees)                                               |
 
 > After adding or modifying halo definitions, run `/reload` (or `/halo config reload`) to reload.
 

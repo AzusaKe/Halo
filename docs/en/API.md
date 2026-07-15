@@ -1,128 +1,90 @@
-# Anchor Provider API
+# Halo Mod — Public API
 
-> Extension interface for head-anchor computation — designed to accept model-driven replacements without touching framework code.
+## `HaloCommandInterceptor`
 
----
+**Package:** `network.azusake.halo.client`
 
-## 1. Core Interface
+`HaloCommandInterceptor` is the abstraction layer for intercepting `/halo` commands before they reach the server. It isolates the core phase-tracking / local-execution logic from the loader-specific hook mechanism.
 
-`EntityAnchorProvider` (`src/main/java/network/azusake/halo/physics/EntityAnchorProvider.java`) is a `@FunctionalInterface` called once per render frame: entity + tickDelta → world-space head centre + orientation.
+### Interface
 
 ```java
-@FunctionalInterface
-public interface EntityAnchorProvider {
-    HeadAnchor resolve(LivingEntity entity, float tickDelta);
+public interface HaloCommandInterceptor {
+    void register();
+    boolean isRegistered();
 }
 ```
 
-`HeadAnchor` carries three fields and nothing else:
+### Contract
 
-```java
-public record HeadAnchor(Vec3d headCenter, float yaw, float pitch) {}
-```
+Every implementation **must** follow this flow in each command executor:
 
-The sole consumer is `AnchorFrameCalculator.calculate()`. It depends only on those three fields — it has no knowledge of how they were computed. Swapping the provider implementation therefore requires no changes outside `AnchorFrameCalculator`.
+1. Call `HaloPhaseTracker.getInstance().shouldIntercept()`.
+2. If `true` (LOCAL phase — server without the mod):
+   - Call `HaloLocalCommandHandler.handle(commandString)`.
+   - Display the returned feedback on the local chat HUD.
+   - **Do not** forward the command to the server.
+3. If `false` (singleplayer or MULTIPLAYER phase — server with the mod):
+   - Forward the raw command string to the server (e.g. `client.getNetworkHandler().sendCommand(cmd)`).
 
----
+### Why This Layer Exists
 
-## 2. Current Implementations
+- The core classes (`HaloPhaseTracker`, `HaloLocalCommandHandler`, `HaloLocalManager`) contain **zero** loader-specific code.
+- Mixin-based interception proved fragile across Yarn mapping versions.
+- This interface lets each loader (Fabric, NeoForge, …) plug in its own command-registration API.
 
-| Class | Scope | Approach |
-|---|---|---|
-| `PlayerAnchorProvider` | Player entities | Pose-aware JSON data-driven (pivot + head_center_vector) |
-| `FallbackAnchorProvider` | All other entities | height × 0.85 rough approximation |
+### Fabric Implementation
 
-Dispatch logic at `AnchorFrameCalculator.calculate()` lines 100–103:
+`FabricHaloCommandInterceptor` (same package) registers `/halo` via `ClientCommandRegistrationCallback.EVENT`.
 
-```java
-EntityAnchorProvider provider = (entity instanceof PlayerEntity)
-    ? playerProvider
-    : fallbackProvider;
-HeadAnchor ha = provider.resolve(entity, tickDelta);
-```
+### Porting to Another Loader
 
----
-
-## 3. Future Extension Points
-
-### 3.1 Model-Driven Provider
-
-When you want exact head-centre positions computed by replaying Mojang's own rendering code with identical inputs, write one new `EntityAnchorProvider` implementation:
-
-```java
-public class ModelBasedAnchorProvider implements EntityAnchorProvider {
-
-    @Override
-    public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
-        // 1. EntityRenderDispatcher → EntityModel (PlayerEntityModel / ZombieEntityModel / …)
-        // 2. Call setAngles(entity, limbAngle, limbDistance, age, headYaw, pitch)
-        //    — identical inputs to the Mojang render path
-        // 3. Read the head ModelPart's final world-space transform
-        //    (pivot + parent chain concatenation)
-        // 4. Project to world-space headCenter
-        // 5. return new HeadAnchor(headCenter, yaw, pitch)
-    }
-}
-```
-
-Replacement is a single-line change in `AnchorFrameCalculator`:
-
-```java
-// Old:
-EntityAnchorProvider provider = (entity instanceof PlayerEntity)
-    ? playerProvider : fallbackProvider;
-
-// New:
-EntityAnchorProvider provider = modelBasedProvider; // or per-entity-type dispatch
-```
-
-### 3.2 Non-Player Entity JSON Profiles
-
-For cows, chickens, endermen, etc. — create `data/halo/entity_anchors/<entity_id>.json`. No code changes needed. Example `minecraft:cow.json`:
-
-```json
-{
-  "entity": "minecraft:cow",
-  "default_pose": "standing",
-  "poses": {
-    "standing": {
-      "pivot": [0.0, 1.0, 0.8],
-      "head_center_vector": [0.0, 0.15, 0.0]
-    }
-  }
-}
-```
-
-`EntityAnchorLoader` auto-loads them on `/reload`. To wire them in, promote the dispatch from `instanceof PlayerEntity` to a generalised profile lookup:
-
-```java
-EntityAnchorProvider provider = profileBasedProvider;
-// Inside: EntityAnchorLoader.getProfile(entity.getType()) → JSON-driven
-//         → absent? instanceof PlayerEntity → player JSON
-//         → still absent? → fallback
-```
-
-### 3.3 Hybrid Strategy
-
-A single provider can layer strategies — e.g. JSON first, model-driven second, fallback third. The single-method signature imposes no limit on internal complexity.
+1. Implement `HaloCommandInterceptor` using that loader's client-command API.
+2. Call `register()` during client initialisation.
+3. No core logic files need to be changed.
 
 ---
 
-## 4. Backward Compatibility
+## Lifecycle Hooks
 
-| Change | Affected Files | Breaks JSON Profiles? |
-|---|---|---|
-| New `EntityAnchorProvider` impl | 1 line in `AnchorFrameCalculator` | No |
-| New `entity_anchors/*.json` | Zero code files | No (auto-loaded) |
-| Extend `HeadAnchor` record | `AnchorFrameCalculator` + providers | Only if fields are removed |
+### `HaloPhaseTracker`
 
-The JSON schema (`PoseAnchor` + `EntityAnchorProfile`) is stable. When you switch to a model-driven provider, existing `player.json` automatically becomes the fallback — the model path provides primary data, the profile JSON catches anything that's missing.
+| Method | Purpose |
+|--------|---------|
+| `getPhase()` | `LOCAL` or `MULTIPLAYER` |
+| `transitionToMultiplayer()` | Called when `halo:hello` arrives |
+| `resetToLocal()` | Called on disconnect |
+| `shouldIntercept()` | Singleplayer safety net — never `true` for integrated server |
+
+### `HaloLocalManager`
+
+Data persisted to `config/halo-azusake/halo_local_halos.json` on every mutation. Server keys are stable `hostString:port` strings.
+
+| Method | Purpose |
+|--------|---------|
+| `showHalo(serverKey, uuid, defId)` | Record a halo |
+| `hideHalo(serverKey, uuid)` | Remove a halo |
+| `getHalo(serverKey, uuid)` | Look up |
+| `getHalosForServer(serverKey)` | All UUIDs for rendering |
+| `clearServer(serverKey)` | Disconnect cleanup |
+| `serverKeyFromAddress(address)` | Stable key from `InetSocketAddress` |
+
+### `HaloLocalCommandHandler`
+
+```java
+static String handle(String command)
+```
+
+Supported: `list`, `dump`, `show @s <def>`, `hide @s`, `config <p> <v>`, `reload`, `active`.
+`show`/`hide` strictly require `@s`.
 
 ---
 
-## 5. Key Invariants
+## Network Channels
 
-1. **Code downstream of `calculate()` never observes a provider switch.** Damping, orientation modes, and camera-relative coordinates consume only `HeadAnchor`.
-2. **JSON profiles are optional overlays.** Present → used. Absent → the provider's built-in default takes over.
-3. **Provider resolution runs on the render thread.** Safe to access `MinecraftClient`, model instances, and other client-side resources. No threading concerns.
-4. **All pose discrimination lives inside providers.** `AnchorFrameCalculator` contains zero `EntityPose` or `isSneaking()` calls.
+| Channel | Direction | Purpose |
+|---------|-----------|---------|
+| `halo:sync` | S2C | Full state snapshot on join |
+| `halo:update` | S2C | Incremental attach/remove |
+| `halo:defs_report` | C2S | Client reports local definition IDs |
+| `halo:hello` | S2C | Handshake — server has the mod installed |

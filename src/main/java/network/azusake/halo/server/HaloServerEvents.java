@@ -60,6 +60,7 @@ public final class HaloServerEvents {
                 handler.getPlayer().getUuid(), handler.getPlayer().getName().getString()
             );
             network.azusake.halo.network.HaloNetwork.sendFullSync(handler.getPlayer());
+            network.azusake.halo.network.HaloNetwork.sendHello(handler.getPlayer());
         });
 
         // Player disconnect → remove halos and clean up reported definitions
