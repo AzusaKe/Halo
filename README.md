@@ -41,8 +41,6 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 
 > Halos use frame-rate-independent discrete position tracking with configurable follow speed and maximum distance clamping. Position resets after entity teleportation.
 
-> ⚠️ **Multiplayer is not yet supported.** Halos currently render only in single-player. Cross-client synchronization (seeing other players' halos on a server) is **not implemented yet** — see [Planned Features](#planned-features). For now, treat Halo as a single-player / local-world mod.
-
 <a id="features"></a>
 
 ## Features
@@ -60,7 +58,7 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 
 ## Planned Features
 
-- [x] **Multiplayer Support (not implemented yet)**: Currently halos render only in single-player. The plan is to use vanilla mechanics (scoreboard tags) to transmit halo information so other players can see each other's halos — and ideally so only the client needs the mod installed. This is the single largest missing feature.
+- [x] **Multiplayer Support**: Halos sync across all players on a server — attach, remove, and configure halos and every connected client sees the result in real time.
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
 - [ ] **More Animations**: Add pulse glow, scale animations, and "intro animations"
 - [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files), `ring` (similar to `billboard`, a ring with no thickness but with width and diameter displayed using a single texture)
@@ -87,8 +85,6 @@ This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.
 2. Install [Sinytra Connector](https://modrinth.com/mod/connector)
 3. Install [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
 4. Place the Halo mod JAR into the `mods` folder
-
-> **Multiplayer**: Not supported yet. Halos currently render only in single-player worlds; on a dedicated server other clients will not see them. Cross-client synchronization is planned but not implemented — see [Planned Features](#planned-features).
 
 <a id="usage"></a>
 
