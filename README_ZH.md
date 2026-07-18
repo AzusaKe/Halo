@@ -55,10 +55,10 @@
 - [x] **资源包友好**：光环定义为 JSON 文件，存放在 `assets/<namespace>/halo_definitions/` 目录下。通过资源包或数据包添加新光环，运行 `/reload` 即可生效。**数据包和资源包的结构尚未确定**
 - [x] **多层形状**：除了单个公告板，光环还可使用 `MultiBillboardShape` 实现分层四边形效果。**即将扩增更多自定义内容，敬请期待**
 - [x] **距离裁剪**：超过相机 1000 格外自动跳过渲染以优化性能。
+- [x] **多人游戏支持**：光环可在多人服务器上同步——挂载、移除和配置光环，所有连接的客户端都能实时看到效果。
 
 ## 未来将会添加的特性
 
-- [x] **多人游戏支持**：光环可在多人服务器上同步——挂载、移除和配置光环，所有连接的客户端都能实时看到效果。
 - [ ] **在物品栏内可见** : 目前模组的光环不会在物品栏中的玩家模型头部渲染，等待后续加入
 - [ ] **更多动画** : 添加脉冲发光、缩放动画、以及"启动动画"
 - [ ] **更多光环layer种类** : 预计将添加`mesh`（以`.obj`为载体的网格），`ring`（与`billboard`类似，用一张材质即可显示的没有厚度只有宽度和直径的圆环）
@@ -112,7 +112,6 @@
 | `/halo save`                           | 同步光环数据到世界持久化存储并触发 save-all  |
 | `/halo debug <true/false>`             | 开关传送/吸附调试日志输出到聊天栏            |
 | `/halo reload`                         | 提示使用 `/reload` 来重新加载光环定义        |
-| `/halo config reload`                  | 从资源包/数据包重新加载光环定义              |
 
 **示例：**
 
@@ -143,7 +142,7 @@
 > **完整的分步教程和字段参考请见文档：**
 > [快速上手](docs/zh/quickstart.md) · [字段参考](docs/zh/reference.md)
 
-**定义示例**（`ring_default.json`）：
+**定义示例**（`ring_default.json`，简化版——[完整版](src/main/resources/assets/halo/halo_definitions/ring_default.json)）：
 
 ```json
 {
@@ -151,7 +150,40 @@
   "orientation_mode": "locked",
   "layers": [
     {
+      "position": [0.0, -0.001, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_03.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
       "position": [0.0, 0.0, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        },
+        "rotation": {
+          "yaw": [{ "function": "linear", "start": 0, "speed": -0.008333 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_00.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.001, 0.0],
       "rotation": [0.0, 0.0, 0.0],
       "scale": 1.5,
       "animation": {
@@ -164,7 +196,7 @@
       },
       "primitive": {
         "type": "billboard",
-        "texture": "halo:textures/halo/ring_00.png",
+        "texture": "halo:textures/halo/ring_01.png",
         "size": [0.5, 0.5]
       }
     }
@@ -201,7 +233,7 @@
 | `damping.maxLinearDistance`  | 硬夹断最大距离（格）                                        |
 | `damping.maxAngularDegrees`  | 最大角度偏差（度）                                          |
 
-> 添加或修改光环定义后，运行 `/reload`（或 `/halo config reload`）重新加载。
+> 添加或修改光环定义后，运行 `/reload` 重新加载。
 
 <a id="从源码构建"></a>
 
@@ -256,6 +288,7 @@ src/main/
     HaloMod.java              — 模组初始化器（服务端入口）
     HaloModClient.java         — 客户端初始化器（客户端入口）
     animation/                 — 动画曲线（Linear、Oscillate、Constant）
+    client/                    — 客户端指令拦截、阶段追踪、本地管理
     command/                   — /halo Brigadier 命令树
     config/                    — 运行时 HaloConfig（衰减、缩放、偏移）
     data/                      — HaloDefinition、HaloInstance、HaloEntityData 等
@@ -263,6 +296,7 @@ src/main/
     lifecycle/                 — EntityHaloTracker、HaloWorldSaveData、事件处理器
     manager/                   — HaloManager（单例，管理所有活跃光环）
     mixin/                     — EntityTeleportMixin、LivingEntityDataMixin
+    network/                   — HaloNetwork、HaloNetworkClient（多人同步）
     physics/                   — AnchorFrameCalculator、DampingPhysics、HaloTickHandler
     render/                    — HaloRenderer、HaloClientManager、HaloRenderListener
     server/                    — HaloServerEvents、ServerTickHandler

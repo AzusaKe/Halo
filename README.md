@@ -55,10 +55,10 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 - [x] **Resource Pack Friendly**: Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`. Add new halos via resource packs or data packs and run `/reload` to take effect. **The structure of data packs and resource packs is not yet finalized.**
 - [x] **Multi-Layer Shapes**: Beyond single billboards, halos can use `MultiBillboardShape` for layered quad effects. **More customization features coming soon!**
 - [x] **Distance Culling**: Halos beyond 1000 blocks from the camera are automatically skipped for performance optimization.
+- [x] **Multiplayer Support**: Halos sync across all players on a server — attach, remove, and configure halos and every connected client sees the result in real time.
 
 ## Planned Features
 
-- [x] **Multiplayer Support**: Halos sync across all players on a server — attach, remove, and configure halos and every connected client sees the result in real time.
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
 - [ ] **More Animations**: Add pulse glow, scale animations, and "intro animations"
 - [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files), `ring` (similar to `billboard`, a ring with no thickness but with width and diameter displayed using a single texture)
@@ -112,7 +112,6 @@ All commands require permission level 2 (operator). Use `/halo` with tab complet
 | `/halo save`                           | Sync halo data to world persistence and trigger save-all                         |
 | `/halo debug <true/false>`             | Toggle teleport/snap debug logging to chat                                       |
 | `/halo reload`                         | Hint to use `/reload` to reload halo definitions                                 |
-| `/halo config reload`                  | Reload halo definitions from resource/data packs                                 |
 
 **Examples:**
 
@@ -143,7 +142,7 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 > **For a full step-by-step tutorial and the complete field reference, see the docs:**
 > [Quickstart](docs/en/quickstart.md) · [Field Reference](docs/en/reference.md)
 
-**Definition Example** (`ring_default.json`):
+**Definition Example** (`ring_default.json`, simplified — see [full version](src/main/resources/assets/halo/halo_definitions/ring_default.json)):
 
 ```json
 {
@@ -151,7 +150,40 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
   "orientation_mode": "locked",
   "layers": [
     {
+      "position": [0.0, -0.001, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_03.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
       "position": [0.0, 0.0, 0.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        },
+        "rotation": {
+          "yaw": [{ "function": "linear", "start": 0, "speed": -0.008333 }]
+        }
+      },
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo:textures/halo/ring_00.png",
+        "size": [0.5, 0.5]
+      }
+    },
+    {
+      "position": [0.0, 0.001, 0.0],
       "rotation": [0.0, 0.0, 0.0],
       "scale": 1.5,
       "animation": {
@@ -164,7 +196,7 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
       },
       "primitive": {
         "type": "billboard",
-        "texture": "halo:textures/halo/ring_00.png",
+        "texture": "halo:textures/halo/ring_01.png",
         "size": [0.5, 0.5]
       }
     }
@@ -201,7 +233,7 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 | `damping.maxLinearDistance`  | Hard clamp maximum distance (blocks)                                              |
 | `damping.maxAngularDegrees`  | Maximum angular deviation (degrees)                                               |
 
-> After adding or modifying halo definitions, run `/reload` (or `/halo config reload`) to reload.
+> After adding or modifying halo definitions, run `/reload` to reload.
 
 <a id="building-from-source"></a>
 
@@ -256,6 +288,7 @@ src/main/
     HaloMod.java              — Mod initializer (server entry point)
     HaloModClient.java         — Client initializer (client entry point)
     animation/                 — Animation curves (Linear, Oscillate, Constant)
+    client/                    — Client-side command interceptor, phase tracker, local manager
     command/                   — /halo Brigadier command tree
     config/                    — Runtime HaloConfig (damping, scale, offset)
     data/                      — HaloDefinition, HaloInstance, HaloEntityData, etc.
@@ -263,6 +296,7 @@ src/main/
     lifecycle/                 — EntityHaloTracker, HaloWorldSaveData, event handlers
     manager/                   — HaloManager (singleton managing all active halos)
     mixin/                     — EntityTeleportMixin, LivingEntityDataMixin
+    network/                   — HaloNetwork, HaloNetworkClient (multiplayer sync)
     physics/                   — AnchorFrameCalculator, DampingPhysics, HaloTickHandler
     render/                    — HaloRenderer, HaloClientManager, HaloRenderListener
     server/                    — HaloServerEvents, ServerTickHandler
