@@ -23,7 +23,7 @@
 你需要：
 
 - 一个**文本编辑器**（如 VS Code、Notepad++）
-- 一个**图像编辑器**（如 Photoshop、GIMP、Aseprite），用于制作 PNG 贴图
+- 一个**图像编辑器**（如 Photoshop、GIMP、Aseprite），用于制作 PNG 贴图。设计原创光环时，推荐使用**矢量图绘制软件**（如 Adobe Illustrator、Inkscape）——矢量图可以无损缩放，绘制精确的几何形状也更方便。
 - 已安装 Halo 模组的 Minecraft 1.20.1（Fabric）
 
 ---
@@ -206,10 +206,10 @@ yourhalo_pack/
 然后，给自己戴上光环：
 
 ```mcfunction
-/halo show @s yourhalo
+/halo show @s halo:yourhalo
 ```
 
-> `@s` 是 Minecraft 的目标选择器，表示"自己"（self）。`yourhalo` 是你在 JSON 中定义的 ID 的名称部分（模组会自动补全为 `halo:yourhalo`）。
+> `@s` 是 Minecraft 的目标选择器，表示"自己"（self）。`yourhalo` 是你在 JSON 中定义的 ID 的名称部分。**注意**：直接输入 `yourhalo` 会被强制解析为 `minecraft:yourhalo`（这是错误的）。请在输入 `/halo show @s ` 后使用 **Tab 自动补全**来选择正确的 `halo:yourhalo` 条目。
 
 如果一切顺利，你应该能看到光环浮现在你的头顶！
 
@@ -221,10 +221,10 @@ yourhalo_pack/
 
 | 命令 | 用途 |
 |------|------|
-| `/halo list` | 列出所有已加载的光环定义。确认你的 `yourhalo` 在列表中 |
+| `/halo list` | 列出所有已加载的光环定义。确认你的 `halo:yourhalo` 在列表中 |
 | `/halo dump` | 输出所有光环定义的详细信息（包括图层、动画、阻尼参数） |
 | `/halo active` | 列出当前所有佩戴光环的实体 |
-| `/halo inspect @s` | 查看自己身上光环的运行时状态 |
+| `/halo inspect @s` | 查看自己身上光环的运行时状态（*注：目前因未知原因无法使用，可能无输出*） |
 | `/halo hide @s` | 移除自己的光环 |
 
 ### 修改与热加载
@@ -272,4 +272,4 @@ yourhalo_pack/
 
 ---
 
-*Halo Mod v1.0.1 · [GitHub](https://github.com/AzusaKe/Halo)*
+*Halo Mod v1.0.6 · [GitHub](https://github.com/AzusaKe/Halo)*

@@ -23,7 +23,7 @@ When you're done, your halo will follow an entity's head movements in-game with 
 You will need:
 
 - A **text editor** (e.g., VS Code, Notepad++)
-- An **image editor** (e.g., Photoshop, GIMP, Aseprite) for creating PNG textures
+- An **image editor** (e.g., Photoshop, GIMP, Aseprite) for creating PNG textures. For original halo designs, a **vector drawing application** (e.g., Adobe Illustrator, Inkscape) is also recommended — vector graphics scale cleanly and make it easier to draw precise geometric shapes.
 - Minecraft 1.20.1 (Fabric) with the Halo mod installed
 
 ---
@@ -206,10 +206,10 @@ This command tells the mod to reload all halo definitions. You should see a conf
 Then, equip the halo on yourself:
 
 ```mcfunction
-/halo show @s yourhalo
+/halo show @s halo:yourhalo
 ```
 
-> `@s` is a Minecraft target selector meaning "self". `yourhalo` is the name part of the ID you defined in the JSON (the mod automatically resolves it to `halo:yourhalo`).
+> `@s` is a Minecraft target selector meaning "self". `yourhalo` is the name part of the ID you defined in the JSON. **Note**: typing `yourhalo` directly will always be resolved to `minecraft:yourhalo` (which is incorrect). Use **tab completion** after typing `/halo show @s ` to select the correct `halo:yourhalo` entry.
 
 If everything went well, you should see the halo floating above your head!
 
@@ -221,10 +221,10 @@ If everything went well, you should see the halo floating above your head!
 
 | Command | Purpose |
 |------|------|
-| `/halo list` | List all loaded halo definitions. Confirm your `yourhalo` appears in the list. |
+| `/halo list` | List all loaded halo definitions. Confirm your `halo:yourhalo` appears in the list. |
 | `/halo dump` | Output detailed information about all halo definitions (including layers, animations, and damping parameters). |
 | `/halo active` | List all entities currently wearing a halo. |
-| `/halo inspect @s` | View the runtime status of the halo on yourself. |
+| `/halo inspect @s` | View the runtime status of the halo on yourself. *(Note: currently broken for unknown reasons — may not produce output.)* |
 | `/halo hide @s` | Remove the halo from yourself. |
 
 ### Editing and Hot-Reload
@@ -272,4 +272,4 @@ Congratulations! You've successfully created your first custom halo. From here, 
 
 ---
 
-*Halo Mod v1.0.1 · [GitHub](https://github.com/AzusaKe/Halo)*
+*Halo Mod v1.0.6 · [GitHub](https://github.com/AzusaKe/Halo)*
