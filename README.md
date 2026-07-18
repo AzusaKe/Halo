@@ -4,7 +4,7 @@
 </h1>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC Version](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
+![MC Version](https://img.shields.io/badge/Minecraft-1.19.4--1.20.4-green.svg)
 ![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 English | [中文](README_ZH.md)
@@ -33,7 +33,9 @@ English | [中文](README_ZH.md)
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-Currently only available in Minecraft 1.20.1 with Fabric.
+Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 1.20.1 supported via [Sinytra Connector](https://modrinth.com/mod/connector)).
+
+> **Note on 1.19.4**: Core features (show/hide halo, multiplayer sync, persistence) work normally, but some query commands (`/halo list`, `/halo active`, `/halo dump`) produce no chat output. This is a known compatibility issue.
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
 
@@ -71,11 +73,20 @@ Currently only available in Minecraft 1.20.1 with Fabric.
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.20.1.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) (version 0.92.0+ for 1.20.1).
+1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.19.4 ~ 1.20.4.
+2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for your Minecraft version.
 3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
 4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
 5. Launch Minecraft with the Fabric profile.
+
+### NeoForge / Forge
+
+This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.20.1** via [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api). Shader packs are compatible.
+
+1. Install NeoForge or Forge for Minecraft 1.20.1
+2. Install [Sinytra Connector](https://modrinth.com/mod/connector)
+3. Install [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
+4. Place the Halo mod JAR into the `mods` folder
 
 > **Multiplayer**: Not supported yet. Halos currently render only in single-player worlds; on a dedicated server other clients will not see them. Cross-client synchronization is planned but not implemented — see [Planned Features](#planned-features).
 
