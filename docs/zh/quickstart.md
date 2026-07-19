@@ -75,7 +75,8 @@ yourhalo_pack/
 ```json
 {
   "id": "halo:yourhalo",
-  "orientation_mode": "sync",
+  "orientation_mode": "locked",
+  "allow_angular_momentum": true,
   "layers": [
     {
       "position": [0.0, 0.0, 0.0],
@@ -102,7 +103,9 @@ yourhalo_pack/
     "linearFactor": 0.5,
     "angularFactor": 0.1,
     "maxLinearDistance": 0.5,
-    "maxAngularDegrees": 180.0
+    "maxAngularDegrees": 180.0,
+    "angularMomentumFactor": 0.3,
+    "maxAngularMomentumDegrees": 45.0
   }
 }
 ```
@@ -114,7 +117,8 @@ yourhalo_pack/
 | 字段 | 说明 |
 |------|------|
 | `id` | 光环的唯一标识符。格式为 `命名空间:名称`。命名空间与文件夹对应：`halo:yourhalo` 表示该定义文件位于 `assets/halo/` 下。你可以使用自己的命名空间（如 `mypack:myhalo`），此时定义文件应放在 `assets/mypack/` 下。后续用 `/halo show` 命令时需要用到这个 ID。 |
-| `orientation_mode` | 光环的朝向模式。`"sync"` 表示光环跟随实体头部的旋转——玩家抬头时光环也抬头，转头时光环也转头。本教程以 `sync` 作为示例。（灵感来源于 Blue Archive 的光环跟随方式。） |
+| `orientation_mode` | 光环的朝向模式。`"locked"` 表示光环始终指向玩家头部中心，并利用头部球面极点让光环像指南针一样稳定指向，不会绕法线随意旋转。本教程以 `locked` 作为示例，因为它能与 `allow_angular_momentum` 配合展示角动量效果。 |
+| `allow_angular_momentum` | 是否为光环朝向启用角动量惯性。`true` 时，光环的朝向不会瞬间对准目标，而是带有惯性地平滑追赶——玩家快速转头时，光环会产生"滞后"的物理感。仅对 `locked` 和 `free` 模式有效，`sync` 模式下此字段无作用。 |
 | `layers` | 图层数组。每个光环可以由多个图层叠加组成。图层通过各自的位置（`position`）决定空间中的前后关系，而非数组中的排列顺序。这里我们只用了一个图层。 |
 | `layers[0].position` | 该图层在光环局部空间中的位置 `[X, Y, Z]`（单位为格）。`[0, 0, 0]` 代表光环的**原点**——这个原点会和阻尼物理计算出的跟随位置对齐。图层在空间中的实际位置 = 阻尼跟随位置 + 此处定义的偏移。 |
 | `layers[0].rotation` | 该图层的初始旋转角度 `[pitch, yaw, roll]`（单位为度）。`[0, 0, 0]` 表示不做旋转。 |
@@ -132,6 +136,8 @@ yourhalo_pack/
 | `damping.angularFactor` | 角度跟随速度。`0.1` 较慢，适合光环这种不需要快速跟随旋转的装饰品。 |
 | `damping.maxLinearDistance` | 最大跟随距离（格）。光环与实体的距离达到此值后将被**钳制**在此距离，不会继续拉远，直到跟随速度放缓后自然回弹。 |
 | `damping.maxAngularDegrees` | 最大角度偏差（度）。光环与实体的角度差达到此值后将被**钳制**在此角度，不会继续偏转，直到跟随速度放缓后自然回弹。 |
+| `damping.angularMomentumFactor` | 角动量阻尼系数（0 = 冻结，1 = 无惯性）。控制光环朝向追赶目标姿态的速度。`0.3` 提供适度的惯性滞后感。仅在 `allow_angular_momentum` 为 `true` 时生效。 |
+| `damping.maxAngularMomentumDegrees` | 最大角动量偏差角度（度）。光环朝向与目标朝向的角度差超过此值后将被**钳制**，防止光环在快速转向时偏离过大。 |
 
 ---
 

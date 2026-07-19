@@ -108,6 +108,9 @@ All commands require permission level 2 (operator). Use `/halo` with tab complet
 | `/halo config angular-damping <0-1>`   | Set angular follow speed                                                         |
 | `/halo config max-linear-distance <n>` | Set maximum distance before hard clamping (blocks)                               |
 | `/halo config max-angular-degrees <n>` | Set maximum angular deviation (degrees)                                          |
+| `/halo config allow-angular-momentum <true/false>` | Toggle angular momentum inertia effect                             |
+| `/halo config angular-momentum-factor <0-1>` | Set angular momentum damping factor (0 = frozen, 1 = no inertia)  |
+| `/halo config max-angular-momentum-degrees <n>` | Set maximum angular momentum deviation (degrees)                 |
 | `/halo config scale <0.1-5.0>`         | Set uniform scale multiplier                                                     |
 | `/halo save`                           | Sync halo data to world persistence and trigger save-all                         |
 | `/halo debug <true/false>`             | Toggle teleport/snap debug logging to chat                                       |
@@ -148,6 +151,7 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 {
   "id": "halo:ring_default",
   "orientation_mode": "locked",
+  "allow_angular_momentum": true,
   "layers": [
     {
       "position": [0.0, -0.001, 0.0],
@@ -209,7 +213,9 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
     "linearFactor": 0.45,
     "angularFactor": 0.1,
     "maxLinearDistance": 0.5,
-    "maxAngularDegrees": 180.0
+    "maxAngularDegrees": 180.0,
+    "angularMomentumFactor": 0.3,
+    "maxAngularMomentumDegrees": 45.0
   }
 }
 ```
@@ -218,6 +224,7 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 | ---------------------------- | --------------------------------------------------------------------------------- |
 | `id`                         | Unique identifier in format `namespace:name`                                      |
 | `orientation_mode`           | `locked`, `free`, or `sync` — how the halo orients relative to the entity head    |
+| `allow_angular_momentum`     | When `true`, adds angular momentum inertia to orientation (`locked`/`free` only)  |
 | `layers`                     | Array of layers; each layer is a primitive with its own transform and animation   |
 | `layers[].position`          | `[X, Y, Z]` offset of this layer relative to the anchor frame (blocks)            |
 | `layers[].rotation`          | `[X, Y, Z]` Euler rotation of this layer (degrees)                                |
@@ -232,6 +239,8 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 | `damping.angularFactor`      | Angular interpolation speed (same range as above)                                 |
 | `damping.maxLinearDistance`  | Hard clamp maximum distance (blocks)                                              |
 | `damping.maxAngularDegrees`  | Maximum angular deviation (degrees)                                               |
+| `damping.angularMomentumFactor` | Angular momentum damping factor (0 = frozen, 1 = no inertia)                  |
+| `damping.maxAngularMomentumDegrees` | Maximum angular momentum deviation (degrees)                              |
 
 > After adding or modifying halo definitions, run `/reload` to reload.
 

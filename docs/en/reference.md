@@ -28,6 +28,7 @@ A halo definition JSON file contains the following top-level fields:
 {
   "id": "halo:example",
   "orientation_mode": "locked",
+  "allow_angular_momentum": true,
   "sync_offset": [0.0, 0.0, 0.0],
   "layers": [ ... ],
   "animation": { ... },
@@ -50,6 +51,13 @@ A halo definition JSON file contains the following top-level fields:
 - **Required**: No
 - **Values**: `"locked"` (default), `"free"`, `"sync"`
 - **Description**: Controls how the halo rotates relative to the entity's head. See [Orientation Mode](#orientation-mode) for details.
+
+### `allow_angular_momentum`
+
+- **Type**: Boolean
+- **Required**: No
+- **Default**: `false`
+- **Description**: When set to `true`, adds angular momentum inertia to the halo's orientation. When enabled, the orientation computed by `locked` and `free` modes becomes a target — the actual orientation chases it with inertial damping, producing a visible physical "lag" when the player turns quickly. Only effective in `locked` and `free` modes; has no effect in `sync` mode. The damping speed and angle clamp are controlled by `damping.angularMomentumFactor` and `damping.maxAngularMomentumDegrees`.
 
 ### `sync_offset`
 
@@ -184,7 +192,7 @@ The only currently supported primitive type is `"billboard"` — a flat quad wit
 
 ### Glow Layer
 
-> **⚠️ Note**: The glow layer currently has a known bug and is pending a fix. Additionally, glow animation (`pulse`) will be deprecated — future glow control will be migrated to dedicated glow control fields within the `animation` system.
+> **⚠️ Note**: The glow layer currently has a known bug and is pending a fix.
 
 The glow layer renders with additive blending on top of the base texture, producing a self-illumination effect:
 
@@ -193,12 +201,7 @@ The glow layer renders with additive blending on top of the base texture, produc
   "texture": "halo:textures/halo/example_glow.png",
   "size": [0.5, 0.5],
   "color": 16766720,
-  "alpha": 0.8,
-  "pulse": {
-    "amplitude": 0.2,
-    "frequency": 1.0,
-    "phase": 0.0
-  }
+  "alpha": 0.8
 }
 ```
 
@@ -208,15 +211,6 @@ The glow layer renders with additive blending on top of the base texture, produc
 | `size` | `[width, depth]` | **Yes** | Glow quad dimensions (blocks). Usually matches the base texture. |
 | `color` | Integer | **Yes** | Glow color as a packed 0xRRGGBB integer. E.g. `16766720` (0xFFCC00, gold). |
 | `alpha` | Float | **Yes** | Base opacity, range 0.0–1.0. |
-| `pulse` | Object | No | Optional pulse animation. When absent, the glow displays at constant `alpha`. |
-
-### Pulse
-
-| Field | Type | Required | Default | Description |
-|------|------|------|--------|------|
-| `amplitude` | Float | **Yes** | — | Peak deviation of opacity. Actual alpha = `alpha` ± `amplitude`. |
-| `frequency` | Float | **Yes** | — | Pulse frequency in Hz (cycles/second). |
-| `phase` | Float | No | `0.0` | Initial phase offset (radians). Used to stagger the pulsing rhythm across multiple glow layers. |
 
 ---
 
@@ -320,12 +314,14 @@ Orientation mode controls how the halo rotates relative to the entity in space. 
 
 - The halo orientation **always points toward the player's head center**
 - Uses the player head's **spherical poles** (upper and lower poles) to determine the halo's rotation around its normal — the halo points stably toward these poles like a compass and won't rotate freely around its normal axis
+- When `allow_angular_momentum` is `true`, the orientation toward the head center becomes a target — the actual orientation chases it with angular momentum inertia
 - Suitable for halos that need a stable orientation, such as the default `ring_default`
 
 ### `free`
 
 - The halo orientation **also always points toward the player's head center**
 - However, the halo's **rotation around its normal axis is uncontrolled** — it can freely rotate around the normal
+- When `allow_angular_momentum` is `true`, angular momentum inertia is also applied to the orientation
 - Suitable for halos where the specific rotation angle doesn't matter
 
 ### `sync`
@@ -333,6 +329,7 @@ Orientation mode controls how the halo rotates relative to the entity in space. 
 - The **initial pose** is determined by the first frame of `locked` mode
 - After that, the halo's rotation **fully follows the entity's head** — when the player turns their head, the halo rotates in sync
 - A fixed rotational offset from the head can be set via `sync_offset`
+- `allow_angular_momentum` has no effect on this mode
 - Suitable for halos that need to maintain a fixed relative angle to the entity (inspired by Blue Archive)
 
 ### Mode Comparison
@@ -341,6 +338,7 @@ Orientation mode controls how the halo rotates relative to the entity in space. 
 |------|----------|--------|--------|
 | Points toward head center | ✓ | ✓ | ✗ (follows head rotation) |
 | Rotation around normal | Stabilized by spherical poles | Uncontrolled | Follows head |
+| Angular momentum inertia | ✓ | ✓ | ✗ |
 | Initial pose source | — | — | First frame of `locked` |
 | `sync_offset` applies | ✗ | ✗ | ✓ |
 
@@ -373,7 +371,9 @@ Damping controls how smoothly the halo follows the entity's movement. The mod us
   "linearFactor": 0.5,
   "angularFactor": 0.1,
   "maxLinearDistance": 0.5,
-  "maxAngularDegrees": 180.0
+  "maxAngularDegrees": 180.0,
+  "angularMomentumFactor": 0.3,
+  "maxAngularMomentumDegrees": 45.0
 }
 ```
 
@@ -383,6 +383,8 @@ Damping controls how smoothly the halo follows the entity's movement. The mod us
 | `angularFactor` | Float | **Yes** | — | Angular follow speed. `0` = no rotational follow, `1` = instant rotational follow. Usually set lower than `linearFactor` (e.g. 0.1) for softer rotation. |
 | `maxLinearDistance` | Float | **Yes** | — | Linear clamp distance (blocks). When the halo reaches this distance from the entity, it is **clamped** at this value — it won't drift further. As the speed eases, the halo naturally rebounds to its normal follow position. |
 | `maxAngularDegrees` | Float | **Yes** | — | Angular clamp value (degrees). When the halo's angle relative to the entity reaches this value, it is **clamped** at this angle — it won't rotate further. As the speed eases, it naturally rebounds. |
+| `angularMomentumFactor` | Float | No | `0.3` | Angular momentum damping factor. Only effective when `allow_angular_momentum` is `true`. `0` = frozen (halo orientation doesn't chase the target), `1` = instant snap to target (no inertia). Typical range: 0.2–0.5. |
+| `maxAngularMomentumDegrees` | Float | No | `45.0` | Maximum angular momentum deviation (degrees). When the angle between the halo's actual orientation and the target orientation exceeds this value, it is **clamped** — preventing the halo from deviating too far during rapid turns. |
 
 > **Clamping is not teleporting**: Clamping means the halo is "stuck" at the maximum distance/angle, not that it jumps to the entity's side. Teleportation (e.g. cross-dimension) has a separate detection mechanism that instantly snaps the halo back. Clamping prevents the halo from drifting too far during normal fast movement.
 
@@ -480,25 +482,7 @@ Use layer `position` offsets to place elements at different locations on the hal
 
 > Offset the element to `[0.22, 0, 0.205]` (a corner area of the halo plane) and have it spin rapidly.
 
-### 5. Glow Pulse
-
-Make the glow layer's alpha oscillate periodically for a breathing-light effect:
-
-```json
-"glow": {
-  "texture": "halo:textures/halo/example_glow.png",
-  "size": [0.5, 0.5],
-  "color": 16766720,
-  "alpha": 0.6,
-  "pulse": {
-    "amplitude": 0.3,
-    "frequency": 1.5,
-    "phase": 0.0
-  }
-}
-```
-
-### 6. Texture Orientation
+### 5. Texture Orientation
 
 A quick reminder of the texture orientation rules: the up-down direction of a texture is always up-down in-game (never flips). When viewed from the player's head outward, the texture appears correct; when viewed from the outside, it is horizontally mirrored. Symmetric designs are unaffected.
 

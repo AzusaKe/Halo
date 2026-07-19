@@ -16,6 +16,7 @@
 - [特性](#特性)
 - [未来将会添加的特性](#未来将会添加的特性)
 - [安装](#安装)
+  - [NeoForge / Forge](#neoforge--forge)
 - [使用方法](#使用方法)
   - [命令](#命令)
   - [自定义光环定义](#自定义光环定义)
@@ -108,6 +109,9 @@
 | `/halo config angular-damping <0-1>`   | 设置角度跟随速度                             |
 | `/halo config max-linear-distance <n>` | 设置硬夹断前最大距离（格）                   |
 | `/halo config max-angular-degrees <n>` | 设置最大角度偏差（度）                       |
+| `/halo config allow-angular-momentum <true/false>` | 开关角动量惯性效果                   |
+| `/halo config angular-momentum-factor <0-1>` | 设置角动量阻尼系数（0 = 冻结，1 = 无惯性） |
+| `/halo config max-angular-momentum-degrees <n>` | 设置最大角动量偏差角度（度）         |
 | `/halo config scale <0.1-5.0>`         | 设置统一缩放倍率                             |
 | `/halo save`                           | 同步光环数据到世界持久化存储并触发 save-all  |
 | `/halo debug <true/false>`             | 开关传送/吸附调试日志输出到聊天栏            |
@@ -142,12 +146,13 @@
 > **完整的分步教程和字段参考请见文档：**
 > [快速上手](docs/zh/quickstart.md) · [字段参考](docs/zh/reference.md)
 
-**定义示例**（`ring_default.json`，简化版——[完整版](src/main/resources/assets/halo/halo_definitions/ring_default.json)）：
+**定义示例**（`ring_default.json`，简化版——[完整版](src/main/resources/data/halo/halo_definitions/ring_default.json)）：
 
 ```json
 {
   "id": "halo:ring_default",
   "orientation_mode": "locked",
+  "allow_angular_momentum": true,
   "layers": [
     {
       "position": [0.0, -0.001, 0.0],
@@ -209,7 +214,9 @@
     "linearFactor": 0.45,
     "angularFactor": 0.1,
     "maxLinearDistance": 0.5,
-    "maxAngularDegrees": 180.0
+    "maxAngularDegrees": 180.0,
+    "angularMomentumFactor": 0.3,
+    "maxAngularMomentumDegrees": 45.0
   }
 }
 ```
@@ -218,6 +225,7 @@
 | ---------------------------- | ----------------------------------------------------------- |
 | `id`                         | 唯一标识符，格式为 `命名空间:名称`                          |
 | `orientation_mode`           | `locked`、`free` 或 `sync` —— 光环相对实体头部的朝向方式    |
+| `allow_angular_momentum`     | `true` 时为朝向添加角动量惯性效果（仅 `locked`/`free` 模式）|
 | `layers`                     | 图层数组；每个图层是一个带有独立变换与动画的 primitive      |
 | `layers[].position`          | 该图层相对锚点帧的 `[X, Y, Z]` 偏移（格）                   |
 | `layers[].rotation`          | 该图层的 `[X, Y, Z]` 欧拉旋转（度）                         |
@@ -232,6 +240,8 @@
 | `damping.angularFactor`      | 角度插值速度（范围同上）                                    |
 | `damping.maxLinearDistance`  | 硬夹断最大距离（格）                                        |
 | `damping.maxAngularDegrees`  | 最大角度偏差（度）                                          |
+| `damping.angularMomentumFactor` | 角动量阻尼系数（0 = 冻结，1 = 无惯性）                  |
+| `damping.maxAngularMomentumDegrees` | 最大角动量偏差角度（度）                            |
 
 > 添加或修改光环定义后，运行 `/reload` 重新加载。
 

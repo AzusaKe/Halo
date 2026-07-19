@@ -75,7 +75,8 @@ Put the following content into `yourhalo.json`:
 ```json
 {
   "id": "halo:yourhalo",
-  "orientation_mode": "sync",
+  "orientation_mode": "locked",
+  "allow_angular_momentum": true,
   "layers": [
     {
       "position": [0.0, 0.0, 0.0],
@@ -102,7 +103,9 @@ Put the following content into `yourhalo.json`:
     "linearFactor": 0.5,
     "angularFactor": 0.1,
     "maxLinearDistance": 0.5,
-    "maxAngularDegrees": 180.0
+    "maxAngularDegrees": 180.0,
+    "angularMomentumFactor": 0.3,
+    "maxAngularMomentumDegrees": 45.0
   }
 }
 ```
@@ -114,7 +117,8 @@ Here is what each field in this JSON means:
 | Field | Description |
 |------|------|
 | `id` | The unique identifier for the halo. Format: `namespace:name`. The namespace maps to a folder under `assets/` — e.g. `halo:yourhalo` means the definition file lives under `assets/halo/`. You can use your own namespace (e.g. `mypack:myhalo`), in which case the definition file should be placed under `assets/mypack/`. You'll use this ID with the `/halo show` command. |
-| `orientation_mode` | The halo's orientation mode. `"sync"` means the halo follows the entity's head rotation — when the player looks up, the halo tilts up; when the player turns, the halo turns. This tutorial uses `sync` as the example. (Inspired by the halo-following style in Blue Archive.) |
+| `orientation_mode` | The halo's orientation mode. `"locked"` means the halo always points toward the player's head center, and uses the head's spherical poles to keep it pointing stably like a compass — it won't rotate freely around its normal axis. This tutorial uses `locked` because it showcases the angular momentum feature alongside `allow_angular_momentum`. |
+| `allow_angular_momentum` | Whether to enable angular momentum inertia for the halo's orientation. When `true`, the halo's orientation doesn't snap instantly to the target — instead it smoothly chases the target with inertia, producing a visible "lag" when the player turns quickly. Only effective in `locked` and `free` modes; has no effect in `sync` mode. |
 | `layers` | Array of layers. Each halo can be composed of multiple layers stacked together. Layers determine their front-to-back spatial relationship through their `position` values, not their array order. Here we only use one layer. |
 | `layers[0].position` | This layer's position in the halo's local space `[X, Y, Z]` (in blocks). `[0, 0, 0]` represents the halo's **origin** — this origin will be aligned with the position computed by damping physics. The layer's actual position in space = damped follow position + the offset defined here. |
 | `layers[0].rotation` | This layer's initial rotation `[pitch, yaw, roll]` (in degrees). `[0, 0, 0]` means no rotation. |
@@ -132,6 +136,8 @@ Here is what each field in this JSON means:
 | `damping.angularFactor` | Angular follow speed. `0.1` is relatively slow — suitable for a decorative item like a halo that doesn't need to snap to rotation. |
 | `damping.maxLinearDistance` | Maximum follow distance (in blocks). When the halo reaches this distance from the entity, it is **clamped** at this value — it won't drift further and will gradually rebound as the follow speed slows. |
 | `damping.maxAngularDegrees` | Maximum angular deviation (in degrees). When the halo's angle relative to the entity reaches this value, it is **clamped** at this angle — it won't rotate further and will gradually rebound as the follow speed slows. |
+| `damping.angularMomentumFactor` | Angular momentum damping factor (0 = frozen, 1 = no inertia). Controls how fast the halo's orientation chases the target pose. `0.3` provides a moderate inertial lag feel. Only effective when `allow_angular_momentum` is `true`. |
+| `damping.maxAngularMomentumDegrees` | Maximum angular momentum deviation (in degrees). When the angle between the halo's orientation and the target orientation exceeds this value, it is **clamped** to prevent the halo from deviating too far during rapid turns. |
 
 ---
 
