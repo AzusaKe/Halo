@@ -209,6 +209,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         String type = obj.get("type").getAsString();
         return switch (type) {
             case "billboard" -> parseBillboardPrimitive(obj);
+            case "ring" -> parseRingPrimitive(obj);
             default -> throw new JsonParseException("Unknown primitive type: " + type);
         };
     }
@@ -220,6 +221,32 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             ? parseGlowLayer(obj.getAsJsonObject("glow"))
             : null;
         return new BillboardPrimitive(texture, size, glow);
+    }
+
+    private RingPrimitive parseRingPrimitive(JsonObject obj) {
+        // Outer texture: try "outer_texture" first, fall back to "texture"
+        Identifier outerTexture;
+        if (obj.has("outer_texture")) {
+            outerTexture = Identifier.tryParse(obj.get("outer_texture").getAsString());
+        } else {
+            outerTexture = Identifier.tryParse(obj.get("texture").getAsString());
+        }
+
+        // Inner texture: optional, defaults to outer
+        Identifier innerTexture = obj.has("inner_texture")
+            ? Identifier.tryParse(obj.get("inner_texture").getAsString())
+            : null;
+
+        // Size: [radius, width]
+        Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
+
+        // Segments: default 32
+        int segments = obj.has("segments") ? obj.get("segments").getAsInt() : 32;
+
+        // Glow: reserved, not yet implemented
+        GlowLayer glow = null;
+
+        return new RingPrimitive(outerTexture, innerTexture, size, segments, glow);
     }
 
     /**

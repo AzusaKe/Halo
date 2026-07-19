@@ -6,6 +6,8 @@ import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.physics.AnchorFrame;
 import network.azusake.halo.physics.AnchorFrameCalculator;
+import network.azusake.halo.shape.HaloPrimitive;
+import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
 import network.azusake.halo.shape.GlowLayer;
 import network.azusake.halo.shape.HaloLayer;
@@ -231,6 +233,8 @@ public final class HaloRenderer {
 
                     if (layer.primitive() instanceof BillboardPrimitive bp) {
                         renderBillboard(bp, matrices, layer.glowing(), brightness);
+                    } else if (layer.primitive() instanceof RingPrimitive rp) {
+                        renderRing(rp, matrices, layer.glowing(), brightness);
                     }
                 } finally {
                     matrices.pop();
@@ -338,6 +342,245 @@ public final class HaloRenderer {
         if (glowing && billboard.glow() != null) {
             renderGlowLayer(billboard.glow(), matrices);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Ring primitive (cylindrical ring, XZ plane at identity rotation)
+    // ------------------------------------------------------------------
+
+    /**
+     * Draw a cylindrical ring on the XZ plane.
+     * At identity rotation the ring lies flat (axis = -Y), matching the
+     * billboard convention.  Segment 0 starts at +X (seam on X axis).
+     *
+     * <p>UV mapping: U = i/segments (circumference, seam at +X),
+     * V = 0 at top (+width/2), V = 1 at bottom (-width/2).</p>
+     *
+     * <p>Uses GL_TRIANGLES (6 vertices per segment) rather than
+     * TRIANGLE_STRIP so that every triangle has a consistent,
+     * independently controlled winding order.  This is required because
+     * TRIANGLE_STRIP automatically flips the winding of alternating
+     * triangles, which breaks face culling on a closed cylinder surface.</p>
+     *
+     * <p>Culling behaviour: when separate inner/outer textures are
+     * provided, face culling is enabled so each texture is only visible
+     * from its intended side.  When a single texture is used for both
+     * sides, culling is disabled so the texture is visible from both
+     * sides.</p>
+     */
+    private void renderRing(RingPrimitive ring, MatrixStack matrices, boolean glowing, float brightness) {
+        float radius = ring.size().x;
+        float width  = ring.size().y;
+        int segments = Math.max(3, ring.segments()); // minimum 3 for a visible shape
+
+        if (DEBUG_RENDERING) {
+            radius *= 5.0f;
+            width  *= 5.0f;
+        }
+
+        float halfW = width / 2.0f;
+
+        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
+
+        Tessellator tessellator = Tessellator.getInstance();
+        BufferBuilder builder = tessellator.getBuffer();
+
+        boolean hasOuterTexture = bindTextureSafe(ring.outerTexture());
+        boolean twoTextures = hasOuterTexture && ring.innerTexture() != null;
+
+        if (DEBUG_RENDERING) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        } else {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(true);
+        }
+
+        if (hasOuterTexture) {
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+
+            // ---- Outer surface ----
+            // Face culling: two textures → cull back faces (outer visible
+            // only from outside); single texture → no culling (visible
+            // from both sides).
+            if (twoTextures) {
+                RenderSystem.enableCull();
+            } else {
+                RenderSystem.disableCull();
+            }
+
+            // Outer surface: CCW winding → front faces point outward.
+            // Each segment emits two triangles (6 vertices):
+            //   tri A: top₀, top₁, bottom₀
+            //   tri B: bottom₀, top₁, bottom₁
+            if (glowing) {
+                RenderSystem.setShader(GameRenderer::getPositionTexProgram);
+                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE);
+                for (int i = 0; i < segments; i++) {
+                    int next = (i + 1) % segments;
+                    float u0 = (float) i / segments;
+                    float u1 = (float) next / segments;
+                    float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
+                    float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
+                    float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
+                    float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                    // Triangle A
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).next();
+                    // Triangle B
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).next();
+                }
+                tessellator.draw();
+            } else {
+                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
+                for (int i = 0; i < segments; i++) {
+                    int next = (i + 1) % segments;
+                    float u0 = (float) i / segments;
+                    float u1 = (float) next / segments;
+                    float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
+                    float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
+                    float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
+                    float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                    // Triangle A
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                    // Triangle B
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                }
+                tessellator.draw();
+            }
+
+            // ---- Inner surface ----
+            Identifier innerTex = ring.innerTexture() != null ? ring.innerTexture() : ring.outerTexture();
+            boolean hasInnerTexture = bindTextureSafe(innerTex);
+            if (!hasInnerTexture) {
+                bindTextureSafe(ring.outerTexture()); // fallback
+            }
+
+            if (twoTextures) {
+                RenderSystem.enableCull();
+            }
+            // (single-texture path already has culling disabled above)
+
+            // Inner surface: CW winding → front faces point inward.
+            // Same radius as outer — face culling separates visibility,
+            // no artificial offset needed.
+            //   tri A: bottom₀, bottom₁, top₀
+            //   tri B: top₀, bottom₁, top₁
+            if (glowing) {
+                RenderSystem.setShader(GameRenderer::getPositionTexProgram);
+                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE);
+                for (int i = 0; i < segments; i++) {
+                    int next = (i + 1) % segments;
+                    float u0 = (float) i / segments;
+                    float u1 = (float) next / segments;
+                    float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
+                    float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
+                    float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
+                    float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                    // Triangle A
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).next();
+                    // Triangle B
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).next();
+                }
+                tessellator.draw();
+            } else {
+                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
+                for (int i = 0; i < segments; i++) {
+                    int next = (i + 1) % segments;
+                    float u0 = (float) i / segments;
+                    float u1 = (float) next / segments;
+                    float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
+                    float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
+                    float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
+                    float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                    // Triangle A
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                    // Triangle B
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                }
+                tessellator.draw();
+            }
+        } else {
+            // No texture fallback — solid color ring, both sides visible
+            RenderSystem.disableCull();
+            RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+            if (DEBUG_RENDERING) {
+                RenderSystem.disableBlend();
+            } else {
+                RenderSystem.enableBlend();
+                RenderSystem.defaultBlendFunc();
+            }
+
+            float r, g, b;
+            if (glowing) {
+                r = 1f; g = 1f; b = 1f;
+            } else {
+                r = brightness; g = brightness; b = brightness;
+            }
+
+            // Outer surface (CCW)
+            builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+            for (int i = 0; i < segments; i++) {
+                int next = (i + 1) % segments;
+                float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
+                float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
+                float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
+                float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).next();
+            }
+            tessellator.draw();
+
+            // Inner surface (CW)
+            builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+            for (int i = 0; i < segments; i++) {
+                int next = (i + 1) % segments;
+                float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
+                float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
+                float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
+                float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).next();
+            }
+            tessellator.draw();
+        }
+
+        RenderSystem.enableCull();
+
+        if (DEBUG_RENDERING) {
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
+        }
+        RenderSystem.disableBlend();
+
+        // Glow layer — reserved for future implementation
+        // if (glowing && ring.glow() != null) { renderGlowLayer(ring.glow(), matrices); }
     }
 
     // ------------------------------------------------------------------
