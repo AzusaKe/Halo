@@ -1,6 +1,7 @@
 {
   "id": "halo:ring_default",
   "orientation_mode": "locked",
+  "allow_angular_momentum": true,
   "layers": [
     {
       "position": [0.0, -0.001, 0.0],
@@ -126,6 +127,8 @@
     "linearFactor": 0.45,
     "angularFactor": 0.1,
     "maxLinearDistance": 0.5,
-    "maxAngularDegrees": 180.0
+    "maxAngularDegrees": 180.0,
+    "angularMomentumFactor": 0.3,
+    "maxAngularMomentumDegrees": 45.0
   }
 }

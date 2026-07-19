@@ -137,9 +137,56 @@ class HaloCommandTest {
             assertEquals(0.3, config.getAngularDampingFactor(), 1e-9);
             assertEquals(1.0, config.getMaxLinearDistance(), 1e-9);
             assertEquals(45.0, config.getMaxAngularDegrees(), 1e-9);
+            assertFalse(config.isAllowAngularMomentum());
+            assertEquals(0.3, config.getAngularMomentumFactor(), 1e-9);
+            assertEquals(45.0, config.getMaxAngularMomentumDegrees(), 1e-9);
             assertEquals(1.0, config.getHaloScale(), 1e-9);
             assertEquals(new Vec3d(0, 0.2, 0), config.getPositionOffset());
             assertEquals(new Vec3d(0, 0, 0), config.getRotationOffset());
+        }
+
+        @Test
+        @DisplayName("allowAngularMomentum boolean toggle")
+        void allowAngularMomentumToggle() {
+            HaloConfig config = new HaloConfig();
+
+            assertFalse(config.isAllowAngularMomentum());
+
+            config.setAllowAngularMomentum(true);
+            assertTrue(config.isAllowAngularMomentum());
+
+            config.setAllowAngularMomentum(false);
+            assertFalse(config.isAllowAngularMomentum());
+        }
+
+        @Test
+        @DisplayName("angularMomentumFactor clamped to [0, 1]")
+        void angularMomentumFactorClamped() {
+            HaloConfig config = new HaloConfig();
+
+            config.setAngularMomentumFactor(0.5);
+            assertEquals(0.5, config.getAngularMomentumFactor(), 1e-9);
+
+            config.setAngularMomentumFactor(-0.5);
+            assertEquals(0.0, config.getAngularMomentumFactor(), 1e-9);
+
+            config.setAngularMomentumFactor(1.5);
+            assertEquals(1.0, config.getAngularMomentumFactor(), 1e-9);
+        }
+
+        @Test
+        @DisplayName("maxAngularMomentumDegrees clamped to >= 1.0")
+        void maxAngularMomentumDegreesClamped() {
+            HaloConfig config = new HaloConfig();
+
+            config.setMaxAngularMomentumDegrees(90.0);
+            assertEquals(90.0, config.getMaxAngularMomentumDegrees(), 1e-9);
+
+            config.setMaxAngularMomentumDegrees(0.5);
+            assertEquals(1.0, config.getMaxAngularMomentumDegrees(), 1e-9);
+
+            config.setMaxAngularMomentumDegrees(-10.0);
+            assertEquals(1.0, config.getMaxAngularMomentumDegrees(), 1e-9);
         }
     }
 
@@ -159,6 +206,9 @@ class HaloCommandTest {
             config.setAngularDampingFactor(0.7);
             config.setMaxLinearDistance(2.0);
             config.setMaxAngularDegrees(60.0);
+            config.setAllowAngularMomentum(true);
+            config.setAngularMomentumFactor(0.6);
+            config.setMaxAngularMomentumDegrees(30.0);
 
             HaloDampingConfig damping = config.toDampingConfig();
 
@@ -166,6 +216,9 @@ class HaloCommandTest {
             assertEquals(0.7, damping.angularFactor(), 1e-9);
             assertEquals(2.0, damping.maxLinearDistance(), 1e-9);
             assertEquals(60.0, damping.maxAngularDegrees(), 1e-9);
+            assertTrue(damping.allowAngularMomentum());
+            assertEquals(0.6, damping.angularMomentumFactor(), 1e-9);
+            assertEquals(30.0, damping.maxAngularMomentumDegrees(), 1e-9);
         }
 
         @Test
@@ -178,6 +231,9 @@ class HaloCommandTest {
             assertEquals(0.3, damping.angularFactor(), 1e-9);
             assertEquals(1.0, damping.maxLinearDistance(), 1e-9);
             assertEquals(45.0, damping.maxAngularDegrees(), 1e-9);
+            assertFalse(damping.allowAngularMomentum());
+            assertEquals(0.3, damping.angularMomentumFactor(), 1e-9);
+            assertEquals(45.0, damping.maxAngularMomentumDegrees(), 1e-9);
         }
 
         @Test

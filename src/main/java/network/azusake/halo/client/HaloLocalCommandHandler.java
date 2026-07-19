@@ -233,15 +233,28 @@ public final class HaloLocalCommandHandler {
         if (tokens.length < 4) {
             return "§e用法: §f/halo config <参数> <值>\n"
                 + "§7可用参数:\n"
-                + "§7  linear-damping <0~1>    线性阻尼\n"
-                + "§7  angular-damping <0~1>   角度阻尼\n"
-                + "§7  max-linear-distance <n> 最大线性距离\n"
-                + "§7  max-angular-degrees <n> 最大角度(度)\n"
-                + "§7  scale <0.1~5.0>        缩放\n"
+                + "§7  linear-damping <0~1>                 线性阻尼\n"
+                + "§7  angular-damping <0~1>                角度阻尼\n"
+                + "§7  max-linear-distance <n>              最大线性距离\n"
+                + "§7  max-angular-degrees <n>              最大角度(度)\n"
+                + "§7  allow-angular-momentum <true|false>  允许角动量\n"
+                + "§7  angular-momentum-factor <0~1>        角动量阻尼\n"
+                + "§7  max-angular-momentum-degrees <n>     最大角动量角度(度)\n"
+                + "§7  scale <0.1~5.0>                     缩放\n"
                 + "§7提示: 使用 §f/halo reload §7重新加载资源以恢复默认值";
         }
 
         String param = tokens[2].toLowerCase();
+        HaloConfig config = HaloManager.getInstance().getConfig();
+
+        // Boolean parameter
+        if (param.equals("allow-angular-momentum")) {
+            boolean boolValue = Boolean.parseBoolean(tokens[3]);
+            config.setAllowAngularMomentum(boolValue);
+            return "§a已将 §f" + param + "§a 设为 §f" + boolValue + "\n"
+                + "§7(会话级临时参数，使用 §f/halo reload §7可恢复默认值)";
+        }
+
         double value;
         try {
             value = Double.parseDouble(tokens[3]);
@@ -249,17 +262,17 @@ public final class HaloLocalCommandHandler {
             return "§c无效的数值: §f" + tokens[3];
         }
 
-        HaloConfig config = HaloManager.getInstance().getConfig();
-
         switch (param) {
-            case "linear-damping"      -> config.setLinearDampingFactor(value);
-            case "angular-damping"     -> config.setAngularDampingFactor(value);
-            case "max-linear-distance" -> config.setMaxLinearDistance(value);
-            case "max-angular-degrees" -> config.setMaxAngularDegrees(value);
-            case "scale"               -> config.setHaloScale(value);
+            case "linear-damping"                -> config.setLinearDampingFactor(value);
+            case "angular-damping"               -> config.setAngularDampingFactor(value);
+            case "max-linear-distance"           -> config.setMaxLinearDistance(value);
+            case "max-angular-degrees"           -> config.setMaxAngularDegrees(value);
+            case "angular-momentum-factor"       -> config.setAngularMomentumFactor(value);
+            case "max-angular-momentum-degrees"  -> config.setMaxAngularMomentumDegrees(value);
+            case "scale"                         -> config.setHaloScale(value);
             default -> {
                 return "§c未知参数: §f" + param + "\n"
-                    + "§7可用参数: linear-damping, angular-damping, max-linear-distance, max-angular-degrees, scale";
+                    + "§7可用参数: linear-damping, angular-damping, max-linear-distance, max-angular-degrees, allow-angular-momentum, angular-momentum-factor, max-angular-momentum-degrees, scale";
             }
         }
 

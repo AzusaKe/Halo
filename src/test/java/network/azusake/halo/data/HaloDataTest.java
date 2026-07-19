@@ -38,11 +38,14 @@ class HaloDataTest {
         @Test
         @DisplayName("HaloDampingConfig: canonical construction and accessors")
         void dampingConfig() {
-            HaloDampingConfig d = new HaloDampingConfig(0.15, 0.1, 3.0, 180.0);
+            HaloDampingConfig d = new HaloDampingConfig(0.15, 0.1, 3.0, 180.0, false, 0.3, 45.0);
             assertEquals(0.15, d.linearFactor());
             assertEquals(0.1, d.angularFactor());
             assertEquals(3.0, d.maxLinearDistance());
             assertEquals(180.0, d.maxAngularDegrees());
+            assertFalse(d.allowAngularMomentum());
+            assertEquals(0.3, d.angularMomentumFactor(), 1e-9);
+            assertEquals(45.0, d.maxAngularMomentumDegrees(), 1e-9);
         }
 
         @Test
@@ -74,7 +77,7 @@ class HaloDataTest {
             HaloLayer layer = new HaloLayer(Vec3d.ZERO, bp);
             HaloModel model = new HaloModel(OrientationMode.LOCKED, List.of(layer));
             HaloPositioning pos = new HaloPositioning(Vec3d.ZERO, 1.0);
-            HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0);
+            HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0, false, 0.3, 45.0);
 
             HaloDefinition def = new HaloDefinition(id, model, Optional.empty(), pos, damp, false);
             assertEquals(id, def.id());

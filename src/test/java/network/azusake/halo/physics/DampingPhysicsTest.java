@@ -40,7 +40,7 @@ class DampingPhysicsTest {
             assertTrue(state.needsSnap,
                 "fresh state must start with needsSnap=true");
 
-            HaloDampingConfig config = new HaloDampingConfig(0.15, 0.1, 3.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.15, 0.1, 3.0, 180.0, false, 0.3, 45.0);
 
             // Even with a large current offset, snap should return zero
             Vec3d current = new Vec3d(100.0, 50.0, -25.0);
@@ -71,7 +71,7 @@ class DampingPhysicsTest {
 
             // linearFactor = 0.5 → at dt=0.05: k_f = 1−(1−0.5)^1 = 0.5
             // damped = current × (1−0.5) = current × 0.5  (exponential decay toward 0)
-            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.1, 100.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.1, 100.0, 180.0, false, 0.3, 45.0);
 
             // Simulate physics loop: each tick, current = previous damped value
             // (because halo position converges toward anchor)
@@ -117,7 +117,7 @@ class DampingPhysicsTest {
             // linearFactor = 0.0 → k_f = 0 → halo frozen at previous position
             // current = H − T = (6, 8, 0) → length = 10 = d
             // maxLinearDistance = 3.0 → clamp: d → 3.0
-            HaloDampingConfig config = new HaloDampingConfig(0.0, 0.1, 3.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.0, 0.1, 3.0, 180.0, false, 0.3, 45.0);
 
             Vec3d result = DampingPhysics.computeDampedPosition(
                 new Vec3d(6.0, 8.0, 0.0), Vec3d.ZERO, config, state, DT
@@ -141,7 +141,7 @@ class DampingPhysicsTest {
             state.needsSnap = false;
 
             // k=0 → k_f=0 → halo frozen.  d = 1.0 ≤ maxDist = 5.0
-            HaloDampingConfig config = new HaloDampingConfig(0.0, 0.1, 5.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.0, 0.1, 5.0, 180.0, false, 0.3, 45.0);
 
             Vec3d result = DampingPhysics.computeDampedPosition(
                 new Vec3d(0.0, 1.0, 0.0), Vec3d.ZERO, config, state, DT
@@ -167,7 +167,7 @@ class DampingPhysicsTest {
             // We simulate the state storing the "previous damped offset"
             state.prevRelativePosition = new Vec3d(10.0, 0.0, 0.0);
 
-            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 5.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 5.0, 180.0, false, 0.3, 45.0);
 
             Vec3d result = DampingPhysics.computeDampedPosition(
                 new Vec3d(10.0, 0.0, 0.0), // current = H - T
@@ -192,7 +192,7 @@ class DampingPhysicsTest {
             state.needsSnap = false;
             state.prevRelativePosition = new Vec3d(2.0, 0.0, 0.0);
 
-            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 5.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 5.0, 180.0, false, 0.3, 45.0);
 
             Vec3d result = DampingPhysics.computeDampedPosition(
                 new Vec3d(2.0, 0.0, 0.0), Vec3d.ZERO, config, state, DT
@@ -212,7 +212,7 @@ class DampingPhysicsTest {
             state.needsSnap = false;
             state.prevRelativePosition = Vec3d.ZERO;
 
-            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 1.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 1.0, 180.0, false, 0.3, 45.0);
             Vec3d current = Vec3d.ZERO;
 
             java.util.Random rng = new java.util.Random(42); // deterministic
@@ -268,7 +268,7 @@ class DampingPhysicsTest {
 
             // angularFactor = 0.5 → at dt=0.05: angularK_f = 0.5
             // slerp(identity, target, 0.5) should give 45° around Y
-            HaloDampingConfig config = new HaloDampingConfig(0.1, 0.5, 10.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.1, 0.5, 10.0, 180.0, false, 0.3, 45.0);
 
             Quaternionf result = DampingPhysics.computeDampedRotation(
                 new Quaternionf(), target, config, state, DT
@@ -295,7 +295,7 @@ class DampingPhysicsTest {
                 .rotateY((float) Math.toRadians(90.0));
 
             // angularFactor = 0.0 → angularK_f = 0 → slerp stays at prev
-            HaloDampingConfig config = new HaloDampingConfig(0.1, 0.0, 10.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.1, 0.0, 10.0, 180.0, false, 0.3, 45.0);
 
             Quaternionf result = DampingPhysics.computeDampedRotation(
                 new Quaternionf(), target, config, state, DT
@@ -322,7 +322,7 @@ class DampingPhysicsTest {
                 .rotateX((float) Math.toRadians(60.0));
 
             // angularFactor = 1.0 → at dt=0.05: angularK_f = 1.0 → snap to target
-            HaloDampingConfig config = new HaloDampingConfig(0.1, 1.0, 10.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.1, 1.0, 10.0, 180.0, false, 0.3, 45.0);
 
             Quaternionf result = DampingPhysics.computeDampedRotation(
                 new Quaternionf(), target, config, state, DT
@@ -349,7 +349,7 @@ class DampingPhysicsTest {
 
             // angularFactor = 1.0 → angularK_f = 1.0 → would give full 120°
             // maxAngularDegrees = 45.0 → clamp to 45°
-            HaloDampingConfig config = new HaloDampingConfig(0.1, 1.0, 10.0, 45.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.1, 1.0, 10.0, 45.0, false, 0.3, 45.0);
 
             Quaternionf result = DampingPhysics.computeDampedRotation(
                 new Quaternionf(), target, config, state, DT
@@ -379,7 +379,7 @@ class DampingPhysicsTest {
             //   after 3 steps: 0.794^3 ≈ 0.5 → same as single 20-TPS tick!
             HaloDampingState state20 = new HaloDampingState();
             state20.needsSnap = false;
-            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.3, 100.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.3, 100.0, 180.0, false, 0.3, 45.0);
 
             // One step at 20 TPS (dt=0.05)
             Vec3d pos20 = new Vec3d(10.0, 0.0, 0.0);
@@ -405,7 +405,7 @@ class DampingPhysicsTest {
             // At dt=0.05, k_f = 1 − (1−k)^1 = k
             HaloDampingState state = new HaloDampingState();
             state.needsSnap = false;
-            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 10.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.3, 0.3, 10.0, 180.0, false, 0.3, 45.0);
 
             // With current = (10,0,0), k=0.3:
             // k_f = 0.3, damped = 10 * (1-0.3) = 7.0
@@ -421,7 +421,7 @@ class DampingPhysicsTest {
         void testFactorFrozen() {
             HaloDampingState state = new HaloDampingState();
             state.needsSnap = false;
-            HaloDampingConfig config = new HaloDampingConfig(0.0, 0.3, 10.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.0, 0.3, 10.0, 180.0, false, 0.3, 45.0);
 
             // k_f = 1 − (1−0)^(dt/0.05) = 1 − 1 = 0
             // damped = current × (1−0) = current (full retention)
@@ -437,7 +437,7 @@ class DampingPhysicsTest {
         void testFactorSnap() {
             HaloDampingState state = new HaloDampingState();
             state.needsSnap = false;
-            HaloDampingConfig config = new HaloDampingConfig(1.0, 0.3, 10.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(1.0, 0.3, 10.0, 180.0, false, 0.3, 45.0);
 
             // k_f = 1 − (1−1)^(dt/0.05) = 1 − 0 = 1
             // damped = current × (1−1) = 0 (instant snap to target)
@@ -458,7 +458,7 @@ class DampingPhysicsTest {
             // damped = 10 × (1−0.999999) ≈ 0.00001 → nearly instant snap
             // With exponent capped at 10: k_f = 1 − 0.5^10 ≈ 0.9990
             // damped = 10 × 0.001 ≈ 0.01
-            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.3, 100.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.3, 100.0, 180.0, false, 0.3, 45.0);
 
             Vec3d result = DampingPhysics.computeDampedPosition(
                 new Vec3d(10.0, 0.0, 0.0), Vec3d.ZERO, config, state, 1.0
@@ -484,7 +484,7 @@ class DampingPhysicsTest {
         void snapResetsPrevPosition() {
             HaloDampingState state = new HaloDampingState();
             // First tick: snap
-            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.5, 10.0, 180.0);
+            HaloDampingConfig config = new HaloDampingConfig(0.5, 0.5, 10.0, 180.0, false, 0.3, 45.0);
             DampingPhysics.computeDampedPosition(
                 new Vec3d(5, 0, 0), Vec3d.ZERO, config, state, DT
             );

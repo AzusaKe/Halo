@@ -58,7 +58,10 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         HaloModel model = parseModel(root);
         Optional<LayerAnimation> animation = parseLayerAnimation(root.get("animation"));
         HaloPositioning positioning = parsePositioning(root.getAsJsonObject("positioning"));
-        HaloDampingConfig damping = parseDamping(root.getAsJsonObject("damping"));
+        boolean allowAngularMomentum = root.has("allow_angular_momentum")
+            ? root.get("allow_angular_momentum").getAsBoolean()
+            : false;
+        HaloDampingConfig damping = parseDamping(root.getAsJsonObject("damping"), allowAngularMomentum);
         boolean hideOnSleep = root.has("hide_on_sleep")
             ? root.get("hide_on_sleep").getAsBoolean()
             : false;
@@ -301,15 +304,22 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         return new HaloPositioning(offset, scale);
     }
 
-    private HaloDampingConfig parseDamping(JsonObject obj) {
+    private HaloDampingConfig parseDamping(JsonObject obj, boolean allowAngularMomentum) {
         if (obj == null) {
-            return new HaloDampingConfig(0.15, 0.1, 3.0, 180.0);
+            return new HaloDampingConfig(0.15, 0.1, 3.0, 180.0, allowAngularMomentum, 0.3, 45.0);
         }
+        double angularMomentumFactor = obj.has("angularMomentumFactor")
+            ? obj.get("angularMomentumFactor").getAsDouble() : 0.3;
+        double maxAngularMomentumDegrees = obj.has("maxAngularMomentumDegrees")
+            ? obj.get("maxAngularMomentumDegrees").getAsDouble() : 45.0;
         return new HaloDampingConfig(
             obj.get("linearFactor").getAsDouble(),
             obj.get("angularFactor").getAsDouble(),
             obj.get("maxLinearDistance").getAsDouble(),
-            obj.get("maxAngularDegrees").getAsDouble()
+            obj.get("maxAngularDegrees").getAsDouble(),
+            allowAngularMomentum,
+            angularMomentumFactor,
+            maxAngularMomentumDegrees
         );
     }
 

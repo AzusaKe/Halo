@@ -162,6 +162,27 @@ public final class HaloConfigCommand {
             )
         );
 
+        configNode.then(literal("allow-angular-momentum")
+            .then(argument("value", BoolArgumentType.bool())
+                .executes(ctx -> configSetBool(ctx, "allow-angular-momentum",
+                    BoolArgumentType.getBool(ctx, "value")))
+            )
+        );
+
+        configNode.then(literal("angular-momentum-factor")
+            .then(argument("value", DoubleArgumentType.doubleArg(0.0, 1.0))
+                .executes(ctx -> configSet(ctx, "angular-momentum-factor",
+                    DoubleArgumentType.getDouble(ctx, "value")))
+            )
+        );
+
+        configNode.then(literal("max-angular-momentum-degrees")
+            .then(argument("value", DoubleArgumentType.doubleArg(1.0, Double.MAX_VALUE))
+                .executes(ctx -> configSet(ctx, "max-angular-momentum-degrees",
+                    DoubleArgumentType.getDouble(ctx, "value")))
+            )
+        );
+
         haloNode.then(configNode);
 
         dispatcher.register(haloNode);
@@ -570,11 +591,34 @@ public final class HaloConfigCommand {
         HaloConfig config = HaloManager.getInstance().getConfig();
 
         switch (param) {
-            case "linear-damping"      -> config.setLinearDampingFactor(value);
-            case "angular-damping"     -> config.setAngularDampingFactor(value);
-            case "max-linear-distance" -> config.setMaxLinearDistance(value);
-            case "max-angular-degrees" -> config.setMaxAngularDegrees(value);
-            case "scale"               -> config.setHaloScale(value);
+            case "linear-damping"                -> config.setLinearDampingFactor(value);
+            case "angular-damping"               -> config.setAngularDampingFactor(value);
+            case "max-linear-distance"           -> config.setMaxLinearDistance(value);
+            case "max-angular-degrees"           -> config.setMaxAngularDegrees(value);
+            case "scale"                         -> config.setHaloScale(value);
+            case "angular-momentum-factor"       -> config.setAngularMomentumFactor(value);
+            case "max-angular-momentum-degrees"  -> config.setMaxAngularMomentumDegrees(value);
+            default -> {
+                ctx.getSource().sendError(Text.literal("Unknown config parameter: " + param));
+                return 0;
+            }
+        }
+
+        ctx.getSource().sendFeedback(
+            () -> Text.literal("§aSet §f" + param + "§a to §f" + value),
+            true
+        );
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * /halo config &lt;param&gt; &lt;bool&gt; — set a boolean runtime configuration value.
+     */
+    private static int configSetBool(CommandContext<ServerCommandSource> ctx, String param, boolean value) {
+        HaloConfig config = HaloManager.getInstance().getConfig();
+
+        switch (param) {
+            case "allow-angular-momentum" -> config.setAllowAngularMomentum(value);
             default -> {
                 ctx.getSource().sendError(Text.literal("Unknown config parameter: " + param));
                 return 0;

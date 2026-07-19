@@ -19,6 +19,9 @@ public class HaloDampingState {
     /** The damped relative rotation computed on the previous tick. */
     Quaternionf prevRelativeRotation;
 
+    /** The damped orientation from the previous tick (angular momentum). */
+    Quaternionf prevDampedOrientation;
+
     /**
      * When {@code true} the next call to
      * {@link DampingPhysics#computeDampedPosition} or
@@ -40,6 +43,7 @@ public class HaloDampingState {
         this.needsSnap = true;
         this.prevRelativePosition = Vec3d.ZERO;
         this.prevRelativeRotation = new Quaternionf();
+        this.prevDampedOrientation = null; // null = snap on first frame
         this.lastTickTime = System.nanoTime();
     }
 
@@ -62,6 +66,7 @@ public class HaloDampingState {
      */
     public void markTeleport() {
         this.needsSnap = true;
+        this.prevDampedOrientation = null;
     }
 
     /**

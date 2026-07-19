@@ -138,6 +138,30 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
                         })
                     )
                 )
+                .then(ClientCommandManager.literal("allow-angular-momentum")
+                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
+                        .executes(ctx -> {
+                            boolean v = com.mojang.brigadier.arguments.BoolArgumentType.getBool(ctx, "value");
+                            return executeLocal("halo config allow-angular-momentum " + v);
+                        })
+                    )
+                )
+                .then(ClientCommandManager.literal("angular-momentum-factor")
+                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
+                        .executes(ctx -> {
+                            double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
+                            return executeLocal("halo config angular-momentum-factor " + v);
+                        })
+                    )
+                )
+                .then(ClientCommandManager.literal("max-angular-momentum-degrees")
+                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
+                        .executes(ctx -> {
+                            double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
+                            return executeLocal("halo config max-angular-momentum-degrees " + v);
+                        })
+                    )
+                )
             )
             .then(ClientCommandManager.literal("reload")
                 .executes(ctx -> executeLocal("halo reload"))

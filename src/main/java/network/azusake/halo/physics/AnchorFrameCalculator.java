@@ -271,6 +271,57 @@ public final class AnchorFrameCalculator {
             }
         }
 
+        // 9b. Angular momentum damping (LOCKED/FREE only)
+        // When enabled, the orientation from the mode switch becomes a target,
+        // and the actual orientation is slerped toward it with rotational inertia.
+        if (damping.allowAngularMomentum() && mode != OrientationMode.SYNC) {
+            Quaternionf targetOrientation = worldOrientation;
+            Quaternionf prevDamped = rotState.prevDampedOrientation;
+
+            if (prevDamped == null || needsSnap) {
+                // First frame or teleport: snap to target immediately
+                rotState.prevDampedOrientation = new Quaternionf(targetOrientation);
+            } else {
+                // Frame-rate-independent slerp toward target
+                double momK = Math.max(0.001, Math.min(damping.angularMomentumFactor(), 0.999));
+                double momExp = frameDt / REFERENCE_TICK;
+                if (momExp <= 0.0) momExp = 1.0;
+                if (momExp > 10.0) momExp = 10.0;
+                double momKF = 1.0 - Math.pow(1.0 - momK, momExp);
+                momKF = Math.max(0.0, Math.min(1.0, momKF));
+
+                Quaternionf damped = new Quaternionf(prevDamped);
+                damped.slerp(targetOrientation, (float) momKF);
+
+                // Clamp angular deviation from target
+                Quaternionf deltaFromTarget = new Quaternionf(targetOrientation).conjugate().mul(damped);
+                double wAbs = Math.min(1.0, Math.abs((double) deltaFromTarget.w));
+                double halfAngleRad = Math.acos(wAbs);
+                float angleDeg = (float) Math.toDegrees(2.0 * halfAngleRad);
+                double maxAngle = damping.maxAngularMomentumDegrees();
+
+                if (angleDeg > maxAngle && angleDeg > 0.0001f) {
+                    float sinHalf = (float) Math.sin(halfAngleRad);
+                    if (sinHalf > 0.0001f) {
+                        float axisX = deltaFromTarget.x / sinHalf;
+                        float axisY = deltaFromTarget.y / sinHalf;
+                        float axisZ = deltaFromTarget.z / sinHalf;
+                        float clampedHalf = (float) Math.toRadians(maxAngle / 2.0);
+                        float newSinHalf = (float) Math.sin(clampedHalf);
+                        deltaFromTarget.x = axisX * newSinHalf;
+                        deltaFromTarget.y = axisY * newSinHalf;
+                        deltaFromTarget.z = axisZ * newSinHalf;
+                        deltaFromTarget.w = (float) Math.cos(clampedHalf);
+                    }
+                    // Reconstruct damped = target * clampedDelta
+                    damped = new Quaternionf(targetOrientation).mul(deltaFromTarget);
+                }
+
+                rotState.prevDampedOrientation = new Quaternionf(damped);
+            }
+            worldOrientation = rotState.prevDampedOrientation;
+        }
+
         // Rotate definition +Z through world orientation to get world forward
         worldForward = rotate(worldForward, worldOrientation);
 
@@ -485,14 +536,20 @@ public final class AnchorFrameCalculator {
             Math.abs(runtime.getLinearDampingFactor() - 0.3) > 1e-9
             || Math.abs(runtime.getAngularDampingFactor() - 0.3) > 1e-9
             || Math.abs(runtime.getMaxLinearDistance() - 1.0) > 1e-9
-            || Math.abs(runtime.getMaxAngularDegrees() - 45.0) > 1e-9;
+            || Math.abs(runtime.getMaxAngularDegrees() - 45.0) > 1e-9
+            || runtime.isAllowAngularMomentum()
+            || Math.abs(runtime.getAngularMomentumFactor() - 0.3) > 1e-9
+            || Math.abs(runtime.getMaxAngularMomentumDegrees() - 45.0) > 1e-9;
 
         if (overridden) {
             return new HaloDampingConfig(
                 runtime.getLinearDampingFactor(),
                 runtime.getAngularDampingFactor(),
                 runtime.getMaxLinearDistance(),
-                runtime.getMaxAngularDegrees()
+                runtime.getMaxAngularDegrees(),
+                runtime.isAllowAngularMomentum(),
+                runtime.getAngularMomentumFactor(),
+                runtime.getMaxAngularMomentumDegrees()
             );
         }
         return definition.damping();

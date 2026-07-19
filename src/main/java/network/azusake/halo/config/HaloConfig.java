@@ -31,6 +31,15 @@ public class HaloConfig {
     /** Maximum angular offset in degrees before hard-clamping.  Min 1.0. */
     private double maxAngularDegrees = 45.0;
 
+    /** When true, LOCKED/FREE orientation is damped with rotational inertia. */
+    private boolean allowAngularMomentum = false;
+
+    /** Angular momentum interpolation weight.  Clamped to [0, 1]. */
+    private double angularMomentumFactor = 0.3;
+
+    /** Maximum angular momentum deviation in degrees before hard-clamping.  Min 1.0. */
+    private double maxAngularMomentumDegrees = 45.0;
+
     // ------------------------------------------------------------------
     // Positioning parameters
     // ------------------------------------------------------------------
@@ -62,6 +71,18 @@ public class HaloConfig {
 
     public double getMaxAngularDegrees() {
         return maxAngularDegrees;
+    }
+
+    public boolean isAllowAngularMomentum() {
+        return allowAngularMomentum;
+    }
+
+    public double getAngularMomentumFactor() {
+        return angularMomentumFactor;
+    }
+
+    public double getMaxAngularMomentumDegrees() {
+        return maxAngularMomentumDegrees;
     }
 
     public double getHaloScale() {
@@ -96,6 +117,18 @@ public class HaloConfig {
         this.maxAngularDegrees = Math.max(1.0, value);
     }
 
+    public void setAllowAngularMomentum(boolean value) {
+        this.allowAngularMomentum = value;
+    }
+
+    public void setAngularMomentumFactor(double value) {
+        this.angularMomentumFactor = Math.max(0.0, Math.min(1.0, value));
+    }
+
+    public void setMaxAngularMomentumDegrees(double value) {
+        this.maxAngularMomentumDegrees = Math.max(1.0, value);
+    }
+
     public void setHaloScale(double value) {
         this.haloScale = Math.max(0.1, Math.min(5.0, value));
     }
@@ -120,7 +153,10 @@ public class HaloConfig {
             linearDampingFactor,
             angularDampingFactor,
             maxLinearDistance,
-            maxAngularDegrees
+            maxAngularDegrees,
+            allowAngularMomentum,
+            angularMomentumFactor,
+            maxAngularMomentumDegrees
         );
     }
 
