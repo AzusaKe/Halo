@@ -55,6 +55,13 @@ public final class HaloRenderer {
     public static final boolean DEBUG_RENDERING = false;
 
     /**
+     * When true, each ring segment is tinted with a distinct color so
+     * the user can visually identify individual segments and diagnose
+     * seam / overlap issues.  Set to false for normal rendering.
+     */
+    public static final boolean RING_DEBUG_SEGMENTS = false;
+
+    /**
      * Throttle chat warnings for missing definitions — only show one per
      * halo instance per 30 seconds to avoid spamming the chat during
      * frame-by-frame rendering.
@@ -420,7 +427,9 @@ public final class HaloRenderer {
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
-                    float u1 = (float) next / segments;
+                    // Seam fix: last segment uses U=1.0 instead of 0.0 so
+                    // GPU interpolation doesn't stretch the entire texture.
+                    float u1 = (i == segments - 1) ? 1.0f : (float) next / segments;
                     float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
                     float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
@@ -441,19 +450,33 @@ public final class HaloRenderer {
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
-                    float u1 = (float) next / segments;
+                    // Seam fix: last segment uses U=1.0 instead of 0.0 so
+                    // GPU interpolation doesn't stretch the entire texture.
+                    float u1 = (i == segments - 1) ? 1.0f : (float) next / segments;
                     float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
                     float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                     float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                    // Per-segment debug colour: each segment gets a
+                    // distinct hue so the user can identify individual
+                    // segments and diagnose seam issues.
+                    float cr, cg, cb;
+                    if (RING_DEBUG_SEGMENTS) {
+                        int rgb = java.awt.Color.HSBtoRGB((float) i / segments, 0.8f, 1.0f);
+                        cr = ((rgb >> 16) & 0xFF) / 255f;
+                        cg = ((rgb >>  8) & 0xFF) / 255f;
+                        cb = ( rgb        & 0xFF) / 255f;
+                    } else {
+                        cr = cg = cb = brightness;
+                    }
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(cr, cg, cb, 1f).next();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(cr, cg, cb, 1f).next();
                 }
                 tessellator.draw();
             }
@@ -481,7 +504,9 @@ public final class HaloRenderer {
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
-                    float u1 = (float) next / segments;
+                    // Seam fix: last segment uses U=1.0 instead of 0.0 so
+                    // GPU interpolation doesn't stretch the entire texture.
+                    float u1 = (i == segments - 1) ? 1.0f : (float) next / segments;
                     float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
                     float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
@@ -502,19 +527,30 @@ public final class HaloRenderer {
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
-                    float u1 = (float) next / segments;
+                    // Seam fix: last segment uses U=1.0 instead of 0.0 so
+                    // GPU interpolation doesn't stretch the entire texture.
+                    float u1 = (i == segments - 1) ? 1.0f : (float) next / segments;
                     float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
                     float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                     float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
+                    float cr, cg, cb;
+                    if (RING_DEBUG_SEGMENTS) {
+                        int rgb = java.awt.Color.HSBtoRGB((float) i / segments, 0.5f, 0.6f);
+                        cr = ((rgb >> 16) & 0xFF) / 255f;
+                        cg = ((rgb >>  8) & 0xFF) / 255f;
+                        cb = ( rgb        & 0xFF) / 255f;
+                    } else {
+                        cr = cg = cb = brightness;
+                    }
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(cr, cg, cb, 1f).next();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(brightness, brightness, brightness, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(brightness, brightness, brightness, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(cr, cg, cb, 1f).next();
                 }
                 tessellator.draw();
             }

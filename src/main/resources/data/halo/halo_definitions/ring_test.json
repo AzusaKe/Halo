@@ -3,7 +3,7 @@
   "orientation_mode": "locked",
   "layers": [
     {
-      "position": [0.0, -0.001, 0.0],
+      "position": [0.0, 0.0, 0.0],
       "rotation": [0.0, 0.0, 0.0],
       "scale": 1.5,
       "animation": {
@@ -16,30 +16,14 @@
         "texture": "halo:textures/halo/ring_test_outer.png",
         "inner_texture": "halo:textures/halo/ring_test_inner.png",
         "size": [0.3, 0.1],
-        "segments": 128
-      }
-    },
-    {
-      "position": [0.0, 0.2, 0.0],
-      "rotation": [0.0, 0.0, 0.0],
-      "scale": 1.5,
-      "animation": {
-        "offset": {
-          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
-        }
-      },
-      "primitive": {
-        "type": "ring",
-        "texture": "halo:textures/halo/ring_test_outer.png",
-        "size": [0.3, 0.1],
-        "segments": 8
+        "segments": 64
       }
     }
   ],
   "animation": {},
   "positioning": {
-    "offset": [0.0, 0.4, 0.35],
-    "scale": 5
+    "offset": [0.0, 0.4, 0.0],
+    "scale": 1.0
   },
   "damping": {
     "linearFactor": 0.45,
