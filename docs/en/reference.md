@@ -167,10 +167,14 @@ Each layer is defined as follows:
 
 ## Primitive & Glow
 
-The only currently supported primitive type is `"billboard"` — a flat quad with no thickness. More primitive types will be supported in the future:
+Two primitive types are currently supported:
+
+- **`billboard`**: A flat quad with no thickness
+- **`ring`**: A cylindrical ring with radius and axial width, supporting separate inner and outer textures
+
+More primitive types will be supported in the future:
 
 - **`mesh`**: 3D mesh model
-- **`ring`**: A ring — no thickness, but has width and diameter
 
 ### Billboard Primitive
 
@@ -188,7 +192,31 @@ The only currently supported primitive type is `"billboard"` — a flat quad wit
 | `type` | String | **Yes** | Fixed value `"billboard"` |
 | `texture` | String | **Yes** | Texture resource path. Format: `namespace:textures/halo/filename.png`. The path is relative to `assets/`, where the **namespace** corresponds to a folder name under `assets/`. For example, in `halo:textures/halo/example.png`, `halo` is the namespace and maps to the `assets/halo/` folder. When using your own namespace (e.g. `mypack`), place files under `assets/mypack/` and write the path as `mypack:textures/halo/example.png`. |
 | `size` | `[width, depth]` | **Yes** | The quad's dimensions `[width, depth]` on the XZ plane (in blocks). Usually square, e.g. `[0.5, 0.5]`. |
-| `glow` | Object | No | Optional glow overlay layer. No glow effect when absent. |
+| `glow` | Object | No | Optional glow overlay layer. No glow effect when absent. **Currently non-functional in this version; pending a fix.** |
+
+### Ring Primitive
+
+```json
+{
+  "type": "ring",
+  "texture": "halo:textures/halo/example_outer.png",
+  "inner_texture": "halo:textures/halo/example_inner.png",
+  "size": [0.35, 0.08],
+  "segments": 32
+}
+```
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| `type` | String | **Yes** | Fixed value `"ring"` |
+| `texture` | String | **Yes** | Outer surface texture resource path. May also be written as `outer_texture`. |
+| `inner_texture` | String | No | Inner surface texture resource path. When omitted, both surfaces share `texture`. When a single texture is provided, both sides are visible; when separate textures are provided, each texture is only visible from its corresponding side (face culling). |
+| `size` | `[radius, width]` | **Yes** | `[radius, cylinder_width]` (blocks). `radius` is the ring radius; `width` is the axial cylinder width (Y-axis height). |
+| `segments` | Integer | No | Polygon segment count, default `32`. Higher values produce a smoother ring but increase vertex count. |
+
+**Rotation convention**: When `rotation` is `[0, 0, 0]`, the ring lies flat on the XZ plane (symmetry axis along -Y), matching the billboard default orientation. The texture seam is at the +X axis direction.
+
+**Texture mapping**: U wraps around the circumference (0→1 = one full revolution, seam at +X). V spans the cylinder width (0 = top `+width/2`, 1 = bottom `-width/2`). The texture connects end-to-end in the U direction to form a closed loop.
 
 ### Glow Layer
 

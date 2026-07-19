@@ -62,7 +62,7 @@
 
 - [ ] **在物品栏内可见** : 目前模组的光环不会在物品栏中的玩家模型头部渲染，等待后续加入
 - [ ] **更多动画** : 添加脉冲发光、缩放动画、以及"启动动画"
-- [ ] **更多光环layer种类** : 预计将添加`mesh`（以`.obj`为载体的网格），`ring`（与`billboard`类似，用一张材质即可显示的没有厚度只有宽度和直径的圆环）
+- [ ] **更多光环layer种类** : 预计将添加`mesh`（以`.obj`为载体的网格）
 - [ ] **更多的layer字段** : 将加入thickness，采用精灵图挤出的方法使billboard拥有厚度，但可能在材质较大的情况下影响性能
 - [ ] **更完善的自发光** : 兼容更多光影、质感更强
 - [ ] **更多实体和姿态适配** : 目前光环的显示位置和动画在部分实体上存在问题，等待修复
@@ -231,9 +231,11 @@
 | `layers[].rotation`          | 该图层的 `[X, Y, Z]` 欧拉旋转（度）                         |
 | `layers[].scale`             | 该图层的缩放倍率                                            |
 | `layers[].animation`         | 该图层的 `offset` / `rotation` 动画曲线（详见参考文档）     |
-| `layers[].primitive.type`    | `billboard`（单个带纹理的四边形）                           |
+| `layers[].primitive.type`    | `billboard`（单个带纹理的四边形）或 `ring`（圆柱形圆环）   |
 | `layers[].primitive.texture` | 纹理路径，如 `halo:textures/halo/ring_00.png`               |
-| `layers[].primitive.size`    | `[宽度, 高度]`，单位为格                                    |
+| `layers[].primitive.inner_texture` | 仅 ring：内表面纹理（可选，省略时使用 `texture`）     |
+| `layers[].primitive.size`    | `billboard`：`[宽度, 深度]`；`ring`：`[半径, 柱面宽度]`，单位为格 |
+| `layers[].primitive.segments`| 仅 ring：多边形分段数（默认 32）                            |
 | `positioning.offset`         | `[X, Y, Z]` 相对实体头部的偏移量（格）                      |
 | `positioning.scale`          | 默认缩放倍率                                                |
 | `damping.linearFactor`       | 20 TPS 下每 tick 的线性插值速度（0 = 不跟随，1 = 瞬间跟随） |

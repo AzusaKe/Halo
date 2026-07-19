@@ -61,7 +61,7 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
 - [ ] **More Animations**: Add pulse glow, scale animations, and "intro animations"
-- [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files), `ring` (similar to `billboard`, a ring with no thickness but with width and diameter displayed using a single texture)
+- [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files)
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
 - [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
@@ -230,9 +230,11 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 | `layers[].rotation`          | `[X, Y, Z]` Euler rotation of this layer (degrees)                                |
 | `layers[].scale`             | Per-layer scale multiplier                                                        |
 | `layers[].animation`         | Per-layer `offset` / `rotation` animation curves (see reference)                  |
-| `layers[].primitive.type`    | `billboard` (single textured quad)                                                |
+| `layers[].primitive.type`    | `billboard` (single textured quad) or `ring` (cylindrical ring)                  |
 | `layers[].primitive.texture` | Texture path, e.g. `halo:textures/halo/ring_00.png`                               |
-| `layers[].primitive.size`    | `[width, height]` in blocks                                                       |
+| `layers[].primitive.inner_texture` | Ring only: inner surface texture (optional; defaults to `texture` if omitted) |
+| `layers[].primitive.size`    | `billboard`: `[width, depth]`; `ring`: `[radius, cylinder_width]` in blocks      |
+| `layers[].primitive.segments`| Ring only: polygon segment count (default 32)                                     |
 | `positioning.offset`         | `[X, Y, Z]` offset relative to entity head (blocks)                               |
 | `positioning.scale`          | Default scale multiplier                                                          |
 | `damping.linearFactor`       | Linear interpolation speed per tick at 20 TPS (0 = no follow, 1 = instant follow) |
