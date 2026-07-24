@@ -169,8 +169,13 @@ public final class HaloRenderer {
             return false;
         }
 
-        // ---- hide while sleeping ----
-        if (def.hideOnSleep() && entity.isSleeping()) {
+        // ---- hide while sleeping (reads per-tick cache) ----
+        if (def.hideOnSleep() && instance.isEntitySleeping()) {
+            return false;
+        }
+
+        // ---- hide while invisible (reads per-tick cache) ----
+        if (!def.displayInInvisible() && instance.isEntityInvisible()) {
             return false;
         }
 

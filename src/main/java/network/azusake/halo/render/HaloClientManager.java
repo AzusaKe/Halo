@@ -173,6 +173,38 @@ public final class HaloClientManager {
         entityCache.clear();
     }
 
+    // ------------------------------------------------------------------
+    // Per-tick entity state cache
+    // ------------------------------------------------------------------
+
+    /**
+     * Update cached entity state (invisible, sleeping) for all active halo
+     * instances.  Called once per client tick from the render thread so that
+     * the per-frame render path reads cached values instead of querying the
+     * entity every frame.
+     */
+    public void updateEntityStateCache() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null) return;
+
+        for (HaloInstance instance : HaloManager.getInstance().getAllInstances()) {
+            if (!instance.isActive()) continue;
+
+            LivingEntity entity = entityCache.get(instance.getEntityUuid());
+            if (entity == null) {
+                entity = findEntityInWorld(client, instance.getEntityUuid());
+                if (entity != null) {
+                    entityCache.put(instance.getEntityUuid(), entity);
+                } else {
+                    continue;
+                }
+            }
+
+            instance.setEntityInvisible(entity.isInvisible());
+            instance.setEntitySleeping(entity.isSleeping());
+        }
+    }
+
     /**
      * Derive a server key from the current connection for local-halo lookup.
      *

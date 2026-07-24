@@ -225,6 +225,8 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 | `id`                         | Unique identifier in format `namespace:name`                                      |
 | `orientation_mode`           | `locked`, `free`, or `sync` — how the halo orients relative to the entity head    |
 | `allow_angular_momentum`     | When `true`, adds angular momentum inertia to orientation (`locked`/`free` only)  |
+| `hide_on_sleep`              | When `true`, halo stops rendering while the entity is sleeping (default `false`)   |
+| `display_in_invisible`       | When `true`, halo continues rendering while the entity is invisible (default `false`) |
 | `layers`                     | Array of layers; each layer is a primitive with its own transform and animation   |
 | `layers[].position`          | `[X, Y, Z]` offset of this layer relative to the anchor frame (blocks)            |
 | `layers[].rotation`          | `[X, Y, Z]` Euler rotation of this layer (degrees)                                |

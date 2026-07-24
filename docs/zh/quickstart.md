@@ -95,6 +95,7 @@ yourhalo_pack/
     }
   },
   "hide_on_sleep": false,
+  "display_in_invisible": false,
   "positioning": {
     "offset": [0.0, 0.4, 0.35],
     "scale": 1.5
@@ -129,6 +130,7 @@ yourhalo_pack/
 | `animation` | 光环整体的动画。这里我们添加了一个 Y 轴的正弦浮动效果——光环会以微小的幅度上下浮动，让光环看起来更有"活着"的感觉。 |
 | `animation.offset.y` | Y 轴偏移动画。`A: 0.01` 是振幅（0.01 格），`omega: 0.5` 是频率。值越大浮动越明显。 |
 | `hide_on_sleep` | 是否在实体睡觉时隐藏光环。`true` = 睡觉时暂时不渲染，醒来后自动恢复；`false`（默认）= 始终渲染。 |
+| `display_in_invisible` | 是否在实体隐形时继续渲染光环。`true` = 隐形时继续渲染；`false`（默认）= 隐形时停止渲染，效果结束后自动恢复。 |
 | `positioning.offset` | 光环整体相对于实体头部的位置偏移 `[X, Y, Z]`。`[0, 0.4, 0.35]` 表示在头顶上方 0.4 格、后方 0.35 格的位置。 |
 | `positioning.scale` | 光环整体的缩放倍率。`1.5` 即放大到 1.5 倍。 |
 | `damping` | 物理跟随参数，控制光环位置如何平滑跟随实体。 |

@@ -65,8 +65,11 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         boolean hideOnSleep = root.has("hide_on_sleep")
             ? root.get("hide_on_sleep").getAsBoolean()
             : false;
+        boolean displayInInvisible = root.has("display_in_invisible")
+            ? root.get("display_in_invisible").getAsBoolean()
+            : false;
 
-        return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep);
+        return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep, displayInInvisible);
     }
 
     // ------------------------------------------------------------------

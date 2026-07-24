@@ -226,6 +226,8 @@
 | `id`                         | 唯一标识符，格式为 `命名空间:名称`                          |
 | `orientation_mode`           | `locked`、`free` 或 `sync` —— 光环相对实体头部的朝向方式    |
 | `allow_angular_momentum`     | `true` 时为朝向添加角动量惯性效果（仅 `locked`/`free` 模式）|
+| `hide_on_sleep`              | `true` 时，实体睡觉期间光环停止渲染（默认 `false`）        |
+| `display_in_invisible`       | `true` 时，实体隐形期间光环继续渲染（默认 `false`）        |
 | `layers`                     | 图层数组；每个图层是一个带有独立变换与动画的 primitive      |
 | `layers[].position`          | 该图层相对锚点帧的 `[X, Y, Z]` 偏移（格）                   |
 | `layers[].rotation`          | 该图层的 `[X, Y, Z]` 欧拉旋转（度）                         |

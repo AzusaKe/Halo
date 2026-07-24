@@ -95,6 +95,7 @@ Put the following content into `yourhalo.json`:
     }
   },
   "hide_on_sleep": false,
+  "display_in_invisible": false,
   "positioning": {
     "offset": [0.0, 0.4, 0.35],
     "scale": 1.5
@@ -129,6 +130,7 @@ Here is what each field in this JSON means:
 | `animation` | The halo's overall animation. Here we've added a Y-axis sinusoidal bobbing effect — the halo gently floats up and down, giving it a lively feel. |
 | `animation.offset.y` | Y-axis offset animation. `A: 0.01` is the amplitude (0.01 blocks), `omega: 0.5` is the frequency. Larger values produce more pronounced bobbing. |
 | `hide_on_sleep` | Whether to hide the halo while the entity is sleeping. `true` = stop rendering during sleep, auto-resume upon waking; `false` (default) = always render. |
+| `display_in_invisible` | Whether to keep rendering the halo while the entity is invisible (e.g. invisibility potion). `true` = continue rendering during invisibility; `false` (default) = stop rendering while invisible, auto-resume when the effect ends. |
 | `positioning.offset` | The halo's overall position offset relative to the entity's head `[X, Y, Z]`. `[0, 0.4, 0.35]` means 0.4 blocks above the head and 0.35 blocks behind. |
 | `positioning.scale` | The halo's overall scale multiplier. `1.5` scales it up by 50%. |
 | `damping` | Physics follow parameters that control how smoothly the halo tracks the entity. |

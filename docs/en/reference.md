@@ -33,6 +33,7 @@ A halo definition JSON file contains the following top-level fields:
   "layers": [ ... ],
   "animation": { ... },
   "hide_on_sleep": false,
+  "display_in_invisible": false,
   "positioning": { ... },
   "damping": { ... }
 }
@@ -84,6 +85,13 @@ A halo definition JSON file contains the following top-level fields:
 - **Required**: No
 - **Default**: `false`
 - **Description**: When set to `true`, the halo temporarily stops rendering while the entity is sleeping (player in bed, fox resting, etc.). Rendering resumes automatically when the entity wakes up. When `false`, the halo always renders regardless of sleep state.
+
+### `display_in_invisible`
+
+- **Type**: Boolean
+- **Required**: No
+- **Default**: `false`
+- **Description**: When set to `true`, the halo continues rendering while the entity is invisible (e.g. invisibility potion, invisibility command). When `false` (default), the halo temporarily stops rendering while the entity is invisible and automatically resumes when the invisibility effect ends. The invisibility check is performed once per game tick (20 TPS) for performance, so there may be up to one tick of latency when the effect is applied or removed.
 
 ### `positioning`
 

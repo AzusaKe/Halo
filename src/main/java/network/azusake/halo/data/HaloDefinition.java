@@ -16,6 +16,7 @@ import java.util.Optional;
  * @param positioning static offset and scale applied to the halo
  * @param damping         physics damping / interpolation parameters
  * @param hideOnSleep      when true, the halo stops rendering while the entity is sleeping
+ * @param displayInInvisible when false (default), the halo stops rendering while the entity is invisible
  */
 public record HaloDefinition(
     Identifier id,
@@ -23,5 +24,6 @@ public record HaloDefinition(
     Optional<LayerAnimation> animation,
     HaloPositioning positioning,
     HaloDampingConfig damping,
-    boolean hideOnSleep
+    boolean hideOnSleep,
+    boolean displayInInvisible
 ) {}

@@ -28,6 +28,13 @@ public class HaloInstance {
     /** Whether this halo instance is currently active (rendered and tracked). */
     private boolean active = true;
 
+    // ---- Per-tick entity state cache (written by tick handler, read by renderer) ----
+
+    /** Cached entity invisible flag — updated once per client tick. */
+    private volatile boolean entityInvisible;
+    /** Cached entity sleeping flag — updated once per client tick. */
+    private volatile boolean entitySleeping;
+
     /** Epoch-millis timestamp when this instance was created. */
     private final long createdAtTime;
 
@@ -96,6 +103,26 @@ public class HaloInstance {
      */
     public void deactivate() {
         this.active = false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Per-tick entity state cache
+    // -----------------------------------------------------------------------
+
+    public boolean isEntityInvisible() {
+        return entityInvisible;
+    }
+
+    public void setEntityInvisible(boolean entityInvisible) {
+        this.entityInvisible = entityInvisible;
+    }
+
+    public boolean isEntitySleeping() {
+        return entitySleeping;
+    }
+
+    public void setEntitySleeping(boolean entitySleeping) {
+        this.entitySleeping = entitySleeping;
     }
 
     /**
