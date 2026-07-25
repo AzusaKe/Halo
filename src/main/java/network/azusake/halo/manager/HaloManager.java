@@ -108,6 +108,7 @@ public final class HaloManager {
         if (hasShutdownAnim) {
             // Mark for delayed removal — the renderer will handle the shutdown animation
             instance.setPendingRemoval(true);
+            instance.startTransition(false); // start shutdown animation
             // Still broadcast removal to clients so they can start their own shutdown animation
             MinecraftServer server = entity.getServer();
             if (server != null) {

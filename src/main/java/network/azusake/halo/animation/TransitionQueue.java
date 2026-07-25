@@ -67,14 +67,13 @@ public class TransitionQueue {
             return last.endVal();
         }
         // Binary search for the element containing time.
-        // Use <= so that at exact boundaries (time == endTime), we advance
-        // to the next element. This ensures that when a gap ends and an
-        // active animation starts at the same time, the active animation
-        // is selected (startVal takes precedence over gap's endVal).
+        // Use < (not <=): at exact boundaries (time == endTime),
+        // stay on the current element. Discontinuities between
+        // consecutive elements are the user's responsibility.
         int lo = 0, hi = elements.size() - 1;
         while (lo < hi) {
             int mid = (lo + hi) / 2;
-            if (elements.get(mid).endTime() <= time) {
+            if (elements.get(mid).endTime() < time) {
                 lo = mid + 1;
             } else {
                 hi = mid;

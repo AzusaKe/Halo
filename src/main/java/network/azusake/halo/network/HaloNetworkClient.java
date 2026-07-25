@@ -80,6 +80,7 @@ public final class HaloNetworkClient {
                                 (def.shutdownAnimation().isPresent() || def.startupAnimation().isPresent());
                             if (hasShutdownAnim) {
                                 inst.setPendingRemoval(true);
+                                inst.startTransition(false); // start shutdown animation
                                 return; // renderer will handle cleanup after animation
                             }
                         }

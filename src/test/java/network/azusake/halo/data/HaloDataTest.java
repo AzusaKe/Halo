@@ -1399,16 +1399,15 @@ class HaloDataTest {
             r = pointerAnim.evaluate(5.0);
             assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "pointer t=5 held");
 
-            // ring_inner: gap [0-1] transitions from steadyState=[1,1,1] to from=[0,0,0]
+            // ring_inner: gap [0-1] holds at steadyState=[1,1,1], animation [1-4], hold [4-5]
             var ringInnerAnim = config.getAnimationForGroup(Optional.of("ring_inner"));
             assertNotNull(ringInnerAnim, "ring_inner should have animation");
 
             r = ringInnerAnim.evaluate(0.5);
-            // Mid-gap: lerp([1,1,1],[0,0,0],0.5)=[0.5,0.5,0.5]
-            assertTrue(r.scale()[0] > 0.4f && r.scale()[0] < 0.6f,
-                "ring_inner t=0.5 mid-gap, got " + r.scale()[0]);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=0.5 holds at steadyState");
             r = ringInnerAnim.evaluate(1.0);
-            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_inner t=1.0 start");
+            // At exact boundary t=1.0 (gap endTime), binary search selects gap → [1,1,1]
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=1.0");
             r = ringInnerAnim.evaluate(4.0);
             assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=4.0 end");
             r = ringInnerAnim.evaluate(5.0);
@@ -1419,11 +1418,9 @@ class HaloDataTest {
             assertNotNull(ringOuterAnim, "ring_outer should have animation");
 
             r = ringOuterAnim.evaluate(1.0);
-            // At t=1.0, mid-gap: lerp([1,1,1],[0,0,0],0.5)=[0.5,0.5,0.5]
-            assertTrue(r.scale()[0] > 0.4f && r.scale()[0] < 0.6f,
-                "ring_outer t=1.0 mid-gap transition, got " + r.scale()[0]);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer t=1.0 holds at steadyState");
             r = ringOuterAnim.evaluate(2.0);
-            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_outer t=2.0 start");
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer t=2.0");
             r = ringOuterAnim.evaluate(5.0);
             assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer t=5.0 end");
         }

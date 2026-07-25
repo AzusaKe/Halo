@@ -174,31 +174,23 @@ public class TransitionQueueBuilder {
      *   <li>If startVal is null → set to endVal</li>
      * </ol>
      */
+    /**
+     * Phase 3: Fill null startVal/endVal with a single backwards pass.
+     * Only null values are modified — explicitly set from/to are NEVER touched.
+     *
+     * Algorithm (from last element to first):
+     * <ol>
+     *   <li>If endVal is null → set to steadyStateValue</li>
+     *   <li>If startVal is null → set to endVal</li>
+     * </ol>
+     */
     private void backfillNulls(List<TransitionQueueElement> elements) {
-        // Identify first active element (has non-null startVal from JSON)
-        int firstActive = -1;
-        for (int i = 0; i < elements.size(); i++) {
-            if (elements.get(i).startVal() != null) { firstActive = i; break; }
-        }
-
         for (int i = elements.size() - 1; i >= 0; i--) {
             TransitionQueueElement curr = elements.get(i);
             float[] startVal = curr.startVal();
             float[] endVal = curr.endVal();
 
-            if (endVal == null) {
-                if (i < firstActive) {
-                    // Leading gap: transition from steady-state to animation's startVal
-                    endVal = (i + 1 < elements.size()) ? elements.get(i + 1).startVal() : steadyStateValue;
-                    startVal = steadyStateValue; // always set for leading gaps
-                } else if (i + 1 < elements.size() && elements.get(i + 1).startVal() != null) {
-                    endVal = elements.get(i + 1).startVal();
-                } else if (i > 0 && elements.get(i - 1).endVal() != null) {
-                    endVal = elements.get(i - 1).endVal();
-                } else {
-                    endVal = steadyStateValue;
-                }
-            }
+            if (endVal == null) endVal = steadyStateValue;
             if (startVal == null) startVal = endVal;
 
             if (curr.startVal() != startVal || curr.endVal() != endVal) {
