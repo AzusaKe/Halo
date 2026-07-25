@@ -104,10 +104,15 @@ public final class HaloManager {
             network.azusake.halo.json.HaloJsonLoader.getDefinition(instance.getDefinitionId()).orElse(null);
         boolean hasShutdownAnim = def != null &&
             (def.shutdownAnimation().isPresent() || def.startupAnimation().isPresent());
+
         if (hasShutdownAnim) {
             // Mark for delayed removal — the renderer will handle the shutdown animation
             instance.setPendingRemoval(true);
-            // Don't remove from map yet — renderer will handle cleanup when animation completes
+            // Still broadcast removal to clients so they can start their own shutdown animation
+            MinecraftServer server = entity.getServer();
+            if (server != null) {
+                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid());
+            }
         } else {
             // Immediate removal (existing behavior)
             activeHalos.remove(entity.getUuid());
@@ -253,6 +258,14 @@ public final class HaloManager {
      */
     public int getActiveCount() {
         return activeHalos.size();
+    }
+
+    /**
+     * Get a specific halo instance by entity UUID.
+     * Returns {@code null} if no halo is attached to that entity.
+     */
+    public HaloInstance getInstance(UUID entityUuid) {
+        return activeHalos.get(entityUuid);
     }
 
     /**

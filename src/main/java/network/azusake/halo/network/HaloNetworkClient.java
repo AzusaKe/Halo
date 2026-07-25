@@ -1,6 +1,7 @@
 package network.azusake.halo.network;
 
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import net.fabricmc.api.EnvType;
@@ -68,9 +69,22 @@ public final class HaloNetworkClient {
                         HaloManager.getInstance().putClientHalo(uuid, defId)
                     );
                 } else {
-                    client.execute(() ->
-                        HaloManager.getInstance().removeClientHalo(uuid)
-                    );
+                    client.execute(() -> {
+                        // Check if the halo has a shutdown animation — if so, start it
+                        // instead of removing immediately
+                        HaloInstance inst = HaloManager.getInstance().getInstance(uuid);
+                        if (inst != null) {
+                            network.azusake.halo.data.HaloDefinition def =
+                                network.azusake.halo.json.HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
+                            boolean hasShutdownAnim = def != null &&
+                                (def.shutdownAnimation().isPresent() || def.startupAnimation().isPresent());
+                            if (hasShutdownAnim) {
+                                inst.setPendingRemoval(true);
+                                return; // renderer will handle cleanup after animation
+                            }
+                        }
+                        HaloManager.getInstance().removeClientHalo(uuid);
+                    });
                 }
             }
         );
