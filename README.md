@@ -65,6 +65,7 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
 - [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
+- [ ] **Singleplayer `/halo hide` Shutdown Animation**: The shutdown (fade-out) animation does not play in singleplayer — the halo disappears instantly. This is a known issue; multiplayer shutdown animations work correctly. A fix is in progress.
 - [ ] Other bug fixes — issues are welcome
 
 <a id="installation"></a>

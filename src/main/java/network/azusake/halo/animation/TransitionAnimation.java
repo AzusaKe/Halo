@@ -6,16 +6,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Multi-segment transition animation with easing curves.
+ * Multi-segment transition animation with easing curves and queue-based
+ * per-property timelines.
  *
- * <p>A transition consists of one or more {@link TransitionSegment}s, each
- * specifying a default duration, easing curve, and per-property from/to values.
- * Each property can optionally override the segment's duration and easing,
- * allowing different axes to animate at different speeds.</p>
+ * <h3>Queue Model</h3>
+ * <p>Each property (offset, scale, opacity) has its own independent timeline.
+ * Within a segment, a property starts at {@code max(segStart, prevPropEnd)},
+ * ensuring no overlap.  If a property is null in a segment but defined in a
+ * later segment, the gap is filled with a hold at the {@code from} value of
+ * the next active segment.</p>
  *
- * <p>Properties with per-property duration overrides have their own independent
- * timeline — they may still be in an earlier segment while other properties
- * have moved on to a later one.</p>
+ * <h3>Reversal</h3>
+ * <p>When played in reverse (shutdown), the queue is reversed: the last group
+ * to start animating becomes the first to start in reverse.  Idle gaps in the
+ * original become active hold periods in the reversed timeline, and vice versa.
+ * This produces symmetric staggered fade-out matching the original staggered
+ * fade-in.</p>
  */
 public record TransitionAnimation(List<TransitionSegment> segments) {
 
@@ -26,11 +32,11 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     /**
      * A from/to pair for a single animated property.
      *
-     * @param from            starting values (required for the first segment; may be
-     *                        {@code null} for subsequent segments which inherit the
-     *                        previous segment's end value)
-     * @param to              ending values ({@code null} = this property is not animated
-     *                        in this segment and stays at its inherited value)
+     * @param from            starting values; for the first active segment of a
+     *                        property this is required.  For subsequent segments it
+     *                        may be {@code null} (inherits previous end value).
+     * @param to              ending values ({@code null} = use default for this
+     *                        property — see {@code defaultVal} in evaluation)
      * @param propertyDuration optional per-property duration override (seconds);
      *                        {@code null} = use the segment's duration
      * @param propertyEasing  optional per-property easing override;
@@ -67,21 +73,17 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
 
     /**
      * The result of evaluating a {@link TransitionAnimation} at a specific time.
-     *
-     * @param offset offset applied to the halo (default {@link Vec3d#ZERO})
-     * @param scale  scale factors applied to the halo (default {1, 1, 1})
-     * @param opacity opacity multiplier applied to the halo (default 1.0)
      */
     public record TransitionResult(Vec3d offset, float[] scale, float opacity) {
 
-        /** Default result used when no animation is active or evaluation is at t=0 before start. */
+        /** Default result (identity: no change). */
         public static final TransitionResult DEFAULT = new TransitionResult(
             Vec3d.ZERO, new float[]{1f, 1f, 1f}, 1.0f
         );
     }
 
     // ------------------------------------------------------------------
-    // Static defaults used when a property's from/to is null
+    // Static defaults
     // ------------------------------------------------------------------
 
     private static final float[] DEFAULT_OFFSET = new float[]{0f, 0f, 0f};
@@ -93,9 +95,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     // ------------------------------------------------------------------
 
     /**
-     * Effective total duration — the maximum across all property timelines.
-     * Properties with per-property duration overrides may extend beyond
-     * the sum of segment durations.
+     * Effective total duration — the maximum end time across all property queues.
      */
     public double totalDuration() {
         return totalDurationFor(segments);
@@ -107,17 +107,9 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
 
     /**
      * Evaluate the animation at the given elapsed time.
-     * Each property (offset, scale, opacity) is evaluated independently
-     * using its own timeline (respecting per-property duration/easing overrides).
-     *
-     * <p>Transition values are multiplicative/additive modifiers applied on top
-     * of the group's static transform.  Defaults are identity values:
-     * offset=[0,0,0], scale=[1,1,1], opacity=1.0 — meaning "no change".</p>
      *
      * @param elapsed  time in seconds since the transition started
-     * @param reversed if {@code true}, play the segments in reverse order
-     *                 with from/to swapped (used for shutdown animations
-     *                 that reverse a startup)
+     * @param reversed if {@code true}, reverse the queue order for shutdown
      * @return the interpolated result at the given time
      */
     public TransitionResult evaluate(double elapsed, boolean reversed) {
@@ -125,84 +117,316 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             return TransitionResult.DEFAULT;
         }
 
-        List<TransitionSegment> effective = reversed ? buildReversedSegments() : segments;
-        double total = totalDurationFor(effective);
+        // Pre-compute reversed queue info if needed
+        List<QueueEntry> revQueue = reversed ? buildReversedQueue() : null;
+        double total = reversed ? reversedTotalDuration(revQueue) : totalDurationFor(segments);
 
         if (elapsed <= 0) {
-            return resolveFinalOrFirst(effective, true);
+            return reversed ? resolveRevFirst(revQueue) : resolveFinalOrFirst(segments, true);
         }
         if (elapsed >= total) {
-            return resolveFinalOrFirst(effective, false);
+            return reversed ? resolveRevFinal(revQueue) : resolveFinalOrFirst(segments, false);
         }
 
-        // Per-property evaluation with independent timelines
-        float[] offset = evaluateProperty(effective, elapsed, DEFAULT_OFFSET, seg -> seg.offset());
-        float[] scale  = evaluateProperty(effective, elapsed, DEFAULT_SCALE,  seg -> seg.scale());
-        float   opacity = evaluatePropertyScalar(effective, elapsed, DEFAULT_OPACITY, seg -> seg.opacity());
+        float[] offset = reversed
+            ? evaluateRevProperty(revQueue, elapsed, DEFAULT_OFFSET, e -> e.propOffset())
+            : evaluateProperty(segments, elapsed, DEFAULT_OFFSET, seg -> seg.offset());
+        float[] scale = reversed
+            ? evaluateRevProperty(revQueue, elapsed, DEFAULT_SCALE, e -> e.propScale())
+            : evaluateProperty(segments, elapsed, DEFAULT_SCALE, seg -> seg.scale());
+        float opacity = reversed
+            ? evaluateRevScalar(revQueue, elapsed, DEFAULT_OPACITY, e -> e.propOpacity())
+            : evaluatePropertyScalar(segments, elapsed, DEFAULT_OPACITY, seg -> seg.opacity());
 
         return new TransitionResult(
             new Vec3d(offset[0], offset[1], offset[2]),
-            scale,
-            opacity
+            scale, opacity
         );
     }
 
-    // ------------------------------------------------------------------
-    // Internal helpers
-    // ------------------------------------------------------------------
+    // ==================================================================
+    // Forward evaluation (original segments, queue model)
+    // ==================================================================
 
-    /**
-     * Build a reversed copy of the segments: reverse the list order and swap
-     * from/to on each property.  Nulls are filled with static defaults.
-     * Per-property duration/easing overrides are preserved.
-     */
-    private List<TransitionSegment> buildReversedSegments() {
-        List<TransitionSegment> reversed = new ArrayList<>(segments.size());
-        for (int i = segments.size() - 1; i >= 0; i--) {
-            TransitionSegment seg = segments.get(i);
-            reversed.add(new TransitionSegment(
-                seg.duration(),
-                seg.easing(),
-                reverseProperty(seg.offset(), DEFAULT_OFFSET),
-                reverseProperty(seg.scale(), DEFAULT_SCALE),
-                reverseProperty(seg.opacity(), new float[]{DEFAULT_OPACITY})
-            ));
+    @FunctionalInterface
+    private interface PropertyExtractor {
+        TransitionProperty extract(TransitionSegment seg);
+    }
+
+    private float[] evaluateProperty(List<TransitionSegment> segs, double elapsed,
+                                      float[] defaultVal, PropertyExtractor extractor) {
+        double segStart = 0;
+        double prevPropEnd = 0;
+
+        for (TransitionSegment seg : segs) {
+            TransitionProperty prop = extractor.extract(seg);
+
+            if (prop == null) {
+                // Gap: property not configured in this segment.
+                // If there's a gap between prevPropEnd and segStart+segDur,
+                // hold at the next active segment's from value (or default).
+                double gapEnd = segStart + seg.duration();
+                if (prevPropEnd < gapEnd && elapsed >= prevPropEnd && elapsed < gapEnd) {
+                    float[] holdVal = findNextFrom(segs, segs.indexOf(seg) + 1, defaultVal, extractor);
+                    return holdVal;
+                }
+                segStart += seg.duration();
+                continue;
+            }
+
+            double propDur = propDuration(prop, seg.duration());
+            double propStart = Math.max(segStart, prevPropEnd);
+            double propEnd = propStart + propDur;
+
+            if (elapsed < propEnd) {
+                double localT = Math.max(0.0, Math.min(1.0, (elapsed - propStart) / propDur));
+                EasingType easing = propEasing(prop, seg.easing());
+                double easedT = easing.evaluate(localT);
+                return interpolateProperty(prop, defaultVal, easedT);
+            }
+
+            prevPropEnd = propEnd;
+            segStart += seg.duration();
         }
-        return reversed;
+
+        return resolvePropertyFinal(segs, defaultVal, extractor);
+    }
+
+    private float evaluatePropertyScalar(List<TransitionSegment> segs, double elapsed,
+                                          float defaultVal, PropertyExtractor extractor) {
+        float[] result = evaluateProperty(segs, elapsed, new float[]{defaultVal}, extractor);
+        return result[0];
     }
 
     /**
-     * Swap from/to on a property, preserving per-property duration/easing overrides.
+     * Find the from value of the next active segment for a property.
+     * Used to hold during gaps.
      */
-    private static TransitionProperty reverseProperty(TransitionProperty prop, float[] defaultValue) {
-        if (prop == null) {
-            return null;
+    private static float[] findNextFrom(List<TransitionSegment> segs, int startIndex,
+                                         float[] defaultVal, PropertyExtractor extractor) {
+        for (int i = startIndex; i < segs.size(); i++) {
+            TransitionProperty prop = extractor.extract(segs.get(i));
+            if (prop != null && prop.from() != null) return prop.from();
+            if (prop != null && prop.to() != null) return prop.to();
         }
-        float[] newFrom = (prop.to() != null) ? prop.to() : defaultValue;
-        float[] newTo = (prop.from() != null) ? prop.from() : defaultValue;
-        return new TransitionProperty(newFrom, newTo, prop.propertyDuration(), prop.propertyEasing());
+        // No more segments with this property — use the final value
+        return resolvePropertyFinal(segs, defaultVal, extractor);
+    }
+
+    // ==================================================================
+    // Reversed evaluation (queue reversal for shutdown)
+    // ==================================================================
+
+    /**
+     * Entry in the reversed queue: a time-sorted list of when each property
+     * is active in the reversed timeline.
+     */
+    private record QueueEntry(double startTime, double duration, EasingType easing,
+                               TransitionProperty propOffset,
+                               TransitionProperty propScale,
+                               TransitionProperty propOpacity) {}
+
+    /**
+     * Build the reversed queue: for each property, compute the original queue
+     * timeline, then reverse it.  The result is a merged, time-sorted list of
+     * entries covering the full reversed duration.
+     */
+    private List<QueueEntry> buildReversedQueue() {
+        // Compute per-property queue timelines
+        List<PropQueueEntry> offQ = computePropQueue(segs -> segs.offset());
+        List<PropQueueEntry> sclQ = computePropQueue(segs -> segs.scale());
+        List<PropQueueEntry> opQ  = computePropQueue(segs -> segs.opacity());
+
+        double total = totalDurationFor(segments);
+
+        // Reverse each queue
+        List<PropQueueEntry> offR = reversePropQueue(offQ, total, DEFAULT_OFFSET);
+        List<PropQueueEntry> sclR = reversePropQueue(sclQ, total, DEFAULT_SCALE);
+        List<PropQueueEntry> opR  = reversePropQueue(opQ, total, new float[]{DEFAULT_OPACITY});
+
+        // Merge into unified entries
+        return mergeQueues(offR, sclR, opR);
+    }
+
+    private record PropQueueEntry(double startTime, double duration, EasingType easing,
+                                   float[] from, float[] to) {}
+
+    /**
+     * Compute the forward queue for a single property.
+     */
+    private List<PropQueueEntry> computePropQueue(PropertyExtractor extractor) {
+        List<PropQueueEntry> queue = new ArrayList<>();
+        double segStart = 0;
+        double prevPropEnd = 0;
+
+        for (TransitionSegment seg : segments) {
+            TransitionProperty prop = extractor.extract(seg);
+            if (prop != null) {
+                double propDur = propDuration(prop, seg.duration());
+                double propStart = Math.max(segStart, prevPropEnd);
+                float[] from = (prop.from() != null) ? prop.from() : DEFAULT_OFFSET;
+                float[] to = (prop.to() != null) ? prop.to() : DEFAULT_OFFSET;
+                EasingType easing = propEasing(prop, seg.easing());
+                queue.add(new PropQueueEntry(propStart, propDur, easing, from, to));
+                prevPropEnd = propStart + propDur;
+            }
+            segStart += seg.duration();
+        }
+        return queue;
     }
 
     /**
-     * Effective total duration — the maximum end time across all property queues.
-     * Each property's end time is computed using the queue model:
-     * {@code propStart = max(segStart, prevPropEnd)}.
+     * Reverse a property queue: last active becomes first, with idle gaps
+     * converted to hold-at-end-state entries.
      */
+    private List<PropQueueEntry> reversePropQueue(List<PropQueueEntry> forward, double total,
+                                                   float[] defaultVal) {
+        if (forward.isEmpty()) {
+            return List.of(); // never animated — stays at default
+        }
+
+        // Build reversed active entries
+        List<PropQueueEntry> revActive = new ArrayList<>();
+        for (int i = forward.size() - 1; i >= 0; i--) {
+            PropQueueEntry e = forward.get(i);
+            double revStart = total - (e.startTime + e.duration);
+            revActive.add(new PropQueueEntry(revStart, e.duration, e.easing, e.to, e.from));
+        }
+
+        // Insert idle gaps between reversed active entries
+        List<PropQueueEntry> result = new ArrayList<>();
+        float[] lastEndVal = forward.get(forward.size() - 1).to; // end state
+
+        for (int i = 0; i < revActive.size(); i++) {
+            PropQueueEntry rev = revActive.get(i);
+            double expectedStart = (i == 0) ? 0 : revActive.get(i - 1).startTime + revActive.get(i - 1).duration;
+            if (rev.startTime > expectedStart + 0.001) {
+                // Idle gap: hold at end state
+                result.add(new PropQueueEntry(expectedStart, rev.startTime - expectedStart,
+                    EasingType.LINEAR, lastEndVal, lastEndVal));
+            }
+            result.add(rev);
+        }
+
+        // Trailing idle after last active entry
+        PropQueueEntry lastRev = revActive.get(revActive.size() - 1);
+        double lastEnd = lastRev.startTime + lastRev.duration;
+        if (lastEnd < total - 0.001) {
+            result.add(new PropQueueEntry(lastEnd, total - lastEnd,
+                EasingType.LINEAR, lastEndVal, lastEndVal));
+        }
+
+        return result;
+    }
+
+    /**
+     * Merge per-property reversed queues into unified QueueEntry list.
+     */
+    private List<QueueEntry> mergeQueues(List<PropQueueEntry> off, List<PropQueueEntry> scl,
+                                          List<PropQueueEntry> op) {
+        // Collect all unique time boundaries
+        List<Double> boundaries = new ArrayList<>();
+        for (PropQueueEntry e : off) { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
+        for (PropQueueEntry e : scl) { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
+        for (PropQueueEntry e : op)  { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
+        boundaries = boundaries.stream().sorted().distinct().toList();
+
+        List<QueueEntry> result = new ArrayList<>();
+        for (int i = 0; i < boundaries.size() - 1; i++) {
+            double start = boundaries.get(i);
+            double end = boundaries.get(i + 1);
+            double dur = end - start;
+            if (dur < 0.0001) continue;
+
+            TransitionProperty oProp = findPropAt(off, start);
+            TransitionProperty sProp = findPropAt(scl, start);
+            TransitionProperty aProp = findPropAt(op, start);
+            EasingType easing = EasingType.LINEAR;
+            if (oProp != null) easing = oProp.propertyEasing() != null ? oProp.propertyEasing() : easing;
+            if (sProp != null) easing = sProp.propertyEasing() != null ? sProp.propertyEasing() : easing;
+            if (aProp != null) easing = aProp.propertyEasing() != null ? aProp.propertyEasing() : easing;
+
+            result.add(new QueueEntry(start, dur, easing, oProp, sProp, aProp));
+        }
+        return result;
+    }
+
+    private static TransitionProperty findPropAt(List<PropQueueEntry> queue, double time) {
+        for (PropQueueEntry e : queue) {
+            if (time >= e.startTime - 0.0001 && time < e.startTime + e.duration - 0.0001) {
+                return new TransitionProperty(e.from, e.to, null, e.easing);
+            }
+        }
+        return null;
+    }
+
+    private float[] evaluateRevProperty(List<QueueEntry> queue, double elapsed,
+                                         float[] defaultVal, RevExtractor extractor) {
+        for (QueueEntry entry : queue) {
+            TransitionProperty prop = extractor.extract(entry);
+            if (prop == null) continue;
+            double entryEnd = entry.startTime() + entry.duration();
+            if (elapsed < entryEnd) {
+                double localT = Math.max(0.0, Math.min(1.0, (elapsed - entry.startTime()) / entry.duration()));
+                EasingType easing = entry.easing() != null ? entry.easing() : EasingType.LINEAR;
+                double easedT = easing.evaluate(localT);
+                return interpolateProperty(prop, defaultVal, easedT);
+            }
+        }
+        return defaultVal;
+    }
+
+    private float evaluateRevScalar(List<QueueEntry> queue, double elapsed,
+                                     float defaultVal, RevExtractor extractor) {
+        float[] result = evaluateRevProperty(queue, elapsed, new float[]{defaultVal}, extractor);
+        return result[0];
+    }
+
+    @FunctionalInterface
+    private interface RevExtractor {
+        TransitionProperty extract(QueueEntry entry);
+    }
+
+    private TransitionResult resolveRevFirst(List<QueueEntry> queue) {
+        if (queue.isEmpty()) return TransitionResult.DEFAULT;
+        QueueEntry first = queue.get(0);
+        float[] off = first.propOffset() != null ? (first.propOffset().from() != null ? first.propOffset().from() : DEFAULT_OFFSET) : DEFAULT_OFFSET;
+        float[] scl = first.propScale() != null ? (first.propScale().from() != null ? first.propScale().from() : DEFAULT_SCALE) : DEFAULT_SCALE;
+        float op = first.propOpacity() != null ? (first.propOpacity().from() != null ? first.propOpacity().from()[0] : DEFAULT_OPACITY) : DEFAULT_OPACITY;
+        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, op);
+    }
+
+    private TransitionResult resolveRevFinal(List<QueueEntry> queue) {
+        if (queue.isEmpty()) return TransitionResult.DEFAULT;
+        QueueEntry last = queue.get(queue.size() - 1);
+        float[] off = last.propOffset() != null ? (last.propOffset().to() != null ? last.propOffset().to() : DEFAULT_OFFSET) : DEFAULT_OFFSET;
+        float[] scl = last.propScale() != null ? (last.propScale().to() != null ? last.propScale().to() : DEFAULT_SCALE) : DEFAULT_SCALE;
+        float op = last.propOpacity() != null ? (last.propOpacity().to() != null ? last.propOpacity().to()[0] : DEFAULT_OPACITY) : DEFAULT_OPACITY;
+        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, op);
+    }
+
+    private double reversedTotalDuration(List<QueueEntry> queue) {
+        double max = 0;
+        for (QueueEntry e : queue) {
+            max = Math.max(max, e.startTime() + e.duration());
+        }
+        return max;
+    }
+
+    // ==================================================================
+    // Shared helpers
+    // ==================================================================
+
     private static double totalDurationFor(List<TransitionSegment> segs) {
         double maxEnd = 0;
-        // Simulate the queue for each property type
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.offset()));
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.scale()));
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.opacity()));
-        // Also account for segments with no properties (just segment duration)
         double segTotal = 0;
         for (TransitionSegment seg : segs) segTotal += seg.duration();
         return Math.max(maxEnd, segTotal);
     }
 
-    /**
-     * Compute the end time of the last animation in a property's queue.
-     */
     private static double computePropertyEnd(List<TransitionSegment> segs, PropertyExtractor extractor) {
         double segStart = 0;
         double prevPropEnd = 0;
@@ -218,72 +442,6 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         return prevPropEnd;
     }
 
-    // ------------------------------------------------------------------
-    // Per-property evaluation
-    // ------------------------------------------------------------------
-
-    @FunctionalInterface
-    private interface PropertyExtractor {
-        TransitionProperty extract(TransitionSegment seg);
-    }
-
-    /**
-     * Evaluate a multi-component property (offset or scale) across segments,
-     * using per-property duration/easing when available.
-     *
-     * <p>Each property has its own independent timeline managed as a queue:
-     * each property animation starts at {@code max(segStart, prevPropEnd)},
-     * where {@code segStart} is the segment's base start time and
-     * {@code prevPropEnd} is when the same property's previous animation ended.
-     * This ensures no overlap — if a prior property animation extends beyond
-     * the current segment's start, the current one is pushed back accordingly.</p>
-     *
-     * <p>Segments without this property are skipped (property stays at its
-     * inherited value).</p>
-     */
-    private float[] evaluateProperty(List<TransitionSegment> segs, double elapsed,
-                                      float[] defaultVal, PropertyExtractor extractor) {
-        double segStart = 0;      // segment's base start time (cumulative segment durations)
-        double prevPropEnd = 0;   // end time of the previous property animation in this queue
-
-        for (TransitionSegment seg : segs) {
-            TransitionProperty prop = extractor.extract(seg);
-            if (prop == null) {
-                // This segment has no animation for this property — skip it
-                segStart += seg.duration();
-                continue;
-            }
-
-            double propDur = propDuration(prop, seg.duration());
-            // Queue: start at max of segment start or previous property end
-            double propStart = Math.max(segStart, prevPropEnd);
-            double propEnd = propStart + propDur;
-
-            if (elapsed < propEnd) {
-                // Active: interpolate within this property's time range
-                double localT = Math.max(0.0, Math.min(1.0, (elapsed - propStart) / propDur));
-                EasingType easing = propEasing(prop, seg.easing());
-                double easedT = easing.evaluate(localT);
-                return interpolateProperty(prop, defaultVal, easedT);
-            }
-
-            prevPropEnd = propEnd;
-            segStart += seg.duration();
-        }
-        // Past all segments: return the last defined value (not default),
-        // so all properties hold their final values until totalDuration expires
-        return resolvePropertyFinal(segs, defaultVal, extractor);
-    }
-
-    /**
-     * Evaluate a scalar property (opacity) across segments.
-     */
-    private float evaluatePropertyScalar(List<TransitionSegment> segs, double elapsed,
-                                          float defaultVal, PropertyExtractor extractor) {
-        float[] result = evaluateProperty(segs, elapsed, new float[]{defaultVal}, extractor);
-        return result[0];
-    }
-
     private static double propDuration(TransitionProperty prop, double segDuration) {
         return (prop != null && prop.propertyDuration() != null) ? prop.propertyDuration() : segDuration;
     }
@@ -292,11 +450,6 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         return (prop != null && prop.propertyEasing() != null) ? prop.propertyEasing() : segEasing;
     }
 
-    /**
-     * Interpolate a property at the given eased progress.
-     * Missing from/to are filled with defaultVal so the animation
-     * always interpolates between two concrete values.
-     */
     private static float[] interpolateProperty(TransitionProperty prop, float[] defaultVal, double easedT) {
         float[] from = (prop.from() != null) ? prop.from() : defaultVal;
         float[] to   = (prop.to()   != null) ? prop.to()   : defaultVal;
@@ -310,12 +463,6 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         return result;
     }
 
-    /**
-     * Get the final value of a property after all segments complete.
-     * Returns the last segment's {@code to} value for this property,
-     * or the last {@code from} if no {@code to} exists.
-     * Falls back to {@code defaultVal} only if the property was never defined.
-     */
     private static float[] resolvePropertyFinal(List<TransitionSegment> segs, float[] defaultVal,
                                                   PropertyExtractor extractor) {
         float[] last = null;
@@ -328,14 +475,8 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         return (last != null) ? last : defaultVal;
     }
 
-    /**
-     * Return the final or first values for all properties, used at boundary times.
-     * All properties are resolved together — they enter steady-state simultaneously.
-     */
     private TransitionResult resolveFinalOrFirst(List<TransitionSegment> segs, boolean isFirst) {
-        if (segs.isEmpty()) {
-            return TransitionResult.DEFAULT;
-        }
+        if (segs.isEmpty()) return TransitionResult.DEFAULT;
 
         float[] offset = isFirst
             ? resolvePropertyFirst(segs, DEFAULT_OFFSET, seg -> seg.offset())
@@ -343,26 +484,13 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         float[] scale = isFirst
             ? resolvePropertyFirst(segs, DEFAULT_SCALE, seg -> seg.scale())
             : resolvePropertyFinal(segs, DEFAULT_SCALE, seg -> seg.scale());
-        float opacity;
-        if (isFirst) {
-            float[] op = resolvePropertyFirst(segs, new float[]{DEFAULT_OPACITY}, seg -> seg.opacity());
-            opacity = op[0];
-        } else {
-            float[] op = resolvePropertyFinal(segs, new float[]{DEFAULT_OPACITY}, seg -> seg.opacity());
-            opacity = op[0];
-        }
+        float[] op = isFirst
+            ? resolvePropertyFirst(segs, new float[]{DEFAULT_OPACITY}, seg -> seg.opacity())
+            : resolvePropertyFinal(segs, new float[]{DEFAULT_OPACITY}, seg -> seg.opacity());
 
-        return new TransitionResult(
-            new Vec3d(offset[0], offset[1], offset[2]),
-            scale,
-            opacity
-        );
+        return new TransitionResult(new Vec3d(offset[0], offset[1], offset[2]), scale, op[0]);
     }
 
-    /**
-     * Get the first defined value of a property across segments.
-     * Skips null properties. Falls back to default if never defined.
-     */
     private static float[] resolvePropertyFirst(List<TransitionSegment> segs, float[] defaultVal,
                                                   PropertyExtractor extractor) {
         for (TransitionSegment seg : segs) {

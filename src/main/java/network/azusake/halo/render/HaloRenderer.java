@@ -329,16 +329,19 @@ public final class HaloRenderer {
             matrices.scale(group.scale(), group.scale(), group.scale());
 
             // Per-group visual animation (offset + rotation + scale)
-            group.animation().ifPresent(anim -> {
-                if (!anim.isEmpty()) {
-                    Vec3d animOff = anim.evaluateOffset(animTime);
-                    Quaternionf animRot = anim.evaluateRotation(animTime);
-                    float[] animScale = anim.evaluateScale(animTime);
-                    matrices.translate(animOff.x, animOff.y, animOff.z);
-                    applyQuaternionRotation(matrices, animRot);
-                    matrices.scale(animScale[0], animScale[1], animScale[2]);
-                }
-            });
+            // Blocked during transition — all startup animations must complete first
+            if (!transition.active()) {
+                group.animation().ifPresent(anim -> {
+                    if (!anim.isEmpty()) {
+                        Vec3d animOff = anim.evaluateOffset(animTime);
+                        Quaternionf animRot = anim.evaluateRotation(animTime);
+                        float[] animScale = anim.evaluateScale(animTime);
+                        matrices.translate(animOff.x, animOff.y, animOff.z);
+                        applyQuaternionRotation(matrices, animRot);
+                        matrices.scale(animScale[0], animScale[1], animScale[2]);
+                    }
+                });
+            }
 
             // Resolve this group's transition segments (with inheritance)
             List<TransitionAnimation.TransitionSegment> mySegments =
