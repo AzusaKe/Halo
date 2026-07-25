@@ -230,8 +230,11 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         List<AnimationTerm> ry = parseAnimationTerms(animObj, "rotation", "yaw");
         List<AnimationTerm> rp = parseAnimationTerms(animObj, "rotation", "pitch");
         List<AnimationTerm> rr = parseAnimationTerms(animObj, "rotation", "roll");
+        List<AnimationTerm> sx = parseAnimationTerms(animObj, "scale", "x");
+        List<AnimationTerm> sy = parseAnimationTerms(animObj, "scale", "y");
+        List<AnimationTerm> sz = parseAnimationTerms(animObj, "scale", "z");
 
-        LayerAnimation result = new LayerAnimation(ox, oy, oz, ry, rp, rr);
+        LayerAnimation result = new LayerAnimation(ox, oy, oz, ry, rp, rr, sx, sy, sz);
         return result.isEmpty() ? Optional.empty() : Optional.of(result);
     }
 

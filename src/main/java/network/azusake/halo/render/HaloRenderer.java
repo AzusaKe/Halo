@@ -252,13 +252,15 @@ public final class HaloRenderer {
             applyQuaternionRotation(matrices, group.rotation());
             matrices.scale(group.scale(), group.scale(), group.scale());
 
-            // Per-group visual animation (offset + rotation)
+            // Per-group visual animation (offset + rotation + scale)
             group.animation().ifPresent(anim -> {
                 if (!anim.isEmpty()) {
                     Vec3d animOff = anim.evaluateOffset(animTime);
                     Quaternionf animRot = anim.evaluateRotation(animTime);
+                    float[] animScale = anim.evaluateScale(animTime);
                     matrices.translate(animOff.x, animOff.y, animOff.z);
                     applyQuaternionRotation(matrices, animRot);
+                    matrices.scale(animScale[0], animScale[1], animScale[2]);
                 }
             });
 

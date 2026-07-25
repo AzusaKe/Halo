@@ -42,6 +42,9 @@
           "animation": {
             "rotation": {
               "pitch": [{ "function": "linear", "start": 0, "speed": 50 }]
+            },
+            "scale": {
+              "x": [{ "function": "sin", "A": 0.1, "omega": 0.5 }]
             }
           },
           "primitives": [
@@ -59,6 +62,9 @@
               "animation": {
                 "rotation": {
                   "roll": [{ "function": "linear", "start": 0, "speed": 20.0 }]
+                },
+                "scale": {
+                  "x": [{ "function": "sin", "A": 0.1, "omega": 0.8 }]
                 }
               },
               "primitives": [

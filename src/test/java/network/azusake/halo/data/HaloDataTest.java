@@ -357,7 +357,8 @@ class HaloDataTest {
                 List.of(),                                        // offsetX
                 List.of(new AnimationTerm.Sin(0.08, 1.5, 0.0)),  // offsetY
                 List.of(),                                        // offsetZ
-                List.of(), List.of(), List.of()                   // rotations
+                List.of(), List.of(), List.of(),                  // rotations
+                List.of(), List.of(), List.of()                   // scales
             );
             assertFalse(anim.isEmpty());
             Vec3d off = anim.evaluateOffset(1.0 / 3.0);
@@ -377,6 +378,7 @@ class HaloDataTest {
                 List.of(new AnimationTerm.Sin(1.0, 1.0, 0.0),
                         new AnimationTerm.Cos(0.5, 2.0, 0.0)),
                 List.of(), List.of(),
+                List.of(), List.of(), List.of(),
                 List.of(), List.of(), List.of()
             );
             Vec3d off = anim.evaluateOffset(0.0);
@@ -391,7 +393,8 @@ class HaloDataTest {
                 List.of(), List.of(), List.of(),
                 List.of(new AnimationTerm.Linear(30.0)),  // yaw
                 List.of(),                                // pitch
-                List.of()                                 // roll
+                List.of(),                                // roll
+                List.of(), List.of(), List.of()           // scales
             );
             Quaternionf q = anim.evaluateRotation(2.0);
             // A pure yaw rotation around Y: should produce non-identity quaternion
@@ -409,7 +412,8 @@ class HaloDataTest {
                 List.of(), List.of(), List.of(),
                 List.of(),                                          // yaw
                 List.of(new AnimationTerm.Sin(5.0, 1.0, 0.0)),     // pitch
-                List.of()                                           // roll
+                List.of(),                                          // roll
+                List.of(), List.of(), List.of()                     // scales
             );
             Quaternionf q = anim.evaluateRotation(0.5);
             // A pure pitch rotation around X: should produce non-identity quaternion
@@ -426,7 +430,8 @@ class HaloDataTest {
                 List.of(),
                 List.of(new AnimationTerm.Linear(30.0)), // yaw: spin 30 deg/s
                 List.of(),
-                List.of()
+                List.of(),
+                List.of(), List.of(), List.of()           // scales
             );
             assertFalse(anim.isEmpty());
 

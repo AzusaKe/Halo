@@ -289,12 +289,18 @@ The animation system uses mathematical functions to describe how position offset
     "yaw": [ ... ],
     "pitch": [ ... ],
     "roll": [ ... ]
+  },
+  "scale": {
+    "x": [ ... ],
+    "y": [ ... ],
+    "z": [ ... ]
   }
 }
 ```
 
 - **`offset`**: Position offset animation, organized into three optional axis arrays: `x`, `y`, `z`
 - **`rotation`**: Rotation animation, organized into three optional axis arrays: `yaw`, `pitch`, `roll`
+- **`scale`**: Scale animation, organized into three optional axis arrays: `x`, `y`, `z`. Terms are **delta factors** added to a base of 1.0 (e.g. `sin(A=0.1)` oscillates between 0.9 and 1.1). Omitted axes default to 1.0 (no scaling). Scale animation is **multiplicative** — in a child group, it compounds with the parent's scale: final scale = parent scale × child scale × animated scale.
 
 Each axis value is an **array of animation term objects**. Multiple terms on the same axis are **summed together** (linear superposition), so you can combine multiple functions to produce complex motion. The entire animation block, each group, and each axis are all optional — omit what you don't need.
 
@@ -304,6 +310,7 @@ Each axis value is an **array of animation term objects**. Multiple terms on the
 |----------|-----|------|
 | `offset` | `x`, `y`, `z` | **Blocks** (meters) |
 | `rotation` | `yaw`, `pitch`, `roll` | **Degrees** |
+| `scale` | `x`, `y`, `z` | **Delta factor** (1.0 = no change) |
 
 ### Animation Functions
 
