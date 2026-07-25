@@ -258,9 +258,24 @@ public final class HaloRenderer {
             return false;
         }
 
-        // ---- elapsed time since halo creation (avoids float precision loss
-        //      with large epoch-based wall-clock values for linear terms) ----
-        final double animTime = (System.currentTimeMillis() - instance.getCreatedAtTime()) / 1000.0;
+        // ---- elapsed time since halo creation ----
+        final double rawAnimTime = (System.currentTimeMillis() - instance.getCreatedAtTime()) / 1000.0;
+
+        // ---- adjust animTime so periodic animation starts seamlessly after transition ----
+        final double animTime;
+        if (instance.getTransitionStartTime() > 0 && startupConfig != null) {
+            double transitionDur = startupConfig.maxDuration();
+            double transElapsed = instance.getTransitionElapsed();
+            if (transElapsed >= transitionDur) {
+                // Transition just ended — offset periodic animation to start from transition end
+                animTime = rawAnimTime - transitionDur;
+            } else {
+                // Transition still active or not started — freeze periodic at 0
+                animTime = 0;
+            }
+        } else {
+            animTime = rawAnimTime;
+        }
 
         // ---- compute light at halo position for non-glowing layers ----
         BlockPos lightPos = BlockPos.ofFloored(frame.worldPosition());

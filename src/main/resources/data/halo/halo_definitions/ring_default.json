@@ -154,7 +154,7 @@
           {
             "duration": 3,
             "easing": "ease_out_cubic",
-            "scale": { "from": [0.0, 0.0, 0.0], "to": [1, 1, 1] }
+            "scale": { "from": [0.0, 0.0, 0.0] }
           }
         ]
       },
@@ -167,7 +167,7 @@
           {
             "duration": 3,
             "easing": "ease_out_cubic",
-            "scale": { "from": [0.0, 0.0, 0.0], "to": [1, 1, 1] }
+            "scale": { "from": [0.0, 0.0, 0.0] }
           }
         ]
       },
@@ -180,7 +180,7 @@
           {
             "duration": 3,
             "easing": "ease_out_cubic",
-            "scale": { "from": [0.0, 0.0, 0.0], "to": [1, 1, 1] }
+            "scale": { "from": [0.0, 0.0, 0.0] }
           }
         ]
       }
