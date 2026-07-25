@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.StreamSupport;
 
 /**
  * Gson {@link JsonDeserializer} for {@link HaloDefinition}.
@@ -88,17 +89,17 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             };
         }
 
-        // Layers array (replaces old "shape")
-        List<HaloLayer> layers = new ArrayList<>();
+        // Groups (replaces old flat "layers")
+        List<HaloGroup> groups = new ArrayList<>();
         if (root.has("layers")) {
             for (JsonElement elem : root.getAsJsonArray("layers")) {
-                layers.add(parseLayer(elem.getAsJsonObject()));
+                groups.add(parseGroup(elem.getAsJsonObject()));
             }
         }
-        // Backward compat: old "shape" field → single layer with locked mode
+        // Backward compat: old "shape" field → single group with locked mode
         else if (root.has("shape")) {
             JsonObject shapeObj = root.getAsJsonObject("shape");
-            layers.addAll(convertLegacyShape(shapeObj));
+            groups.addAll(convertLegacyShape(shapeObj));
         }
 
         // SYNC mode: configurable angular offset (Euler YXZ in degrees)
@@ -108,14 +109,14 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             float offYaw   = (float) Math.toRadians(offArr.get(0).getAsDouble());
             float offPitch = (float) Math.toRadians(offArr.get(1).getAsDouble());
             float offRoll  = offArr.size() > 2 ? (float) Math.toRadians(offArr.get(2).getAsDouble()) : 0f;
-            // Same YXZ order as layer rotations: yaw (Y), pitch (X), roll (Z)
+            // Same YXZ order as group rotations: yaw (Y), pitch (X), roll (Z)
             syncOffset.rotateY(offYaw).rotateX(offPitch).rotateZ(offRoll);
         }
 
-        return new HaloModel(mode, layers, syncOffset);
+        return new HaloModel(mode, groups, syncOffset);
     }
 
-    private HaloLayer parseLayer(JsonObject obj) {
+    private HaloGroup parseGroup(JsonObject obj) {
         // Optional id
         Optional<String> id = obj.has("id")
             ? Optional.of(obj.get("id").getAsString())
@@ -143,13 +144,34 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         // Glowing toggle (default true)
         boolean glowing = !obj.has("glowing") || obj.get("glowing").getAsBoolean();
 
-        // Layer animation (per-layer, visual-only, optional)
-        Optional<LayerAnimation> layerAnim = parseLayerAnimation(obj.get("animation"));
+        // Group animation (per-group, visual-only, optional)
+        Optional<LayerAnimation> groupAnim = parseLayerAnimation(obj.get("animation"));
 
-        // Primitive
-        HaloPrimitive primitive = parsePrimitive(obj.getAsJsonObject("primitive"));
+        // Primitives: support "primitives" array (new) or "primitive" single object (backward compat)
+        List<HaloPrimitive> primitives;
+        if (obj.has("primitives")) {
+            JsonArray primArr = obj.getAsJsonArray("primitives");
+            primitives = new ArrayList<>(primArr.size());
+            for (JsonElement elem : primArr) {
+                primitives.add(parsePrimitive(elem.getAsJsonObject()));
+            }
+        } else if (obj.has("primitive")) {
+            primitives = List.of(parsePrimitive(obj.getAsJsonObject("primitive")));
+        } else {
+            primitives = List.of();
+        }
 
-        return new HaloLayer(id, position, rotation, scale, primitive, glowing, layerAnim);
+        // Children: optional recursive sub-groups
+        List<HaloGroup> children = List.of();
+        if (obj.has("children")) {
+            JsonArray childArr = obj.getAsJsonArray("children");
+            children = new ArrayList<>(childArr.size());
+            for (JsonElement elem : childArr) {
+                children.add(parseGroup(elem.getAsJsonObject()));
+            }
+        }
+
+        return new HaloGroup(id, position, rotation, scale, primitives, glowing, groupAnim, children);
     }
 
     // --- Layer animation (per-layer visual animation) ---
@@ -258,24 +280,24 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     /**
      * Convert old-style "shape" block to a list of layers for backward compatibility.
      */
-    private List<HaloLayer> convertLegacyShape(JsonObject shapeObj) {
-        List<HaloLayer> layers = new ArrayList<>();
+    private List<HaloGroup> convertLegacyShape(JsonObject shapeObj) {
+        List<HaloGroup> groups = new ArrayList<>();
         String type = shapeObj.get("type").getAsString();
 
         switch (type) {
             case "billboard" -> {
                 BillboardPrimitive bp = parseBillboardPrimitive(shapeObj);
-                layers.add(new HaloLayer(Vec3d.ZERO, bp));
+                groups.add(new HaloGroup(Vec3d.ZERO, bp));
             }
             case "multi_billboard" -> {
                 for (JsonElement elem : shapeObj.getAsJsonArray("layers")) {
                     BillboardPrimitive bp = parseBillboardPrimitive(elem.getAsJsonObject());
-                    layers.add(new HaloLayer(Vec3d.ZERO, bp));
+                    groups.add(new HaloGroup(Vec3d.ZERO, bp));
                 }
             }
             default -> throw new JsonParseException("Unknown legacy shape type: " + type);
         }
-        return layers;
+        return groups;
     }
 
     // --- Glow & Pulse (unchanged) ---

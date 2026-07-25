@@ -5,7 +5,7 @@ import org.joml.Vector2f;
 
 /**
  * A cylindrical ring primitive (like a halo or buckle) drawn with
- * inner and outer surfaces inside a {@link HaloLayer}.
+ * inner and outer surfaces inside a {@link HaloGroup}.
  *
  * <p>When rotation is identity, the ring lies on the XZ plane with its
  * axis of symmetry along -Y (same orientation as a billboard).  The

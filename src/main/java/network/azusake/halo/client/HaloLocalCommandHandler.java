@@ -119,7 +119,7 @@ public final class HaloLocalCommandHandler {
                 sb.append("§a").append(defId);
                 HaloDefinition def = defs.get(defId);
                 if (def != null) {
-                    sb.append(" §8layers=§7").append(def.model().layers().size())
+                    sb.append(" §8layers=§7").append(def.model().groups().size())
                         .append(" §8damping=§7").append(def.damping().linearFactor());
                 } else {
                     sb.append(" §c(定义未找到 — 资源包可能缺失)");
@@ -137,7 +137,7 @@ public final class HaloLocalCommandHandler {
             for (Identifier id : defs.keySet()) {
                 HaloDefinition def = defs.get(id);
                 sb.append("\n  §7- §f").append(id)
-                    .append(" §8layers=§7").append(def.model().layers().size());
+                    .append(" §8layers=§7").append(def.model().groups().size());
             }
         }
 

@@ -1,0 +1,90 @@
+{
+  "id": "halo:ring_group_test",
+  "orientation_mode": "locked",
+  "allow_angular_momentum": true,
+  "layers": [
+    {
+      "id": "inner-rings",
+      "position": [0.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        }
+      },
+      "primitives": [
+        {
+          "type": "billboard",
+          "texture": "halo:textures/halo/ring_03.png",
+          "size": [0.5, 0.5]
+        },
+        {
+          "type": "billboard",
+          "texture": "halo:textures/halo/ring_00.png",
+          "size": [0.5, 0.5]
+        },
+        {
+          "type": "billboard",
+          "texture": "halo:textures/halo/ring_01.png",
+          "size": [0.5, 0.5]
+        },
+        {
+          "type": "billboard",
+          "texture": "halo:textures/halo/ring_02.png",
+          "size": [0.5, 0.5]
+        }
+      ],
+      "children": [
+        {
+          "id": "ring_1",
+          "position": [0.0, 0.015, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "animation": {
+            "rotation": {
+              "pitch": [{ "function": "linear", "start": 0, "speed": 50 }]
+            }
+          },
+          "primitives": [
+            {
+              "type": "billboard",
+              "texture": "halo:textures/halo/ring_1.png",
+              "size": [0.5, 0.5]
+            }
+          ],
+          "children": [
+            {
+              "id": "ring_2",
+              "position": [0.0, 0.03, 0.0],
+              "rotation": [0.0, 0.0, 0.0],
+              "animation": {
+                "rotation": {
+                  "roll": [{ "function": "linear", "start": 0, "speed": 20.0 }]
+                }
+              },
+              "primitives": [
+                {
+                  "type": "billboard",
+                  "texture": "halo:textures/halo/ring_2.png",
+                  "size": [0.5, 0.5]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "animation": {},
+  "positioning": {
+    "offset": [0.0, 0.4, 0.35],
+    "scale": 1.0
+  },
+  "damping": {
+    "linearFactor": 0.45,
+    "angularFactor": 0.1,
+    "maxLinearDistance": 0.5,
+    "maxAngularDegrees": 180.0,
+    "angularMomentumFactor": 0.3,
+    "maxAngularMomentumDegrees": 45.0
+  }
+}

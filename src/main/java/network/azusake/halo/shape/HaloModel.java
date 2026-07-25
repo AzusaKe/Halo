@@ -6,7 +6,7 @@ import org.joml.Quaternionf;
 import java.util.List;
 
 /**
- * The visual model of a halo — a collection of {@link HaloLayer}s with
+ * The visual model of a halo — a collection of {@link HaloGroup}s with
  * a shared {@link OrientationMode}.
  *
  * <p>This replaces the old {@code HaloShape} sealed hierarchy.  The
@@ -19,21 +19,31 @@ import java.util.List;
  * the entity's head — the halo's "bottom" faces the player.</p>
  *
  * @param orientationMode  how the spin around the normal axis behaves
- * @param layers           ordered layers (first = behind, last = front)
+ * @param groups           ordered top-level groups (first = behind, last = front);
+ *                         each group may contain nested child groups
  * @param syncOffset       configurable angular offset for {@code SYNC} mode
  *                         (Euler YXZ, applied on the first frame).  Identity
  *                         for non-SYNC modes.
  */
 public record HaloModel(
     OrientationMode orientationMode,
-    List<HaloLayer> layers,
+    List<HaloGroup> groups,
     Quaternionf syncOffset
 ) {
-    /** A model with no layers (useful as a default / fallback). */
+    /** A model with no groups (useful as a default / fallback). */
     public static final HaloModel EMPTY = new HaloModel(OrientationMode.LOCKED, List.of(), new Quaternionf());
 
     /** Convenience constructor for models that don't use SYNC mode. */
-    public HaloModel(OrientationMode orientationMode, List<HaloLayer> layers) {
-        this(orientationMode, layers, new Quaternionf());
+    public HaloModel(OrientationMode orientationMode, List<HaloGroup> groups) {
+        this(orientationMode, groups, new Quaternionf());
+    }
+
+    /** Total number of primitives across all groups (for display purposes). */
+    public int totalPrimitiveCount() {
+        int count = 0;
+        for (HaloGroup group : groups) {
+            count += group.totalPrimitiveCount();
+        }
+        return count;
     }
 }

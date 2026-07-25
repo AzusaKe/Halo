@@ -74,8 +74,8 @@ class HaloDataTest {
                 new Vector2f(1, 1),
                 null
             );
-            HaloLayer layer = new HaloLayer(Vec3d.ZERO, bp);
-            HaloModel model = new HaloModel(OrientationMode.LOCKED, List.of(layer));
+            HaloGroup group = new HaloGroup(Vec3d.ZERO, bp);
+            HaloModel model = new HaloModel(OrientationMode.LOCKED, List.of(group));
             HaloPositioning pos = new HaloPositioning(Vec3d.ZERO, 1.0);
             HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0, false, 0.3, 45.0);
 
@@ -140,18 +140,18 @@ class HaloDataTest {
         }
 
         @Test
-        @DisplayName("HaloModel layers list preserves order")
-        void modelLayersOrder() {
+        @DisplayName("HaloModel groups list preserves order")
+        void modelGroupsOrder() {
             var bp1 = new BillboardPrimitive(new Identifier("halo", "a"), new Vector2f(1, 1), null);
             var bp2 = new BillboardPrimitive(new Identifier("halo", "b"), new Vector2f(2, 2), null);
             HaloModel m = new HaloModel(OrientationMode.LOCKED, List.of(
-                new HaloLayer(Vec3d.ZERO, bp1),
-                new HaloLayer(new Vec3d(0, 0.2, 0), bp2)
+                new HaloGroup(Vec3d.ZERO, bp1),
+                new HaloGroup(new Vec3d(0, 0.2, 0), bp2)
             ));
-            assertEquals(2, m.layers().size());
+            assertEquals(2, m.groups().size());
             assertEquals(OrientationMode.LOCKED, m.orientationMode());
-            assertEquals(bp1, m.layers().get(0).primitive());
-            assertEquals(bp2, m.layers().get(1).primitive());
+            assertEquals(bp1, m.groups().get(0).primitives().get(0));
+            assertEquals(bp2, m.groups().get(1).primitives().get(0));
         }
 
         @Test
@@ -510,11 +510,11 @@ class HaloDataTest {
 
             assertEquals("halo:ring_default", def.id().toString());
             assertEquals(OrientationMode.LOCKED, def.model().orientationMode());
-            assertEquals(1, def.model().layers().size());
+            assertEquals(1, def.model().groups().size());
 
-            HaloLayer layer = def.model().layers().get(0);
-            assertInstanceOf(BillboardPrimitive.class, layer.primitive());
-            BillboardPrimitive bp = (BillboardPrimitive) layer.primitive();
+            HaloGroup group = def.model().groups().get(0);
+            assertInstanceOf(BillboardPrimitive.class, group.primitives().get(0));
+            BillboardPrimitive bp = (BillboardPrimitive) group.primitives().get(0);
             assertEquals("halo:textures/halo/ring.png", bp.texture().toString());
             assertEquals(0.5f, bp.size().x, 0.001f);
             assertEquals(0.5f, bp.size().y, 0.001f);
@@ -580,7 +580,7 @@ class HaloDataTest {
             );
 
             assertEquals(OrientationMode.SYNC, def.model().orientationMode());
-            assertEquals(1, def.model().layers().size());
+            assertEquals(1, def.model().groups().size());
 
             // sync_offset should be a non-identity quaternion
             Quaternionf off = def.model().syncOffset();
@@ -621,9 +621,9 @@ class HaloDataTest {
             );
 
             // Legacy shape → one layer at origin with billboard primitive
-            assertEquals(1, def.model().layers().size());
+            assertEquals(1, def.model().groups().size());
             assertEquals(OrientationMode.LOCKED, def.model().orientationMode()); // default
-            assertInstanceOf(BillboardPrimitive.class, def.model().layers().get(0).primitive());
+            assertInstanceOf(BillboardPrimitive.class, def.model().groups().get(0).primitives().get(0));
         }
 
         @Test
@@ -670,10 +670,10 @@ class HaloDataTest {
             );
 
             // Legacy multi_billboard → multiple layers at origin
-            assertEquals(2, def.model().layers().size());
-            assertInstanceOf(BillboardPrimitive.class, def.model().layers().get(0).primitive());
+            assertEquals(2, def.model().groups().size());
+            assertInstanceOf(BillboardPrimitive.class, def.model().groups().get(0).primitives().get(0));
             assertEquals("halo:textures/halo/back.png",
-                ((BillboardPrimitive) def.model().layers().get(0).primitive()).texture().toString());
+                ((BillboardPrimitive) def.model().groups().get(0).primitives().get(0)).texture().toString());
         }
 
         @Test
@@ -756,11 +756,11 @@ class HaloDataTest {
                 null
             );
 
-            HaloLayer layer = def.model().layers().get(0);
-            assertEquals(Vec3d.ZERO, layer.position());             // default position
-            assertEquals(1.0f, layer.scale(), 0.001f);              // default scale
-            assertInstanceOf(BillboardPrimitive.class, layer.primitive());
-            assertNull(((BillboardPrimitive) layer.primitive()).glow());  // no glow
+            HaloGroup group = def.model().groups().get(0);
+            assertEquals(Vec3d.ZERO, group.position());             // default position
+            assertEquals(1.0f, group.scale(), 0.001f);              // default scale
+            assertInstanceOf(BillboardPrimitive.class, group.primitives().get(0));
+            assertNull(((BillboardPrimitive) group.primitives().get(0)).glow());  // no glow
             assertEquals(1.0, def.positioning().scale(), 0.001);    // scale default
         }
 
@@ -819,9 +819,9 @@ class HaloDataTest {
                 null
             );
 
-            HaloLayer layer = def.model().layers().get(0);
-            assertTrue(layer.animation().isPresent(), "Layer should have animation");
-            LayerAnimation anim = layer.animation().get();
+            HaloGroup group = def.model().groups().get(0);
+            assertTrue(group.animation().isPresent(), "Group should have animation");
+            LayerAnimation anim = group.animation().get();
 
             // offsetX: 2 terms (sin + cos)
             assertEquals(2, anim.offsetX().size());
@@ -878,7 +878,7 @@ class HaloDataTest {
                 null
             );
 
-            assertTrue(def.model().layers().get(0).animation().isEmpty(),
+            assertTrue(def.model().groups().get(0).animation().isEmpty(),
                 "Layer without animation block should have empty Optional");
         }
 
@@ -911,7 +911,7 @@ class HaloDataTest {
                 null
             );
 
-            assertTrue(def.model().layers().get(0).animation().isEmpty(),
+            assertTrue(def.model().groups().get(0).animation().isEmpty(),
                 "Layer with empty animation object should have empty Optional");
         }
 

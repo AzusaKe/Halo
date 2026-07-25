@@ -5,11 +5,11 @@ import org.joml.Vector2f;
 
 /**
  * A single textured billboard quad drawn on the XZ plane (horizontal,
- * normal = -Y in definition-local space) inside a {@link HaloLayer}.
+ * normal = -Y in definition-local space) inside a {@link HaloGroup}.
  *
  * <p>This replaces the old {@code BillboardShape} which was part of the
  * {@code HaloShape} sealed hierarchy.  Billboard positioning, rotation,
- * and scale are now handled by the enclosing {@link HaloLayer} rather
+ * and scale are now handled by the enclosing {@link HaloGroup} rather
  * than being hard-coded at the shape level.</p>
  *
  * @param texture  the texture resource identifier

@@ -10,7 +10,7 @@ import network.azusake.halo.shape.HaloPrimitive;
 import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
 import network.azusake.halo.shape.GlowLayer;
-import network.azusake.halo.shape.HaloLayer;
+import network.azusake.halo.shape.HaloGroup;
 import network.azusake.halo.shape.PulseConfig;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -202,9 +202,9 @@ public final class HaloRenderer {
         float brightness = Math.max(blockLight, skyLight) / 15.0f;
         brightness = Math.max(brightness, 0.04f);
 
-        // ---- render model layers ----
+        // ---- render model groups ----
         var model = def.model();
-        if (model.layers().isEmpty()) {
+        if (model.groups().isEmpty()) {
             return true; // empty model, nothing to draw
         }
 
@@ -225,38 +225,59 @@ public final class HaloRenderer {
                 }
             });
 
-            // Step 3: Per-layer local transform + primitive draw
-            for (HaloLayer layer : model.layers()) {
-                matrices.push();
-                try {
-                    matrices.translate(layer.position().x, layer.position().y, layer.position().z);
-                    applyQuaternionRotation(matrices, layer.rotation());
-                    matrices.scale(layer.scale(), layer.scale(), layer.scale());
-
-                    // Per-layer visual animation (offset + rotation)
-                    layer.animation().ifPresent(anim -> {
-                        if (!anim.isEmpty()) {
-                            Vec3d animOff = anim.evaluateOffset(animTime);
-                            Quaternionf animRot = anim.evaluateRotation(animTime);
-                            matrices.translate(animOff.x, animOff.y, animOff.z);
-                            applyQuaternionRotation(matrices, animRot);
-                        }
-                    });
-
-                    if (layer.primitive() instanceof BillboardPrimitive bp) {
-                        renderBillboard(bp, matrices, layer.glowing(), brightness);
-                    } else if (layer.primitive() instanceof RingPrimitive rp) {
-                        renderRing(rp, matrices, layer.glowing(), brightness);
-                    }
-                } finally {
-                    matrices.pop();
-                }
+            // Step 3: Recursive group rendering
+            for (HaloGroup group : model.groups()) {
+                renderGroup(group, matrices, animTime, brightness);
             }
         } finally {
             matrices.pop();
         }
 
         return true;
+    }
+
+    // ------------------------------------------------------------------
+    // Recursive group rendering (scene-graph traversal)
+    // ------------------------------------------------------------------
+
+    /**
+     * Recursively render a {@link HaloGroup}: apply group transform,
+     * draw all primitives, then recurse into child groups.
+     */
+    private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness) {
+        matrices.push();
+        try {
+            // Group local transform
+            matrices.translate(group.position().x, group.position().y, group.position().z);
+            applyQuaternionRotation(matrices, group.rotation());
+            matrices.scale(group.scale(), group.scale(), group.scale());
+
+            // Per-group visual animation (offset + rotation)
+            group.animation().ifPresent(anim -> {
+                if (!anim.isEmpty()) {
+                    Vec3d animOff = anim.evaluateOffset(animTime);
+                    Quaternionf animRot = anim.evaluateRotation(animTime);
+                    matrices.translate(animOff.x, animOff.y, animOff.z);
+                    applyQuaternionRotation(matrices, animRot);
+                }
+            });
+
+            // Draw all primitives in this group
+            for (HaloPrimitive primitive : group.primitives()) {
+                if (primitive instanceof BillboardPrimitive bp) {
+                    renderBillboard(bp, matrices, group.glowing(), brightness);
+                } else if (primitive instanceof RingPrimitive rp) {
+                    renderRing(rp, matrices, group.glowing(), brightness);
+                }
+            }
+
+            // Recurse into child groups (inherited transform)
+            for (HaloGroup child : group.children()) {
+                renderGroup(child, matrices, animTime, brightness);
+            }
+        } finally {
+            matrices.pop();
+        }
     }
 
     // ------------------------------------------------------------------

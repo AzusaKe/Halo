@@ -1,7 +1,7 @@
 package network.azusake.halo.shape;
 
 /**
- * A renderable primitive inside a {@link HaloLayer}.
+ * A renderable primitive inside a {@link HaloGroup}.
  *
  * <p>Sealed to {@link BillboardPrimitive} and {@link RingPrimitive};
  * future phases will add {@code Model3dPrimitive} for glTF/Blockbench
