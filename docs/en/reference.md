@@ -588,6 +588,53 @@ Use groups to share transforms across multiple primitives, and `children` to bui
 
 > The two outer ring primitives share the parent group's position, scale, and bobbing animation. The inner ring child inherits all of those, then adds its own Y offset and pitch rotation on top — without needing to redefine the bobbing animation.
 
+### 7. Startup / Shutdown Transition Animations
+
+Halos can play a multi-segment fade-in animation when appearing (`/halo show`, wake up, become visible) and a fade-out when disappearing (`/halo hide`, sleep, become invisible). If no explicit `shutdown` is configured, the startup animation is automatically reversed.
+
+```json
+{
+  "startup": {
+    "segments": [
+      { "duration": 0.5, "easing": "ease_out_cubic", "scale": { "from": [0, 0, 0] } }
+    ],
+    "id_overrides": {
+      "inner-ring": {
+        "segments": [
+          { "duration": 0.3, "easing": "ease_out_cubic" },
+          { "duration": 0.5, "easing": "ease_out_cubic", "scale": { "from": [0, 0, 0] } }
+        ]
+      }
+    }
+  }
+}
+```
+
+| Field | Description |
+|------|------|
+| `startup` | Startup (fade-in) transition config |
+| `shutdown` | Shutdown (fade-out) transition config. If omitted, startup is automatically reversed |
+| `segments` | Default segments applied to all groups without an `id_overrides` entry |
+| `id_overrides` | Per-group-id segment overrides, keyed by the group's `id` field |
+| `segments[].duration` | Duration of this segment in seconds |
+| `segments[].easing` | Easing curve: `linear`, `ease_out_cubic`, `ease_in_out_cubic` |
+| `segments[].offset` | Offset animation `{ "from": [x,y,z], "to": [x,y,z] }` |
+| `segments[].scale` | Scale animation `{ "from": [x,y,z] }` (to defaults to `[1,1,1]`) |
+| `segments[].opacity` | Opacity animation `{ "from": 0.0 }` (to defaults to `1.0`) |
+
+**Per-property duration/easing override**: Each property can override the segment's duration and easing:
+```json
+{ "duration": 0.5, "easing": "ease_out_cubic",
+  "scale": { "from": [0,0,0], "duration": 0.8, "easing": "linear" } }
+```
+
+**Behavior**:
+- Groups not listed in `id_overrides` and without a default `segments` array are not animated (instant appear/disappear)
+- Leading gaps (before the first segment) hold at the next segment's `from` value
+- Trailing gaps (after the last segment) hold at the animation's end value
+- Periodic animations (`animation` field) are blocked during the entire transition and resume seamlessly after it ends
+- The shutdown animation reverses the startup queue: elements are reversed and `from`/`to` are swapped
+
 ---
 
 ## Appendix: Legacy Format

@@ -591,6 +591,53 @@
 
 > 两个外环图元共享父组的位置、缩放和浮动动画。内环子组继承了所有这些变换，再叠加自身的 Y 偏移和 pitch 旋转——无需重复定义浮动动画。
 
+### 7. 启动 / 结束过渡动画
+
+光环可以在出现时（`/halo show`、醒来、变可见）播放多段淡入动画，在消失时（`/halo hide`、睡觉、变隐形）播放淡出动画。如果没有显式配置 `shutdown`，启动动画会自动反演。
+
+```json
+{
+  "startup": {
+    "segments": [
+      { "duration": 0.5, "easing": "ease_out_cubic", "scale": { "from": [0, 0, 0] } }
+    ],
+    "id_overrides": {
+      "inner-ring": {
+        "segments": [
+          { "duration": 0.3, "easing": "ease_out_cubic" },
+          { "duration": 0.5, "easing": "ease_out_cubic", "scale": { "from": [0, 0, 0] } }
+        ]
+      }
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `startup` | 启动（淡入）过渡配置 |
+| `shutdown` | 结束（淡出）过渡配置。省略时自动反演 startup |
+| `segments` | 适用于所有无 `id_overrides` 条目的组的默认段 |
+| `id_overrides` | 按组的 `id` 字段索引的每组段覆盖 |
+| `segments[].duration` | 该段的持续时间（秒） |
+| `segments[].easing` | 缓动曲线：`linear`、`ease_out_cubic`、`ease_in_out_cubic` |
+| `segments[].offset` | 位移动画 `{ "from": [x,y,z], "to": [x,y,z] }` |
+| `segments[].scale` | 缩放动画 `{ "from": [x,y,z] }`（to 默认为 `[1,1,1]`） |
+| `segments[].opacity` | 透明度动画 `{ "from": 0.0 }`（to 默认为 `1.0`） |
+
+**每属性 duration/easing 覆盖**：每个属性可以覆盖所在段的 duration 和 easing：
+```json
+{ "duration": 0.5, "easing": "ease_out_cubic",
+  "scale": { "from": [0,0,0], "duration": 0.8, "easing": "linear" } }
+```
+
+**行为**：
+- 未在 `id_overrides` 中列出且无默认 `segments` 的组不做动画（瞬间出现/消失）
+- 前导空白段（第一个段之前）持有下一个段的 `from` 值
+- 尾随空白段（最后一个段之后）持有动画的结束值
+- 周期动画（`animation` 字段）在整个过渡期间被阻止，过渡结束后无缝恢复
+- 结束动画反演启动队列：元素顺序反转，`from`/`to` 交换
+
 ---
 
 ## 附录：旧版格式
