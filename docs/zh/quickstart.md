@@ -267,6 +267,7 @@ yourhalo_pack/
 恭喜！你已经成功创建了第一个自定义光环。从这里开始，你可以尝试：
 
 - **添加多个图层**：在 `layers` 数组中追加更多图层，每层使用不同的贴图和 Y 偏移，制作有层次感的光环
+- **分组与继承**：使用 `primitives` 数组将多个图元放入同一组，并通过 `children` 嵌套子组来继承父组的变换——详见 [字段参考](reference.md#6-分组与变换继承)
 - **添加旋转动画**：在图层上使用 `animation.rotation` 让某些层持续旋转
 - **调整浮动动画**：修改 `animation.offset` 中的 `A`（振幅）和 `omega`（频率）来改变浮动效果
 - **尝试其他朝向模式**：将 `orientation_mode` 改为 `"locked"` 或 `"free"`：
@@ -280,4 +281,4 @@ yourhalo_pack/
 
 ---
 
-*Halo Mod v1.0.6 · [GitHub](https://github.com/AzusaKe/Halo)*
+*Halo Mod v1.0.9 · [GitHub](https://github.com/AzusaKe/Halo)*

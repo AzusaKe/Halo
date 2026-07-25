@@ -9,7 +9,7 @@ This document provides a complete description of the Halo mod's halo definition 
 ## Table of Contents
 
 - [Top-Level Structure](#top-level-structure)
-- [Layer](#layer)
+- [Group (Layer)](#group-layer)
 - [Primitive & Glow](#primitive--glow)
 - [Animation System](#animation-system)
 - [Orientation Mode](#orientation-mode)
@@ -69,9 +69,9 @@ A halo definition JSON file contains the following top-level fields:
 
 ### `layers`
 
-- **Type**: Array of layer objects
+- **Type**: Array of group objects
 - **Required**: Yes (or provide legacy `shape`)
-- **Description**: Defines the halo's visual composition. Each layer is an independent rendering unit. See [Layer](#layer) for details.
+- **Description**: Defines the halo's visual composition. Each element in the array is a **group** that can contain multiple primitives and nested child groups, sharing a common transform. See [Group (Layer)](#group-layer) for details. The old single-`primitive` format is still supported for backward compatibility.
 
 ### `animation`
 
@@ -107,19 +107,20 @@ A halo definition JSON file contains the following top-level fields:
 
 ---
 
-## Layer
+## Group (Layer)
 
-Each layer is defined as follows:
+Each element in the `layers` array is a **group** — a transform node that can contain multiple primitives and nested child groups. This is a scene-graph structure: child groups inherit their parent's position, rotation, scale, and animation.
 
 ```json
 {
-  "id": "optional_layer_name",
+  "id": "optional_group_name",
   "position": [0.0, 0.0, 0.0],
   "rotation": [0.0, 0.0, 0.0],
   "scale": 1.0,
   "glowing": true,
   "animation": { ... },
-  "primitive": { ... }
+  "primitives": [ ... ],
+  "children": [ ... ]
 }
 ```
 
@@ -127,49 +128,59 @@ Each layer is defined as follows:
 
 - **Type**: String
 - **Required**: No
-- **Description**: Optional name for the layer, reserved for future animation grouping. Currently has no effect.
+- **Description**: Optional name for the group, reserved for future animation grouping. Currently has no effect.
 
 ### `position`
 
 - **Type**: `[x, y, z]` triple (blocks)
 - **Required**: No
 - **Default**: `[0, 0, 0]`
-- **Description**: This layer's position offset in the halo's local space. `[0, 0, 0]` represents the halo **origin** — this origin is aligned with the position computed by damping physics. The layer's actual position in space = damped follow position + the offset defined here.
+- **Description**: This group's position offset relative to its parent group (or the halo origin for top-level groups). `[0, 0, 0]` means no offset from the parent.
 
-  When designing multi-layer halos, adjusting each layer's Y value creates spatial depth — layers with larger Y values appear visually "higher".
+  Child groups inherit their parent's transform — a child's `[0, 0.02, 0]` offset is applied in the parent's rotated/scaled coordinate space.
 
 ### `rotation`
 
-- **Type**: `[pitch, yaw, roll]` triple (degrees)
+- **Type**: `[yaw, pitch, roll]` triple (degrees)
 - **Required**: No
 - **Default**: `[0, 0, 0]`
-- **Description**: This layer's initial rotation, using Euler YXZ order.
+- **Description**: This group's initial rotation relative to its parent, using Euler YXZ order.
 
 ### `scale`
 
 - **Type**: Float
 - **Required**: No
 - **Default**: `1.0`
-- **Description**: Uniform scale multiplier for this layer. `1.0` is the original size. This scale multiplies with `positioning.scale` — final size = layer `scale` × global `positioning.scale`.
+- **Description**: Uniform scale multiplier for this group. Multiplies with the parent group's scale — final scale = this group's `scale` × all ancestor `scale` values × `positioning.scale`.
 
 ### `glowing`
 
 - **Type**: Boolean
 - **Required**: No
 - **Default**: `true` (when absent)
-- **Description**: Controls whether this layer renders at full brightness (unaffected by ambient lighting). When set to `false`, the layer is affected by in-game lighting (brighter during daytime, darker at night).
+- **Description**: Controls whether primitives in this group render at full brightness (unaffected by ambient lighting). When set to `false`, primitives are affected by in-game lighting (brighter during daytime, darker at night).
 
 ### `animation`
 
 - **Type**: Animation object
 - **Required**: No
-- **Description**: This layer's independent animation. Has the same structure as top-level animation. Set to `{}` for no animation on this layer. See [Animation System](#animation-system) for details.
+- **Description**: This group's independent animation. Has the same structure as top-level animation. Child groups inherit this animation — a child's own animation is additive on top of the parent's. See [Animation System](#animation-system) for details.
 
-### `primitive`
+### `primitives`
 
-- **Type**: Object
-- **Required**: Yes
-- **Description**: This layer's rendering primitive. See [Primitive & Glow](#primitive--glow) for details.
+- **Type**: Array of primitive objects
+- **Required**: No (but the group should have at least `primitives` or `children` to be meaningful)
+- **Description**: The rendering primitives within this group. All primitives share the group's transform. See [Primitive & Glow](#primitive--glow) for details on each primitive type.
+
+  **Backward compatibility**: The old single-`primitive` field (an object instead of an array) is still supported and automatically treated as a one-element `primitives` array.
+
+### `children`
+
+- **Type**: Array of group objects
+- **Required**: No
+- **Description**: Nested child groups. Each child group inherits the parent's full transform (position, rotation, scale, animation). Child groups have the same structure as top-level groups — they can contain their own `primitives`, `animation`, and further nested `children`.
+
+  This enables building hierarchical scene graphs. For example, a parent group can define a shared bobbing animation, and child groups add their own rotation on top without redefining the bobbing.
 
 ---
 
@@ -522,6 +533,45 @@ Use layer `position` offsets to place elements at different locations on the hal
 
 A quick reminder of the texture orientation rules: the up-down direction of a texture is always up-down in-game (never flips). When viewed from the player's head outward, the texture appears correct; when viewed from the outside, it is horizontally mirrored. Symmetric designs are unaffected.
 
+### 6. Grouping and Transform Inheritance
+
+Use groups to share transforms across multiple primitives, and `children` to build hierarchical scene graphs where child groups inherit their parent's transform:
+
+```json
+"layers": [
+  {
+    "id": "outer-rings",
+    "position": [0, 0, 0],
+    "scale": 1.5,
+    "animation": {
+      "offset": {
+        "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+      }
+    },
+    "primitives": [
+      { "type": "billboard", "texture": "halo:textures/halo/ring_00.png", "size": [0.5, 0.5] },
+      { "type": "billboard", "texture": "halo:textures/halo/ring_01.png", "size": [0.5, 0.5] }
+    ],
+    "children": [
+      {
+        "id": "inner-ring",
+        "position": [0, 0.02, 0],
+        "animation": {
+          "rotation": {
+            "pitch": [{ "function": "linear", "speed": 0.05 }]
+          }
+        },
+        "primitives": [
+          { "type": "billboard", "texture": "halo:textures/halo/ring_2.png", "size": [0.5, 0.5] }
+        ]
+      }
+    ]
+  }
+]
+```
+
+> The two outer ring primitives share the parent group's position, scale, and bobbing animation. The inner ring child inherits all of those, then adds its own Y offset and pitch rotation on top — without needing to redefine the bobbing animation.
+
 ---
 
 ## Appendix: Legacy Format
@@ -568,4 +618,4 @@ Equivalent to the `layers` format with a single layer.
 
 ---
 
-*Halo Mod v1.0.1 · [GitHub](https://github.com/AzusaKe/Halo)*
+*Halo Mod v1.0.9 · [GitHub](https://github.com/AzusaKe/Halo)*

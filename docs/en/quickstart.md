@@ -267,6 +267,7 @@ This means you can tweak parameters and see the results in real time — very co
 Congratulations! You've successfully created your first custom halo. From here, you can try:
 
 - **Adding multiple layers**: Append more layers to the `layers` array, each with different textures and Y offsets, to create a layered halo
+- **Grouping primitives**: Use the `primitives` array to put multiple primitives in one group, and `children` to nest sub-groups that inherit the parent's transform — see the [Field Reference](reference.md#6-grouping-and-transform-inheritance)
 - **Adding rotation animations**: Use `animation.rotation` on a layer to make it spin continuously
 - **Tweaking the bobbing animation**: Adjust `A` (amplitude) and `omega` (frequency) in `animation.offset` to change the floating effect
 - **Trying other orientation modes**: Change `orientation_mode` to `"locked"` or `"free"`:
@@ -280,4 +281,4 @@ Congratulations! You've successfully created your first custom halo. From here, 
 
 ---
 
-*Halo Mod v1.0.6 · [GitHub](https://github.com/AzusaKe/Halo)*
+*Halo Mod v1.0.9 · [GitHub](https://github.com/AzusaKe/Halo)*

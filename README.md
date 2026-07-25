@@ -227,14 +227,17 @@ Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (
 | `allow_angular_momentum`     | When `true`, adds angular momentum inertia to orientation (`locked`/`free` only)  |
 | `hide_on_sleep`              | When `true`, halo stops rendering while the entity is sleeping (default `false`)   |
 | `display_in_invisible`       | When `true`, halo continues rendering while the entity is invisible (default `false`) |
-| `layers`                     | Array of layers; each layer is a primitive with its own transform and animation   |
-| `layers[].position`          | `[X, Y, Z]` offset of this layer relative to the anchor frame (blocks)            |
-| `layers[].rotation`          | `[X, Y, Z]` Euler rotation of this layer (degrees)                                |
-| `layers[].scale`             | Per-layer scale multiplier                                                        |
-| `layers[].animation`         | Per-layer `offset` / `rotation` animation curves (see reference)                  |
-| `layers[].primitive.type`    | `billboard` (single textured quad) or `ring` (cylindrical ring)                  |
-| `layers[].primitive.texture` | Texture path, e.g. `halo:textures/halo/ring_00.png`                               |
-| `layers[].primitive.inner_texture` | Ring only: inner surface texture (optional; defaults to `texture` if omitted) |
+| `layers`                     | Array of groups; each group can contain multiple primitives and nested child groups, sharing a common transform and animation   |
+| `layers[].position`          | `[X, Y, Z]` offset of this group relative to the parent group or anchor frame (blocks)            |
+| `layers[].rotation`          | `[yaw, pitch, roll]` Euler rotation of this group (degrees)                                |
+| `layers[].scale`             | Per-group scale multiplier                                                        |
+| `layers[].animation`         | Per-group `offset` / `rotation` animation curves (see reference)                  |
+| `layers[].primitives`        | Array of rendering primitives within this group (see below)                       |
+| `layers[].primitive`         | Backward-compatible single primitive object (equivalent to `primitives: [...]`)   |
+| `layers[].children`          | Optional array of nested child groups that inherit this group's transform         |
+| `primitive.type`             | `billboard` (single textured quad) or `ring` (cylindrical ring)                  |
+| `primitive.texture`          | Texture path, e.g. `halo:textures/halo/ring_00.png`                               |
+| `primitive.inner_texture`    | Ring only: inner surface texture (optional; defaults to `texture` if omitted) |
 | `layers[].primitive.size`    | `billboard`: `[width, depth]`; `ring`: `[radius, cylinder_width]` in blocks      |
 | `layers[].primitive.segments`| Ring only: polygon segment count (default 32)                                     |
 | `positioning.offset`         | `[X, Y, Z]` offset relative to entity head (blocks)                               |
@@ -313,7 +316,7 @@ src/main/
     physics/                   — AnchorFrameCalculator, DampingPhysics, HaloTickHandler
     render/                    — HaloRenderer, HaloClientManager, HaloRenderListener
     server/                    — HaloServerEvents, ServerTickHandler
-    shape/                     — BillboardPrimitive, HaloModel, HaloLayer, GlowLayer
+    shape/                     — BillboardPrimitive, HaloModel, HaloGroup, GlowLayer
   resources/
     fabric.mod.json            — Mod metadata (entry points, mixins, dependencies)
     halo.mixins.json            — Mixin configuration

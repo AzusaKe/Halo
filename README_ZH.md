@@ -228,14 +228,17 @@
 | `allow_angular_momentum`     | `true` 时为朝向添加角动量惯性效果（仅 `locked`/`free` 模式）|
 | `hide_on_sleep`              | `true` 时，实体睡觉期间光环停止渲染（默认 `false`）        |
 | `display_in_invisible`       | `true` 时，实体隐形期间光环继续渲染（默认 `false`）        |
-| `layers`                     | 图层数组；每个图层是一个带有独立变换与动画的 primitive      |
-| `layers[].position`          | 该图层相对锚点帧的 `[X, Y, Z]` 偏移（格）                   |
-| `layers[].rotation`          | 该图层的 `[X, Y, Z]` 欧拉旋转（度）                         |
-| `layers[].scale`             | 该图层的缩放倍率                                            |
-| `layers[].animation`         | 该图层的 `offset` / `rotation` 动画曲线（详见参考文档）     |
-| `layers[].primitive.type`    | `billboard`（单个带纹理的四边形）或 `ring`（圆柱形圆环）   |
-| `layers[].primitive.texture` | 纹理路径，如 `halo:textures/halo/ring_00.png`               |
-| `layers[].primitive.inner_texture` | 仅 ring：内表面纹理（可选，省略时使用 `texture`）     |
+| `layers`                     | 组数组；每个组可包含多个图元和嵌套子组，共享同一变换与动画          |
+| `layers[].position`          | 该组相对父组或锚点帧的 `[X, Y, Z]` 偏移（格）                   |
+| `layers[].rotation`          | 该组的 `[yaw, pitch, roll]` 欧拉旋转（度）                         |
+| `layers[].scale`             | 该组的缩放倍率                                            |
+| `layers[].animation`         | 该组的 `offset` / `rotation` 动画曲线（详见参考文档）     |
+| `layers[].primitives`        | 该组内的渲染图元数组（见下方）                            |
+| `layers[].primitive`         | 向后兼容的单图元对象（等价于 `primitives: [...]`）        |
+| `layers[].children`          | 可选的嵌套子组数组，继承该组的变换                        |
+| `primitive.type`             | `billboard`（单个带纹理的四边形）或 `ring`（圆柱形圆环）   |
+| `primitive.texture`          | 纹理路径，如 `halo:textures/halo/ring_00.png`               |
+| `primitive.inner_texture`    | 仅 ring：内表面纹理（可选，省略时使用 `texture`）     |
 | `layers[].primitive.size`    | `billboard`：`[宽度, 深度]`；`ring`：`[半径, 柱面宽度]`，单位为格 |
 | `layers[].primitive.segments`| 仅 ring：多边形分段数（默认 32）                            |
 | `positioning.offset`         | `[X, Y, Z]` 相对实体头部的偏移量（格）                      |
@@ -314,7 +317,7 @@ src/main/
     physics/                   — AnchorFrameCalculator、DampingPhysics、HaloTickHandler
     render/                    — HaloRenderer、HaloClientManager、HaloRenderListener
     server/                    — HaloServerEvents、ServerTickHandler
-    shape/                     — BillboardPrimitive、HaloModel、HaloLayer、GlowLayer
+    shape/                     — BillboardPrimitive、HaloModel、HaloGroup、GlowLayer
   resources/
     fabric.mod.json            — 模组元数据（入口点、Mixin、依赖）
     halo.mixins.json            — Mixin 配置
