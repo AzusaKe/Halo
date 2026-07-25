@@ -1399,15 +1399,14 @@ class HaloDataTest {
             r = pointerAnim.evaluate(5.0);
             assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "pointer t=5 held");
 
-            // ring_inner: gap [0-1] holds at steadyState=[1,1,1], animation [1-4], hold [4-5]
+            // ring_inner: gap [0-1] holds at [0,0,0] (=next.startVal), animation [1-4], hold [4-5]
             var ringInnerAnim = config.getAnimationForGroup(Optional.of("ring_inner"));
             assertNotNull(ringInnerAnim, "ring_inner should have animation");
 
             r = ringInnerAnim.evaluate(0.5);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=0.5 holds at steadyState");
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_inner t=0.5 holds at [0,0,0]");
             r = ringInnerAnim.evaluate(1.0);
-            // At exact boundary t=1.0 (gap endTime), binary search selects gap → [1,1,1]
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=1.0");
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_inner t=1.0");
             r = ringInnerAnim.evaluate(4.0);
             assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=4.0 end");
             r = ringInnerAnim.evaluate(5.0);
@@ -1418,9 +1417,9 @@ class HaloDataTest {
             assertNotNull(ringOuterAnim, "ring_outer should have animation");
 
             r = ringOuterAnim.evaluate(1.0);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer t=1.0 holds at steadyState");
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_outer t=1.0 holds at [0,0,0]");
             r = ringOuterAnim.evaluate(2.0);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer t=2.0");
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_outer t=2.0");
             r = ringOuterAnim.evaluate(5.0);
             assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer t=5.0 end");
         }

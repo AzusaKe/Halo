@@ -158,29 +158,14 @@ public class TransitionQueueBuilder {
     }
 
     // ==================================================================
-    // Phase 3: Null backfill
-    // ==================================================================
-
-    /**
-     * Phase 3: Fill null startVal/endVal with a single backwards pass.
-     *
-     * <p>JSON-pushed elements always have non-null startVal (from `from`).
-     * Only endVal can be null (when `to` is omitted).
-     * Gap-filled elements have both startVal and endVal as null.</p>
-     *
-     * Algorithm (from last element to first):
-     * <ol>
-     *   <li>If endVal is null → set to steadyStateValue</li>
-     *   <li>If startVal is null → set to endVal</li>
-     * </ol>
-     */
     /**
      * Phase 3: Fill null startVal/endVal with a single backwards pass.
      * Only null values are modified — explicitly set from/to are NEVER touched.
      *
      * Algorithm (from last element to first):
      * <ol>
-     *   <li>If endVal is null → set to steadyStateValue</li>
+     *   <li>If endVal is null → use next element's startVal (already resolved
+     *       since we process back to front), or steadyStateValue if last element</li>
      *   <li>If startVal is null → set to endVal</li>
      * </ol>
      */
@@ -190,7 +175,13 @@ public class TransitionQueueBuilder {
             float[] startVal = curr.startVal();
             float[] endVal = curr.endVal();
 
-            if (endVal == null) endVal = steadyStateValue;
+            if (endVal == null) {
+                if (i + 1 < elements.size()) {
+                    endVal = elements.get(i + 1).startVal();
+                } else {
+                    endVal = steadyStateValue;
+                }
+            }
             if (startVal == null) startVal = endVal;
 
             if (curr.startVal() != startVal || curr.endVal() != endVal) {
