@@ -1344,174 +1344,121 @@ class HaloDataTest {
     class RingDefaultStartupTests {
 
         /**
-         * Parse ring_default.json's startup config and verify the animation
-         * timeline matches the expected queue-based stagger:
+         * Build a StartupAnimationConfig matching ring_default.json's startup,
+         * then verify forward and reversed (shutdown) timelines using the
+         * new queue-based system.
          *
          * Forward:
          *   pointer:     [0-3s]   scale from [0,0,0] → [1,1,1]
          *   ring_inner:  idle 1s  [1-4s]  scale from [0,0,0] → [1,1,1]
          *   ring_outer:  idle 2s  [2-5s]  scale from [0,0,0] → [1,1,1]
          *
-         * Reversed:
+         * Reversed (shutdown):
          *   ring_outer:  [0-3s]   scale [1,1,1] → [0,0,0]
          *   ring_inner:  idle 1s  [1-4s]  scale [1,1,1] → [0,0,0]
          *   pointer:     idle 2s  [2-5s]  scale [1,1,1] → [0,0,0]
          */
-        @Test
-        @DisplayName("ring_default startup: forward queue timing and values")
-        void forwardStartupTimeline() {
-            // Build the startup config matching ring_default.json
+        private StartupAnimationConfig buildRingDefaultConfig() {
             var pointerSeg = new TransitionAnimation.TransitionSegment(
-                3.0, EasingType.EASE_OUT_CUBIC,
-                null,
-                new TransitionAnimation.TransitionProperty(
-                    new float[]{0f, 0f, 0f}, null),
-                null
-            );
+                3.0, EasingType.EASE_OUT_CUBIC, null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f}, null), null);
             var ringInnerSeg1 = new TransitionAnimation.TransitionSegment(
                 1.0, EasingType.EASE_OUT_CUBIC, null, null, null);
             var ringInnerSeg2 = new TransitionAnimation.TransitionSegment(
-                3.0, EasingType.EASE_OUT_CUBIC,
-                null,
-                new TransitionAnimation.TransitionProperty(
-                    new float[]{0f, 0f, 0f}, null),
-                null
-            );
+                3.0, EasingType.EASE_OUT_CUBIC, null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f}, null), null);
             var ringOuterSeg1 = new TransitionAnimation.TransitionSegment(
                 2.0, EasingType.EASE_OUT_CUBIC, null, null, null);
             var ringOuterSeg2 = new TransitionAnimation.TransitionSegment(
-                3.0, EasingType.EASE_OUT_CUBIC,
-                null,
-                new TransitionAnimation.TransitionProperty(
-                    new float[]{0f, 0f, 0f}, null),
-                null
+                3.0, EasingType.EASE_OUT_CUBIC, null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f}, null), null);
+
+            var idOverrides = Map.of(
+                "pointer", List.of(pointerSeg),
+                "ring_inner", List.of(ringInnerSeg1, ringInnerSeg2),
+                "ring_outer", List.of(ringOuterSeg1, ringOuterSeg2)
             );
+            return new StartupAnimationConfig(List.of(), idOverrides);
+        }
 
-            // pointer config: single segment
-            var pointerAnim = new TransitionAnimation(List.of(pointerSeg));
-            // ring_inner config: idle 1s + animate 3s
-            var ringInnerAnim = new TransitionAnimation(List.of(ringInnerSeg1, ringInnerSeg2));
-            // ring_outer config: idle 2s + animate 3s
-            var ringOuterAnim = new TransitionAnimation(List.of(ringOuterSeg1, ringOuterSeg2));
+        @Test
+        @DisplayName("ring_default startup: forward queue timing and values")
+        void forwardStartupTimeline() {
+            var config = buildRingDefaultConfig();
 
-            // --- Forward: pointer ---
-            // t=0: at from=[0,0,0]
-            var r = pointerAnim.evaluate(0, false);
+            // pointer: animation [0-3], then hold at [1,1,1]
+            var pointerAnim = config.getAnimationForGroup(Optional.of("pointer"));
+            assertNotNull(pointerAnim, "pointer should have animation");
+
+            var r = pointerAnim.evaluate(0);
             assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "pointer t=0");
+            r = pointerAnim.evaluate(1.5);
+            assertTrue(r.scale()[0] > 0.5f && r.scale()[0] <= 1.0f, "pointer t=1.5 mid-animation");
+            r = pointerAnim.evaluate(3.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "pointer t=3 end");
+            r = pointerAnim.evaluate(5.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "pointer t=5 held");
 
-            // t=1.5: mid-animation (ease_out_cubic at progress=0.5 → eased≈0.875)
-            r = pointerAnim.evaluate(1.5, false);
-            assertTrue(r.scale()[0] > 0.5f && r.scale()[0] <= 1.0f,
-                "pointer t=1.5 should be past mid-animation, got " + r.scale()[0]);
+            // ring_inner: gap [0-1] transitions from steadyState=[1,1,1] to from=[0,0,0]
+            var ringInnerAnim = config.getAnimationForGroup(Optional.of("ring_inner"));
+            assertNotNull(ringInnerAnim, "ring_inner should have animation");
 
-            // t=3: end of animation → should be [1,1,1] (steady-state)
-            r = pointerAnim.evaluate(3.0, false);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "pointer t=3 should be [1,1,1] (steady-state)");
+            r = ringInnerAnim.evaluate(0.5);
+            // Mid-gap: lerp([1,1,1],[0,0,0],0.5)=[0.5,0.5,0.5]
+            assertTrue(r.scale()[0] > 0.4f && r.scale()[0] < 0.6f,
+                "ring_inner t=0.5 mid-gap, got " + r.scale()[0]);
+            r = ringInnerAnim.evaluate(1.0);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_inner t=1.0 start");
+            r = ringInnerAnim.evaluate(4.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=4.0 end");
+            r = ringInnerAnim.evaluate(5.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner t=5.0 held");
 
-            // t=5: well past end → still [1,1,1]
-            r = pointerAnim.evaluate(5.0, false);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "pointer t=5 should be [1,1,1]");
+            // ring_outer: gap [0-2] transitions from steadyState=[1,1,1] to from=[0,0,0]
+            var ringOuterAnim = config.getAnimationForGroup(Optional.of("ring_outer"));
+            assertNotNull(ringOuterAnim, "ring_outer should have animation");
 
-            // --- Forward: ring_inner ---
-            // t=0.5: in idle gap (seg1, no scale) → should hold at from of seg2 = [0,0,0]
-            r = ringInnerAnim.evaluate(0.5, false);
-            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f,
-                "ring_inner t=0.5 (idle gap) should hold at [0,0,0]");
-
-            // t=1.0: seg2 starts
-            r = ringInnerAnim.evaluate(1.0, false);
-            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f,
-                "ring_inner t=1.0 (seg2 start) should be [0,0,0]");
-
-            // t=4.0: seg2 ends → [1,1,1]
-            r = ringInnerAnim.evaluate(4.0, false);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "ring_inner t=4.0 (seg2 end) should be [1,1,1]");
-
-            // t=5.0: past end → [1,1,1]
-            r = ringInnerAnim.evaluate(5.0, false);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "ring_inner t=5.0 should be [1,1,1]");
+            r = ringOuterAnim.evaluate(1.0);
+            // At t=1.0, mid-gap: lerp([1,1,1],[0,0,0],0.5)=[0.5,0.5,0.5]
+            assertTrue(r.scale()[0] > 0.4f && r.scale()[0] < 0.6f,
+                "ring_outer t=1.0 mid-gap transition, got " + r.scale()[0]);
+            r = ringOuterAnim.evaluate(2.0);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_outer t=2.0 start");
+            r = ringOuterAnim.evaluate(5.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer t=5.0 end");
         }
 
         @Test
         @DisplayName("ring_default startup: reversed queue (shutdown) timing")
         void reversedShutdownTimeline() {
-            // Same configs as above
-            var pointerSeg = new TransitionAnimation.TransitionSegment(
-                3.0, EasingType.EASE_OUT_CUBIC,
-                null,
-                new TransitionAnimation.TransitionProperty(
-                    new float[]{0f, 0f, 0f}, null),
-                null
-            );
-            var ringInnerSeg1 = new TransitionAnimation.TransitionSegment(
-                1.0, EasingType.EASE_OUT_CUBIC, null, null, null);
-            var ringInnerSeg2 = new TransitionAnimation.TransitionSegment(
-                3.0, EasingType.EASE_OUT_CUBIC,
-                null,
-                new TransitionAnimation.TransitionProperty(
-                    new float[]{0f, 0f, 0f}, null),
-                null
-            );
-            var ringOuterSeg1 = new TransitionAnimation.TransitionSegment(
-                2.0, EasingType.EASE_OUT_CUBIC, null, null, null);
-            var ringOuterSeg2 = new TransitionAnimation.TransitionSegment(
-                3.0, EasingType.EASE_OUT_CUBIC,
-                null,
-                new TransitionAnimation.TransitionProperty(
-                    new float[]{0f, 0f, 0f}, null),
-                null
-            );
+            var config = buildRingDefaultConfig();
 
-            var pointerAnim = new TransitionAnimation(List.of(pointerSeg));
-            var ringInnerAnim = new TransitionAnimation(List.of(ringInnerSeg1, ringInnerSeg2));
-            var ringOuterAnim = new TransitionAnimation(List.of(ringOuterSeg1, ringOuterSeg2));
+            // Reversed: ring_outer first, then ring_inner, then pointer
+            var ringOuterRev = config.getAnimationForGroup(Optional.of("ring_outer")).reversed();
+            var ringInnerRev = config.getAnimationForGroup(Optional.of("ring_inner")).reversed();
+            var pointerRev = config.getAnimationForGroup(Optional.of("pointer")).reversed();
 
-            // --- Reversed: ring_outer (starts first, no idle) ---
-            // t=0: at [1,1,1] (start of reversed = end of forward)
-            var r = ringOuterAnim.evaluate(0, true);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "ring_outer reversed t=0 should be [1,1,1]");
+            // ring_outer reversed: [0-3] scale [1,1,1]→[0,0,0]
+            var r = ringOuterRev.evaluate(0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_outer rev t=0");
+            r = ringOuterRev.evaluate(3.0);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_outer rev t=3");
 
-            // t=3: end of reversed → [0,0,0]
-            r = ringOuterAnim.evaluate(3.0, true);
-            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f,
-                "ring_outer reversed t=3 should be [0,0,0]");
+            // ring_inner reversed: idle [0-1], then [1-4] scale [1,1,1]→[0,0,0]
+            r = ringInnerRev.evaluate(0.5);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner rev t=0.5 idle");
+            r = ringInnerRev.evaluate(1.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "ring_inner rev t=1.0 start");
+            r = ringInnerRev.evaluate(4.0);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "ring_inner rev t=4.0 end");
 
-            // --- Reversed: ring_inner (idle 1s, then animate) ---
-            // t=0.5: in idle gap → hold at end state [1,1,1]
-            r = ringInnerAnim.evaluate(0.5, true);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "ring_inner reversed t=0.5 (idle) should be [1,1,1]");
-
-            // t=1.0: active starts, at [1,1,1]
-            r = ringInnerAnim.evaluate(1.0, true);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "ring_inner reversed t=1.0 (active start) should be [1,1,1]");
-
-            // t=4.0: end of reversed → [0,0,0]
-            r = ringInnerAnim.evaluate(4.0, true);
-            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f,
-                "ring_inner reversed t=4.0 should be [0,0,0]");
-
-            // --- Reversed: pointer (idle 2s, then animate) ---
-            // t=1.0: in idle gap → hold at [1,1,1]
-            r = pointerAnim.evaluate(1.0, true);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "pointer reversed t=1.0 (idle) should be [1,1,1]");
-
-            // t=2.0: active starts
-            r = pointerAnim.evaluate(2.0, true);
-            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f,
-                "pointer reversed t=2.0 (active start) should be [1,1,1]");
-
-            // t=5.0: end → [0,0,0]
-            r = pointerAnim.evaluate(5.0, true);
-            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f,
-                "pointer reversed t=5.0 should be [0,0,0]");
+            // pointer reversed: idle [0-2], then [2-5] scale [1,1,1]→[0,0,0]
+            r = pointerRev.evaluate(1.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "pointer rev t=1.0 idle");
+            r = pointerRev.evaluate(2.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "pointer rev t=2.0 start");
+            r = pointerRev.evaluate(5.0);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "pointer rev t=5.0 end");
         }
     }
 }

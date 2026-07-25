@@ -2,7 +2,7 @@ package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.animation.StartupAnimationConfig;
-import network.azusake.halo.animation.TransitionAnimation;
+import network.azusake.halo.animation.TransitionAnimationResult;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -63,9 +63,6 @@ public final class HaloRenderer {
      * seam / overlap issues.  Set to false for normal rendering.
      */
     public static final boolean RING_DEBUG_SEGMENTS = false;
-
-    /** Context for a transition animation, passed through the render tree. */
-    private record TransitionContext(boolean active, double elapsed, boolean isStartup, boolean isShutdown) {}
 
     /**
      * Throttle chat warnings for missing definitions — only show one per
@@ -242,12 +239,17 @@ public final class HaloRenderer {
         double transitionElapsed = instance.getTransitionElapsed();
         boolean isStartup = instance.isTransitionIsStartup();
 
-        TransitionContext transition = new TransitionContext(
-            transitionActive,
-            transitionElapsed,
-            isStartup,
-            !isStartup
-        );
+        // ---- Build transition animation for this instance ----
+        TransitionAnimationResult transitionAnim = null;
+        if (transitionActive) {
+            StartupAnimationConfig config = isStartup ? startupConfig : shutdownConfig;
+            if (config == null && !isStartup) config = startupConfig; // fallback: reverse startup
+            if (config != null) {
+                // Build a dummy animation using the default segments for timing
+                // (per-group resolution happens in renderGroup)
+                transitionAnim = config.getAnimationForGroup(Optional.empty());
+            }
+        }
 
         // ---- compute anchor frame ----
         AnchorFrame frame = frameCalculator.calculate(instance, entity, def, camera, tickDelta, dt);
@@ -312,7 +314,9 @@ public final class HaloRenderer {
 
             // Step 3: Recursive group rendering
             for (HaloGroup group : model.groups()) {
-                renderGroup(group, matrices, animTime, brightness, transition, List.of(), startupConfig, shutdownConfig);
+                renderGroup(group, matrices, animTime, brightness,
+                    transitionActive, transitionElapsed, isStartup,
+                    startupConfig, shutdownConfig);
             }
         } finally {
             matrices.pop();
@@ -329,12 +333,11 @@ public final class HaloRenderer {
      * Recursively render a {@link HaloGroup}: apply group transform,
      * draw all primitives, then recurse into child groups.
      *
-     * <p>When a transition is active, the group's resolved transition segments
-     * are evaluated and applied as an additional offset, scale, and opacity
-     * transform.</p>
+     * <p>When a transition is active, the group's pre-built animation
+     * is evaluated and applied as additional offset, scale, and opacity.</p>
      */
     private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness,
-                              TransitionContext transition, List<TransitionAnimation.TransitionSegment> inheritedSegments,
+                              boolean transitionActive, double transitionElapsed, boolean isStartup,
                               StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
         matrices.push();
         try {
@@ -345,7 +348,7 @@ public final class HaloRenderer {
 
             // Per-group visual animation (offset + rotation + scale)
             // Blocked during transition — all startup animations must complete first
-            if (!transition.active()) {
+            if (!transitionActive) {
                 group.animation().ifPresent(anim -> {
                     if (!anim.isEmpty()) {
                         Vec3d animOff = anim.evaluateOffset(animTime);
@@ -358,18 +361,17 @@ public final class HaloRenderer {
                 });
             }
 
-            // Resolve this group's transition segments (with inheritance)
-            List<TransitionAnimation.TransitionSegment> mySegments =
-                resolveSegments(group.id(), startupConfig, shutdownConfig, inheritedSegments, transition.isStartup());
-
             // Apply transition animation
             float transitionOpacity = 1.0f;
-            if (transition.active() && !mySegments.isEmpty()) {
-                TransitionAnimation anim = new TransitionAnimation(mySegments);
-                TransitionAnimation.TransitionResult tr = anim.evaluate(transition.elapsed(), transition.isShutdown());
-                matrices.translate(tr.offset().x, tr.offset().y, tr.offset().z);
-                matrices.scale(tr.scale()[0], tr.scale()[1], tr.scale()[2]);
-                transitionOpacity = tr.opacity();
+            if (transitionActive) {
+                TransitionAnimationResult anim = resolveAnimation(
+                    group.id(), isStartup, startupConfig, shutdownConfig);
+                if (anim != null) {
+                    TransitionAnimationResult.TransitionResult tr = anim.evaluate(transitionElapsed);
+                    matrices.translate(tr.offset().x, tr.offset().y, tr.offset().z);
+                    matrices.scale(tr.scale()[0], tr.scale()[1], tr.scale()[2]);
+                    transitionOpacity = tr.opacity();
+                }
             }
 
             // Apply opacity if needed
@@ -395,62 +397,31 @@ public final class HaloRenderer {
                 RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
             }
 
-            // Recurse into child groups (inherited transform and transition segments)
+            // Recurse into child groups
             for (HaloGroup child : group.children()) {
-                renderGroup(child, matrices, animTime, brightness, transition, mySegments, startupConfig, shutdownConfig);
+                renderGroup(child, matrices, animTime, brightness,
+                    transitionActive, transitionElapsed, isStartup,
+                    startupConfig, shutdownConfig);
             }
         } finally {
             matrices.pop();
         }
     }
 
-    // ------------------------------------------------------------------
-    // Transition segment resolution
-    // ------------------------------------------------------------------
-
     /**
-     * Resolve the transition segments for a group, respecting inheritance.
-     * Per-group overrides take priority, then the config's default segments,
-     * then inherited segments from the parent group.
-     *
-     * @param groupId       the group's id (may be empty)
-     * @param startupConfig the startup animation config (may be null)
-     * @param shutdownConfig the shutdown animation config (may be null)
-     * @param inherited     segments inherited from the parent group
-     * @param isStartup     whether the current transition is a startup
-     * @return the resolved segment list (may be empty)
+     * Resolve the pre-built animation for a group.
+     * For shutdown without explicit config, returns the reversed startup animation.
      */
-    private List<TransitionAnimation.TransitionSegment> resolveSegments(
-            Optional<String> groupId,
-            StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig,
-            List<TransitionAnimation.TransitionSegment> inherited, boolean isStartup) {
-
+    private TransitionAnimationResult resolveAnimation(Optional<String> groupId, boolean isStartup,
+                                                        StartupAnimationConfig startupConfig,
+                                                        StartupAnimationConfig shutdownConfig) {
         StartupAnimationConfig config = isStartup ? startupConfig : shutdownConfig;
+        if (config == null && !isStartup) config = startupConfig;
+        if (config == null) return null;
 
-        // For shutdown without explicit config, fall back to reversing startup
-        if (config == null && !isStartup) {
-            config = startupConfig;
-        }
-
-        // Per-group override
-        if (config != null && groupId.isPresent()) {
-            List<TransitionAnimation.TransitionSegment> override = config.idOverrides().get(groupId.get());
-            if (override != null && !override.isEmpty()) {
-                return override;
-            }
-        }
-
-        // Config default segments
-        if (config != null && !config.segments().isEmpty()) {
-            return config.segments();
-        }
-
-        // Inherited from parent
-        if (inherited != null && !inherited.isEmpty()) {
-            return inherited;
-        }
-
-        return List.of();
+        TransitionAnimationResult anim = config.getAnimationForGroup(groupId);
+        if (anim == null) return null;
+        return isStartup ? anim : anim.reversed();
     }
 
     // ------------------------------------------------------------------
