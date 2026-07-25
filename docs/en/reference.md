@@ -27,6 +27,7 @@ A halo definition JSON file contains the following top-level fields:
 ```json
 {
   "id": "halo:example",
+  "version": "1.0.10",
   "orientation_mode": "locked",
   "allow_angular_momentum": true,
   "sync_offset": [0.0, 0.0, 0.0],
@@ -38,6 +39,14 @@ A halo definition JSON file contains the following top-level fields:
   "damping": { ... }
 }
 ```
+
+### `version`
+
+- **Type**: String
+- **Required**: No
+- **Default**: `"1.0.10"` (when absent, the definition is treated as this version)
+- **Format**: Semantic version `major.minor.patch`, e.g. `"1.0.10"`
+- **Description**: The schema version this definition was written for. The parser uses this to handle format changes across mod versions. If the definition's version is higher than the mod supports, a warning is logged and unrecognized fields are skipped — rendering may fail. You can safely omit this field for definitions written for the current mod version.
 
 ### `id`
 

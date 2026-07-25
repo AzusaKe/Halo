@@ -5,6 +5,7 @@ import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloPositioning;
 import network.azusake.halo.data.OrientationMode;
+import network.azusake.halo.data.SchemaVersion;
 import network.azusake.halo.shape.*;
 import com.google.gson.*;
 import net.minecraft.util.Identifier;
@@ -24,8 +25,30 @@ import java.util.stream.StreamSupport;
 /**
  * Gson {@link JsonDeserializer} for {@link HaloDefinition}.
  *
- * <p>Handles the new layered model format with per-layer transforms,
+ * <p>Handles the layered/grouped model format with per-group transforms,
  * orientation mode, and polymorphic primitive types.</p>
+ *
+ * <h3>Schema Versioning Strategy</h3>
+ * <p>Each halo definition JSON may carry a {@code "version"} field (e.g. {@code "1.0.10"}).
+ * When absent, the definition is treated as {@link SchemaVersion#CURRENT}.  The version
+ * is parsed via {@link SchemaVersion#parse(String)} and threaded through all parsing
+ * methods so that future breaking changes can be handled with version-gated branches:</p>
+ * <pre>{@code
+ *   if (version.isBefore(new SchemaVersion(1, 1, 0))) {
+ *       // old format path
+ *   } else {
+ *       // new format path
+ *   }
+ * }</pre>
+ * <p><b>When introducing a breaking change:</b></p>
+ * <ol>
+ *   <li>Bump {@link SchemaVersion#CURRENT} to the new version</li>
+ *   <li>Add a version branch in the affected parse method(s)</li>
+ *   <li>Keep the old code path under the {@code isBefore} guard</li>
+ * </ol>
+ * <p>Do NOT freeze or copy the entire parser — keep all version branches inline
+ * within the same deserializer.  Only extract helper methods when a single
+ * parse method grows too complex (more than ~2 levels of version nesting).</p>
  */
 public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefinition> {
 
@@ -55,8 +78,24 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
 
         JsonObject root = json.getAsJsonObject();
 
+        // Schema version: defaults to CURRENT when absent (backward compat with pre-versioning files)
+        SchemaVersion schemaVersion = SchemaVersion.CURRENT;
+        if (root.has("version")) {
+            try {
+                schemaVersion = SchemaVersion.parse(root.get("version").getAsString());
+            } catch (Exception e) {
+                throw new JsonParseException("Invalid 'version' field: " + root.get("version").getAsString(), e);
+            }
+            if (schemaVersion.compareTo(SchemaVersion.CURRENT) > 0) {
+                LOG.warn("[Halo] Definition '{}' requires schema version {} but this mod only supports up to {}. " +
+                    "Please update the Halo mod — unrecognized fields will be skipped and rendering may fail.",
+                    root.has("id") ? root.get("id").getAsString() : "<unknown>",
+                    schemaVersion, SchemaVersion.CURRENT);
+            }
+        }
+
         Identifier id = parseId(root, "id");
-        HaloModel model = parseModel(root);
+        HaloModel model = parseModel(root, schemaVersion);
         Optional<LayerAnimation> animation = parseLayerAnimation(root.get("animation"));
         HaloPositioning positioning = parsePositioning(root.getAsJsonObject("positioning"));
         boolean allowAngularMomentum = root.has("allow_angular_momentum")
@@ -70,14 +109,14 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             ? root.get("display_in_invisible").getAsBoolean()
             : false;
 
-        return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep, displayInInvisible);
+        return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep, displayInInvisible, schemaVersion);
     }
 
     // ------------------------------------------------------------------
     // Model & Layers (new format)
     // ------------------------------------------------------------------
 
-    private HaloModel parseModel(JsonObject root) {
+    private HaloModel parseModel(JsonObject root, SchemaVersion version) {
         // Orientation mode: "locked" (default), "free", or "sync"
         OrientationMode mode = OrientationMode.LOCKED;
         if (root.has("orientation_mode")) {

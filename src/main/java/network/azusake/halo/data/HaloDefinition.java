@@ -17,6 +17,7 @@ import java.util.Optional;
  * @param damping         physics damping / interpolation parameters
  * @param hideOnSleep      when true, the halo stops rendering while the entity is sleeping
  * @param displayInInvisible when false (default), the halo stops rendering while the entity is invisible
+ * @param schemaVersion    the schema version this definition was written for (determines parsing behavior)
  */
 public record HaloDefinition(
     Identifier id,
@@ -25,5 +26,6 @@ public record HaloDefinition(
     HaloPositioning positioning,
     HaloDampingConfig damping,
     boolean hideOnSleep,
-    boolean displayInInvisible
+    boolean displayInInvisible,
+    SchemaVersion schemaVersion
 ) {}

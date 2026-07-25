@@ -255,6 +255,7 @@ public final class HaloConfigCommand {
         for (HaloDefinition def : defs.values()) {
             source.sendFeedback(() -> Text.literal(
                 "§7  - §f" + def.id() +
+                    " §8v=§7" + def.schemaVersion() +
                     " §8layers=§7" + def.model().groups().size() +
                     " §8anim=§7" + (def.animation().isPresent() ? "yes" : "no") +
                     " §8damping=§7k=" + def.damping().linearFactor()
