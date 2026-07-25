@@ -119,13 +119,22 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
 
         // Pre-compute reversed queue info if needed
         List<QueueEntry> revQueue = reversed ? buildReversedQueue() : null;
-        double total = reversed ? reversedTotalDuration(revQueue) : totalDurationFor(segments);
+        double total = totalDurationFor(segments);
+        double reversedEnd = reversed ? lastActiveEndTime(revQueue) : total;
 
         if (elapsed <= 0) {
             return reversed ? resolveRevFirst(revQueue) : resolveFinalOrFirst(segments, true);
         }
-        if (elapsed >= total) {
-            return reversed ? resolveRevFinal(revQueue) : resolveFinalOrFirst(segments, false);
+        if (elapsed >= reversedEnd) {
+            // Evaluate at the end of the last active entry (before trailing idle)
+            double evalTime = Math.max(0, reversedEnd - 1e-6);
+            if (reversed) {
+                float[] off = evaluateRevProperty(revQueue, evalTime, DEFAULT_OFFSET, e -> e.propOffset());
+                float[] scl = evaluateRevProperty(revQueue, evalTime, DEFAULT_SCALE, e -> e.propScale());
+                float op = evaluateRevScalar(revQueue, evalTime, DEFAULT_OPACITY, e -> e.propOpacity());
+                return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, op);
+            }
+            return resolveFinalOrFirst(segments, false);
         }
 
         float[] offset = reversed
@@ -233,9 +242,9 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
      */
     private List<QueueEntry> buildReversedQueue() {
         // Compute per-property queue timelines
-        List<PropQueueEntry> offQ = computePropQueue(segs -> segs.offset());
-        List<PropQueueEntry> sclQ = computePropQueue(segs -> segs.scale());
-        List<PropQueueEntry> opQ  = computePropQueue(segs -> segs.opacity());
+        List<PropQueueEntry> offQ = computePropQueue(seg -> seg.offset(), DEFAULT_OFFSET);
+        List<PropQueueEntry> sclQ = computePropQueue(seg -> seg.scale(), DEFAULT_SCALE);
+        List<PropQueueEntry> opQ  = computePropQueue(seg -> seg.opacity(), new float[]{DEFAULT_OPACITY});
 
         double total = totalDurationFor(segments);
 
@@ -254,7 +263,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     /**
      * Compute the forward queue for a single property.
      */
-    private List<PropQueueEntry> computePropQueue(PropertyExtractor extractor) {
+    private List<PropQueueEntry> computePropQueue(PropertyExtractor extractor, float[] defaultVal) {
         List<PropQueueEntry> queue = new ArrayList<>();
         double segStart = 0;
         double prevPropEnd = 0;
@@ -264,8 +273,9 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             if (prop != null) {
                 double propDur = propDuration(prop, seg.duration());
                 double propStart = Math.max(segStart, prevPropEnd);
-                float[] from = (prop.from() != null) ? prop.from() : DEFAULT_OFFSET;
-                float[] to = (prop.to() != null) ? prop.to() : DEFAULT_OFFSET;
+                float[] from = (prop.from() != null) ? prop.from() : defaultVal;
+                // When to is null, use defaultVal (steady-state), not from
+                float[] to = (prop.to() != null) ? prop.to() : defaultVal;
                 EasingType easing = propEasing(prop, seg.easing());
                 queue.add(new PropQueueEntry(propStart, propDur, easing, from, to));
                 prevPropEnd = propStart + propDur;
@@ -276,44 +286,51 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     }
 
     /**
-     * Reverse a property queue: last active becomes first, with idle gaps
-     * converted to hold-at-end-state entries.
+     * Reverse a property queue preserving the stagger pattern.
+     *
+     * <p>Reversed order: last forward entry → first reversed (no idle).
+     * Each subsequent reversed entry has an idle gap equal to the difference
+     * between the current and previous forward entry's start time.</p>
+     *
+     * <p>Forward: pointer[start=0], ring_inner[start=1], ring_outer[start=2]
+     * Reversed: ring_outer[idle=0, 0-3], ring_inner[idle=1, 1-4], pointer[idle=2, 2-5]</p>
      */
     private List<PropQueueEntry> reversePropQueue(List<PropQueueEntry> forward, double total,
                                                    float[] defaultVal) {
         if (forward.isEmpty()) {
-            return List.of(); // never animated — stays at default
+            return List.of();
         }
 
-        // Build reversed active entries
-        List<PropQueueEntry> revActive = new ArrayList<>();
+        // Build reversed entries with staggered idle gaps
+        // Idle gap = difference in forward start times between this and previous reversed entry
+        List<PropQueueEntry> reversed = new ArrayList<>();
+        double prevFwdStart = forward.get(forward.size() - 1).startTime; // last forward's start
+
         for (int i = forward.size() - 1; i >= 0; i--) {
             PropQueueEntry e = forward.get(i);
-            double revStart = total - (e.startTime + e.duration);
-            revActive.add(new PropQueueEntry(revStart, e.duration, e.easing, e.to, e.from));
+            double idleGap = (i == forward.size() - 1) ? 0 : e.startTime - prevFwdStart;
+            prevFwdStart = e.startTime;
+            reversed.add(new PropQueueEntry(idleGap, e.duration, e.easing, e.to, e.from));
         }
 
-        // Insert idle gaps between reversed active entries
+        // Assign absolute start times based on cumulative idle
         List<PropQueueEntry> result = new ArrayList<>();
-        float[] lastEndVal = forward.get(forward.size() - 1).to; // end state
+        double cursor = 0;
 
-        for (int i = 0; i < revActive.size(); i++) {
-            PropQueueEntry rev = revActive.get(i);
-            double expectedStart = (i == 0) ? 0 : revActive.get(i - 1).startTime + revActive.get(i - 1).duration;
-            if (rev.startTime > expectedStart + 0.001) {
-                // Idle gap: hold at end state
-                result.add(new PropQueueEntry(expectedStart, rev.startTime - expectedStart,
-                    EasingType.LINEAR, lastEndVal, lastEndVal));
+        for (PropQueueEntry rev : reversed) {
+            double idle = rev.startTime; // startTime temporarily holds the idle gap
+            if (idle > 0.0001) {
+                result.add(new PropQueueEntry(cursor, idle,
+                    EasingType.LINEAR, defaultVal, defaultVal));
             }
-            result.add(rev);
+            double propStart = cursor + idle;
+            result.add(new PropQueueEntry(propStart, rev.duration, rev.easing, rev.from, rev.to));
+            cursor = propStart + rev.duration;
         }
 
-        // Trailing idle after last active entry
-        PropQueueEntry lastRev = revActive.get(revActive.size() - 1);
-        double lastEnd = lastRev.startTime + lastRev.duration;
-        if (lastEnd < total - 0.001) {
-            result.add(new PropQueueEntry(lastEnd, total - lastEnd,
-                EasingType.LINEAR, lastEndVal, lastEndVal));
+        if (cursor < total - 0.0001) {
+            result.add(new PropQueueEntry(cursor, total - cursor,
+                EasingType.LINEAR, defaultVal, defaultVal));
         }
 
         return result;
@@ -396,21 +413,33 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, op);
     }
 
-    private TransitionResult resolveRevFinal(List<QueueEntry> queue) {
-        if (queue.isEmpty()) return TransitionResult.DEFAULT;
-        QueueEntry last = queue.get(queue.size() - 1);
-        float[] off = last.propOffset() != null ? (last.propOffset().to() != null ? last.propOffset().to() : DEFAULT_OFFSET) : DEFAULT_OFFSET;
-        float[] scl = last.propScale() != null ? (last.propScale().to() != null ? last.propScale().to() : DEFAULT_SCALE) : DEFAULT_SCALE;
-        float op = last.propOpacity() != null ? (last.propOpacity().to() != null ? last.propOpacity().to()[0] : DEFAULT_OPACITY) : DEFAULT_OPACITY;
-        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, op);
+    /**
+     * Find the end time of the last ACTIVE entry in the reversed queue.
+     * Trailing idle/hold entries (from==to) are skipped.
+     * This is the time when the reversed animation actually finishes
+     * (all groups have faded out), not including the hold period.
+     */
+    private double lastActiveEndTime(List<QueueEntry> queue) {
+        for (int i = queue.size() - 1; i >= 0; i--) {
+            QueueEntry e = queue.get(i);
+            if (!isIdleEntry(e)) {
+                return e.startTime() + e.duration();
+            }
+        }
+        return totalDurationFor(segments);
     }
 
-    private double reversedTotalDuration(List<QueueEntry> queue) {
-        double max = 0;
-        for (QueueEntry e : queue) {
-            max = Math.max(max, e.startTime() + e.duration());
+    private static boolean isIdleEntry(QueueEntry e) {
+        TransitionProperty prop = (e.propScale() != null) ? e.propScale()
+            : (e.propOffset() != null) ? e.propOffset()
+            : e.propOpacity();
+        if (prop == null || prop.from() == null || prop.to() == null) return true;
+        for (int i = 0; i < Math.max(prop.from().length, prop.to().length); i++) {
+            float f = i < prop.from().length ? prop.from()[i] : 0;
+            float t = i < prop.to().length ? prop.to()[i] : 0;
+            if (Math.abs(f - t) > 0.001f) return false;
         }
-        return max;
+        return true;
     }
 
     // ==================================================================
@@ -469,8 +498,13 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         for (TransitionSegment seg : segs) {
             TransitionProperty prop = extractor.extract(seg);
             if (prop == null) continue;
-            if (prop.to() != null) last = prop.to();
-            else if (prop.from() != null) last = prop.from();
+            // When to is null, the steady-state value is defaultVal, not from.
+            // The from value is only used during interpolation (where interpolateProperty
+            // fills null to with defaultVal). For final resolution, defaultVal is correct.
+            if (prop.to() != null) {
+                last = prop.to();
+            }
+            // else: to is null → steady-state = defaultVal, don't set last
         }
         return (last != null) ? last : defaultVal;
     }
