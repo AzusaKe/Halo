@@ -152,7 +152,7 @@
       "pointer": {
         "segments": [
           {
-            "duration": 3,
+            "duration": 0.3,
             "easing": "ease_out_cubic",
             "scale": { "from": [0.0, 0.0, 0.0] }
           }
@@ -161,11 +161,11 @@
       "ring_inner": {
         "segments": [
           {
-            "duration": 1,
+            "duration": 0.1,
             "easing": "ease_out_cubic"
           },
           {
-            "duration": 3,
+            "duration": 0.3,
             "easing": "ease_out_cubic",
             "scale": { "from": [0.0, 0.0, 0.0] }
           }
@@ -174,11 +174,11 @@
       "ring_outer": {
         "segments": [
           {
-            "duration": 2,
+            "duration": 0.2,
             "easing": "ease_out_cubic"
           },
           {
-            "duration": 3,
+            "duration": 0.3,
             "easing": "ease_out_cubic",
             "scale": { "from": [0.0, 0.0, 0.0] }
           }
