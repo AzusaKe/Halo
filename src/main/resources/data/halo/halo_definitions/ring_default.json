@@ -2,92 +2,107 @@
   "id": "halo:ring_default",
   "orientation_mode": "locked",
   "allow_angular_momentum": true,
+  "hide_on_sleep": true,
   "layers": [
     {
-      "position": [0.0, -0.001, 0.0],
-      "rotation": [0.0, 0.0, 0.0],
-      "scale": 1.5,
-      "animation": {
-        "offset": {
-          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
-        }
-      },
-      "primitive": {
-        "type": "billboard",
-        "texture": "halo:textures/halo/ring_03.png",
-        "size": [0.5, 0.5]
-      }
-    },
-    {
+      "id": "pointer",
       "position": [0.0, 0.0, 0.0],
       "rotation": [0.0, 0.0, 0.0],
       "scale": 1.5,
-      "animation": {
-        "offset": {
-          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+      "children": [
+        {
+          "id": "dot1",
+          "position": [0.0, -0.001, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": 1,
+          "animation": {
+            "offset": {
+              "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+            }
+          },
+          "primitive": {
+            "type": "billboard",
+            "texture": "halo:textures/halo/ring_03.png",
+            "size": [0.5, 0.5]
+          }
         },
-        "rotation": {
-          "yaw": [{ "function": "linear", "start": 0, "speed": -0.008333 }]
-        }
-      },
-      "primitive": {
-        "type": "billboard",
-        "texture": "halo:textures/halo/ring_00.png",
-        "size": [0.5, 0.5]
-      }
-    },
-    {
-      "position": [0.0, 0.001, 0.0],
-      "rotation": [0.0, 0.0, 0.0],
-      "scale": 1.5,
-      "animation": {
-        "offset": {
-          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        {
+          "id": "hour",
+          "position": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": 1,
+          "animation": {
+            "offset": {
+              "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+            },
+            "rotation": {
+              "yaw": [{ "function": "linear", "start": 0, "speed": -0.008333 }]
+            }
+          },
+          "primitive": {
+            "type": "billboard",
+            "texture": "halo:textures/halo/ring_00.png",
+            "size": [0.5, 0.5]
+          }
         },
-        "rotation": {
-          "yaw": [{ "function": "linear", "start": 0, "speed": -0.1 }]
-        }
-      },
-      "primitive": {
-        "type": "billboard",
-        "texture": "halo:textures/halo/ring_01.png",
-        "size": [0.5, 0.5]
-      }
-    },
-    {
-      "position": [0.0, 0.002, 0.0],
-      "rotation": [0.0, 0.0, 0.0],
-      "scale": 1.5,
-      "animation": {
-        "offset": {
-          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        {
+          "id": "minute",
+          "position": [0.0, 0.001, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": 1,
+          "animation": {
+            "offset": {
+              "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+            },
+            "rotation": {
+              "yaw": [{ "function": "linear", "start": 0, "speed": -0.1 }]
+            }
+          },
+          "primitive": {
+            "type": "billboard",
+            "texture": "halo:textures/halo/ring_01.png",
+            "size": [0.5, 0.5]
+          }
         },
-        "rotation": {
-          "yaw": [{ "function": "linear", "start": 0, "speed": -6.0 }]
+        {
+          "id": "second",
+          "position": [0.0, 0.002, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": 1,
+          "animation": {
+            "offset": {
+              "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+            },
+            "rotation": {
+              "yaw": [{ "function": "linear", "start": 0, "speed": -6.0 }]
+            }
+          },
+          "primitive": {
+            "type": "billboard",
+            "texture": "halo:textures/halo/ring_02.png",
+            "size": [0.5, 0.5]
+          }
+        },
+        {
+          "id": "dot2",
+          "position": [0.0, 0.003, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": 1,
+          "animation": {
+            "offset": {
+              "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+            }
+          },
+          "primitive": {
+            "type": "billboard",
+            "texture": "halo:textures/halo/ring_03.png",
+            "size": [0.5, 0.5]
+          }
         }
-      },
-      "primitive": {
-        "type": "billboard",
-        "texture": "halo:textures/halo/ring_02.png",
-        "size": [0.5, 0.5]
-      }
+      ]
     },
     {
-      "position": [0.0, 0.003, 0.0],
-      "rotation": [0.0, 0.0, 0.0],
-      "scale": 1.5,
-      "animation": {
-        "offset": {
-          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
-        }
-      },
-      "primitive": {
-        "type": "billboard",
-        "texture": "halo:textures/halo/ring_03.png",
-        "size": [0.5, 0.5]
-      }
-    },
-    {
+      "id": "ring_inner",
       "position": [0.0, 0.015, 0.0],
       "rotation": [0.0, 0.0, 0.0],
       "scale": 1.5,
@@ -103,6 +118,7 @@
       }
     },
     {
+      "id": "ring_outer",
       "position": [0.0, 0.045, 0.0],
       "rotation": [0.0, 0.0, 0.0],
       "scale": 1.5,
@@ -130,5 +146,44 @@
     "maxAngularDegrees": 180.0,
     "angularMomentumFactor": 0.3,
     "maxAngularMomentumDegrees": 45.0
+  },
+  "startup": {
+    "id_overrides": {
+      "pointer": {
+        "segments": [
+          {
+            "duration": 3,
+            "easing": "ease_out_cubic",
+            "scale": { "from": [0.0, 0.0, 0.0], "to": [1, 1, 1] }
+          }
+        ]
+      },
+      "ring_inner": {
+        "segments": [
+          {
+            "duration": 1,
+            "easing": "ease_out_cubic"
+          },
+          {
+            "duration": 3,
+            "easing": "ease_out_cubic",
+            "scale": { "from": [0.0, 0.0, 0.0], "to": [1, 1, 1] }
+          }
+        ]
+      },
+      "ring_outer": {
+        "segments": [
+          {
+            "duration": 2,
+            "easing": "ease_out_cubic"
+          },
+          {
+            "duration": 3,
+            "easing": "ease_out_cubic",
+            "scale": { "from": [0.0, 0.0, 0.0], "to": [1, 1, 1] }
+          }
+        ]
+      }
+    }
   }
 }

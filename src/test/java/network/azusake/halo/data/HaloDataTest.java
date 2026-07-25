@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -79,7 +80,7 @@ class HaloDataTest {
             HaloPositioning pos = new HaloPositioning(Vec3d.ZERO, 1.0);
             HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0, false, 0.3, 45.0);
 
-            HaloDefinition def = new HaloDefinition(id, model, Optional.empty(), pos, damp, false, false, SchemaVersion.CURRENT);
+            HaloDefinition def = new HaloDefinition(id, model, Optional.empty(), pos, damp, false, false, SchemaVersion.CURRENT, Optional.empty(), Optional.empty());
             assertEquals(id, def.id());
             assertEquals(model, def.model());
             assertTrue(def.animation().isEmpty());
@@ -949,6 +950,388 @@ class HaloDataTest {
             assertTrue(serialized.contains("halo:textures/halo/ring"));
             Identifier deserialized = gson.fromJson(serialized, Identifier.class);
             assertEquals(original.toString(), deserialized.toString());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 6. EasingType
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("EasingType")
+    class EasingTypeTests {
+
+        @Test
+        @DisplayName("LINEAR: evaluates to t")
+        void linearEasing() {
+            assertEquals(0.0, EasingType.LINEAR.evaluate(0.0), 1e-9);
+            assertEquals(0.5, EasingType.LINEAR.evaluate(0.5), 1e-9);
+            assertEquals(1.0, EasingType.LINEAR.evaluate(1.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("EASE_OUT_CUBIC: endpoints and midpoint")
+        void easeOutCubic() {
+            assertEquals(0.0, EasingType.EASE_OUT_CUBIC.evaluate(0.0), 1e-9);
+            assertEquals(0.875, EasingType.EASE_OUT_CUBIC.evaluate(0.5), 1e-6);
+            assertEquals(1.0, EasingType.EASE_OUT_CUBIC.evaluate(1.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("EASE_IN_OUT_CUBIC: endpoints and midpoint")
+        void easeInOutCubic() {
+            assertEquals(0.0, EasingType.EASE_IN_OUT_CUBIC.evaluate(0.0), 1e-9);
+            assertEquals(0.5, EasingType.EASE_IN_OUT_CUBIC.evaluate(0.5), 1e-9);
+            assertEquals(1.0, EasingType.EASE_IN_OUT_CUBIC.evaluate(1.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("fromString: case-insensitive parsing")
+        void fromStringParsing() {
+            assertEquals(EasingType.LINEAR, EasingType.fromString("linear"));
+            assertEquals(EasingType.LINEAR, EasingType.fromString("LINEAR"));
+            assertEquals(EasingType.EASE_OUT_CUBIC, EasingType.fromString("ease_out_cubic"));
+            assertEquals(EasingType.EASE_IN_OUT_CUBIC, EasingType.fromString("EASE_IN_OUT_CUBIC"));
+            assertEquals(EasingType.LINEAR, EasingType.fromString(""));
+            assertEquals(EasingType.LINEAR, EasingType.fromString(null));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 7. TransitionAnimation
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("TransitionAnimation")
+    class TransitionAnimationTests {
+
+        @Test
+        @DisplayName("Single segment offset: linear interpolation over 1s")
+        void singleSegmentOffsetLinear() {
+            var segment = new TransitionAnimation.TransitionSegment(
+                1.0,
+                EasingType.LINEAR,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0f, 0.05f, 0f}, new float[]{0f, 0f, 0f}),
+                null,
+                null
+            );
+            var anim = new TransitionAnimation(List.of(segment));
+
+            // At t=0: from values
+            var r0 = anim.evaluate(0.0, false);
+            assertEquals(0.0f, r0.offset().x, 1e-6f);
+            assertEquals(0.05f, r0.offset().y, 1e-6f);
+            assertEquals(0.0f, r0.offset().z, 1e-6f);
+
+            // At t=0.5: midpoint
+            var r5 = anim.evaluate(0.5, false);
+            assertEquals(0.0f, r5.offset().x, 1e-6f);
+            assertEquals(0.025f, r5.offset().y, 1e-6f);
+            assertEquals(0.0f, r5.offset().z, 1e-6f);
+
+            // At t=1.0: end values
+            var r1 = anim.evaluate(1.0, false);
+            assertEquals(0.0f, r1.offset().x, 1e-6f);
+            assertEquals(0.0f, r1.offset().y, 1e-6f);
+            assertEquals(0.0f, r1.offset().z, 1e-6f);
+
+            // Past end: clamped to end
+            var r15 = anim.evaluate(1.5, false);
+            assertEquals(0.0f, r15.offset().y, 1e-6f);
+        }
+
+        @Test
+        @DisplayName("Multi-segment scale: two segments with overshoot")
+        void multiSegmentScale() {
+            var seg1 = new TransitionAnimation.TransitionSegment(
+                0.3,
+                EasingType.LINEAR,
+                null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0.5f, 0.5f, 0.5f}, new float[]{1.2f, 1.2f, 1.2f}),
+                null
+            );
+            var seg2 = new TransitionAnimation.TransitionSegment(
+                0.3,
+                EasingType.LINEAR,
+                null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{1.2f, 1.2f, 1.2f}, new float[]{1f, 1f, 1f}),
+                null
+            );
+            var anim = new TransitionAnimation(List.of(seg1, seg2));
+
+            // At t=0: first segment start
+            var r0 = anim.evaluate(0.0, false);
+            assertEquals(0.5f, r0.scale()[0], 1e-6f);
+
+            // At t=0.3: end of first segment / start of second
+            var r03 = anim.evaluate(0.3, false);
+            assertEquals(1.2f, r03.scale()[0], 1e-6f);
+
+            // At t=0.6: end of second segment
+            var r06 = anim.evaluate(0.6, false);
+            assertEquals(1.0f, r06.scale()[0], 1e-6f);
+        }
+
+        @Test
+        @DisplayName("Reversed evaluation swaps from/to and reverses order")
+        void reversedEvaluation() {
+            var segment = new TransitionAnimation.TransitionSegment(
+                1.0,
+                EasingType.LINEAR,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0f, 0.05f, 0f}, new float[]{0f, 0f, 0f}),
+                null,
+                null
+            );
+            var anim = new TransitionAnimation(List.of(segment));
+
+            // Reversed at t=0: should be at the "to" value (now becomes "from" in reversed)
+            var r0 = anim.evaluate(0.0, true);
+            assertEquals(0.0f, r0.offset().y, 1e-6f); // was "to", now reversed start
+
+            // Reversed at t=1.0: should be at the original "from" value
+            var r1 = anim.evaluate(1.0, true);
+            assertEquals(0.05f, r1.offset().y, 1e-6f); // original "from"
+        }
+
+        @Test
+        @DisplayName("Opacity fade from 0 to 1")
+        void opacityFade() {
+            var segment = new TransitionAnimation.TransitionSegment(
+                1.0,
+                EasingType.LINEAR,
+                null,
+                null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0f}, new float[]{1f})
+            );
+            var anim = new TransitionAnimation(List.of(segment));
+
+            assertEquals(0.0f, anim.evaluate(0.0, false).opacity(), 1e-6f);
+            assertEquals(0.5f, anim.evaluate(0.5, false).opacity(), 1e-6f);
+            assertEquals(1.0f, anim.evaluate(1.0, false).opacity(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("Empty segments returns default result")
+        void emptySegmentsReturnsDefault() {
+            var anim = new TransitionAnimation(List.of());
+            var result = anim.evaluate(0.5, false);
+            assertEquals(TransitionAnimation.TransitionResult.DEFAULT.offset(), result.offset());
+            assertEquals(1.0f, result.opacity(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("totalDuration sums all segments")
+        void totalDuration() {
+            var seg1 = new TransitionAnimation.TransitionSegment(
+                0.5, EasingType.LINEAR, null, null, null);
+            var seg2 = new TransitionAnimation.TransitionSegment(
+                1.5, EasingType.EASE_OUT_CUBIC, null, null, null);
+            var anim = new TransitionAnimation(List.of(seg1, seg2));
+            assertEquals(2.0, anim.totalDuration(), 1e-9);
+        }
+
+        @Test
+        @DisplayName("Eased segment: EASE_OUT_CUBIC produces non-linear interpolation")
+        void easedSegmentNonLinear() {
+            var segment = new TransitionAnimation.TransitionSegment(
+                1.0,
+                EasingType.EASE_OUT_CUBIC,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0f, 0f, 0f}, new float[]{1f, 0f, 0f}),
+                null,
+                null
+            );
+            var anim = new TransitionAnimation(List.of(segment));
+
+            // At t=0.5, EASE_OUT_CUBIC gives 0.875, so offset.x should be 0.875
+            var r = anim.evaluate(0.5, false);
+            assertEquals(0.875f, r.offset().x, 1e-3f);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 8. Startup/Shutdown deserialization
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("Startup/Shutdown animation deserialization")
+    class StartupShutdownDeserializationTests {
+
+        @Test
+        @DisplayName("JSON with startup block: segments and id_overrides parsed")
+        void parseStartupWithOverrides() {
+            String json = """
+                {
+                  "id": "halo:startup_test",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "startup": {
+                    "segments": [
+                      {
+                        "duration": 0.5,
+                        "easing": "ease_out_cubic",
+                        "offset": { "from": [0.0, 0.05, 0.0], "to": [0.0, 0.0, 0.0] },
+                        "opacity": { "from": 0.0, "to": 1.0 }
+                      }
+                    ],
+                    "id_overrides": {
+                      "glow": [
+                        {
+                          "duration": 0.3,
+                          "easing": "linear",
+                          "opacity": { "from": 0.0, "to": 0.8 }
+                        }
+                      ]
+                    }
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertTrue(def.startupAnimation().isPresent());
+            var config = def.startupAnimation().get();
+
+            // Default segments
+            assertEquals(1, config.segments().size());
+            assertEquals(0.5, config.segments().get(0).duration(), 1e-9);
+            assertEquals(EasingType.EASE_OUT_CUBIC, config.segments().get(0).easing());
+            assertNotNull(config.segments().get(0).offset());
+            assertNotNull(config.segments().get(0).opacity());
+            assertEquals(0.0f, config.segments().get(0).opacity().from()[0], 1e-6f);
+            assertEquals(1.0f, config.segments().get(0).opacity().to()[0], 1e-6f);
+
+            // id_overrides
+            assertTrue(config.idOverrides().containsKey("glow"));
+            assertEquals(1, config.idOverrides().get("glow").size());
+            assertEquals(0.3, config.idOverrides().get("glow").get(0).duration(), 1e-9);
+            assertEquals(EasingType.LINEAR, config.idOverrides().get("glow").get(0).easing());
+        }
+
+        @Test
+        @DisplayName("JSON with shutdown block parsed independently")
+        void parseShutdownBlock() {
+            String json = """
+                {
+                  "id": "halo:shutdown_test",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "shutdown": {
+                    "segments": [
+                      {
+                        "duration": 1.0,
+                        "easing": "ease_in_out_cubic",
+                        "opacity": { "from": 1.0, "to": 0.0 },
+                        "scale": { "from": [1.0, 1.0, 1.0], "to": [0.8, 0.8, 0.8] }
+                      }
+                    ]
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertFalse(def.startupAnimation().isPresent());
+            assertTrue(def.shutdownAnimation().isPresent());
+
+            var config = def.shutdownAnimation().get();
+            assertEquals(1, config.segments().size());
+            assertEquals(1.0, config.segments().get(0).duration(), 1e-9);
+            assertEquals(EasingType.EASE_IN_OUT_CUBIC, config.segments().get(0).easing());
+            assertNotNull(config.segments().get(0).opacity());
+            assertEquals(1.0f, config.segments().get(0).opacity().from()[0], 1e-6f);
+            assertEquals(0.0f, config.segments().get(0).opacity().to()[0], 1e-6f);
+            assertNotNull(config.segments().get(0).scale());
+            assertEquals(0.8f, config.segments().get(0).scale().to()[0], 1e-6f);
+        }
+
+        @Test
+        @DisplayName("JSON without startup/shutdown: both Optional.empty()")
+        void noStartupShutdown() {
+            String json = """
+                {
+                  "id": "halo:no_anim",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertTrue(def.startupAnimation().isEmpty());
+            assertTrue(def.shutdownAnimation().isEmpty());
+        }
+
+        @Test
+        @DisplayName("StartupAnimationConfig.getSegmentsForGroup: override vs default")
+        void getSegmentsForGroupResolution() {
+            var defaultSeg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null);
+            var glowSeg = new TransitionAnimation.TransitionSegment(
+                0.5, EasingType.EASE_OUT_CUBIC, null, null, null);
+
+            var config = new StartupAnimationConfig(
+                List.of(defaultSeg),
+                Map.of("glow", List.of(glowSeg))
+            );
+
+            // Named group with override
+            var glowResult = config.getSegmentsForGroup(Optional.of("glow"));
+            assertEquals(1, glowResult.size());
+            assertEquals(0.5, glowResult.get(0).duration(), 1e-9);
+
+            // Named group without override → falls back to default
+            var otherResult = config.getSegmentsForGroup(Optional.of("other"));
+            assertEquals(1, otherResult.size());
+            assertEquals(1.0, otherResult.get(0).duration(), 1e-9);
+
+            // No group id → default
+            var noIdResult = config.getSegmentsForGroup(Optional.empty());
+            assertEquals(1, noIdResult.size());
         }
     }
 }

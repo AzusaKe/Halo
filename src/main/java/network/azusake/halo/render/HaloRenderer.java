@@ -1,9 +1,12 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
+import network.azusake.halo.animation.StartupAnimationConfig;
+import network.azusake.halo.animation.TransitionAnimation;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
+import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.physics.AnchorFrame;
 import network.azusake.halo.physics.AnchorFrameCalculator;
 import network.azusake.halo.shape.HaloPrimitive;
@@ -61,6 +64,9 @@ public final class HaloRenderer {
      */
     public static final boolean RING_DEBUG_SEGMENTS = false;
 
+    /** Context for a transition animation, passed through the render tree. */
+    private record TransitionContext(boolean active, double elapsed, boolean isStartup, boolean isShutdown) {}
+
     /**
      * Throttle chat warnings for missing definitions — only show one per
      * halo instance per 30 seconds to avoid spamming the chat during
@@ -69,6 +75,9 @@ public final class HaloRenderer {
     private long lastMissingDefWarningTime;
 
     private final AnchorFrameCalculator frameCalculator = AnchorFrameCalculator.getInstance();
+
+    /** Track instances that need to be removed from the manager after shutdown animations complete. */
+    private final List<UUID> pendingRemovals = new ArrayList<>();
 
     /** Timestamp (nanoTime) of the previous render frame, for delta-time. */
     private long prevFrameNanos;
@@ -133,6 +142,12 @@ public final class HaloRenderer {
                     instance.getEntityUuid(), e.getMessage());
             }
         }
+
+        // Process removals from completed shutdown animations
+        for (UUID uuid : pendingRemovals) {
+            HaloManager.getInstance().removeClientHalo(uuid);
+        }
+        pendingRemovals.clear();
     }
 
     // ------------------------------------------------------------------
@@ -170,14 +185,69 @@ public final class HaloRenderer {
         }
 
         // ---- hide while sleeping (reads per-tick cache) ----
-        if (def.hideOnSleep() && instance.isEntitySleeping()) {
+        boolean sleepHidden = def.hideOnSleep() && instance.isEntitySleeping();
+
+        // ---- hide while invisible (reads per-tick cache) ----
+        boolean invisHidden = !def.displayInInvisible() && instance.isEntityInvisible();
+
+        boolean shouldRender = !sleepHidden && !invisHidden;
+
+        // ---- Transition detection ----
+        if (shouldRender && !instance.isWasVisible()) {
+            // Became visible — start startup transition
+            instance.startTransition(true);
+        } else if (!shouldRender && instance.isWasVisible()) {
+            // Became hidden (sleep/invis) — start shutdown transition
+            instance.startTransition(false);
+        }
+        instance.setWasVisible(shouldRender);
+
+        // ---- Handle pending removal with shutdown animation ----
+        if (instance.isPendingRemoval()) {
+            if (!shouldRender) {
+                // Not visible (sleep/invis) and pending removal — deactivate immediately
+                instance.deactivate();
+                pendingRemovals.add(instance.getEntityUuid());
+                return false;
+            }
+            shouldRender = true; // Keep rendering during shutdown animation
+        }
+
+        // ---- Build transition context ----
+        StartupAnimationConfig startupConfig = def.startupAnimation().orElse(null);
+        StartupAnimationConfig shutdownConfig = def.shutdownAnimation().orElse(null);
+
+        // If not visible and not transitioning, skip
+        if (!shouldRender && !instance.isTransitioning(startupConfig, shutdownConfig)) {
             return false;
         }
 
-        // ---- hide while invisible (reads per-tick cache) ----
-        if (!def.displayInInvisible() && instance.isEntityInvisible()) {
+        // Check if a shutdown transition has completed — schedule for removal
+        if (instance.isPendingRemoval() && !instance.isTransitioning(startupConfig, shutdownConfig)) {
+            // /halo hide: shutdown animation finished
+            instance.deactivate();
+            pendingRemovals.add(instance.getEntityUuid());
             return false;
         }
+        if (!shouldRender && !instance.isTransitioning(startupConfig, shutdownConfig)
+                && instance.getTransitionStartTime() > 0 && !instance.isTransitionIsStartup()) {
+            // State-based hide (sleep/invis): shutdown animation finished
+            instance.deactivate();
+            return false;
+        }
+
+        // Determine if transition is currently active
+        boolean transitionActive = instance.getTransitionStartTime() > 0
+            && (instance.isTransitioning(startupConfig, shutdownConfig) || instance.isPendingRemoval());
+        double transitionElapsed = instance.getTransitionElapsed();
+        boolean isStartup = instance.isTransitionIsStartup();
+
+        TransitionContext transition = new TransitionContext(
+            transitionActive,
+            transitionElapsed,
+            isStartup,
+            !isStartup
+        );
 
         // ---- compute anchor frame ----
         AnchorFrame frame = frameCalculator.calculate(instance, entity, def, camera, tickDelta, dt);
@@ -227,7 +297,7 @@ public final class HaloRenderer {
 
             // Step 3: Recursive group rendering
             for (HaloGroup group : model.groups()) {
-                renderGroup(group, matrices, animTime, brightness);
+                renderGroup(group, matrices, animTime, brightness, transition, List.of(), startupConfig, shutdownConfig);
             }
         } finally {
             matrices.pop();
@@ -243,8 +313,14 @@ public final class HaloRenderer {
     /**
      * Recursively render a {@link HaloGroup}: apply group transform,
      * draw all primitives, then recurse into child groups.
+     *
+     * <p>When a transition is active, the group's resolved transition segments
+     * are evaluated and applied as an additional offset, scale, and opacity
+     * transform.</p>
      */
-    private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness) {
+    private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness,
+                              TransitionContext transition, List<TransitionAnimation.TransitionSegment> inheritedSegments,
+                              StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
         matrices.push();
         try {
             // Group local transform
@@ -264,6 +340,29 @@ public final class HaloRenderer {
                 }
             });
 
+            // Resolve this group's transition segments (with inheritance)
+            List<TransitionAnimation.TransitionSegment> mySegments =
+                resolveSegments(group.id(), startupConfig, shutdownConfig, inheritedSegments, transition.isStartup());
+
+            // Apply transition animation
+            float transitionOpacity = 1.0f;
+            if (transition.active() && !mySegments.isEmpty()) {
+                TransitionAnimation anim = new TransitionAnimation(mySegments);
+                TransitionAnimation.TransitionResult tr = anim.evaluate(transition.elapsed(), transition.isShutdown());
+                matrices.translate(tr.offset().x, tr.offset().y, tr.offset().z);
+                matrices.scale(tr.scale()[0], tr.scale()[1], tr.scale()[2]);
+                transitionOpacity = tr.opacity();
+            }
+
+            // Apply opacity if needed
+            boolean opacityModified = false;
+            if (transitionOpacity < 1.0f) {
+                RenderSystem.enableBlend();
+                RenderSystem.defaultBlendFunc();
+                RenderSystem.setShaderColor(1f, 1f, 1f, transitionOpacity);
+                opacityModified = true;
+            }
+
             // Draw all primitives in this group
             for (HaloPrimitive primitive : group.primitives()) {
                 if (primitive instanceof BillboardPrimitive bp) {
@@ -273,13 +372,67 @@ public final class HaloRenderer {
                 }
             }
 
-            // Recurse into child groups (inherited transform)
+            // Reset opacity
+            if (opacityModified) {
+                RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+            }
+
+            // Recurse into child groups (inherited transform and transition segments)
             for (HaloGroup child : group.children()) {
-                renderGroup(child, matrices, animTime, brightness);
+                renderGroup(child, matrices, animTime, brightness, transition, mySegments, startupConfig, shutdownConfig);
             }
         } finally {
             matrices.pop();
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Transition segment resolution
+    // ------------------------------------------------------------------
+
+    /**
+     * Resolve the transition segments for a group, respecting inheritance.
+     * Per-group overrides take priority, then the config's default segments,
+     * then inherited segments from the parent group.
+     *
+     * @param groupId       the group's id (may be empty)
+     * @param startupConfig the startup animation config (may be null)
+     * @param shutdownConfig the shutdown animation config (may be null)
+     * @param inherited     segments inherited from the parent group
+     * @param isStartup     whether the current transition is a startup
+     * @return the resolved segment list (may be empty)
+     */
+    private List<TransitionAnimation.TransitionSegment> resolveSegments(
+            Optional<String> groupId,
+            StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig,
+            List<TransitionAnimation.TransitionSegment> inherited, boolean isStartup) {
+
+        StartupAnimationConfig config = isStartup ? startupConfig : shutdownConfig;
+
+        // For shutdown without explicit config, fall back to reversing startup
+        if (config == null && !isStartup) {
+            config = startupConfig;
+        }
+
+        // Per-group override
+        if (config != null && groupId.isPresent()) {
+            List<TransitionAnimation.TransitionSegment> override = config.idOverrides().get(groupId.get());
+            if (override != null && !override.isEmpty()) {
+                return override;
+            }
+        }
+
+        // Config default segments
+        if (config != null && !config.segments().isEmpty()) {
+            return config.segments();
+        }
+
+        // Inherited from parent
+        if (inherited != null && !inherited.isEmpty()) {
+            return inherited;
+        }
+
+        return List.of();
     }
 
     // ------------------------------------------------------------------

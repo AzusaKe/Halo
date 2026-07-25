@@ -1,5 +1,6 @@
 package network.azusake.halo.data;
 
+import network.azusake.halo.animation.StartupAnimationConfig;
 import net.minecraft.util.Identifier;
 
 import java.util.UUID;
@@ -37,6 +38,17 @@ public class HaloInstance {
 
     /** Epoch-millis timestamp when this instance was created. */
     private final long createdAtTime;
+
+    // ---- Transition animation state ----
+
+    /** Whether this instance was visible on the previous frame. */
+    private boolean wasVisible = false;
+    /** Epoch-millis timestamp when the current transition started. */
+    private long transitionStartTime = 0;
+    /** Whether the current transition is a startup (true) or shutdown (false). */
+    private boolean transitionIsStartup = true;
+    /** Whether this instance is pending removal after its shutdown animation completes. */
+    private boolean pendingRemoval = false;
 
     public HaloInstance(UUID entityUuid, Identifier definitionId) {
         this.entityUuid = entityUuid;
@@ -130,5 +142,75 @@ public class HaloInstance {
      */
     public long getCreatedAtTime() {
         return createdAtTime;
+    }
+
+    // -----------------------------------------------------------------------
+    // Transition animation state
+    // -----------------------------------------------------------------------
+
+    public boolean isWasVisible() {
+        return wasVisible;
+    }
+
+    public void setWasVisible(boolean wasVisible) {
+        this.wasVisible = wasVisible;
+    }
+
+    public long getTransitionStartTime() {
+        return transitionStartTime;
+    }
+
+    public boolean isTransitionIsStartup() {
+        return transitionIsStartup;
+    }
+
+    /**
+     * Start a transition animation in the given direction.
+     *
+     * @param startup {@code true} for startup, {@code false} for shutdown
+     */
+    public void startTransition(boolean startup) {
+        this.transitionStartTime = System.currentTimeMillis();
+        this.transitionIsStartup = startup;
+    }
+
+    /**
+     * Return the elapsed time in seconds since the current transition started.
+     */
+    public double getTransitionElapsed() {
+        return (System.currentTimeMillis() - transitionStartTime) / 1000.0;
+    }
+
+    /**
+     * Check whether this instance is currently within an active transition.
+     *
+     * @param startupConfig  the startup animation config (may be null)
+     * @param shutdownConfig the shutdown animation config (may be null)
+     * @return {@code true} if a transition is in progress
+     */
+    public boolean isTransitioning(StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
+        if (transitionStartTime == 0) {
+            return false;
+        }
+        double elapsed = getTransitionElapsed();
+        double totalDuration = 0;
+        if (transitionIsStartup && startupConfig != null) {
+            totalDuration = startupConfig.maxDuration();
+        } else if (!transitionIsStartup) {
+            if (shutdownConfig != null) {
+                totalDuration = shutdownConfig.maxDuration();
+            } else if (startupConfig != null) {
+                totalDuration = startupConfig.maxDuration();
+            }
+        }
+        return elapsed < totalDuration;
+    }
+
+    public boolean isPendingRemoval() {
+        return pendingRemoval;
+    }
+
+    public void setPendingRemoval(boolean pendingRemoval) {
+        this.pendingRemoval = pendingRemoval;
     }
 }

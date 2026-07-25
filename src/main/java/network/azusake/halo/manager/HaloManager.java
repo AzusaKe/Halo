@@ -91,20 +91,34 @@ public final class HaloManager {
 
     /**
      * Remove the halo from a living entity (no-op if none was attached).
+     * If a shutdown animation is configured, the halo will fade out before removal.
      *
      * @param entity the target living entity
      */
     public void hideHaloOn(LivingEntity entity) {
-        HaloInstance removed = activeHalos.remove(entity.getUuid());
-        HaloEntityData.removeHalo(entity);
+        HaloInstance instance = activeHalos.get(entity.getUuid());
+        if (instance == null) return;
 
-        // Broadcast to all players on a dedicated server
-        MinecraftServer server = entity.getServer();
-        if (server != null && removed != null) {
-            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid());
-        }
+        // Check if the definition has shutdown animation (explicit or reversed startup)
+        network.azusake.halo.data.HaloDefinition def =
+            network.azusake.halo.json.HaloJsonLoader.getDefinition(instance.getDefinitionId()).orElse(null);
+        boolean hasShutdownAnim = def != null &&
+            (def.shutdownAnimation().isPresent() || def.startupAnimation().isPresent());
+        if (hasShutdownAnim) {
+            // Mark for delayed removal — the renderer will handle the shutdown animation
+            instance.setPendingRemoval(true);
+            // Don't remove from map yet — renderer will handle cleanup when animation completes
+        } else {
+            // Immediate removal (existing behavior)
+            activeHalos.remove(entity.getUuid());
+            HaloEntityData.removeHalo(entity);
 
-        if (removed != null) {
+            // Broadcast to all players on a dedicated server
+            MinecraftServer server = entity.getServer();
+            if (server != null) {
+                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid());
+            }
+
             HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());
         }
     }
@@ -146,6 +160,16 @@ public final class HaloManager {
      * @param entityUuid the entity UUID
      */
     public void removeClientHalo(UUID entityUuid) {
+        activeHalos.remove(entityUuid);
+    }
+
+    /**
+     * Force-remove a halo from the active map, bypassing any shutdown animation.
+     * Called by the renderer after a shutdown animation completes.
+     *
+     * @param entityUuid the entity UUID
+     */
+    public void forceRemoveHalo(UUID entityUuid) {
         activeHalos.remove(entityUuid);
     }
 

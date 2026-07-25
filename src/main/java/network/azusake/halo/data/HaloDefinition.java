@@ -1,6 +1,7 @@
 package network.azusake.halo.data;
 
 import network.azusake.halo.animation.LayerAnimation;
+import network.azusake.halo.animation.StartupAnimationConfig;
 import network.azusake.halo.shape.HaloModel;
 import net.minecraft.util.Identifier;
 
@@ -18,6 +19,8 @@ import java.util.Optional;
  * @param hideOnSleep      when true, the halo stops rendering while the entity is sleeping
  * @param displayInInvisible when false (default), the halo stops rendering while the entity is invisible
  * @param schemaVersion    the schema version this definition was written for (determines parsing behavior)
+ * @param startupAnimation optional startup transition animation config
+ * @param shutdownAnimation optional shutdown transition animation config
  */
 public record HaloDefinition(
     Identifier id,
@@ -27,5 +30,7 @@ public record HaloDefinition(
     HaloDampingConfig damping,
     boolean hideOnSleep,
     boolean displayInInvisible,
-    SchemaVersion schemaVersion
+    SchemaVersion schemaVersion,
+    Optional<StartupAnimationConfig> startupAnimation,
+    Optional<StartupAnimationConfig> shutdownAnimation
 ) {}

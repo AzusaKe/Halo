@@ -225,8 +225,9 @@ public final class HaloLocalCommandHandler {
             return "§e未连接到服务器。";
         }
 
+        // Check if there's a shutdown animation — use HaloManager which handles animation-aware removal
+        HaloManager.getInstance().hideHaloOn(client.player);
         HaloLocalManager.getInstance().hideHalo(serverKey, client.player.getUuid());
-        HaloManager.getInstance().removeClientHalo(client.player.getUuid());
         return "§a已移除自己的本地光环。";
     }
 

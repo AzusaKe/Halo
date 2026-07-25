@@ -18,7 +18,9 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
 
@@ -109,7 +111,11 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             ? root.get("display_in_invisible").getAsBoolean()
             : false;
 
-        return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep, displayInInvisible, schemaVersion);
+        // Startup / shutdown transition animations
+        Optional<StartupAnimationConfig> startupAnimation = parseStartupAnimation(root.get("startup"));
+        Optional<StartupAnimationConfig> shutdownAnimation = parseStartupAnimation(root.get("shutdown"));
+
+        return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep, displayInInvisible, schemaVersion, startupAnimation, shutdownAnimation);
     }
 
     // ------------------------------------------------------------------
@@ -388,6 +394,149 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             angularMomentumFactor,
             maxAngularMomentumDegrees
         );
+    }
+
+    // ------------------------------------------------------------------
+    // Startup / Shutdown animation parsing
+    // ------------------------------------------------------------------
+
+    /**
+     * Parse an optional startup/shutdown animation configuration from a JSON element.
+     *
+     * @param element the JSON element (may be null or missing)
+     * @return the parsed config, or {@code Optional.empty()} if absent
+     */
+    private Optional<StartupAnimationConfig> parseStartupAnimation(JsonElement element) {
+        if (element == null || element.isJsonNull() || !element.isJsonObject()) {
+            return Optional.empty();
+        }
+        JsonObject obj = element.getAsJsonObject();
+
+        // Parse segments array
+        List<TransitionAnimation.TransitionSegment> segments = List.of();
+        if (obj.has("segments") && obj.get("segments").isJsonArray()) {
+            JsonArray arr = obj.getAsJsonArray("segments");
+            List<TransitionAnimation.TransitionSegment> list = new ArrayList<>(arr.size());
+            for (JsonElement elem : arr) {
+                list.add(parseTransitionSegment(elem.getAsJsonObject()));
+            }
+            segments = Collections.unmodifiableList(list);
+        }
+
+        // Parse id_overrides object
+        // Each value can be either:
+        //   - An object with a "segments" array: { "segments": [...] }
+        //   - A direct array (shorthand): [ ... ]
+        Map<String, List<TransitionAnimation.TransitionSegment>> idOverrides = Map.of();
+        if (obj.has("id_overrides") && obj.get("id_overrides").isJsonObject()) {
+            JsonObject overridesObj = obj.getAsJsonObject("id_overrides");
+            Map<String, List<TransitionAnimation.TransitionSegment>> map = new HashMap<>();
+            for (Map.Entry<String, JsonElement> entry : overridesObj.entrySet()) {
+                String groupId = entry.getKey();
+                JsonElement value = entry.getValue();
+                JsonArray arr;
+                if (value.isJsonArray()) {
+                    arr = value.getAsJsonArray();
+                } else if (value.isJsonObject()) {
+                    JsonObject valueObj = value.getAsJsonObject();
+                    if (valueObj.has("segments") && valueObj.get("segments").isJsonArray()) {
+                        arr = valueObj.getAsJsonArray("segments");
+                    } else {
+                        LOG.warn("[Halo] id_override '{}' has no 'segments' array, skipping", groupId);
+                        continue;
+                    }
+                } else {
+                    LOG.warn("[Halo] id_override '{}' has unexpected type, skipping", groupId);
+                    continue;
+                }
+                List<TransitionAnimation.TransitionSegment> list = new ArrayList<>(arr.size());
+                for (JsonElement elem : arr) {
+                    list.add(parseTransitionSegment(elem.getAsJsonObject()));
+                }
+                map.put(groupId, Collections.unmodifiableList(list));
+            }
+            idOverrides = Collections.unmodifiableMap(map);
+        }
+
+        if (segments.isEmpty() && idOverrides.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new StartupAnimationConfig(segments, idOverrides));
+    }
+
+    /**
+     * Parse a single transition segment from JSON.
+     */
+    private TransitionAnimation.TransitionSegment parseTransitionSegment(JsonObject obj) {
+        double duration = obj.get("duration").getAsDouble();
+        EasingType easing = EasingType.LINEAR;
+        if (obj.has("easing")) {
+            easing = EasingType.fromString(obj.get("easing").getAsString());
+        }
+
+        TransitionAnimation.TransitionProperty offset = obj.has("offset")
+            ? parseTransitionProperty(obj.getAsJsonObject("offset"), 3)
+            : null;
+        TransitionAnimation.TransitionProperty scale = obj.has("scale")
+            ? parseTransitionProperty(obj.getAsJsonObject("scale"), 3)
+            : null;
+        TransitionAnimation.TransitionProperty opacity = obj.has("opacity")
+            ? parseTransitionProperty(obj.getAsJsonObject("opacity"), 1)
+            : null;
+
+        return new TransitionAnimation.TransitionSegment(duration, easing, offset, scale, opacity);
+    }
+
+    /**
+     * Parse a transition property (from/to arrays) from JSON.
+     * Handles both array-valued properties (offset, scale) and single-valued
+     * properties (opacity, stored as float[1]).
+     *
+     * @param obj       the JSON object for this property
+     * @param componentCount expected number of components (3 for offset/scale, 1 for opacity)
+     */
+    private TransitionAnimation.TransitionProperty parseTransitionProperty(JsonObject obj, int componentCount) {
+        float[] from = null;
+        float[] to = null;
+        Double propertyDuration = null;
+        EasingType propertyEasing = null;
+
+        if (obj.has("from") && !obj.get("from").isJsonNull()) {
+            from = parseFloatArray(obj.get("from"), componentCount);
+        }
+        if (obj.has("to") && !obj.get("to").isJsonNull()) {
+            to = parseFloatArray(obj.get("to"), componentCount);
+        }
+        if (obj.has("duration") && !obj.get("duration").isJsonNull()) {
+            propertyDuration = obj.get("duration").getAsDouble();
+        }
+        if (obj.has("easing") && !obj.get("easing").isJsonNull()) {
+            propertyEasing = EasingType.fromString(obj.get("easing").getAsString());
+        }
+
+        if (from == null && to == null) {
+            return null;
+        }
+        return new TransitionAnimation.TransitionProperty(from, to, propertyDuration, propertyEasing);
+    }
+
+    /**
+     * Parse a JSON element into a float array of the given size.
+     * Handles both JSON arrays and single numbers (for opacity).
+     */
+    private float[] parseFloatArray(JsonElement element, int componentCount) {
+        if (element.isJsonArray()) {
+            JsonArray arr = element.getAsJsonArray();
+            float[] result = new float[Math.max(arr.size(), componentCount)];
+            for (int i = 0; i < arr.size(); i++) {
+                result[i] = arr.get(i).getAsFloat();
+            }
+            return result;
+        } else {
+            // Single number (e.g. opacity "from": 0.0)
+            return new float[]{element.getAsFloat()};
+        }
     }
 
     // ------------------------------------------------------------------
