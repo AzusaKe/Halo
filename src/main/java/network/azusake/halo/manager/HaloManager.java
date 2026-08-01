@@ -91,42 +91,23 @@ public final class HaloManager {
 
     /**
      * Remove the halo from a living entity (no-op if none was attached).
-     * If a shutdown animation is configured, the halo will fade out before removal.
+     * Removes immediately from the active map and clears persisted NBT.
+     * Clients handle shutdown animations via their own state machine.
      *
      * @param entity the target living entity
      */
     public void hideHaloOn(LivingEntity entity) {
-        HaloInstance instance = activeHalos.get(entity.getUuid());
+        HaloInstance instance = activeHalos.remove(entity.getUuid());
         if (instance == null) return;
 
-        // Check if the definition has shutdown animation (explicit or reversed startup)
-        network.azusake.halo.data.HaloDefinition def =
-            network.azusake.halo.json.HaloJsonLoader.getDefinition(instance.getDefinitionId()).orElse(null);
-        boolean hasShutdownAnim = def != null &&
-            (def.shutdownAnimation().isPresent() || def.startupAnimation().isPresent());
+        HaloEntityData.removeHalo(entity);
 
-        if (hasShutdownAnim) {
-            // Mark for delayed removal — the renderer will handle the shutdown animation
-            instance.setPendingRemoval(true);
-            instance.startTransition(false); // start shutdown animation
-            // Still broadcast removal to clients so they can start their own shutdown animation
-            MinecraftServer server = entity.getServer();
-            if (server != null) {
-                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid());
-            }
-        } else {
-            // Immediate removal (existing behavior)
-            activeHalos.remove(entity.getUuid());
-            HaloEntityData.removeHalo(entity);
-
-            // Broadcast to all players on a dedicated server
-            MinecraftServer server = entity.getServer();
-            if (server != null) {
-                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid());
-            }
-
-            HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());
+        MinecraftServer server = entity.getServer();
+        if (server != null) {
+            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid(), instance.getDefinitionId());
         }
+
+        HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());
     }
 
     /**
@@ -138,7 +119,7 @@ public final class HaloManager {
     public void removeHalo(UUID entityUuid, MinecraftServer server) {
         HaloInstance removed = activeHalos.remove(entityUuid);
         if (removed != null) {
-            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entityUuid);
+            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entityUuid, removed.getDefinitionId());
             HaloMod.LOGGER.debug("Halo removed for uuid={}", entityUuid);
         }
     }
@@ -157,6 +138,27 @@ public final class HaloManager {
      */
     public void putClientHalo(UUID entityUuid, Identifier defId) {
         activeHalos.put(entityUuid, new HaloInstance(entityUuid, defId));
+    }
+
+    /**
+     * Insert a halo instance with a specific transition state.  Called by the
+     * client network layer when receiving an incremental attach (which should
+     * trigger a startup animation).
+     *
+     * @param entityUuid the entity UUID
+     * @param defId      the halo definition identifier
+     * @param state      the initial transition state (e.g. {@code STARTING})
+     */
+    public void putClientHalo(UUID entityUuid, Identifier defId, network.azusake.halo.data.HaloTransitionState state) {
+        HaloInstance inst = new HaloInstance(entityUuid, defId);
+        inst.setTransitionState(state);
+        // STARTING/ENDING instances need the transition timer started, otherwise
+        // isTransitioning() returns false immediately and the animation is skipped.
+        if (state == network.azusake.halo.data.HaloTransitionState.STARTING
+                || state == network.azusake.halo.data.HaloTransitionState.ENDING) {
+            inst.startTransition();
+        }
+        activeHalos.put(entityUuid, inst);
     }
 
     /**
@@ -214,9 +216,10 @@ public final class HaloManager {
 
             LivingEntity entity = findEntityByUuid(server, uuid);
             if (entity == null || !entity.isAlive()) {
+                Identifier defId = entry.getValue().getDefinitionId();
                 iterator.remove();
-                // Broadcast removal so all clients drop the dead halo
-                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, uuid);
+                // Broadcast removal with defId so clients can play shutdown animation
+                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, uuid, defId);
                 HaloMod.LOGGER.debug("Halo cleaned up: entity uuid={} is gone or dead", uuid);
             }
         }

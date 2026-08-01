@@ -41,14 +41,18 @@ public class HaloInstance {
 
     // ---- Transition animation state ----
 
-    /** Whether this instance was visible on the previous frame. */
-    private boolean wasVisible = false;
+    /** Current transition state driving the animation lifecycle. */
+    private HaloTransitionState transitionState = HaloTransitionState.NORMAL;
+
     /** Epoch-millis timestamp when the current transition started. */
     private long transitionStartTime = 0;
-    /** Whether the current transition is a startup (true) or shutdown (false). */
-    private boolean transitionIsStartup = true;
-    /** Whether this instance is pending removal after its shutdown animation completes. */
-    private boolean pendingRemoval = false;
+
+    /**
+     * Whether the current ENDING/NULL state was caused by sleep/invisibility
+     * hiding (recoverable on wake) rather than an explicit hide command
+     * (permanent removal).
+     */
+    private boolean hiddenByState = false;
 
     public HaloInstance(UUID entityUuid, Identifier definitionId) {
         this.entityUuid = entityUuid;
@@ -117,6 +121,14 @@ public class HaloInstance {
         this.active = false;
     }
 
+    /**
+     * Reactivate a deactivated (NULL) instance so it can render again.
+     * Used when a halo hidden by sleep/invisibility becomes visible again.
+     */
+    public void reactivate() {
+        this.active = true;
+    }
+
     // -----------------------------------------------------------------------
     // Per-tick entity state cache
     // -----------------------------------------------------------------------
@@ -148,30 +160,32 @@ public class HaloInstance {
     // Transition animation state
     // -----------------------------------------------------------------------
 
-    public boolean isWasVisible() {
-        return wasVisible;
+    public HaloTransitionState getTransitionState() {
+        return transitionState;
     }
 
-    public void setWasVisible(boolean wasVisible) {
-        this.wasVisible = wasVisible;
+    public void setTransitionState(HaloTransitionState transitionState) {
+        this.transitionState = transitionState;
+    }
+
+    public boolean isHiddenByState() {
+        return hiddenByState;
+    }
+
+    public void setHiddenByState(boolean hiddenByState) {
+        this.hiddenByState = hiddenByState;
     }
 
     public long getTransitionStartTime() {
         return transitionStartTime;
     }
 
-    public boolean isTransitionIsStartup() {
-        return transitionIsStartup;
-    }
-
     /**
-     * Start a transition animation in the given direction.
-     *
-     * @param startup {@code true} for startup, {@code false} for shutdown
+     * Start a transition animation. The direction (startup/shutdown) is
+     * determined by the current {@link #transitionState}.
      */
-    public void startTransition(boolean startup) {
+    public void startTransition() {
         this.transitionStartTime = System.currentTimeMillis();
-        this.transitionIsStartup = startup;
     }
 
     /**
@@ -183,6 +197,7 @@ public class HaloInstance {
 
     /**
      * Check whether this instance is currently within an active transition.
+     * Uses {@link #transitionState} to determine which duration to compare against.
      *
      * @param startupConfig  the startup animation config (may be null)
      * @param shutdownConfig the shutdown animation config (may be null)
@@ -194,9 +209,9 @@ public class HaloInstance {
         }
         double elapsed = getTransitionElapsed();
         double totalDuration = 0;
-        if (transitionIsStartup && startupConfig != null) {
+        if (transitionState == HaloTransitionState.STARTING && startupConfig != null) {
             totalDuration = startupConfig.maxDuration();
-        } else if (!transitionIsStartup) {
+        } else if (transitionState == HaloTransitionState.ENDING) {
             if (shutdownConfig != null) {
                 totalDuration = shutdownConfig.maxDuration();
             } else if (startupConfig != null) {
@@ -204,13 +219,5 @@ public class HaloInstance {
             }
         }
         return elapsed < totalDuration;
-    }
-
-    public boolean isPendingRemoval() {
-        return pendingRemoval;
-    }
-
-    public void setPendingRemoval(boolean pendingRemoval) {
-        this.pendingRemoval = pendingRemoval;
     }
 }

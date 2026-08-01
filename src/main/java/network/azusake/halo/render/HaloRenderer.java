@@ -1,6 +1,7 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
+import network.azusake.halo.data.HaloTransitionState;
 import network.azusake.halo.animation.StartupAnimationConfig;
 import network.azusake.halo.animation.TransitionAnimationResult;
 import network.azusake.halo.data.HaloDefinition;
@@ -73,8 +74,10 @@ public final class HaloRenderer {
 
     private final AnchorFrameCalculator frameCalculator = AnchorFrameCalculator.getInstance();
 
-    /** Track instances that need to be removed from the manager after shutdown animations complete. */
-    private final List<UUID> pendingRemovals = new ArrayList<>();
+    /** Per-entity previous sleep-hidden state, for edge detection. */
+    private final Map<UUID, Boolean> prevSleepHidden = new HashMap<>();
+    /** Per-entity previous invis-hidden state, for edge detection. */
+    private final Map<UUID, Boolean> prevInvisHidden = new HashMap<>();
 
     /** Timestamp (nanoTime) of the previous render frame, for delta-time. */
     private long prevFrameNanos;
@@ -140,11 +143,56 @@ public final class HaloRenderer {
             }
         }
 
-        // Process removals from completed shutdown animations
-        for (UUID uuid : pendingRemovals) {
-            HaloManager.getInstance().removeClientHalo(uuid);
+        // Maintain non-active instances (NULL / deactivated):
+        //   - NULL + hiddenByState (sleep/invis): keep while still hidden,
+        //     reactivate with STARTING (or NORMAL if no startup anim) when visible
+        //   - everything else non-active (explicit hide's NULL, ENDING stuck on an
+        //     inactive instance, dead entity, missing def) → permanently remove
+        List<UUID> removals = new ArrayList<>();
+        for (HaloInstance inst : HaloManager.getInstance().getAllInstances()) {
+            if (inst.isActive()) continue; // active instances handled in renderSingleHalo
+
+            UUID uuid = inst.getEntityUuid();
+            LivingEntity entity = HaloRenderer.findEntityByUuid(client, uuid);
+            if (entity == null || !entity.isAlive()) {
+                removals.add(uuid);
+                continue;
+            }
+
+            if (inst.getTransitionState() == HaloTransitionState.NULL && inst.isHiddenByState()) {
+                HaloDefinition def = HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
+                if (def == null) {
+                    removals.add(uuid);
+                    continue;
+                }
+                boolean sleepHidden = def.hideOnSleep() && entity.isSleeping();
+                boolean invisHidden = !def.displayInInvisible() && entity.isInvisible();
+                if (sleepHidden || invisHidden) {
+                    continue; // entity still hidden — wait for wake-up
+                }
+                // Entity visible again → reactivate
+                inst.reactivate();
+                inst.setHiddenByState(false);
+                inst.setEntitySleeping(entity.isSleeping());
+                inst.setEntityInvisible(entity.isInvisible());
+                if (def.startupAnimation().isPresent()) {
+                    inst.setTransitionState(HaloTransitionState.STARTING);
+                    inst.startTransition();
+                } else {
+                    inst.setTransitionState(HaloTransitionState.NORMAL);
+                }
+                continue;
+            }
+
+            // Permanently useless: explicit hide's NULL, inactive ENDING (e.g. hide
+            // targeted an already-hidden halo), dead/missing entity, missing def
+            removals.add(uuid);
         }
-        pendingRemovals.clear();
+        for (UUID uuid : removals) {
+            HaloManager.getInstance().removeClientHalo(uuid);
+            prevSleepHidden.remove(uuid);
+            prevInvisHidden.remove(uuid);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -189,55 +237,74 @@ public final class HaloRenderer {
 
         boolean shouldRender = !sleepHidden && !invisHidden;
 
-        // ---- Transition detection ----
-        if (shouldRender && !instance.isWasVisible()) {
-            // Became visible — start startup transition
-            instance.startTransition(true);
-        } else if (!shouldRender && instance.isWasVisible()) {
-            // Became hidden (sleep/invis) — start shutdown transition
-            instance.startTransition(false);
-        }
-        instance.setWasVisible(shouldRender);
-
-        // ---- Handle pending removal with shutdown animation ----
-        if (instance.isPendingRemoval()) {
-            if (!shouldRender) {
-                // Not visible (sleep/invis) and pending removal — deactivate immediately
-                instance.deactivate();
-                pendingRemovals.add(instance.getEntityUuid());
-                return false;
-            }
-            shouldRender = true; // Keep rendering during shutdown animation
-        }
-
-        // ---- Build transition context ----
+        // ---- Build transition context (used by state machine and rendering) ----
         StartupAnimationConfig startupConfig = def.startupAnimation().orElse(null);
         StartupAnimationConfig shutdownConfig = def.shutdownAnimation().orElse(null);
 
-        // If not visible and not transitioning, skip
-        if (!shouldRender && !instance.isTransitioning(startupConfig, shutdownConfig)) {
+        // ---- State machine: sleep/invis edge detection (NORMAL → STARTING/ENDING) ----
+        HaloTransitionState state = instance.getTransitionState();
+        UUID uuid = instance.getEntityUuid();
+        boolean prevSleep = prevSleepHidden.getOrDefault(uuid, false);
+        boolean prevInvis = prevInvisHidden.getOrDefault(uuid, false);
+        boolean wasHidden = prevSleep || prevInvis;
+        boolean nowHidden = sleepHidden || invisHidden;
+
+        if (state == HaloTransitionState.NORMAL) {
+            if (!wasHidden && nowHidden) {
+                // Entity entered sleep/invis → start shutdown animation
+                if (shutdownConfig != null || startupConfig != null) {
+                    instance.setHiddenByState(true);
+                    instance.setTransitionState(HaloTransitionState.ENDING);
+                    instance.startTransition();
+                    state = HaloTransitionState.ENDING;
+                }
+            } else if (wasHidden && !nowHidden) {
+                // Entity woke/became visible → start startup animation
+                if (startupConfig != null) {
+                    instance.setHiddenByState(false);
+                    instance.setTransitionState(HaloTransitionState.STARTING);
+                    instance.startTransition();
+                    state = HaloTransitionState.STARTING;
+                }
+            }
+        }
+        prevSleepHidden.put(uuid, sleepHidden);
+        prevInvisHidden.put(uuid, invisHidden);
+
+        // ---- State machine: terminal state and transition completion ----
+        if (state == HaloTransitionState.ENDING && !instance.isTransitioning(startupConfig, shutdownConfig)) {
+            // ENDING animation complete → mark as NULL but keep in map for potential reactivation
+            instance.setTransitionState(HaloTransitionState.NULL);
+            instance.deactivate();
+            prevSleepHidden.remove(uuid);
+            prevInvisHidden.remove(uuid);
             return false;
+        }
+        if (state == HaloTransitionState.STARTING && !instance.isTransitioning(startupConfig, shutdownConfig)) {
+            // STARTING animation complete
+            if (!shouldRender) {
+                // Entity still sleeping/invisible → skip NORMAL, mark as NULL for reactivation
+                instance.setHiddenByState(true);
+                instance.setTransitionState(HaloTransitionState.NULL);
+                instance.deactivate();
+                prevSleepHidden.remove(uuid);
+                prevInvisHidden.remove(uuid);
+                return false;
+            }
+            instance.setTransitionState(HaloTransitionState.NORMAL);
+            state = HaloTransitionState.NORMAL;
         }
 
-        // Check if a shutdown transition has completed — schedule for removal
-        if (instance.isPendingRemoval() && !instance.isTransitioning(startupConfig, shutdownConfig)) {
-            // /halo hide: shutdown animation finished
-            instance.deactivate();
-            pendingRemovals.add(instance.getEntityUuid());
-            return false;
-        }
-        if (!shouldRender && !instance.isTransitioning(startupConfig, shutdownConfig)
-                && instance.getTransitionStartTime() > 0 && !instance.isTransitionIsStartup()) {
-            // State-based hide (sleep/invis): shutdown animation finished
-            instance.deactivate();
-            return false;
-        }
+        // ---- Rendering gate ----
+        if (state == HaloTransitionState.NULL) return false;
+        if (state == HaloTransitionState.NORMAL && !shouldRender) return false;
+        // STARTING and ENDING always render (animation must play regardless of shouldRender)
 
         // Determine if transition is currently active
-        boolean transitionActive = instance.getTransitionStartTime() > 0
-            && (instance.isTransitioning(startupConfig, shutdownConfig) || instance.isPendingRemoval());
+        boolean transitionActive = (state == HaloTransitionState.STARTING || state == HaloTransitionState.ENDING)
+            && instance.getTransitionStartTime() > 0;
         double transitionElapsed = instance.getTransitionElapsed();
-        boolean isStartup = instance.isTransitionIsStartup();
+        boolean isStartup = state == HaloTransitionState.STARTING;
 
         // ---- Build transition animation for this instance ----
         TransitionAnimationResult transitionAnim = null;

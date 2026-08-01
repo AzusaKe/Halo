@@ -1,5 +1,7 @@
 package network.azusake.halo.client;
 
+import network.azusake.halo.data.HaloTransitionState;
+import network.azusake.halo.data.HaloInstance;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
@@ -195,8 +197,8 @@ public final class HaloLocalCommandHandler {
         }
 
         HaloLocalManager.getInstance().showHalo(serverKey, client.player.getUuid(), defId);
-        // Put into HaloManager too so the render pipeline picks it up.
-        HaloManager.getInstance().putClientHalo(client.player.getUuid(), defId);
+        // Put into HaloManager with STARTING state — triggers startup animation
+        HaloManager.getInstance().putClientHalo(client.player.getUuid(), defId, HaloTransitionState.STARTING);
         return "§a本地光环: 已将 §f" + defId
             + "§a 设置给自己。\n"
             + "§7(仅在当前服务器当前会话中可见)";
@@ -225,8 +227,13 @@ public final class HaloLocalCommandHandler {
             return "§e未连接到服务器。";
         }
 
-        // Check if there's a shutdown animation — use HaloManager which handles animation-aware removal
-        HaloManager.getInstance().hideHaloOn(client.player);
+        // Set ENDING state — renderer will play shutdown animation and remove the instance
+        HaloInstance inst = HaloManager.getInstance().getInstance(client.player.getUuid());
+        if (inst != null) {
+            inst.setHiddenByState(false);
+            inst.setTransitionState(HaloTransitionState.ENDING);
+            inst.startTransition();
+        }
         HaloLocalManager.getInstance().hideHalo(serverKey, client.player.getUuid());
         return "§a已移除自己的本地光环。";
     }

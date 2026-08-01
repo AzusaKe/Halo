@@ -1,5 +1,6 @@
 package network.azusake.halo.network;
 
+import network.azusake.halo.data.HaloTransitionState;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -66,25 +67,26 @@ public final class HaloNetworkClient {
                 if (isAttach) {
                     Identifier defId = buf.readIdentifier();
                     client.execute(() ->
-                        HaloManager.getInstance().putClientHalo(uuid, defId)
+                        HaloManager.getInstance().putClientHalo(uuid, defId, HaloTransitionState.STARTING)
                     );
                 } else {
+                    Identifier defId = buf.readIdentifier();
+                    boolean hasDefId = !defId.getPath().isEmpty();
                     client.execute(() -> {
-                        // Check if the halo has a shutdown animation — if so, start it
-                        // instead of removing immediately
+                        // Set ENDING state — renderer will play shutdown animation
                         HaloInstance inst = HaloManager.getInstance().getInstance(uuid);
-                        if (inst != null) {
-                            network.azusake.halo.data.HaloDefinition def =
-                                network.azusake.halo.json.HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
-                            boolean hasShutdownAnim = def != null &&
-                                (def.shutdownAnimation().isPresent() || def.startupAnimation().isPresent());
-                            if (hasShutdownAnim) {
-                                inst.setPendingRemoval(true);
-                                inst.startTransition(false); // start shutdown animation
-                                return; // renderer will handle cleanup after animation
-                            }
+                        if (inst == null && hasDefId) {
+                            // In integrated server mode, the server already removed the
+                            // instance from the shared activeHalos.  Create a fresh one
+                            // with ENDING so the shutdown animation can play.
+                            HaloManager.getInstance().putClientHalo(uuid, defId);
+                            inst = HaloManager.getInstance().getInstance(uuid);
                         }
-                        HaloManager.getInstance().removeClientHalo(uuid);
+                        if (inst != null) {
+                            inst.setHiddenByState(false);
+                            inst.setTransitionState(HaloTransitionState.ENDING);
+                            inst.startTransition();
+                        }
                     });
                 }
             }

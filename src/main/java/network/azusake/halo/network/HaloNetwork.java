@@ -128,10 +128,20 @@ public final class HaloNetwork {
      * @param server     the current Minecraft server
      * @param entityUuid the entity whose halo was removed
      */
-    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid) {
+    /**
+     * Broadcast a halo removal to all online players, including the definition ID
+     * so clients can play the shutdown animation even if the instance was already
+     * removed from the shared map (integrated server mode).
+     *
+     * @param server     the current Minecraft server
+     * @param entityUuid the entity whose halo was removed
+     * @param defId      the halo definition identifier (for client-side shutdown animation)
+     */
+    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, Identifier defId) {
         var buf = PacketByteBufs.create();
         writeUuid(buf, entityUuid);
         buf.writeBoolean(false); // isAttach = false → removal
+        buf.writeIdentifier(defId);
 
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);
