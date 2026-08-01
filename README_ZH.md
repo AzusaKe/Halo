@@ -61,12 +61,12 @@
 ## 未来将会添加的特性
 
 - [ ] **在物品栏内可见** : 目前模组的光环不会在物品栏中的玩家模型头部渲染，等待后续加入
-- [ ] **更多动画** : 添加脉冲发光、缩放动画、以及"启动动画"
+- [x] **更多动画** : 添加脉冲发光、缩放动画、以及"启动动画"
 - [ ] **更多光环layer种类** : 预计将添加`mesh`（以`.obj`为载体的网格）
 - [ ] **更多的layer字段** : 将加入thickness，采用精灵图挤出的方法使billboard拥有厚度，但可能在材质较大的情况下影响性能
 - [ ] **更完善的自发光** : 兼容更多光影、质感更强
 - [ ] **更多实体和姿态适配** : 目前光环的显示位置和动画在部分实体上存在问题，等待修复
-- [ ] **单人游戏 `/halo hide` 关闭动画** : 单人游戏中关闭（淡出）动画无法播放，光环会瞬间消失。此为已知问题，多人游戏下关闭动画正常工作，修复中
+- [x] **单人游戏 `/halo hide` 关闭动画** : 单人游戏中关闭（淡出）动画无法播放，光环会瞬间消失。此为已知问题，多人游戏下关闭动画正常工作，修复中
 - [ ] 其他各项bug修复，欢迎提交issue
 
 <a id="安装"></a>
@@ -98,25 +98,25 @@
 
 所有命令需要 2 级权限（管理员）。使用 `/halo` 配合 Tab 补全探索可用的子命令。
 
-| 命令                                   | 描述                                         |
-| -------------------------------------- | -------------------------------------------- |
-| `/halo list`                           | 列出所有已加载的光环定义                     |
-| `/halo dump`                           | 详细输出光环定义，包含形状、动画和衰减信息   |
-| `/halo show <实体> <定义>`             | 将光环挂载到实体上                           |
-| `/halo hide <实体>`                    | 移除实体的光环                               |
-| `/halo active`                         | 列出所有当前佩戴光环的实体                   |
-| `/halo inspect <实体>`                 | 查看指定实体的光环运行时状态详情             |
-| `/halo config linear-damping <0-1>`    | 设置线性跟随速度（0 = 不跟随，1 = 瞬间跟随） |
-| `/halo config angular-damping <0-1>`   | 设置角度跟随速度                             |
-| `/halo config max-linear-distance <n>` | 设置硬夹断前最大距离（格）                   |
-| `/halo config max-angular-degrees <n>` | 设置最大角度偏差（度）                       |
-| `/halo config allow-angular-momentum <true/false>` | 开关角动量惯性效果                   |
-| `/halo config angular-momentum-factor <0-1>` | 设置角动量阻尼系数（0 = 冻结，1 = 无惯性） |
-| `/halo config max-angular-momentum-degrees <n>` | 设置最大角动量偏差角度（度）         |
-| `/halo config scale <0.1-5.0>`         | 设置统一缩放倍率                             |
-| `/halo save`                           | 同步光环数据到世界持久化存储并触发 save-all  |
-| `/halo debug <true/false>`             | 开关传送/吸附调试日志输出到聊天栏            |
-| `/halo reload`                         | 提示使用 `/reload` 来重新加载光环定义        |
+| 命令                                               | 描述                                         |
+| -------------------------------------------------- | -------------------------------------------- |
+| `/halo list`                                       | 列出所有已加载的光环定义                     |
+| `/halo dump`                                       | 详细输出光环定义，包含形状、动画和衰减信息   |
+| `/halo show <实体> <定义>`                         | 将光环挂载到实体上                           |
+| `/halo hide <实体>`                                | 移除实体的光环                               |
+| `/halo active`                                     | 列出所有当前佩戴光环的实体                   |
+| `/halo inspect <实体>`                             | 查看指定实体的光环运行时状态详情             |
+| `/halo config linear-damping <0-1>`                | 设置线性跟随速度（0 = 不跟随，1 = 瞬间跟随） |
+| `/halo config angular-damping <0-1>`               | 设置角度跟随速度                             |
+| `/halo config max-linear-distance <n>`             | 设置硬夹断前最大距离（格）                   |
+| `/halo config max-angular-degrees <n>`             | 设置最大角度偏差（度）                       |
+| `/halo config allow-angular-momentum <true/false>` | 开关角动量惯性效果                           |
+| `/halo config angular-momentum-factor <0-1>`       | 设置角动量阻尼系数（0 = 冻结，1 = 无惯性）   |
+| `/halo config max-angular-momentum-degrees <n>`    | 设置最大角动量偏差角度（度）                 |
+| `/halo config scale <0.1-5.0>`                     | 设置统一缩放倍率                             |
+| `/halo save`                                       | 同步光环数据到世界持久化存储并触发 save-all  |
+| `/halo debug <true/false>`                         | 开关传送/吸附调试日志输出到聊天栏            |
+| `/halo reload`                                     | 提示使用 `/reload` 来重新加载光环定义        |
 
 **示例：**
 
@@ -222,34 +222,34 @@
 }
 ```
 
-| 字段                         | 描述                                                        |
-| ---------------------------- | ----------------------------------------------------------- |
-| `id`                         | 唯一标识符，格式为 `命名空间:名称`                          |
-| `orientation_mode`           | `locked`、`free` 或 `sync` —— 光环相对实体头部的朝向方式    |
-| `allow_angular_momentum`     | `true` 时为朝向添加角动量惯性效果（仅 `locked`/`free` 模式）|
-| `hide_on_sleep`              | `true` 时，实体睡觉期间光环停止渲染（默认 `false`）        |
-| `display_in_invisible`       | `true` 时，实体隐形期间光环继续渲染（默认 `false`）        |
-| `layers`                     | 组数组；每个组可包含多个图元和嵌套子组，共享同一变换与动画          |
-| `layers[].position`          | 该组相对父组或锚点帧的 `[X, Y, Z]` 偏移（格）                   |
-| `layers[].rotation`          | 该组的 `[yaw, pitch, roll]` 欧拉旋转（度）                         |
-| `layers[].scale`             | 该组的缩放倍率                                            |
-| `layers[].animation`         | 该组的 `offset` / `rotation` 动画曲线（详见参考文档）     |
-| `layers[].primitives`        | 该组内的渲染图元数组（见下方）                            |
-| `layers[].primitive`         | 向后兼容的单图元对象（等价于 `primitives: [...]`）        |
-| `layers[].children`          | 可选的嵌套子组数组，继承该组的变换                        |
-| `primitive.type`             | `billboard`（单个带纹理的四边形）或 `ring`（圆柱形圆环）   |
-| `primitive.texture`          | 纹理路径，如 `halo:textures/halo/ring_00.png`               |
-| `primitive.inner_texture`    | 仅 ring：内表面纹理（可选，省略时使用 `texture`）     |
-| `layers[].primitive.size`    | `billboard`：`[宽度, 深度]`；`ring`：`[半径, 柱面宽度]`，单位为格 |
-| `layers[].primitive.segments`| 仅 ring：多边形分段数（默认 32）                            |
-| `positioning.offset`         | `[X, Y, Z]` 相对实体头部的偏移量（格）                      |
-| `positioning.scale`          | 默认缩放倍率                                                |
-| `damping.linearFactor`       | 20 TPS 下每 tick 的线性插值速度（0 = 不跟随，1 = 瞬间跟随） |
-| `damping.angularFactor`      | 角度插值速度（范围同上）                                    |
-| `damping.maxLinearDistance`  | 硬夹断最大距离（格）                                        |
-| `damping.maxAngularDegrees`  | 最大角度偏差（度）                                          |
-| `damping.angularMomentumFactor` | 角动量阻尼系数（0 = 冻结，1 = 无惯性）                  |
-| `damping.maxAngularMomentumDegrees` | 最大角动量偏差角度（度）                            |
+| 字段                                | 描述                                                              |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `id`                                | 唯一标识符，格式为 `命名空间:名称`                                |
+| `orientation_mode`                  | `locked`、`free` 或 `sync` —— 光环相对实体头部的朝向方式          |
+| `allow_angular_momentum`            | `true` 时为朝向添加角动量惯性效果（仅 `locked`/`free` 模式）      |
+| `hide_on_sleep`                     | `true` 时，实体睡觉期间光环停止渲染（默认 `false`）               |
+| `display_in_invisible`              | `true` 时，实体隐形期间光环继续渲染（默认 `false`）               |
+| `layers`                            | 组数组；每个组可包含多个图元和嵌套子组，共享同一变换与动画        |
+| `layers[].position`                 | 该组相对父组或锚点帧的 `[X, Y, Z]` 偏移（格）                     |
+| `layers[].rotation`                 | 该组的 `[yaw, pitch, roll]` 欧拉旋转（度）                        |
+| `layers[].scale`                    | 该组的缩放倍率                                                    |
+| `layers[].animation`                | 该组的 `offset` / `rotation` 动画曲线（详见参考文档）             |
+| `layers[].primitives`               | 该组内的渲染图元数组（见下方）                                    |
+| `layers[].primitive`                | 向后兼容的单图元对象（等价于 `primitives: [...]`）                |
+| `layers[].children`                 | 可选的嵌套子组数组，继承该组的变换                                |
+| `primitive.type`                    | `billboard`（单个带纹理的四边形）或 `ring`（圆柱形圆环）          |
+| `primitive.texture`                 | 纹理路径，如 `halo:textures/halo/ring_00.png`                     |
+| `primitive.inner_texture`           | 仅 ring：内表面纹理（可选，省略时使用 `texture`）                 |
+| `layers[].primitive.size`           | `billboard`：`[宽度, 深度]`；`ring`：`[半径, 柱面宽度]`，单位为格 |
+| `layers[].primitive.segments`       | 仅 ring：多边形分段数（默认 32）                                  |
+| `positioning.offset`                | `[X, Y, Z]` 相对实体头部的偏移量（格）                            |
+| `positioning.scale`                 | 默认缩放倍率                                                      |
+| `damping.linearFactor`              | 20 TPS 下每 tick 的线性插值速度（0 = 不跟随，1 = 瞬间跟随）       |
+| `damping.angularFactor`             | 角度插值速度（范围同上）                                          |
+| `damping.maxLinearDistance`         | 硬夹断最大距离（格）                                              |
+| `damping.maxAngularDegrees`         | 最大角度偏差（度）                                                |
+| `damping.angularMomentumFactor`     | 角动量阻尼系数（0 = 冻结，1 = 无惯性）                            |
+| `damping.maxAngularMomentumDegrees` | 最大角动量偏差角度（度）                                          |
 
 > 添加或修改光环定义后，运行 `/reload` 重新加载。
 

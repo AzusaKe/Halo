@@ -16,6 +16,7 @@ English | [中文](README_ZH.md)
 - [Features](#features)
 - [Planned Features](#planned-features)
 - [Installation](#installation)
+  - [NeoForge / Forge](#neoforge--forge)
 - [Usage](#usage)
   - [Commands](#commands)
   - [Custom Halo Definitions](#custom-halo-definitions)
@@ -60,12 +61,12 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 ## Planned Features
 
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
-- [ ] **More Animations**: Add pulse glow, scale animations, and "intro animations"
+- [x] **More Animations**: Add pulse glow, scale animations, and "intro animations"
 - [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files)
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
 - [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
-- [ ] **Singleplayer `/halo hide` Shutdown Animation**: The shutdown (fade-out) animation does not play in singleplayer — the halo disappears instantly. This is a known issue; multiplayer shutdown animations work correctly. A fix is in progress.
+- [x] **Singleplayer `/halo hide` Shutdown Animation**: The shutdown (fade-out) animation does not play in singleplayer — the halo disappears instantly. This is a known issue; multiplayer shutdown animations work correctly. A fix is in progress.
 - [ ] Other bug fixes — issues are welcome
 
 <a id="installation"></a>
@@ -97,25 +98,25 @@ This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.
 
 All commands require permission level 2 (operator). Use `/halo` with tab completion to explore available subcommands.
 
-| Command                                | Description                                                                      |
-| -------------------------------------- | -------------------------------------------------------------------------------- |
-| `/halo list`                           | List all loaded halo definitions                                                 |
-| `/halo dump`                           | Detailed output of halo definitions including shape, animation, and damping info |
-| `/halo show <entity> <definition>`     | Attach a halo to an entity                                                       |
-| `/halo hide <entity>`                  | Remove a halo from an entity                                                     |
-| `/halo active`                         | List all entities currently wearing a halo                                       |
-| `/halo inspect <entity>`               | View detailed runtime status of an entity's halo                                 |
-| `/halo config linear-damping <0-1>`    | Set linear follow speed (0 = no follow, 1 = instant follow)                      |
-| `/halo config angular-damping <0-1>`   | Set angular follow speed                                                         |
-| `/halo config max-linear-distance <n>` | Set maximum distance before hard clamping (blocks)                               |
-| `/halo config max-angular-degrees <n>` | Set maximum angular deviation (degrees)                                          |
-| `/halo config allow-angular-momentum <true/false>` | Toggle angular momentum inertia effect                             |
-| `/halo config angular-momentum-factor <0-1>` | Set angular momentum damping factor (0 = frozen, 1 = no inertia)  |
-| `/halo config max-angular-momentum-degrees <n>` | Set maximum angular momentum deviation (degrees)                 |
-| `/halo config scale <0.1-5.0>`         | Set uniform scale multiplier                                                     |
-| `/halo save`                           | Sync halo data to world persistence and trigger save-all                         |
-| `/halo debug <true/false>`             | Toggle teleport/snap debug logging to chat                                       |
-| `/halo reload`                         | Hint to use `/reload` to reload halo definitions                                 |
+| Command                                            | Description                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `/halo list`                                       | List all loaded halo definitions                                                 |
+| `/halo dump`                                       | Detailed output of halo definitions including shape, animation, and damping info |
+| `/halo show <entity> <definition>`                 | Attach a halo to an entity                                                       |
+| `/halo hide <entity>`                              | Remove a halo from an entity                                                     |
+| `/halo active`                                     | List all entities currently wearing a halo                                       |
+| `/halo inspect <entity>`                           | View detailed runtime status of an entity's halo                                 |
+| `/halo config linear-damping <0-1>`                | Set linear follow speed (0 = no follow, 1 = instant follow)                      |
+| `/halo config angular-damping <0-1>`               | Set angular follow speed                                                         |
+| `/halo config max-linear-distance <n>`             | Set maximum distance before hard clamping (blocks)                               |
+| `/halo config max-angular-degrees <n>`             | Set maximum angular deviation (degrees)                                          |
+| `/halo config allow-angular-momentum <true/false>` | Toggle angular momentum inertia effect                                           |
+| `/halo config angular-momentum-factor <0-1>`       | Set angular momentum damping factor (0 = frozen, 1 = no inertia)                 |
+| `/halo config max-angular-momentum-degrees <n>`    | Set maximum angular momentum deviation (degrees)                                 |
+| `/halo config scale <0.1-5.0>`                     | Set uniform scale multiplier                                                     |
+| `/halo save`                                       | Sync halo data to world persistence and trigger save-all                         |
+| `/halo debug <true/false>`                         | Toggle teleport/snap debug logging to chat                                       |
+| `/halo reload`                                     | Hint to use `/reload` to reload halo definitions                                 |
 
 **Examples:**
 
@@ -221,34 +222,34 @@ Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`
 }
 ```
 
-| Field                        | Description                                                                       |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| `id`                         | Unique identifier in format `namespace:name`                                      |
-| `orientation_mode`           | `locked`, `free`, or `sync` — how the halo orients relative to the entity head    |
-| `allow_angular_momentum`     | When `true`, adds angular momentum inertia to orientation (`locked`/`free` only)  |
-| `hide_on_sleep`              | When `true`, halo stops rendering while the entity is sleeping (default `false`)   |
-| `display_in_invisible`       | When `true`, halo continues rendering while the entity is invisible (default `false`) |
-| `layers`                     | Array of groups; each group can contain multiple primitives and nested child groups, sharing a common transform and animation   |
-| `layers[].position`          | `[X, Y, Z]` offset of this group relative to the parent group or anchor frame (blocks)            |
-| `layers[].rotation`          | `[yaw, pitch, roll]` Euler rotation of this group (degrees)                                |
-| `layers[].scale`             | Per-group scale multiplier                                                        |
-| `layers[].animation`         | Per-group `offset` / `rotation` animation curves (see reference)                  |
-| `layers[].primitives`        | Array of rendering primitives within this group (see below)                       |
-| `layers[].primitive`         | Backward-compatible single primitive object (equivalent to `primitives: [...]`)   |
-| `layers[].children`          | Optional array of nested child groups that inherit this group's transform         |
-| `primitive.type`             | `billboard` (single textured quad) or `ring` (cylindrical ring)                  |
-| `primitive.texture`          | Texture path, e.g. `halo:textures/halo/ring_00.png`                               |
-| `primitive.inner_texture`    | Ring only: inner surface texture (optional; defaults to `texture` if omitted) |
-| `layers[].primitive.size`    | `billboard`: `[width, depth]`; `ring`: `[radius, cylinder_width]` in blocks      |
-| `layers[].primitive.segments`| Ring only: polygon segment count (default 32)                                     |
-| `positioning.offset`         | `[X, Y, Z]` offset relative to entity head (blocks)                               |
-| `positioning.scale`          | Default scale multiplier                                                          |
-| `damping.linearFactor`       | Linear interpolation speed per tick at 20 TPS (0 = no follow, 1 = instant follow) |
-| `damping.angularFactor`      | Angular interpolation speed (same range as above)                                 |
-| `damping.maxLinearDistance`  | Hard clamp maximum distance (blocks)                                              |
-| `damping.maxAngularDegrees`  | Maximum angular deviation (degrees)                                               |
-| `damping.angularMomentumFactor` | Angular momentum damping factor (0 = frozen, 1 = no inertia)                  |
-| `damping.maxAngularMomentumDegrees` | Maximum angular momentum deviation (degrees)                              |
+| Field                               | Description                                                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                | Unique identifier in format `namespace:name`                                                                                  |
+| `orientation_mode`                  | `locked`, `free`, or `sync` — how the halo orients relative to the entity head                                                |
+| `allow_angular_momentum`            | When `true`, adds angular momentum inertia to orientation (`locked`/`free` only)                                              |
+| `hide_on_sleep`                     | When `true`, halo stops rendering while the entity is sleeping (default `false`)                                              |
+| `display_in_invisible`              | When `true`, halo continues rendering while the entity is invisible (default `false`)                                         |
+| `layers`                            | Array of groups; each group can contain multiple primitives and nested child groups, sharing a common transform and animation |
+| `layers[].position`                 | `[X, Y, Z]` offset of this group relative to the parent group or anchor frame (blocks)                                        |
+| `layers[].rotation`                 | `[yaw, pitch, roll]` Euler rotation of this group (degrees)                                                                   |
+| `layers[].scale`                    | Per-group scale multiplier                                                                                                    |
+| `layers[].animation`                | Per-group `offset` / `rotation` animation curves (see reference)                                                              |
+| `layers[].primitives`               | Array of rendering primitives within this group (see below)                                                                   |
+| `layers[].primitive`                | Backward-compatible single primitive object (equivalent to `primitives: [...]`)                                               |
+| `layers[].children`                 | Optional array of nested child groups that inherit this group's transform                                                     |
+| `primitive.type`                    | `billboard` (single textured quad) or `ring` (cylindrical ring)                                                               |
+| `primitive.texture`                 | Texture path, e.g. `halo:textures/halo/ring_00.png`                                                                           |
+| `primitive.inner_texture`           | Ring only: inner surface texture (optional; defaults to `texture` if omitted)                                                 |
+| `layers[].primitive.size`           | `billboard`: `[width, depth]`; `ring`: `[radius, cylinder_width]` in blocks                                                   |
+| `layers[].primitive.segments`       | Ring only: polygon segment count (default 32)                                                                                 |
+| `positioning.offset`                | `[X, Y, Z]` offset relative to entity head (blocks)                                                                           |
+| `positioning.scale`                 | Default scale multiplier                                                                                                      |
+| `damping.linearFactor`              | Linear interpolation speed per tick at 20 TPS (0 = no follow, 1 = instant follow)                                             |
+| `damping.angularFactor`             | Angular interpolation speed (same range as above)                                                                             |
+| `damping.maxLinearDistance`         | Hard clamp maximum distance (blocks)                                                                                          |
+| `damping.maxAngularDegrees`         | Maximum angular deviation (degrees)                                                                                           |
+| `damping.angularMomentumFactor`     | Angular momentum damping factor (0 = frozen, 1 = no inertia)                                                                  |
+| `damping.maxAngularMomentumDegrees` | Maximum angular momentum deviation (degrees)                                                                                  |
 
 > After adding or modifying halo definitions, run `/reload` to reload.
 
