@@ -141,7 +141,7 @@ All commands require permission level 2 (operator). Use `/halo` with tab complet
 
 ### Custom Halo Definitions
 
-Halo definitions are JSON files stored in `data/<namespace>/halo_definitions/` (data packs) or `assets/<namespace>/halo_definitions/` (resource packs).
+Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/` (resource packs). The server never reads halo definitions — it only tracks which entity has which halo and broadcasts that to clients; clients render halos using their own locally loaded resource-pack definitions.
 
 > **For a full step-by-step tutorial and the complete field reference, see the docs:**
 > [Quickstart](docs/en/quickstart.md) · [Field Reference](docs/en/reference.md)
@@ -321,9 +321,8 @@ src/main/
   resources/
     fabric.mod.json            — Mod metadata (entry points, mixins, dependencies)
     halo.mixins.json            — Mixin configuration
-    data/halo/
-      halo_definitions/        — JSON halo definition files (data pack)
     assets/halo/
+      halo_definitions/        — JSON halo definition files (resource pack, client rendering)
       textures/halo/           — Halo and glow textures
 ```
 

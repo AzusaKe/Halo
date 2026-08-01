@@ -59,6 +59,11 @@ public final class HaloJsonLoader {
      * Register resource reload listener for server data packs.
      * <p>Halo definitions live under {@code data/&lt;ns&gt;/halo_definitions/}
      * and are loaded by the server-side resource manager.</p>
+     * <p>本模组内置定义一律放在 {@code assets/}（资源包）中供客户端渲染使用，
+     * 服务器本身不需要任何光环定义。此处保留 {@code data/} 监听器的用途是：
+     * 为后续"光环定义由服务器统一管理"的多人同步方案预留——即服务端通过
+     * 数据包下发权威定义、不允许客户端自行添加的情况。当前模组内置的
+     * {@code data/} 定义目录为空，此监听器不会加载任何内容。</p>
      * <p>Safe to call more than once — subsequent calls are no-ops.</p>
      */
     public static void register() {

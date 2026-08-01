@@ -142,12 +142,12 @@
 
 ### 自定义光环定义
 
-光环定义是存放在 `data/<namespace>/halo_definitions/`（数据包）或 `assets/<namespace>/halo_definitions/`（资源包）下的 JSON 文件。
+光环定义是存放在 `assets/<namespace>/halo_definitions/`（资源包）下的 JSON 文件。服务器不读取任何光环定义——它只记录"哪个实体拥有哪个光环"并广播给客户端；客户端用自己的本地资源包定义来渲染光环。
 
 > **完整的分步教程和字段参考请见文档：**
 > [快速上手](docs/zh/quickstart.md) · [字段参考](docs/zh/reference.md)
 
-**定义示例**（`ring_default.json`，简化版——[完整版](src/main/resources/data/halo/halo_definitions/ring_default.json)）：
+**定义示例**（`ring_default.json`，简化版——[完整版](src/main/resources/assets/halo/halo_definitions/ring_default.json)）：
 
 ```json
 {
@@ -322,10 +322,9 @@ src/main/
   resources/
     fabric.mod.json            — 模组元数据（入口点、Mixin、依赖）
     halo.mixins.json            — Mixin 配置
-    data/halo/
-      halo_definitions/        — JSON 光环定义文件（数据包）
     assets/halo/
-      textures/halo/           — 光环与发光纹理
+      halo_definitions/         — JSON 光环定义文件（资源包，客户端渲染使用）
+      textures/halo/            — 光环与发光纹理
 ```
 
 <a id="贡献"></a>
