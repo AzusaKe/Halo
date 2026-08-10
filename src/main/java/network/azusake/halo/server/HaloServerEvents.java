@@ -63,7 +63,11 @@ public final class HaloServerEvents {
             network.azusake.halo.network.HaloNetwork.sendHello(handler.getPlayer());
         });
 
-        // Player disconnect → remove halos and clean up reported definitions
+        // Player disconnect → clear runtime halo and reported definitions.
+        // Note: this does NOT touch the world-level ownership record
+        // (HaloWorldSaveData) — a player keeps their halo across a reconnect,
+        // just as they keep it across a respawn.  Only /halo show and /halo hide
+        // may modify ownership.
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             UUID uuid = handler.getPlayer().getUuid();
             HaloMod.LOGGER.debug(

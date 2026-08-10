@@ -2,7 +2,6 @@ package network.azusake.halo.command;
 
 import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDefinition;
-import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.EntityHaloTracker;
@@ -395,22 +394,24 @@ public final class HaloConfigCommand {
     }
 
     /**
-     * /halo save — sync halo data to persistent state and trigger a world save-all.
-     * This replaces the need for the vanilla {@code /save-all} command when testing
-     * halo persistence (useful when cheats are not enabled).
+     * /halo save — trigger a world save so the halo ownership record
+     * (HaloWorldSaveData) is flushed to disk.
+     *
+     * <p>The world-level state is maintained incrementally by {@code /halo show}
+     * and {@code /halo hide}; this command simply forces a save-all (useful when
+     * cheats are not enabled), it does not rebuild the record from the runtime map.</p>
      */
     private static int saveHaloData(CommandContext<ServerCommandSource> ctx) {
         ServerCommandSource source = ctx.getSource();
         MinecraftServer server = source.getServer();
 
-        // Sync halo assignments to world persistent state
+        // Touch the persistent state so it is (re)marked dirty, then save-all.
         ServerWorld overworld = server.getOverworld();
         if (overworld != null) {
-            HaloWorldSaveData data = HaloWorldSaveData.get(overworld);
-            data.syncFromManager();
+            HaloWorldSaveData.get(overworld);
         }
 
-        // Trigger save-all so entity NBT (including our mixin data) is written
+        // Trigger save-all so the ownership record and entity NBT are written
         server.saveAll(true, true, true);
 
         int count = HaloManager.getInstance().getActiveCount();
@@ -452,12 +453,12 @@ public final class HaloConfigCommand {
                 }
             }
 
-            boolean persisted = HaloEntityData.hasHalo(uuid);
+            boolean persisted = HaloWorldSaveData.get(server.getOverworld()).contains(uuid);
             boolean teleporting = EntityHaloTracker.isTeleporting(uuid);
             long ageMs = System.currentTimeMillis() - instance.getCreatedAtTime();
 
             String status = instance.isActive() ? "§aactive" : "§cdead";
-            String nbt = persisted ? "§a✓nbt" : "§c✗nbt";
+            String nbt = persisted ? "§a✓persist" : "§c✗persist";
             String tp = teleporting ? " §etp" : "";
 
             final String name = entityName;
@@ -510,17 +511,21 @@ public final class HaloConfigCommand {
                 () -> Text.literal("  §8Status:    §eNo halo attached"), false
             );
 
-            // Still check NBT in case entity has stale data
-            boolean hasNbt = HaloEntityData.hasHalo(living);
-            if (hasNbt) {
-                Identifier nbtDef = HaloEntityData.getHaloDefinition(living);
+            // Check the world-level ownership record for a stale entry
+            // (e.g. the owning entity died permanently and was not pruned).
+            MinecraftServer server = source.getServer();
+            ServerWorld overworld = server.getOverworld();
+            Identifier persistedDef = overworld != null
+                ? HaloWorldSaveData.get(overworld).get(uuid)
+                : null;
+            if (persistedDef != null) {
                 source.sendFeedback(
-                    () -> Text.literal("  §8NBT:       §eStale NBT found §7(def=" + nbtDef + ") §e— will restore on reload"),
+                    () -> Text.literal("  §8Persist:    §eStale ownership found §7(def=" + persistedDef + ")"),
                     false
                 );
             } else {
                 source.sendFeedback(
-                    () -> Text.literal("  §8NBT:       §7No halo NBT"), false
+                    () -> Text.literal("  §8Persist:    §7No halo ownership"), false
                 );
             }
             return Command.SINGLE_SUCCESS;
@@ -529,7 +534,7 @@ public final class HaloConfigCommand {
         // --- Instance exists ---
         boolean isActive = instance.isActive();
         long ageMs = System.currentTimeMillis() - instance.getCreatedAtTime();
-        boolean persisted = HaloEntityData.hasHalo(living);
+        boolean persisted = HaloWorldSaveData.get(source.getServer().getOverworld()).contains(uuid);
         boolean teleporting = EntityHaloTracker.isTeleporting(uuid);
         boolean needsSnap = instance.isNeedsSnap();
 
@@ -542,9 +547,9 @@ public final class HaloConfigCommand {
             "  §8Created: §7" + instance.getCreatedAtTime()), false
         );
 
-        // NBT persistence
+        // World-save ownership persistence
         source.sendFeedback(() -> Text.literal(
-            "  §8NBT:       " + (persisted ? "§a✓ persisted" : "§c✗ not persisted")), false
+            "  §8Persist:   " + (persisted ? "§a✓ persisted" : "§c✗ not persisted")), false
         );
 
         // Teleport / snap

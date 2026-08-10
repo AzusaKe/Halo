@@ -5,10 +5,12 @@ import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.manager.HaloManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
@@ -173,10 +175,17 @@ public final class EntityHaloTracker {
             cleanup(entity);
         });
 
-        // ---- Entity load → restore halo from NBT ----
+        // ---- Player respawn → restore halo from world save ----
+        // Both death-respawn (alive=false) and end-return (alive=true) are
+        // restored unconditionally — the player keeps the halo they own.
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            onPlayerRespawn(newPlayer);
+        });
+
+        // ---- Entity load → restore halo from world save ----
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             if (entity instanceof LivingEntity living) {
-                restoreFromNbt(living);
+                restoreFromWorldSave(living);
             }
         });
 
@@ -222,12 +231,36 @@ public final class EntityHaloTracker {
     /**
      * Remove the halo from an entity and clear all tracking state.
      *
+     * <p><b>Death does NOT play a shutdown animation.</b> The runtime halo is
+     * removed silently (no {@code sendHaloRemove} broadcast, no ENDING state) —
+     * this is a deliberate design decision: only an explicit {@code /halo hide}
+     * should trigger the shutdown animation.  The world-level ownership record
+     * in {@link HaloWorldSaveData} is left untouched here; only {@code /halo
+     * show} and {@code /halo hide} may modify it.</p>
+     *
+     * <p>A <em>player's</em> ownership survives death so it can be restored on
+     * respawn (see {@link #onPlayerRespawn}).  A <em>non-player</em> entity
+     * (e.g. a mob) never respawns, so its now-stale ownership entry is pruned
+     * from the world save to avoid permanent residue.</p>
+     *
      * @param entity the living entity to clean up
      */
     public static void cleanup(LivingEntity entity) {
         UUID uuid = entity.getUuid();
-        HaloManager.getInstance().hideHaloOn(entity);
+        // Silent removal — no broadcast, no shutdown animation.  Ownership in the
+        // world save is preserved (players) or pruned (non-players) below.
+        HaloManager.getInstance().forceRemoveHalo(uuid);
         HaloEntityData.removeHalo(entity);
+
+        // A dead non-player will never respawn — drop its stale ownership entry.
+        // A dead player keeps theirs so the halo returns on respawn.
+        if (!(entity instanceof ServerPlayerEntity)) {
+            var server = entity.getServer();
+            if (server != null) {
+                HaloWorldSaveData.get(server.getOverworld()).remove(uuid);
+            }
+        }
+
         recentlyTeleported.remove(uuid);
         lastKnownPositions.remove(uuid);
     }
@@ -274,20 +307,53 @@ public final class EntityHaloTracker {
     }
 
     /**
-     * Restore a halo from entity persistent NBT when an entity loads.
+     * Restore a player's halo on respawn, from the world-level ownership record.
      *
-     * @param entity the entity that just loaded
+     * <p>Both death-respawn and end-return-to-overworld funnel through here
+     * unconditionally.  Entity NBT is NOT a reliable source for this — respawn
+     * creates a brand-new entity object that does not inherit the old one's NBT —
+     * so the world save (which survives death) is the single authoritative
+     * source.  Restoring via {@link HaloManager#showHaloOn} re-broadcasts the
+     * attach, which makes clients play the startup animation.</p>
+     *
+     * @param player the respawned player entity
      */
-    private static void restoreFromNbt(LivingEntity entity) {
-        if (!HaloEntityData.hasHalo(entity)) {
+    private static void onPlayerRespawn(ServerPlayerEntity player) {
+        UUID uuid = player.getUuid();
+
+        // Idempotency guard: if ENTITY_LOAD already restored the halo during
+        // the respawn, don't broadcast a second attach.
+        if (HaloManager.getInstance().getHaloInstance(uuid) != null) {
             return;
         }
 
-        Identifier defId = HaloEntityData.getHaloDefinition(entity);
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return;
+        }
+
+        Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(uuid);
         if (defId == null) {
-            HaloMod.LOGGER.warn("EntityHaloTracker: entity {} has HaloInstance NBT but no valid Definition — removing",
-                entity.getUuid());
-            HaloEntityData.removeHalo(entity);
+            return;
+        }
+
+        HaloManager.getInstance().showHaloOn(player, defId);
+        HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on player {} after respawn", defId, uuid);
+    }
+
+    /**
+     * Restore a halo from the world-level ownership record when an entity loads.
+     *
+     * @param entity the entity that just loaded
+     */
+    private static void restoreFromWorldSave(LivingEntity entity) {
+        MinecraftServer server = entity.getServer();
+        if (server == null) {
+            return;
+        }
+
+        Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(entity.getUuid());
+        if (defId == null) {
             return;
         }
 
@@ -301,7 +367,7 @@ public final class EntityHaloTracker {
             instance.markTeleported();
         }
 
-        HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on entity {} from NBT",
+        HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on entity {} from world save",
             defId, entity.getUuid());
     }
 

@@ -5,6 +5,7 @@ import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
+import network.azusake.halo.lifecycle.HaloWorldSaveData;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
@@ -80,9 +81,14 @@ public final class HaloManager {
         // Persist to entity NBT so the halo survives world reload
         HaloEntityData.attachHalo(entity, defId);
 
-        // Broadcast to all players on a dedicated server
+        // Record ownership in the world-level persistent state — the single
+        // authoritative record of who owns which halo.  Only /halo show and
+        // /halo hide may modify it; death/respawn/dimension-travel only read it.
         MinecraftServer server = entity.getServer();
         if (server != null) {
+            HaloWorldSaveData.get(server.getOverworld()).set(entity.getUuid(), defId);
+
+            // Broadcast to all players on a dedicated server
             network.azusake.halo.network.HaloNetwork.sendHaloAttach(server, entity.getUuid(), defId);
         }
 
@@ -104,6 +110,8 @@ public final class HaloManager {
 
         MinecraftServer server = entity.getServer();
         if (server != null) {
+            // Revoke ownership in the world-level persistent state
+            HaloWorldSaveData.get(server.getOverworld()).remove(entity.getUuid());
             network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid(), instance.getDefinitionId());
         }
 
@@ -111,16 +119,24 @@ public final class HaloManager {
     }
 
     /**
-     * Remove a halo by entity UUID and broadcast the removal to all online players.
+     * Silently remove a halo by entity UUID — clears only the runtime map,
+     * without broadcasting a removal to clients and without touching the
+     * world-level ownership record.
+     *
+     * <p>Used by entity unload, disconnect, and death cleanup.  Silence matters
+     * here: a broadcast would make clients play the shutdown (ENDING) animation
+     * on death/unload, which is deliberately NOT wanted — only an explicit
+     * {@code /halo hide} should trigger the shutdown animation.  Ownership in
+     * {@link HaloWorldSaveData} is intentionally preserved so a player's halo
+     * survives respawn / reconnect.</p>
      *
      * @param entityUuid the entity UUID
-     * @param server     the current Minecraft server (for broadcasting)
+     * @param server     the current Minecraft server (unused — kept for signature stability)
      */
     public void removeHalo(UUID entityUuid, MinecraftServer server) {
         HaloInstance removed = activeHalos.remove(entityUuid);
         if (removed != null) {
-            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entityUuid, removed.getDefinitionId());
-            HaloMod.LOGGER.debug("Halo removed for uuid={}", entityUuid);
+            HaloMod.LOGGER.debug("Halo silently removed for uuid={}", entityUuid);
         }
     }
 
@@ -216,10 +232,12 @@ public final class HaloManager {
 
             LivingEntity entity = findEntityByUuid(server, uuid);
             if (entity == null || !entity.isAlive()) {
-                Identifier defId = entry.getValue().getDefinitionId();
+                // Silently drop the runtime instance.  No broadcast: death/unload
+                // must not play the shutdown animation — that is reserved for an
+                // explicit /halo hide.  World-level ownership is preserved (a dead
+                // player's entry survives for respawn; non-players are pruned by
+                // EntityHaloTracker.cleanup).
                 iterator.remove();
-                // Broadcast removal with defId so clients can play shutdown animation
-                network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, uuid, defId);
                 HaloMod.LOGGER.debug("Halo cleaned up: entity uuid={} is gone or dead", uuid);
             }
         }
