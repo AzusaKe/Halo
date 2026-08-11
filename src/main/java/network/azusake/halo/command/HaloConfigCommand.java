@@ -1,6 +1,7 @@
 package network.azusake.halo.command;
 
 import network.azusake.halo.config.HaloConfig;
+import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -36,7 +37,8 @@ import static net.minecraft.server.command.CommandManager.literal;
 /**
  * Brigadier command tree for {@code /halo}.
  *
- * <p>All sub-commands require permission level 2 (op).</p>
+ * <p>All sub-commands require the permission level configured in
+ * {@link network.azusake.halo.config.HaloModConfig} (default 2, operator).</p>
  *
  * <pre>
  * /halo list                      – list loaded halo definitions
@@ -64,7 +66,7 @@ public final class HaloConfigCommand {
      */
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
         var haloNode = literal("halo")
-            .requires(source -> source.hasPermissionLevel(2));
+            .requires(source -> source.hasPermissionLevel(HaloModConfigStore.getPermissionLevel()));
 
         // --- /halo list ---
         haloNode.then(literal("list")

@@ -79,6 +79,20 @@ static String handle(String command)
 支持：`list`、`dump`、`show @s <定义ID>`、`hide @s`、`config <参数> <值>`、`reload`、`active`。
 `show`/`hide` 严格要求 `@s` 选择器。
 
+### `HaloModConfig` / `HaloModConfigStore`
+
+模组级配置文件 `config/halo-azusake/halo_mod_config.json`，承载命令系统的底层配置
+（当前为 `/halo` 所需权限等级），与 `/halo config` 运行时调参（`HaloConfig`）完全
+分离。文件缺失或空白时启动自动写入默认值；越界值钳制到 0-4；损坏 JSON 回退默认并
+警告；未知键忽略（向后兼容）。
+
+| 方法 | 说明 |
+|------|------|
+| `HaloModConfigStore.load()` | 启动时加载（mod 初始化调用一次） |
+| `HaloModConfigStore.getPermissionLevel()` | `/halo` 命令树所需权限等级（默认 2，范围 0-4） |
+| `HaloModConfig.getCommandPermissionLevel()` | 当前权限等级 |
+| `HaloModConfig.setCommandPermissionLevel(int)` | 设置权限等级（钳制到 0-4） |
+
 ---
 
 ## 网络通道

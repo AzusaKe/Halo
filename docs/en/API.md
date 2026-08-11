@@ -78,6 +78,22 @@ static String handle(String command)
 Supported: `list`, `dump`, `show @s <def>`, `hide @s`, `config <p> <v>`, `reload`, `active`.
 `show`/`hide` strictly require `@s`.
 
+### `HaloModConfig` / `HaloModConfigStore`
+
+Mod-level config file `config/halo-azusake/halo_mod_config.json` holds the
+low-level command-system configuration (currently the permission level required
+by `/halo`). It is completely separate from the runtime `/halo config` tuning
+(`HaloConfig`). Missing or blank files are written with defaults at startup;
+out-of-range values are clamped to 0–4; corrupt JSON falls back to defaults with
+a warning; unknown keys are ignored (backwards compatible).
+
+| Method | Purpose |
+|--------|---------|
+| `HaloModConfigStore.load()` | Load at startup (called once during mod init) |
+| `HaloModConfigStore.getPermissionLevel()` | Permission level required by the `/halo` command tree (default 2, range 0–4) |
+| `HaloModConfig.getCommandPermissionLevel()` | Current permission level |
+| `HaloModConfig.setCommandPermissionLevel(int)` | Set the permission level (clamped to 0–4) |
+
 ---
 
 ## Network Channels

@@ -1,6 +1,7 @@
 package network.azusake.halo;
 
 import network.azusake.halo.command.HaloConfigCommand;
+import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.EntityHaloTracker;
 import network.azusake.halo.server.HaloServerEvents;
@@ -32,6 +33,10 @@ public class HaloMod implements ModInitializer {
 
         // Register entity lifecycle tracker (teleport detection, NBT restore, cleanup)
         EntityHaloTracker.register();
+
+        // Load the file-backed mod config (permission level etc.) before the
+        // /halo command tree registers, so the permission gate reads it.
+        HaloModConfigStore.load();
 
         // Register /halo command tree (dump, reload, list, show, hide, config)
         CommandRegistrationCallback.EVENT.register(
