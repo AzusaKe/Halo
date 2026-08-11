@@ -103,25 +103,45 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
      *   <li>{@code fall_flying} — gliding with elytra</li>
      *   <li>{@code swimming}  — in water (swimming upwards)</li>
      *   <li>{@code crawling}  — SWIMMING pose but not in water (stuck under block)</li>
-     *   <li>{@code sneaking}  — crouching (shift key)</li>
+     *   <li>{@code sneaking}  — crouching on the ground (shift key). Airborne
+     *       sneaking keeps {@code standing}: on 1.20.1 the pose may already be
+     *       {@code CROUCHING} midair, so the on-ground check is the actual gate.</li>
      *   <li>{@code standing}  — default</li>
      * </ol>
      */
     static String resolvePoseKey(LivingEntity entity) {
-        if (entity.isSleeping()) {
+        return resolvePoseKey(
+            entity.isSleeping(),
+            entity.isFallFlying(),
+            entity.isSwimming(),
+            entity.getPose(),
+            entity.isSneaking(),
+            entity.isOnGround()
+        );
+    }
+
+    /**
+     * Pure pose-key decision, split out so the mapping can be unit-tested
+     * without a Minecraft instance. Same priority order as
+     * {@link #resolvePoseKey(LivingEntity)}.
+     */
+    static String resolvePoseKey(boolean sleeping, boolean fallFlying, boolean swimming,
+                                 EntityPose pose, boolean sneaking, boolean onGround) {
+        if (sleeping) {
             return "sleeping";
         }
-        if (entity.isFallFlying()) {
+        if (fallFlying) {
             return "fall_flying";
         }
-        if (entity.isSwimming()) {
+        if (swimming) {
             return "swimming";
         }
-        // EntityPose.SWIMMING without isSwimming() means crawling under block
-        if (entity.getPose() == EntityPose.SWIMMING) {
+        // EntityPose.SWIMMING without the swimming flag means crawling under a block
+        if (pose == EntityPose.SWIMMING) {
             return "crawling";
         }
-        if (entity.isSneaking() || entity.getPose() == EntityPose.CROUCHING) {
+        // Crouch anchor only applies on the ground; airborne sneaking keeps standing.
+        if (onGround && (pose == EntityPose.CROUCHING || sneaking)) {
             return "sneaking";
         }
         return "standing";
