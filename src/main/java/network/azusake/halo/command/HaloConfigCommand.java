@@ -157,7 +157,7 @@ public final class HaloConfigCommand {
         );
 
         configNode.then(literal("scale")
-            .then(argument("value", DoubleArgumentType.doubleArg(0.1, 5.0))
+            .then(argument("value", DoubleArgumentType.doubleArg(0.1, Double.MAX_VALUE))
                 .executes(ctx -> configSet(ctx, "scale",
                     DoubleArgumentType.getDouble(ctx, "value")))
             )

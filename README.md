@@ -113,7 +113,7 @@ All commands require permission level 2 (operator) by default. The required leve
 | `/halo config allow-angular-momentum <true/false>` | Toggle angular momentum inertia effect                                           |
 | `/halo config angular-momentum-factor <0-1>`       | Set angular momentum damping factor (0 = frozen, 1 = no inertia)                 |
 | `/halo config max-angular-momentum-degrees <n>`    | Set maximum angular momentum deviation (degrees)                                 |
-| `/halo config scale <0.1-5.0>`                     | Set uniform scale multiplier                                                     |
+| `/halo config scale <0.1+>`                        | Set uniform scale multiplier                                                     |
 | `/halo save`                                       | Sync halo data to world persistence and trigger save-all                         |
 | `/halo debug <true/false>`                         | Toggle teleport/snap debug logging to chat                                       |
 | `/halo reload`                                     | Hint to use `/reload` to reload halo definitions                                 |

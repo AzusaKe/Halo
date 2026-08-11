@@ -44,7 +44,7 @@ public class HaloConfig {
     // Positioning parameters
     // ------------------------------------------------------------------
 
-    /** Uniform scale multiplier.  Clamped to [0.1, 5.0]. */
+    /** Uniform scale multiplier.  Clamped to [0.1, +∞). */
     private double haloScale = 1.0;
 
     /** Position offset relative to the entity head anchor. */
@@ -130,7 +130,7 @@ public class HaloConfig {
     }
 
     public void setHaloScale(double value) {
-        this.haloScale = Math.max(0.1, Math.min(5.0, value));
+        this.haloScale = Math.max(0.1, value);
     }
 
     public void setPositionOffset(Vec3d offset) {

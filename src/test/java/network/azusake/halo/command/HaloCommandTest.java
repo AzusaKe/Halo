@@ -94,7 +94,7 @@ class HaloCommandTest {
         }
 
         @Test
-        @DisplayName("haloScale clamped to [0.1, 5.0]")
+        @DisplayName("haloScale clamped to [0.1, +∞)")
         void haloScaleClamped() {
             HaloConfig config = new HaloConfig();
 
@@ -104,8 +104,17 @@ class HaloCommandTest {
             config.setHaloScale(0.05);
             assertEquals(0.1, config.getHaloScale(), 1e-9);
 
+            config.setHaloScale(0.0);
+            assertEquals(0.1, config.getHaloScale(), 1e-9);
+
+            config.setHaloScale(-1.0);
+            assertEquals(0.1, config.getHaloScale(), 1e-9);
+
             config.setHaloScale(10.0);
-            assertEquals(5.0, config.getHaloScale(), 1e-9);
+            assertEquals(10.0, config.getHaloScale(), 1e-9);
+
+            config.setHaloScale(100.0);
+            assertEquals(100.0, config.getHaloScale(), 1e-9);
 
             config.setHaloScale(0.1);
             assertEquals(0.1, config.getHaloScale(), 1e-9);

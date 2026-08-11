@@ -113,7 +113,7 @@
 | `/halo config allow-angular-momentum <true/false>` | 开关角动量惯性效果                           |
 | `/halo config angular-momentum-factor <0-1>`       | 设置角动量阻尼系数（0 = 冻结，1 = 无惯性）   |
 | `/halo config max-angular-momentum-degrees <n>`    | 设置最大角动量偏差角度（度）                 |
-| `/halo config scale <0.1-5.0>`                     | 设置统一缩放倍率                             |
+| `/halo config scale <0.1+>`                        | 设置统一缩放倍率                             |
 | `/halo save`                                       | 同步光环数据到世界持久化存储并触发 save-all  |
 | `/halo debug <true/false>`                         | 开关传送/吸附调试日志输出到聊天栏            |
 | `/halo reload`                                     | 提示使用 `/reload` 来重新加载光环定义        |

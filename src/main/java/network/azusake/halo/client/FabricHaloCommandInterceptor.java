@@ -131,7 +131,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
                     )
                 )
                 .then(ClientCommandManager.literal("scale")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.1, 5.0))
+                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.1))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config scale " + v);

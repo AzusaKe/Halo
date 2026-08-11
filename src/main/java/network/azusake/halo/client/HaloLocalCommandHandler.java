@@ -250,7 +250,7 @@ public final class HaloLocalCommandHandler {
                 + "§7  allow-angular-momentum <true|false>  允许角动量\n"
                 + "§7  angular-momentum-factor <0~1>        角动量阻尼\n"
                 + "§7  max-angular-momentum-degrees <n>     最大角动量角度(度)\n"
-                + "§7  scale <0.1~5.0>                     缩放\n"
+                + "§7  scale <0.1+>                         缩放\n"
                 + "§7提示: 使用 §f/halo reload §7重新加载资源以恢复默认值";
         }
 
