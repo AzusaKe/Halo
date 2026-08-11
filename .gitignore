@@ -34,6 +34,10 @@ crash-reports/
 # Local dev tools (user-specific, not part of the mod)
 scripts/update-proxy.sh
 
+# Local containerized build (user-specific)
+.local/
+libs/
+
 # Secrets & local config
 *.env
 *.local
@@ -57,3 +61,4 @@ ayane*
 serika*
 run2/
 .VSCodeCounter/
+build-in-docker.ps1
