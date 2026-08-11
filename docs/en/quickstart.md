@@ -232,7 +232,7 @@ If everything went well, you should see the halo floating above your head!
 | `/halo list` | List all loaded halo definitions. Confirm your `halo:yourhalo` appears in the list. |
 | `/halo dump` | Output detailed information about all halo definitions (including layers, animations, and damping parameters). |
 | `/halo active` | List all entities currently wearing a halo. |
-| `/halo inspect @s` | View the runtime status of the halo on yourself. *(Note: currently broken for unknown reasons — may not produce output.)* |
+| `/halo inspect @s` | View the runtime status of the halo on yourself. |
 | `/halo hide @s` | Remove the halo from yourself. |
 
 ### Editing and Hot-Reload

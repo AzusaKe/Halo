@@ -232,7 +232,7 @@ yourhalo_pack/
 | `/halo list` | 列出所有已加载的光环定义。确认你的 `halo:yourhalo` 在列表中 |
 | `/halo dump` | 输出所有光环定义的详细信息（包括图层、动画、阻尼参数） |
 | `/halo active` | 列出当前所有佩戴光环的实体 |
-| `/halo inspect @s` | 查看自己身上光环的运行时状态（*注：目前因未知原因无法使用，可能无输出*） |
+| `/halo inspect @s` | 查看自己身上光环的运行时状态 |
 | `/halo hide @s` | 移除自己的光环 |
 
 ### 修改与热加载

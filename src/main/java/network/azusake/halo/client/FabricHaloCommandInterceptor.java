@@ -171,6 +171,12 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("inspect")
                 .executes(ctx -> executeLocal("halo inspect"))
+                .then(ClientCommandManager.argument("target", net.minecraft.command.argument.EntityArgumentType.entity())
+                    .executes(ctx -> {
+                        String target = ctx.getInput().split(" ")[2];
+                        return executeLocal("halo inspect " + target);
+                    })
+                )
             )
             .then(ClientCommandManager.literal("save")
                 .executes(ctx -> executeLocal("halo save"))
