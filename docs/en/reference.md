@@ -10,7 +10,7 @@ This document provides a complete description of the Halo mod's halo definition 
 
 - [Top-Level Structure](#top-level-structure)
 - [Group (Layer)](#group-layer)
-- [Primitive & Glow](#primitive--glow)
+- [Primitive](#primitive)
 - [Animation System](#animation-system)
 - [Orientation Mode](#orientation-mode)
 - [Positioning](#positioning)
@@ -167,7 +167,7 @@ Each element in the `layers` array is a **group** — a transform node that can 
 - **Type**: Boolean
 - **Required**: No
 - **Default**: `true` (when absent)
-- **Description**: Controls the self-illumination mode for primitives in this group. When `true` (default), primitives render at full brightness and their brightness can be modulated by the `animation.glow` channel (self-illumination intensity). When `false`, primitive brightness follows the in-game ambient light (brighter during daytime, darker at night) and `animation.glow` has no effect.
+- **Description**: Controls the self-illumination mode for primitives in this group. When `true` (default), primitives render at full brightness and their brightness can be modulated by the `animation.glow` channel (self-illumination intensity). When `false`, this group's primitives follow the in-game ambient light (brighter during daytime, darker at night) and `animation.glow` does not affect this group's own brightness. Regardless of `glowing`, the glow value is **inherited multiplicatively** down the scene tree (a descendant's effective glow = ancestor value × its own value).
 
 ### `animation`
 
@@ -179,7 +179,7 @@ Each element in the `layers` array is a **group** — a transform node that can 
 
 - **Type**: Array of primitive objects
 - **Required**: No (but the group should have at least `primitives` or `children` to be meaningful)
-- **Description**: The rendering primitives within this group. All primitives share the group's transform. See [Primitive & Glow](#primitive--glow) for details on each primitive type.
+- **Description**: The rendering primitives within this group. All primitives share the group's transform. See [Primitive](#primitive) for details on each primitive type.
 
   **Backward compatibility**: The old single-`primitive` field (an object instead of an array) is still supported and automatically treated as a one-element `primitives` array.
 
@@ -193,7 +193,7 @@ Each element in the `layers` array is a **group** — a transform node that can 
 
 ---
 
-## Primitive & Glow
+## Primitive
 
 Two primitive types are currently supported:
 
@@ -210,8 +210,7 @@ More primitive types will be supported in the future:
 {
   "type": "billboard",
   "texture": "halo:textures/halo/example.png",
-  "size": [0.5, 0.5],
-  "glow": { ... }
+  "size": [0.5, 0.5]
 }
 ```
 
@@ -220,7 +219,6 @@ More primitive types will be supported in the future:
 | `type` | String | **Yes** | Fixed value `"billboard"` |
 | `texture` | String | **Yes** | Texture resource path. Format: `namespace:textures/halo/filename.png`. The path is relative to `assets/`, where the **namespace** corresponds to a folder name under `assets/`. For example, in `halo:textures/halo/example.png`, `halo` is the namespace and maps to the `assets/halo/` folder. When using your own namespace (e.g. `mypack`), place files under `assets/mypack/` and write the path as `mypack:textures/halo/example.png`. |
 | `size` | `[width, depth]` | **Yes** | The quad's dimensions `[width, depth]` on the XZ plane (in blocks). Usually square, e.g. `[0.5, 0.5]`. |
-| `glow` | Object | No | Optional glow overlay layer. No glow effect when absent. **Currently non-functional in this version; pending a fix.** |
 
 ### Ring Primitive
 
@@ -245,28 +243,6 @@ More primitive types will be supported in the future:
 **Rotation convention**: When `rotation` is `[0, 0, 0]`, the ring lies flat on the XZ plane (symmetry axis along -Y), matching the billboard default orientation. The texture seam is at the +X axis direction.
 
 **Texture mapping**: U wraps around the circumference (0→1 = one full revolution, seam at +X). V spans the cylinder width (0 = top `+width/2`, 1 = bottom `-width/2`). The texture connects end-to-end in the U direction to form a closed loop.
-
-### Glow Layer
-
-> **⚠️ Note**: The glow layer currently has a known bug and is pending a fix.
-
-The glow layer renders with additive blending on top of the base texture, producing a self-illumination effect:
-
-```json
-{
-  "texture": "halo:textures/halo/example_glow.png",
-  "size": [0.5, 0.5],
-  "color": 16766720,
-  "alpha": 0.8
-}
-```
-
-| Field | Type | Required | Description |
-|------|------|------|------|
-| `texture` | String | **Yes** | Glow texture resource path. |
-| `size` | `[width, depth]` | **Yes** | Glow quad dimensions (blocks). Usually matches the base texture. |
-| `color` | Integer | **Yes** | Glow color as a packed 0xRRGGBB integer. E.g. `16766720` (0xFFCC00, gold). |
-| `alpha` | Float | **Yes** | Base opacity, range 0.0–1.0. |
 
 ---
 
@@ -303,10 +279,12 @@ The animation system uses mathematical functions to describe how position offset
 - **`offset`**: Position offset animation, organized into three optional axis arrays: `x`, `y`, `z`
 - **`rotation`**: Rotation animation, organized into three optional axis arrays: `yaw`, `pitch`, `roll`
 - **`scale`**: Scale animation, organized into three optional axis arrays: `x`, `y`, `z`. Terms are **delta factors** added to a base of 1.0 (e.g. `sin(A=0.1)` oscillates between 0.9 and 1.1). Omitted axes default to 1.0 (no scaling). Scale animation is **multiplicative** — in a child group, it compounds with the parent's scale: final scale = parent scale × child scale × animated scale.
-- **`alpha`**: Opacity animation (**scalar channel**). Omitted → 1.0 (fully opaque); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means fully transparent (layer invisible), 1 means fully opaque. Use it for fades and overall brightness pulses.
-- **`glow`**: Self-illumination intensity animation (**scalar channel**). Omitted → 1.0 (full glow); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means no glow (dark), 1 means full glow. When the group's `glowing` is `true` (default), this value directly becomes the primitive's own brightness; when `glowing=false` the brightness follows ambient light and the glow channel has no effect.
+- **`alpha`**: Opacity animation (**scalar channel**). Omitted → 1.0 (fully opaque); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means fully transparent (layer invisible), 1 means fully opaque. The value is **multiplied** with the alpha inherited from the parent (final alpha = parent alpha × own alpha × transition opacity). Use it for fades and overall brightness pulses.
+- **`glow`**: Self-illumination intensity animation (**scalar channel**). Omitted → 1.0 (full glow); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means no glow (dark), 1 means full glow. The value is **multiplied** with the glow inherited from the parent (`final glow = parent glow × own glow`). When the group's `glowing` is `true` (default), the final glow directly becomes the primitive's own brightness; when `glowing=false` the group's brightness follows ambient light, but its glow value is still passed to descendants multiplicatively.
 
 Each axis value is an **array of animation term objects**; `alpha`/`glow` are scalar channels whose values are flat term arrays. Multiple terms on the same channel are **summed together** (linear superposition), so you can combine multiple functions to produce complex motion. The entire animation block, each group, and each channel are all optional — omit what you don't need.
+
+> **Group inheritance**: `offset`/`rotation`/`scale` compose down the scene tree (child groups inherit the parent's transform). `alpha` and `glow` are **inherited multiplicatively** as well — each group's effective value = inherited value × its own animated value (alpha also multiplies in the group's transition opacity: `final alpha = parent alpha × own alpha × transition opacity`; glow: `final glow = parent glow × own glow`). Groups that omit a channel use 1.0 (no change to the inherited value), so defining an `alpha` animation on a parent group fades the whole subtree together. Glow flows down the tree regardless of the `glowing` flag — the flag only selects whether a group's own primitives use glow or ambient brightness. For fully independent parts, simply define two sibling trees.
 
 ### Units
 
@@ -681,9 +659,9 @@ Equivalent to the `layers` format with a single layer.
 }
 ```
 
-> **Note**: `multi_billboard` has no concept of position — it simply stacks all layers together. Unlike the new `layers` format, it does not support per-layer `position` offsets, independent animations, glow, or other advanced features.
+> **Note**: `multi_billboard` has no concept of position — it simply stacks all layers together. Unlike the new `layers` format, it does not support per-layer `position` offsets, independent animations, or other advanced features.
 
-> **Recommendation**: New halo definitions should use the `layers` format, which is more feature-rich (supporting per-layer independent animations, glow, rotation, etc.). The legacy format exists only for compatibility with existing definition files.
+> **Recommendation**: New halo definitions should use the `layers` format, which is more feature-rich (supporting per-layer independent animations, rotation, etc.). The legacy format exists only for compatibility with existing definition files.
 
 ---
 

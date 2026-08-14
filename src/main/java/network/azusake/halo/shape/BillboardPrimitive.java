@@ -14,11 +14,9 @@ import org.joml.Vector2f;
  *
  * @param texture  the texture resource identifier
  * @param size     width (X) and depth (Z) in definition-local units
- * @param glow     optional additive glow layer, or {@code null}
  */
 public record BillboardPrimitive(
     Identifier texture,
-    Vector2f size,
-    GlowLayer glow
+    Vector2f size
 ) implements HaloPrimitive {
 }

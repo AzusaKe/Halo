@@ -72,8 +72,7 @@ class HaloDataTest {
             Identifier id = new Identifier("halo", "test");
             BillboardPrimitive bp = new BillboardPrimitive(
                 new Identifier("halo", "tex"),
-                new Vector2f(1, 1),
-                null
+                new Vector2f(1, 1)
             );
             HaloGroup group = new HaloGroup(Vec3d.ZERO, bp);
             HaloModel model = new HaloModel(OrientationMode.LOCKED, List.of(group));
@@ -134,8 +133,7 @@ class HaloDataTest {
         void billboardIsHaloPrimitive() {
             BillboardPrimitive b = new BillboardPrimitive(
                 new Identifier("halo", "ring"),
-                new Vector2f(0.5f, 0.5f),
-                null
+                new Vector2f(0.5f, 0.5f)
             );
             assertInstanceOf(HaloPrimitive.class, b);
         }
@@ -143,8 +141,8 @@ class HaloDataTest {
         @Test
         @DisplayName("HaloModel groups list preserves order")
         void modelGroupsOrder() {
-            var bp1 = new BillboardPrimitive(new Identifier("halo", "a"), new Vector2f(1, 1), null);
-            var bp2 = new BillboardPrimitive(new Identifier("halo", "b"), new Vector2f(2, 2), null);
+            var bp1 = new BillboardPrimitive(new Identifier("halo", "a"), new Vector2f(1, 1));
+            var bp2 = new BillboardPrimitive(new Identifier("halo", "b"), new Vector2f(2, 2));
             HaloModel m = new HaloModel(OrientationMode.LOCKED, List.of(
                 new HaloGroup(Vec3d.ZERO, bp1),
                 new HaloGroup(new Vec3d(0, 0.2, 0), bp2)
@@ -153,21 +151,6 @@ class HaloDataTest {
             assertEquals(OrientationMode.LOCKED, m.orientationMode());
             assertEquals(bp1, m.groups().get(0).primitives().get(0));
             assertEquals(bp2, m.groups().get(1).primitives().get(0));
-        }
-
-        @Test
-        @DisplayName("GlowLayer record")
-        void glowLayer() {
-            GlowLayer glow = new GlowLayer(
-                new Identifier("halo", "glow"),
-                new Vector2f(0.6f, 0.6f),
-                0xFFD700,
-                0.8f
-            );
-            assertEquals(0xFFD700, glow.color());
-            assertEquals(0.8f, glow.alpha());
-            assertEquals(new Identifier("halo", "glow"), glow.texture());
-            assertEquals(0.6f, glow.size().x, 0.001f);
         }
     }
 
@@ -563,13 +546,7 @@ class HaloDataTest {
                       "primitive": {
                         "type": "billboard",
                         "texture": "halo:textures/halo/ring.png",
-                        "size": [0.5, 0.5],
-                        "glow": {
-                          "texture": "halo:textures/halo/ring_glow.png",
-                          "size": [0.6, 0.6],
-                          "color": 16777215,
-                          "alpha": 0.8
-                        }
+                        "size": [0.5, 0.5]
                       }
                     }
                   ],
@@ -614,9 +591,6 @@ class HaloDataTest {
             assertEquals("halo:textures/halo/ring.png", bp.texture().toString());
             assertEquals(0.5f, bp.size().x, 0.001f);
             assertEquals(0.5f, bp.size().y, 0.001f);
-            assertNotNull(bp.glow());
-            assertEquals(0xFF_FFFF, bp.glow().color());
-            assertEquals(0.8f, bp.glow().alpha(), 0.001f);
 
             // Animation
             assertTrue(def.animation().isPresent());
@@ -935,7 +909,6 @@ class HaloDataTest {
             assertEquals(Vec3d.ZERO, group.position());             // default position
             assertEquals(1.0f, group.scale(), 0.001f);              // default scale
             assertInstanceOf(BillboardPrimitive.class, group.primitives().get(0));
-            assertNull(((BillboardPrimitive) group.primitives().get(0)).glow());  // no glow
             assertEquals(1.0, def.positioning().scale(), 0.001);    // scale default
         }
 

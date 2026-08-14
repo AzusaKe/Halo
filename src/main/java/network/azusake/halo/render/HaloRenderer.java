@@ -13,9 +13,7 @@ import network.azusake.halo.physics.AnchorFrameCalculator;
 import network.azusake.halo.shape.HaloPrimitive;
 import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
-import network.azusake.halo.shape.GlowLayer;
 import network.azusake.halo.shape.HaloGroup;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
@@ -380,13 +378,17 @@ public final class HaloRenderer {
 
             // Step 3: Recursive group rendering
             for (HaloGroup group : model.groups()) {
-                renderGroup(group, matrices, animTime, brightness,
+                // Root groups inherit alpha = 1.0 and glow = 1.0
+                renderGroup(group, matrices, animTime, brightness, 1.0f, 1.0f,
                     transitionActive, transitionElapsed, isStartup,
                     startupConfig, shutdownConfig);
             }
         } finally {
             matrices.pop();
         }
+
+        // Clear any translucent shader tint left by the last transparent group
+        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
 
         return true;
     }
@@ -403,6 +405,7 @@ public final class HaloRenderer {
      * is evaluated and applied as additional offset, scale, and opacity.</p>
      */
     private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness,
+                              float inheritedAlpha, float inheritedGlow,
                               boolean transitionActive, double transitionElapsed, boolean isStartup,
                               StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
         matrices.push();
@@ -444,6 +447,10 @@ public final class HaloRenderer {
             // opacity/glow animation keeps driving the layer (animTime is frozen
             // at 0 while a transition is active); offset/rotation/scale remain
             // blocked until the transition finishes.
+            //
+            // Both channels inherit multiplicatively down the scene tree: each
+            // group's effective value = inherited value × its own animated value,
+            // so defining alpha on a parent group fades the whole subtree.
             float layerAlpha = 1.0f;
             float animatedGlow = 1.0f;
             if (group.animation().isPresent()) {
@@ -453,34 +460,34 @@ public final class HaloRenderer {
                     animatedGlow = layerAnim.evaluateGlow(animTime);
                 }
             }
-            float finalAlpha = layerAlpha * transitionOpacity;
+            float finalAlpha = inheritedAlpha * layerAlpha * transitionOpacity;
+            float effectiveGlow = inheritedGlow * animatedGlow;
 
-            // Apply opacity if needed
-            boolean opacityModified = false;
+            // Ensure the GL shader tint matches this group's effective alpha.
+            // Always set it (even to 1.0) so a translucent sibling subtree or a
+            // previously drawn group cannot bleed its tint into this group.
             if (finalAlpha < 1.0f) {
                 RenderSystem.enableBlend();
                 RenderSystem.defaultBlendFunc();
                 RenderSystem.setShaderColor(1f, 1f, 1f, finalAlpha);
-                opacityModified = true;
+            } else {
+                RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
             }
 
             // Draw all primitives in this group
             for (HaloPrimitive primitive : group.primitives()) {
                 if (primitive instanceof BillboardPrimitive bp) {
-                    renderBillboard(bp, matrices, group.glowing(), brightness, animatedGlow);
+                    renderBillboard(bp, matrices, group.glowing(), brightness, effectiveGlow);
                 } else if (primitive instanceof RingPrimitive rp) {
-                    renderRing(rp, matrices, group.glowing(), brightness, animatedGlow);
+                    renderRing(rp, matrices, group.glowing(), brightness, effectiveGlow);
                 }
             }
 
-            // Reset opacity
-            if (opacityModified) {
-                RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-            }
-
-            // Recurse into child groups
+            // Recurse into child groups — children inherit this group's effective
+            // alpha/glow multiplicatively; the glowing flag only selects whether
+            // this group's own primitives use glow or ambient brightness.
             for (HaloGroup child : group.children()) {
-                renderGroup(child, matrices, animTime, brightness,
+                renderGroup(child, matrices, animTime, brightness, finalAlpha, effectiveGlow,
                     transitionActive, transitionElapsed, isStartup,
                     startupConfig, shutdownConfig);
             }
@@ -582,11 +589,6 @@ public final class HaloRenderer {
             RenderSystem.enableDepthTest();
         }
         RenderSystem.disableBlend();
-
-        // ---- glow layer (also XZ plane) ----
-        if (glowing && billboard.glow() != null) {
-            renderGlowLayer(billboard.glow(), matrices);
-        }
     }
 
     // ------------------------------------------------------------------
@@ -850,76 +852,6 @@ public final class HaloRenderer {
         if (DEBUG_RENDERING) {
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
-        }
-        RenderSystem.disableBlend();
-
-        // Glow layer — reserved for future implementation
-        // if (glowing && ring.glow() != null) { renderGlowLayer(ring.glow(), matrices); }
-    }
-
-    // ------------------------------------------------------------------
-    // Glow layer (additive, XZ plane)
-    // ------------------------------------------------------------------
-
-    private void renderGlowLayer(GlowLayer glow, MatrixStack matrices) {
-        float ghw = glow.size().x / 2.0f;
-        float ghd = glow.size().y / 2.0f;
-
-        if (DEBUG_RENDERING) {
-            ghw *= 5.0f;
-            ghd *= 5.0f;
-        }
-
-        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
-
-        // Unpack colour
-        int color = glow.color();
-        float r = ((color >> 16) & 0xFF) / 255.0f;
-        float g = ((color >> 8) & 0xFF) / 255.0f;
-        float b = (color & 0xFF) / 255.0f;
-
-        // The additive glow overlay keeps its own static base alpha; the
-        // layer's finalAlpha is applied via the GL shader colour, so it
-        // multiplies in on top of this vertex alpha.
-        float alpha = Math.max(0.0f, Math.min(1.0f, glow.alpha()));
-
-        if (DEBUG_RENDERING) {
-            RenderSystem.disableDepthTest();
-            RenderSystem.depthMask(false);
-        } else {
-            RenderSystem.enableDepthTest();
-            RenderSystem.depthMask(false);
-        }
-
-        // Additive blending
-        RenderSystem.enableBlend();
-        RenderSystem.blendFunc(
-            GlStateManager.SrcFactor.SRC_ALPHA,
-            GlStateManager.DstFactor.ONE);
-        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-
-        if (glow.texture() != null) {
-            bindTextureSafe(glow.texture());
-        }
-
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder builder = tessellator.getBuffer();
-        builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-
-        // Slight Y offset to prevent z-fighting with base billboard
-        float y = DEBUG_RENDERING ? 0.0f : -0.01f;
-        builder.vertex(positionMatrix, -ghw, y, -ghd).color(r, g, b, alpha).next();
-        builder.vertex(positionMatrix,  ghw, y, -ghd).color(r, g, b, alpha).next();
-        builder.vertex(positionMatrix,  ghw, y, +ghd).color(r, g, b, alpha).next();
-        builder.vertex(positionMatrix, -ghw, y, +ghd).color(r, g, b, alpha).next();
-
-        tessellator.draw();
-
-        if (DEBUG_RENDERING) {
-            RenderSystem.depthMask(true);
-            RenderSystem.enableDepthTest();
-        } else {
-            RenderSystem.depthMask(true);
         }
         RenderSystem.disableBlend();
     }

@@ -327,54 +327,6 @@ class HaloRendererTest {
     }
 
     // ------------------------------------------------------------------
-    // 6. Color unpacking (glow layer)
-    // ------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("Glow colour unpacking")
-    class GlowColor {
-
-        @Test
-        @DisplayName("packed RGB 0xFFD700 (gold) unpacks correctly")
-        void testUnpackGold() {
-            int color = 0xFFD700; // gold
-            float r = ((color >> 16) & 0xFF) / 255.0f;
-            float g = ((color >> 8) & 0xFF) / 255.0f;
-            float b = (color & 0xFF) / 255.0f;
-
-            assertEquals(1.0f, r, 0.01f);  // 0xFF = 255
-            assertEquals(0.843f, g, 0.01f); // 0xD7 = 215
-            assertEquals(0.0f, b, 0.01f);  // 0x00 = 0
-        }
-
-        @Test
-        @DisplayName("packed RGB 0xFFFFFF (white) unpacks correctly")
-        void testUnpackWhite() {
-            int color = 0xFFFFFF;
-            float r = ((color >> 16) & 0xFF) / 255.0f;
-            float g = ((color >> 8) & 0xFF) / 255.0f;
-            float b = (color & 0xFF) / 255.0f;
-
-            assertEquals(1.0f, r, 0.01f);
-            assertEquals(1.0f, g, 0.01f);
-            assertEquals(1.0f, b, 0.01f);
-        }
-
-        @Test
-        @DisplayName("packed RGB 0x000000 (black) unpacks correctly")
-        void testUnpackBlack() {
-            int color = 0x000000;
-            float r = ((color >> 16) & 0xFF) / 255.0f;
-            float g = ((color >> 8) & 0xFF) / 255.0f;
-            float b = (color & 0xFF) / 255.0f;
-
-            assertEquals(0.0f, r, 0.01f);
-            assertEquals(0.0f, g, 0.01f);
-            assertEquals(0.0f, b, 0.01f);
-        }
-    }
-
-    // ------------------------------------------------------------------
     // 7. Alpha / glow composition math (animation channels)
     // ------------------------------------------------------------------
 
@@ -459,6 +411,38 @@ class HaloRendererTest {
 
             float glowingBrightness = animatedGlow;
             assertEquals(0.0f, glowingBrightness, 0.001f);
+        }
+
+        @Test
+        @DisplayName("alpha inherits multiplicatively down the tree")
+        void alphaInheritsMultiplicatively() {
+            // Parent effective alpha 0.5 × child own alpha 0.5 × transition opacity 1.0
+            float inheritedAlpha = 0.5f;   // accumulated from ancestors
+            float childAlpha = 0.5f;       // child's own animation.alpha
+            float transitionOpacity = 1.0f;
+            float finalAlpha = inheritedAlpha * childAlpha * transitionOpacity;
+            assertEquals(0.25f, finalAlpha, 0.001f);
+
+            // Omitting the channel on the child keeps the inherited value unchanged
+            float defaultedChild = 1.0f;
+            assertEquals(0.5f, inheritedAlpha * defaultedChild * transitionOpacity, 0.001f);
+        }
+
+        @Test
+        @DisplayName("glow inherits multiplicatively down the tree")
+        void glowInheritsMultiplicatively() {
+            // Parent effective glow 0.8 × child own glow 0.5 → 0.4 (used as brightness when glowing)
+            float inheritedGlow = 0.8f;
+            float childGlow = 0.5f;
+            float effectiveGlow = inheritedGlow * childGlow;
+            assertEquals(0.4f, effectiveGlow, 0.001f);
+
+            // Glow flows to descendants regardless of the glowing flag — the flag
+            // only decides whether this group's own primitives use glow brightness
+            // or follow ambient light.
+            float ownGlowNonGlowing = 0.1f;
+            float passedToChildren = inheritedGlow * ownGlowNonGlowing;
+            assertEquals(0.08f, passedToChildren, 0.001f);
         }
     }
 

@@ -313,10 +313,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     private BillboardPrimitive parseBillboardPrimitive(JsonObject obj) {
         Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
         Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
-        GlowLayer glow = obj.has("glow") && !obj.get("glow").isJsonNull()
-            ? parseGlowLayer(obj.getAsJsonObject("glow"))
-            : null;
-        return new BillboardPrimitive(texture, size, glow);
+        return new BillboardPrimitive(texture, size);
     }
 
     private RingPrimitive parseRingPrimitive(JsonObject obj) {
@@ -339,10 +336,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         // Segments: default 32
         int segments = obj.has("segments") ? obj.get("segments").getAsInt() : 32;
 
-        // Glow: reserved, not yet implemented
-        GlowLayer glow = null;
-
-        return new RingPrimitive(outerTexture, innerTexture, size, segments, glow);
+        return new RingPrimitive(outerTexture, innerTexture, size, segments);
     }
 
     /**
@@ -366,16 +360,6 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             default -> throw new JsonParseException("Unknown legacy shape type: " + type);
         }
         return groups;
-    }
-
-    // --- Glow ---
-
-    private GlowLayer parseGlowLayer(JsonObject obj) {
-        Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
-        Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
-        int color = obj.get("color").getAsInt();
-        float alpha = obj.get("alpha").getAsFloat();
-        return new GlowLayer(texture, size, color, alpha);
     }
 
     // --- Positioning & Damping (unchanged) ---

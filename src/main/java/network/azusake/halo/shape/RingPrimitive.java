@@ -19,13 +19,11 @@ import org.joml.Vector2f;
  * @param innerTexture  inner surface texture ({@code null} → use outerTexture)
  * @param size          x = radius, y = cylinder width (radial thickness)
  * @param segments      polygon segment count (default 32)
- * @param glow          reserved for future glow support ({@code null} for now)
  */
 public record RingPrimitive(
     Identifier outerTexture,
     Identifier innerTexture,
     Vector2f size,
-    int segments,
-    GlowLayer glow
+    int segments
 ) implements HaloPrimitive {
 }
