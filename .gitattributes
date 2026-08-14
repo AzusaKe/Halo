@@ -1,0 +1,4 @@
+# Shell scripts must stay LF so they run unchanged inside Linux containers
+# (Windows checkouts with core.autocrlf would otherwise produce CRLF).
+gradlew text eol=lf
+*.sh    text eol=lf

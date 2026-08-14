@@ -50,7 +50,7 @@
 - [x] **平滑衰减物理**：位置和旋转的帧率无关指数衰减。可配置线性/角度的跟随速度、最大距离钳制。
 - [x] **持久化**：通过实体 NBT 和世界持久状态，光环在世界重载和服务器重启后依然保留。实体加载时自动恢复。
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
-- [x] **发光效果**：每个光环可带有可选的可加性混合发光层，发光强度由 `animation.glow` 动画驱动。
+- [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
 - [x] **动画支持**：光环定义支持位置动画曲线（振荡、线性、恒定）和旋转动画曲线（持续旋转等）。**此功能仍在规划中，预计将添加模型支持和更多动画**
 - [x] **运行时配置**：衰减因子、最大距离、缩放、位置偏移和旋转偏移均可通过 `/halo config` 实时修改。**注意，目前尚无法针对特定个体和光环配置上述参数，如有需求请前往单个光环定义文件（json格式）手动调整**
 - [x] **资源包友好**：光环定义为 JSON 文件，存放在 `assets/<namespace>/halo_definitions/` 目录下。通过资源包或数据包添加新光环，运行 `/reload` 即可生效。**数据包和资源包的结构尚未确定**
@@ -318,7 +318,7 @@ src/main/
     physics/                   — AnchorFrameCalculator、DampingPhysics、HaloTickHandler
     render/                    — HaloRenderer、HaloClientManager、HaloRenderListener
     server/                    — HaloServerEvents、ServerTickHandler
-    shape/                     — BillboardPrimitive、HaloModel、HaloGroup、GlowLayer
+    shape/                     — BillboardPrimitive、RingPrimitive、HaloGroup、HaloModel
   resources/
     fabric.mod.json            — 模组元数据（入口点、Mixin、依赖）
     halo.mixins.json            — Mixin 配置

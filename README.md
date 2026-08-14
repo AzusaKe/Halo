@@ -50,7 +50,7 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 - [x] **Smooth Damping Physics**: Frame-rate-independent exponential damping for position and rotation. Configurable linear/angular follow speed and maximum distance clamping.
 - [x] **Persistent**: Halos survive world reloads and server restarts through entity NBT and world persistent state. Automatically restored on entity load.
 - [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
-- [x] **Glow Effects**: Each halo can have an optional additive-blended glow layer with pulsing alpha animation.
+- [x] **Glow Effects**: The `animation.glow` channel drives each primitive's own self-illumination brightness (fullbright); set `glowing: false` on a group to make its primitives follow ambient light instead.
 - [x] **Animation Support**: Halo definitions support position animation curves (oscillate, linear, constant) and rotation animation curves (continuous spin, etc.). **This feature is still in planning, with model support and more animations to be added.**
 - [x] **Runtime Configuration**: Damping factors, maximum distance, scale, position offset, and rotation offset can all be modified live via `/halo config`. **Note: Currently cannot configure these parameters for specific individuals and halos. Please manually adjust the individual halo definition file (JSON format) if needed.**
 - [x] **Resource Pack Friendly**: Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`. Add new halos via resource packs or data packs and run `/reload` to take effect. **The structure of data packs and resource packs is not yet finalized.**
@@ -318,7 +318,7 @@ src/main/
     physics/                   — AnchorFrameCalculator, DampingPhysics, HaloTickHandler
     render/                    — HaloRenderer, HaloClientManager, HaloRenderListener
     server/                    — HaloServerEvents, ServerTickHandler
-    shape/                     — BillboardPrimitive, HaloModel, HaloGroup, GlowLayer
+    shape/                     — BillboardPrimitive, RingPrimitive, HaloGroup, HaloModel
   resources/
     fabric.mod.json            — Mod metadata (entry points, mixins, dependencies)
     halo.mixins.json            — Mixin configuration
