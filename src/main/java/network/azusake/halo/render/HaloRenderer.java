@@ -490,14 +490,19 @@ public final class HaloRenderer {
 
             // Apply transition animation
             float transitionAlpha = 1.0f;
+            boolean transitionDrivesAlpha = false;
             if (transitionActive) {
                 TransitionAnimationResult anim = resolveAnimation(
                     group, instance, isStartup, startupConfig, shutdownConfig);
+                transitionDrivesAlpha = anim != null;
                 float[] appliedOffset = new float[]{0f, 0f, 0f};
                 float[] appliedScale = new float[]{1f, 1f, 1f};
                 float[] appliedRotation = new float[]{0f, 0f, 0f};
                 float appliedAlpha = 1.0f;
                 if (anim != null) {
+                    // The transition overrides the channels it defines; a
+                    // channel without a segment is held at the frozen idle
+                    // value by withTail/withHead, so the handoff is seamless.
                     TransitionAnimationResult.TransitionResult tr = anim.evaluate(transitionElapsed);
                     matrices.translate(tr.offset().x, tr.offset().y, tr.offset().z);
                     appliedOffset = new float[]{
@@ -505,24 +510,30 @@ public final class HaloRenderer {
                     appliedScale = tr.scale();
                     appliedAlpha = tr.alpha();
                     transitionAlpha = tr.alpha();
-                    // The transition drives rotation when it has a rotation
-                    // queue; otherwise the group's idle rotation stays frozen
-                    // at the trigger phase so the handoff is seamless (F8).
+                    // Rotation is driven by the transition queue; for a group
+                    // whose transition does not drive rotation the idle
+                    // rotation stays frozen at the trigger phase (F8).
                     appliedRotation = anim.rotationAnimated()
                         ? tr.rotationDegrees()
-                        : frozenIdleRotationDegrees(group, animTime);
+                        : frozenIdleVisuals(group, animTime).rotationDegrees();
                     applyQuaternionRotation(matrices, LayerAnimation.quaternionFromYxzDegrees(
                         appliedRotation[0], appliedRotation[1], appliedRotation[2]));
                     matrices.scale(appliedScale[0], appliedScale[1], appliedScale[2]);
                 } else {
                     // No transition animation for this group (e.g. child groups
-                    // without transition segments): keep the group's idle
-                    // rotation frozen at the trigger phase so billboards hold
-                    // their actual angle across the transition instead of
-                    // snapping back to the base rotation.
-                    appliedRotation = frozenIdleRotationDegrees(group, animTime);
+                    // without transition segments): freeze its idle animation
+                    // at the trigger phase across every channel, so the
+                    // on-screen pose stays continuous across the transition.
+                    FrozenIdleVisuals frozen = frozenIdleVisuals(group, animTime);
+                    matrices.translate(frozen.offset()[0], frozen.offset()[1], frozen.offset()[2]);
                     applyQuaternionRotation(matrices, LayerAnimation.quaternionFromYxzDegrees(
-                        appliedRotation[0], appliedRotation[1], appliedRotation[2]));
+                        frozen.rotationDegrees()[0], frozen.rotationDegrees()[1],
+                        frozen.rotationDegrees()[2]));
+                    matrices.scale(frozen.scale()[0], frozen.scale()[1], frozen.scale()[2]);
+                    appliedOffset = frozen.offset();
+                    appliedRotation = frozen.rotationDegrees();
+                    appliedScale = frozen.scale();
+                    appliedAlpha = frozen.alpha();
                 }
                 // Record the values this frame actually drew so a hide that
                 // lands mid-transition can head-patch the shutdown queues to
@@ -531,9 +542,11 @@ public final class HaloRenderer {
                     appliedOffset, appliedScale, appliedAlpha, appliedRotation, System.currentTimeMillis());
             }
 
-            // During transitions the transition's alpha channel is the sole
-            // alpha driver — the layer's own animated alpha is suppressed,
-            // consistent with offset/scale being blocked.  Glow keeps
+            // During transitions the transition's alpha overrides the layer's
+            // own alpha for groups with a transition segment; groups without a
+            // transition freeze their own alpha at the trigger phase.  Either
+            // way the value equals the idle animation at the frozen phase
+            // unless a real transition alpha segment fades it.  Glow keeps
             // following the layer animation at the frozen phase.  Outside
             // transitions the layer's own alpha drives the fade as before.
             //
@@ -550,7 +563,7 @@ public final class HaloRenderer {
                 }
             }
             float finalAlpha = transitionActive
-                ? inheritedAlpha * transitionAlpha
+                ? inheritedAlpha * (transitionDrivesAlpha ? transitionAlpha : layerAlpha)
                 : inheritedAlpha * layerAlpha;
             float effectiveGlow = inheritedGlow * animatedGlow;
 
@@ -591,16 +604,34 @@ public final class HaloRenderer {
     }
 
     /**
-     * The group's idle rotation as YXZ Euler degrees frozen at
-     * {@code frozenAnimTime} — the rotation a group is drawn with during a
-     * transition that does not itself drive rotation, so the on-screen angle
-     * stays continuous across the handoff (F8).  Identity when the group has
-     * no idle rotation animation.
+     * The idle visual values a group is drawn with during a transition when
+     * its transition does not override a channel: the group's idle animation
+     * frozen at {@code frozenAnimTime} (F8).  Identity defaults when the group
+     * has no idle animation.  With this, the final transition frame equals the
+     * first frame of the resumed idle animation on every channel.
+     *
+     * @param offset          frozen offset (3 components)
+     * @param rotationDegrees frozen rotation (YXZ Euler degrees, 3 components)
+     * @param scale           frozen scale (3 components)
+     * @param alpha           frozen alpha multiplier
      */
-    static float[] frozenIdleRotationDegrees(HaloGroup group, double frozenAnimTime) {
-        return group.animation()
-            .map(a -> a.evaluateRotationDegrees(frozenAnimTime))
-            .orElseGet(() -> new float[]{0f, 0f, 0f});
+    static FrozenIdleVisuals frozenIdleVisuals(HaloGroup group, double frozenAnimTime) {
+        var idle = group.animation().orElse(LayerAnimation.EMPTY);
+        if (idle.isEmpty()) {
+            return FrozenIdleVisuals.IDENTITY;
+        }
+        Vec3d off = idle.evaluateOffset(frozenAnimTime);
+        return new FrozenIdleVisuals(
+            new float[]{(float) off.x, (float) off.y, (float) off.z},
+            idle.evaluateRotationDegrees(frozenAnimTime),
+            idle.evaluateScale(frozenAnimTime),
+            idle.evaluateAlpha(frozenAnimTime));
+    }
+
+    /** Immutable bundle of frozen idle visual values (F8). */
+    record FrozenIdleVisuals(float[] offset, float[] rotationDegrees, float[] scale, float alpha) {
+        static final FrozenIdleVisuals IDENTITY = new FrozenIdleVisuals(
+            new float[]{0f, 0f, 0f}, new float[]{0f, 0f, 0f}, new float[]{1f, 1f, 1f}, 1.0f);
     }
 
     /**

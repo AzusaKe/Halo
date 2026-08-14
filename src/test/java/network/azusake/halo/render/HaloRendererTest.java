@@ -690,46 +690,51 @@ class HaloRendererTest {
     }
 
     // ------------------------------------------------------------------
-    // Frozen idle rotation during transitions (F8 fix)
+    // Frozen idle animation during transitions (F8 fix)
     // ------------------------------------------------------------------
 
     @Nested
-    @DisplayName("Frozen idle rotation during transitions")
-    class FrozenIdleRotation {
+    @DisplayName("Frozen idle animation during transitions")
+    class FrozenIdleAnimation {
 
         @Test
-        @DisplayName("group with a yaw spin freezes at the trigger phase")
-        void freezesYawSpinAtPhase() {
-            // ring_default hour/minute hands spin at a constant yaw rate; a
-            // child group without a transition must keep that angle frozen
-            // while the startup plays instead of snapping back to base.
-            LayerAnimation spin = new LayerAnimation(
-                List.of(), List.of(), List.of(),
-                List.of(new AnimationTerm.Linear(30.0)),  // yaw: 30 deg/s
-                List.of(), List.of(),
-                List.of(), List.of(), List.of(),
-                List.of(), List.of());
+        @DisplayName("all channels freeze at the trigger phase for unconfigured groups")
+        void freezesAllChannelsAtPhase() {
+            // A child group with a yaw spin, a vertical bob, a scale pulse and
+            // an alpha channel must hold every channel at the frozen phase
+            // while the transition plays (ring_default's hands).
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(new AnimationTerm.Linear(0.1, 0.0)), List.of(),
+                List.of(new AnimationTerm.Linear(30.0)), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(0.2, 0.0)), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(0.7, 0.0)),
+                List.of());
             HaloGroup group = new HaloGroup(
                 Optional.empty(), new Vec3d(0, 0, 0), new Quaternionf(), 1.0f,
-                List.of(), true, true, true, Optional.of(spin), List.of());
+                List.of(), true, true, true, Optional.of(anim), List.of());
 
-            assertArrayEquals(new float[]{60f, 0f, 0f},
-                HaloRenderer.frozenIdleRotationDegrees(group, 2.0), 1e-5f,
+            HaloRenderer.FrozenIdleVisuals frozen = HaloRenderer.frozenIdleVisuals(group, 2.0);
+            assertArrayEquals(new float[]{0f, 0.1f, 0f}, frozen.offset(), 1e-5f,
+                "offset.y frozen at 0.1");
+            assertArrayEquals(new float[]{60f, 0f, 0f}, frozen.rotationDegrees(), 1e-5f,
                 "yaw frozen at 60° at t=2s");
-            assertArrayEquals(new float[]{45f, 0f, 0f},
-                HaloRenderer.frozenIdleRotationDegrees(group, 1.5), 1e-5f,
-                "yaw frozen at 45° at t=1.5s");
+            assertArrayEquals(new float[]{1.2f, 1f, 1f}, frozen.scale(), 1e-5f,
+                "scale.x frozen at 1.2");
+            assertEquals(0.7f, frozen.alpha(), 1e-5f, "alpha frozen at 0.7");
         }
 
         @Test
-        @DisplayName("identity when the group has no idle rotation animation")
+        @DisplayName("identity defaults when the group has no idle animation")
         void identityWithoutAnimation() {
             HaloGroup plain = new HaloGroup(
                 Optional.empty(), new Vec3d(0, 0, 0), new Quaternionf(), 1.0f,
                 List.of(), true, true, true, Optional.empty(), List.of());
 
-            assertArrayEquals(new float[]{0f, 0f, 0f},
-                HaloRenderer.frozenIdleRotationDegrees(plain, 5.0), 1e-6f);
+            HaloRenderer.FrozenIdleVisuals frozen = HaloRenderer.frozenIdleVisuals(plain, 5.0);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, frozen.offset(), 1e-6f);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, frozen.rotationDegrees(), 1e-6f);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, frozen.scale(), 1e-6f);
+            assertEquals(1.0f, frozen.alpha(), 1e-6f);
         }
     }
 }
