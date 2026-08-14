@@ -100,6 +100,64 @@ public class TransitionQueue {
     }
 
     /**
+     * Return a copy whose leading values (trailing gap holds and the first
+     * active element's start value, where authored {@code from} is absent)
+     * are replaced by {@code headValue}.  Explicitly authored {@code from}
+     * values are never touched.  Used for shutdown alignment: the fade-out
+     * starts from the idle animation's value at the hide moment.
+     */
+    public TransitionQueue withHeadStart(float[] headValue) {
+        if (elements.isEmpty()) return this;
+        List<TransitionQueueElement> patched = new ArrayList<>(elements);
+        boolean changed = false;
+        int i = 0;
+        while (i < patched.size() && !patched.get(i).fromExplicit()) {
+            TransitionQueueElement e = patched.get(i);
+            if (e.isHold()) {
+                // Leading gap / derived hold — clamp the whole hold to headValue.
+                patched.set(i, e.withValues(headValue, headValue));
+                changed = true;
+                i++;
+            } else {
+                // First active element with derived from — ramp from headValue.
+                patched.set(i, e.withStartVal(headValue));
+                changed = true;
+                break;
+            }
+        }
+        return changed ? new TransitionQueue(patched, steadyStateValue) : this;
+    }
+
+    /**
+     * Return a copy whose trailing values (trailing gap holds and the last
+     * active element's end value, where authored {@code to} is absent) are
+     * replaced by {@code tailValue}.  Explicitly authored {@code to} values
+     * are never touched.  Used for startup alignment: the fade-in ends on
+     * the idle animation's value at the resume phase.
+     */
+    public TransitionQueue withTailEnd(float[] tailValue) {
+        if (elements.isEmpty()) return this;
+        List<TransitionQueueElement> patched = new ArrayList<>(elements);
+        boolean changed = false;
+        int i = patched.size() - 1;
+        while (i >= 0 && !patched.get(i).toExplicit()) {
+            TransitionQueueElement e = patched.get(i);
+            if (e.isHold()) {
+                // Trailing gap / derived hold — clamp the whole hold to tailValue.
+                patched.set(i, e.withValues(tailValue, tailValue));
+                changed = true;
+                i--;
+            } else {
+                // Last active element with derived end — ramp to tailValue.
+                patched.set(i, e.withEndVal(tailValue));
+                changed = true;
+                break;
+            }
+        }
+        return changed ? new TransitionQueue(patched, steadyStateValue) : this;
+    }
+
+    /**
      * Raw element list (for serialization / debug).
      */
     public List<TransitionQueueElement> elements() {

@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 /**
@@ -112,8 +114,8 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             : false;
 
         // Startup / shutdown transition animations
-        Optional<StartupAnimationConfig> startupAnimation = parseStartupAnimation(root.get("startup"));
-        Optional<StartupAnimationConfig> shutdownAnimation = parseStartupAnimation(root.get("shutdown"));
+        Optional<StartupAnimationConfig> startupAnimation = parseStartupAnimation(root.get("startup"), false);
+        Optional<StartupAnimationConfig> shutdownAnimation = parseStartupAnimation(root.get("shutdown"), true);
 
         return new HaloDefinition(id, model, animation, positioning, damping, hideOnSleep, displayInInvisible, schemaVersion, startupAnimation, shutdownAnimation);
     }
@@ -406,11 +408,12 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
      * @param element the JSON element (may be null or missing)
      * @return the parsed config, or {@code Optional.empty()} if absent
      */
-    private Optional<StartupAnimationConfig> parseStartupAnimation(JsonElement element) {
+    private Optional<StartupAnimationConfig> parseStartupAnimation(JsonElement element, boolean isShutdown) {
         if (element == null || element.isJsonNull() || !element.isJsonObject()) {
             return Optional.empty();
         }
         JsonObject obj = element.getAsJsonObject();
+        String context = isShutdown ? "shutdown" : "startup";
 
         // Parse segments array
         List<TransitionAnimation.TransitionSegment> segments = List.of();
@@ -420,7 +423,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             for (JsonElement elem : arr) {
                 list.add(parseTransitionSegment(elem.getAsJsonObject()));
             }
-            segments = Collections.unmodifiableList(list);
+            segments = validatePropertyBoundaries(list, isShutdown, context);
         }
 
         // Parse id_overrides object
@@ -453,7 +456,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
                 for (JsonElement elem : arr) {
                     list.add(parseTransitionSegment(elem.getAsJsonObject()));
                 }
-                map.put(groupId, Collections.unmodifiableList(list));
+                map.put(groupId, validatePropertyBoundaries(list, isShutdown, context));
             }
             idOverrides = Collections.unmodifiableMap(map);
         }
@@ -462,7 +465,10 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             return Optional.empty();
         }
 
-        return Optional.of(new StartupAnimationConfig(segments, idOverrides));
+        return Optional.of(new StartupAnimationConfig(
+            segments, idOverrides,
+            isShutdown ? TransitionQueueBuilder.BackfillDirection.SHUTDOWN
+                       : TransitionQueueBuilder.BackfillDirection.STARTUP));
     }
 
     /**
@@ -481,20 +487,102 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         TransitionAnimation.TransitionProperty scale = obj.has("scale")
             ? parseTransitionProperty(obj.getAsJsonObject("scale"), 3)
             : null;
-        TransitionAnimation.TransitionProperty opacity = obj.has("opacity")
-            ? parseTransitionProperty(obj.getAsJsonObject("opacity"), 1)
-            : null;
+        TransitionAnimation.TransitionProperty alpha = null;
+        if (obj.has("alpha")) {
+            alpha = parseTransitionProperty(obj.getAsJsonObject("alpha"), 1);
+        } else if (obj.has("opacity")) {
+            // Deprecated alias — alpha wins when both are present.
+            alpha = parseTransitionProperty(obj.getAsJsonObject("opacity"), 1);
+            LOG.warn("[Halo] transition property 'opacity' is deprecated, use 'alpha' instead");
+        }
 
-        return new TransitionAnimation.TransitionSegment(duration, easing, offset, scale, opacity);
+        return new TransitionAnimation.TransitionSegment(duration, easing, offset, scale, alpha);
+    }
+
+    /**
+     * Validate the boundary convention of a transition segment list and
+     * backfill offending values with the property's steady-state value.
+     *
+     * <p>Startup animations must author {@code from} on the first segment
+     * that declares each property ({@code to} may be empty and is aligned to
+     * the idle animation per-instance).  Shutdown animations must author
+     * {@code to} on the last segment that declares each property
+     * ({@code from} may be empty — it inherits the hide-moment idle state).
+     * Violations only warn and fall back to the steady-state value; resource
+     * packs are never rejected.</p>
+     */
+    private static List<TransitionAnimation.TransitionSegment> validatePropertyBoundaries(
+            List<TransitionAnimation.TransitionSegment> segments, boolean isShutdown, String context) {
+        if (segments.isEmpty()) {
+            return segments;
+        }
+        List<TransitionAnimation.TransitionSegment> result = new ArrayList<>(segments);
+        boolean changed = false;
+        changed |= backfillBoundary(result, isShutdown, context,
+            seg -> seg.offset(),
+            (seg, prop) -> new TransitionAnimation.TransitionSegment(
+                seg.duration(), seg.easing(), prop, seg.scale(), seg.alpha()),
+            new float[]{0f, 0f, 0f}, "offset");
+        changed |= backfillBoundary(result, isShutdown, context,
+            seg -> seg.scale(),
+            (seg, prop) -> new TransitionAnimation.TransitionSegment(
+                seg.duration(), seg.easing(), seg.offset(), prop, seg.alpha()),
+            new float[]{1f, 1f, 1f}, "scale");
+        changed |= backfillBoundary(result, isShutdown, context,
+            seg -> seg.alpha(),
+            (seg, prop) -> new TransitionAnimation.TransitionSegment(
+                seg.duration(), seg.easing(), seg.offset(), seg.scale(), prop),
+            new float[]{1f}, "alpha");
+        return changed ? List.copyOf(result) : segments;
+    }
+
+    private static boolean backfillBoundary(
+            List<TransitionAnimation.TransitionSegment> segments, boolean isShutdown, String context,
+            Function<TransitionAnimation.TransitionSegment, TransitionAnimation.TransitionProperty> getter,
+            BiFunction<TransitionAnimation.TransitionSegment, TransitionAnimation.TransitionProperty,
+                TransitionAnimation.TransitionSegment> setter,
+            float[] steadyState, String propertyName) {
+        int first = -1;
+        int last = -1;
+        for (int i = 0; i < segments.size(); i++) {
+            if (getter.apply(segments.get(i)) != null) {
+                if (first < 0) first = i;
+                last = i;
+            }
+        }
+        if (first < 0) {
+            return false;
+        }
+
+        int target = isShutdown ? last : first;
+        TransitionAnimation.TransitionProperty prop = getter.apply(segments.get(target));
+        boolean missing = isShutdown ? prop.to() == null : prop.from() == null;
+        if (!missing) {
+            return false;
+        }
+
+        float[] fill = steadyState.clone();
+        TransitionAnimation.TransitionProperty fixed = isShutdown
+            ? new TransitionAnimation.TransitionProperty(
+                prop.from(), fill, prop.propertyDuration(), prop.propertyEasing())
+            : new TransitionAnimation.TransitionProperty(
+                fill, prop.to(), prop.propertyDuration(), prop.propertyEasing());
+        segments.set(target, setter.apply(segments.get(target), fixed));
+        LOG.warn("[Halo] {} transition '{}' property '{}' is missing '{}' — "
+                + "filled with steady-state {} ({} is required on the {} segment declaring it)",
+            isShutdown ? "shutdown" : "startup", context, propertyName,
+            isShutdown ? "to" : "from", java.util.Arrays.toString(fill),
+            isShutdown ? "to" : "from", isShutdown ? "last" : "first");
+        return true;
     }
 
     /**
      * Parse a transition property (from/to arrays) from JSON.
      * Handles both array-valued properties (offset, scale) and single-valued
-     * properties (opacity, stored as float[1]).
+     * properties (alpha, stored as float[1]).
      *
      * @param obj       the JSON object for this property
-     * @param componentCount expected number of components (3 for offset/scale, 1 for opacity)
+     * @param componentCount expected number of components (3 for offset/scale, 1 for alpha)
      */
     private TransitionAnimation.TransitionProperty parseTransitionProperty(JsonObject obj, int componentCount) {
         float[] from = null;
@@ -523,7 +611,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
 
     /**
      * Parse a JSON element into a float array of the given size.
-     * Handles both JSON arrays and single numbers (for opacity).
+     * Handles both JSON arrays and single numbers (for alpha).
      */
     private float[] parseFloatArray(JsonElement element, int componentCount) {
         if (element.isJsonArray()) {
@@ -534,7 +622,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             }
             return result;
         } else {
-            // Single number (e.g. opacity "from": 0.0)
+            // Single number (e.g. alpha "from": 0.0)
             return new float[]{element.getAsFloat()};
         }
     }

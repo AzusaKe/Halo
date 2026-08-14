@@ -136,12 +136,18 @@ public final class HaloNetwork {
      * @param server     the current Minecraft server
      * @param entityUuid the entity whose halo was removed
      * @param defId      the halo definition identifier (for client-side shutdown animation)
+     * @param ageSeconds wall-clock seconds elapsed since the server created the
+     *                   halo instance (used by clients to reconstruct the idle
+     *                   phase at the hide moment when their local instance was
+     *                   already removed — see {@code HaloNetworkClient})
      */
-    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, Identifier defId) {
+    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, Identifier defId,
+                                      double ageSeconds) {
         var buf = PacketByteBufs.create();
         writeUuid(buf, entityUuid);
         buf.writeBoolean(false); // isAttach = false → removal
         buf.writeIdentifier(defId);
+        buf.writeDouble(ageSeconds);
 
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);

@@ -2,8 +2,10 @@ package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloTransitionState;
+import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.animation.StartupAnimationConfig;
 import network.azusake.halo.animation.TransitionAnimationResult;
+import network.azusake.halo.animation.TransitionResolver;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -174,7 +176,7 @@ public final class HaloRenderer {
                 inst.setEntityInvisible(entity.isInvisible());
                 if (def.startupAnimation().isPresent()) {
                     inst.setTransitionState(HaloTransitionState.STARTING);
-                    inst.startTransition();
+                    inst.startTransition((System.currentTimeMillis() - inst.getCreatedAtTime()) / 1000.0);
                 } else {
                     inst.setTransitionState(HaloTransitionState.NORMAL);
                 }
@@ -251,8 +253,12 @@ public final class HaloRenderer {
                 // Entity entered sleep/invis → start shutdown animation
                 if (shutdownConfig != null || startupConfig != null) {
                     instance.setHiddenByState(true);
+                    // Align the shutdown head to the idle animation's actual
+                    // phase right now (rawAnimTime - startupDur after a
+                    // completed startup), not the raw wall-clock time.
+                    double freeze = instance.currentAnimTime(startupConfig);
                     instance.setTransitionState(HaloTransitionState.ENDING);
-                    instance.startTransition();
+                    instance.startTransition(freeze);
                     state = HaloTransitionState.ENDING;
                 }
             } else if (wasHidden && !nowHidden) {
@@ -260,7 +266,7 @@ public final class HaloRenderer {
                 if (startupConfig != null) {
                     instance.setHiddenByState(false);
                     instance.setTransitionState(HaloTransitionState.STARTING);
-                    instance.startTransition();
+                    instance.startTransition((System.currentTimeMillis() - instance.getCreatedAtTime()) / 1000.0);
                     state = HaloTransitionState.STARTING;
                 }
             }
@@ -303,18 +309,6 @@ public final class HaloRenderer {
         double transitionElapsed = instance.getTransitionElapsed();
         boolean isStartup = state == HaloTransitionState.STARTING;
 
-        // ---- Build transition animation for this instance ----
-        TransitionAnimationResult transitionAnim = null;
-        if (transitionActive) {
-            StartupAnimationConfig config = isStartup ? startupConfig : shutdownConfig;
-            if (config == null && !isStartup) config = startupConfig; // fallback: reverse startup
-            if (config != null) {
-                // Build a dummy animation using the default segments for timing
-                // (per-group resolution happens in renderGroup)
-                transitionAnim = config.getAnimationForGroup(Optional.empty());
-            }
-        }
-
         // ---- compute anchor frame ----
         AnchorFrame frame = frameCalculator.calculate(instance, entity, def, camera, tickDelta, dt);
 
@@ -327,18 +321,20 @@ public final class HaloRenderer {
         // ---- elapsed time since halo creation ----
         final double rawAnimTime = (System.currentTimeMillis() - instance.getCreatedAtTime()) / 1000.0;
 
-        // ---- adjust animTime so periodic animation starts seamlessly after transition ----
+        // ---- adjust animTime so the periodic animation freezes during a
+        // transition and resumes at its actual phase afterwards ----
         final double animTime;
-        if (instance.getTransitionStartTime() > 0 && startupConfig != null) {
-            double transitionDur = startupConfig.maxDuration();
-            double transElapsed = instance.getTransitionElapsed();
-            if (transElapsed >= transitionDur) {
-                // Transition just ended — offset periodic animation to start from transition end
-                animTime = rawAnimTime - transitionDur;
-            } else {
-                // Transition still active or not started — freeze periodic at 0
-                animTime = 0;
-            }
+        long transitionStart = instance.getTransitionStartTime();
+        if (transitionStart > 0
+                && (state == HaloTransitionState.STARTING || state == HaloTransitionState.ENDING)) {
+            // Transition in progress — freeze the periodic animation at the
+            // phase captured when the transition started.
+            animTime = instance.getTransitionFreezeAnimTime();
+        } else if (transitionStart > 0) {
+            // NORMAL right after a completed startup — resume the periodic
+            // animation from where it would have been, skipping the transition.
+            double transitionDur = startupConfig != null ? startupConfig.maxDuration() : 0.0;
+            animTime = Math.max(0.0, rawAnimTime - transitionDur);
         } else {
             animTime = rawAnimTime;
         }
@@ -392,7 +388,7 @@ public final class HaloRenderer {
             for (HaloGroup group : model.groups()) {
                 // Root groups inherit the definition root's alpha/glow
                 renderGroup(group, matrices, animTime, brightness, defAlpha, defGlow,
-                    transitionActive, transitionElapsed, isStartup,
+                    transitionActive, transitionElapsed, isStartup, instance,
                     startupConfig, shutdownConfig);
             }
         } finally {
@@ -414,11 +410,12 @@ public final class HaloRenderer {
      * draw all primitives, then recurse into child groups.
      *
      * <p>When a transition is active, the group's pre-built animation
-     * is evaluated and applied as additional offset, scale, and opacity.</p>
+     * is evaluated and applied as additional offset, scale, and alpha.</p>
      */
     private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness,
                               float inheritedAlpha, float inheritedGlow,
                               boolean transitionActive, double transitionElapsed, boolean isStartup,
+                              HaloInstance instance,
                               StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
         matrices.push();
         try {
@@ -443,22 +440,23 @@ public final class HaloRenderer {
             }
 
             // Apply transition animation
-            float transitionOpacity = 1.0f;
+            float transitionAlpha = 1.0f;
             if (transitionActive) {
                 TransitionAnimationResult anim = resolveAnimation(
-                    group.id(), isStartup, startupConfig, shutdownConfig);
+                    group, instance, isStartup, startupConfig, shutdownConfig);
                 if (anim != null) {
                     TransitionAnimationResult.TransitionResult tr = anim.evaluate(transitionElapsed);
                     matrices.translate(tr.offset().x, tr.offset().y, tr.offset().z);
                     matrices.scale(tr.scale()[0], tr.scale()[1], tr.scale()[2]);
-                    transitionOpacity = tr.opacity();
+                    transitionAlpha = tr.alpha();
                 }
             }
 
-            // Layer alpha + glow are evaluated even during transitions so the
-            // opacity/glow animation keeps driving the layer (animTime is frozen
-            // at 0 while a transition is active); offset/rotation/scale remain
-            // blocked until the transition finishes.
+            // During transitions the transition's alpha channel is the sole
+            // alpha driver — the layer's own animated alpha is suppressed,
+            // consistent with offset/scale being blocked.  Glow keeps
+            // following the layer animation at the frozen phase.  Outside
+            // transitions the layer's own alpha drives the fade as before.
             //
             // Both channels inherit multiplicatively down the scene tree: each
             // group's effective value = inherited value × its own animated value,
@@ -472,7 +470,9 @@ public final class HaloRenderer {
                     animatedGlow = layerAnim.evaluateGlow(animTime);
                 }
             }
-            float finalAlpha = inheritedAlpha * layerAlpha * transitionOpacity;
+            float finalAlpha = transitionActive
+                ? inheritedAlpha * transitionAlpha
+                : inheritedAlpha * layerAlpha;
             float effectiveGlow = inheritedGlow * animatedGlow;
 
             // Ensure the GL shader tint matches this group's effective alpha.
@@ -503,7 +503,7 @@ public final class HaloRenderer {
             float childGlow = group.inheritGlow() ? effectiveGlow : 1.0f;
             for (HaloGroup child : group.children()) {
                 renderGroup(child, matrices, animTime, brightness, childAlpha, childGlow,
-                    transitionActive, transitionElapsed, isStartup,
+                    transitionActive, transitionElapsed, isStartup, instance,
                     startupConfig, shutdownConfig);
             }
         } finally {
@@ -512,19 +512,53 @@ public final class HaloRenderer {
     }
 
     /**
-     * Resolve the pre-built animation for a group.
-     * For shutdown without explicit config, returns the reversed startup animation.
+     * Resolve the endpoint-aligned transition animation for a group, caching
+     * per-instance so the endpoint patch is computed only once per transition.
+     *
+     * <p>STARTING plays the startup config forward with derived tail values
+     * aligned to the group's idle animation at the resume phase.  ENDING plays
+     * an explicit shutdown config forward with derived head values aligned to
+     * the idle animation at the hide phase; when no shutdown is defined the
+     * startup config is reversed and aligned the same way.</p>
      */
-    private TransitionAnimationResult resolveAnimation(Optional<String> groupId, boolean isStartup,
+    private TransitionAnimationResult resolveAnimation(HaloGroup group, HaloInstance instance,
+                                                        boolean isStartup,
                                                         StartupAnimationConfig startupConfig,
                                                         StartupAnimationConfig shutdownConfig) {
-        StartupAnimationConfig config = isStartup ? startupConfig : shutdownConfig;
-        if (config == null && !isStartup) config = startupConfig;
-        if (config == null) return null;
-
-        TransitionAnimationResult anim = config.getAnimationForGroup(groupId);
-        if (anim == null) return null;
-        return isStartup ? anim : anim.reversed();
+        TransitionResolver.Resolution resolution =
+            TransitionResolver.resolve(isStartup, startupConfig, shutdownConfig);
+        if (resolution == null) {
+            return null;
+        }
+        String groupKey = group.id().orElse("");
+        TransitionAnimationResult cached = instance.getTransitionAnimation(groupKey);
+        if (cached != null) {
+            return cached;
+        }
+        TransitionAnimationResult base = resolution.config().getAnimationForGroup(group.id());
+        if (base == null) {
+            return null;
+        }
+        LayerAnimation idle = group.animation().orElse(LayerAnimation.EMPTY);
+        double freeze = instance.getTransitionFreezeAnimTime();
+        TransitionAnimationResult patched;
+        if (isStartup) {
+            patched = base.withTail(idle, freeze);
+        } else if (resolution.reversed()) {
+            // Fallback shutdown = startup timeline played backwards.  The
+            // reversed queues are cached at the definition level; only the
+            // derived head values are patched per instance.
+            TransitionAnimationResult reversedBase =
+                resolution.config().getReversedAnimationForGroup(group.id());
+            if (reversedBase == null) {
+                return null;
+            }
+            patched = reversedBase.withHead(idle, freeze);
+        } else {
+            patched = base.withHead(idle, freeze);
+        }
+        instance.putTransitionAnimation(groupKey, patched);
+        return patched;
     }
 
     // ------------------------------------------------------------------

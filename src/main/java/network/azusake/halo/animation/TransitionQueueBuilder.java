@@ -24,23 +24,49 @@ import network.azusake.halo.animation.TransitionAnimation.TransitionProperty;
  */
 public class TransitionQueueBuilder {
 
+    /** Which endpoint anchors the null-fill pass. */
+    public enum BackfillDirection {
+        /** End-anchored backward pass (fade-in as written). */
+        STARTUP,
+        /** Head-anchored forward pass (fade-out as written). */
+        SHUTDOWN
+    }
+
     private final List<TransitionSegment> segments;
     private final float[] steadyStateValue;
     private final double globalTotalDuration;
+    private final BackfillDirection direction;
 
     /**
      * @param segments           parsed segments from JSON (may have null from/to)
      * @param steadyStateValue   the default value for this property type
-     *                           (offset=[0,0,0], scale=[1,1,1], opacity=[1])
+     *                           (offset=[0,0,0], scale=[1,1,1], alpha=[1])
      * @param globalTotalDuration the total duration across ALL property queues
      *                           (max of all queues' last elements' end times).
      *                           Used for gap filling to ensure continuous timeline.
      */
     public TransitionQueueBuilder(List<TransitionSegment> segments, float[] steadyStateValue,
                                    double globalTotalDuration) {
+        this(segments, steadyStateValue, globalTotalDuration, BackfillDirection.STARTUP);
+    }
+
+    /**
+     * @param segments           parsed segments from JSON (may have null from/to)
+     * @param steadyStateValue   the default value for this property type
+     *                           (offset=[0,0,0], scale=[1,1,1], alpha=[1])
+     * @param globalTotalDuration the total duration across ALL property queues
+     *                           (max of all queues' last elements' end times).
+     *                           Used for gap filling to ensure continuous timeline.
+     * @param direction          which endpoint anchors the null-fill pass
+     *                           (STARTUP = backward/end-anchored,
+     *                           SHUTDOWN = forward/head-anchored)
+     */
+    public TransitionQueueBuilder(List<TransitionSegment> segments, float[] steadyStateValue,
+                                   double globalTotalDuration, BackfillDirection direction) {
         this.segments = segments;
         this.steadyStateValue = steadyStateValue;
         this.globalTotalDuration = globalTotalDuration;
+        this.direction = direction;
     }
 
     /**
@@ -170,24 +196,55 @@ public class TransitionQueueBuilder {
      * </ol>
      */
     private void backfillNulls(List<TransitionQueueElement> elements) {
+        if (direction == BackfillDirection.SHUTDOWN) {
+            backfillNullsForward(elements);
+        } else {
+            backfillNullsBackward(elements);
+        }
+    }
+
+    /**
+     * Startup: end-anchored backward pass (unchanged).  Null end values
+     * inherit the next element's start value (or the steady-state tail
+     * anchor); null start values hold at their own end value.
+     */
+    private void backfillNullsBackward(List<TransitionQueueElement> elements) {
         for (int i = elements.size() - 1; i >= 0; i--) {
             TransitionQueueElement curr = elements.get(i);
             float[] startVal = curr.startVal();
             float[] endVal = curr.endVal();
 
             if (endVal == null) {
-                if (i + 1 < elements.size()) {
-                    endVal = elements.get(i + 1).startVal();
-                } else {
-                    endVal = steadyStateValue;
-                }
+                endVal = (i + 1 < elements.size()) ? elements.get(i + 1).startVal() : steadyStateValue;
             }
             if (startVal == null) startVal = endVal;
 
             if (curr.startVal() != startVal || curr.endVal() != endVal) {
-                elements.set(i, new TransitionQueueElement(
-                    curr.startTime(), curr.endTime(), curr.duration(),
-                    startVal, endVal, curr.easing()));
+                elements.set(i, curr.withValues(startVal, endVal));
+            }
+        }
+    }
+
+    /**
+     * Shutdown: head-anchored forward pass (mirror of startup).  Null start
+     * values inherit the previous element's end value (or the steady-state
+     * head anchor placeholder for the first element — patched per-instance by
+     * {@link TransitionQueue#withHeadStart}); null end values hold at their
+     * own start value.
+     */
+    private void backfillNullsForward(List<TransitionQueueElement> elements) {
+        for (int i = 0; i < elements.size(); i++) {
+            TransitionQueueElement curr = elements.get(i);
+            float[] startVal = curr.startVal();
+            float[] endVal = curr.endVal();
+
+            if (startVal == null) {
+                startVal = (i > 0) ? elements.get(i - 1).endVal() : steadyStateValue;
+            }
+            if (endVal == null) endVal = startVal;
+
+            if (curr.startVal() != startVal || curr.endVal() != endVal) {
+                elements.set(i, curr.withValues(startVal, endVal));
             }
         }
     }
@@ -199,8 +256,9 @@ public class TransitionQueueBuilder {
     /**
      * Create a builder that extracts the offset property from segments.
      */
-    public static TransitionQueueBuilder forOffset(List<TransitionSegment> segments, double globalTotal) {
-        return new TransitionQueueBuilder(segments, new float[]{0f, 0f, 0f}, globalTotal) {
+    public static TransitionQueueBuilder forOffset(List<TransitionSegment> segments, double globalTotal,
+                                                    BackfillDirection direction) {
+        return new TransitionQueueBuilder(segments, new float[]{0f, 0f, 0f}, globalTotal, direction) {
             @Override protected float[] extractFrom(TransitionSegment seg) {
                 return seg.offset() != null ? seg.offset().from() : null;
             }
@@ -221,8 +279,9 @@ public class TransitionQueueBuilder {
     /**
      * Create a builder that extracts the scale property from segments.
      */
-    public static TransitionQueueBuilder forScale(List<TransitionSegment> segments, double globalTotal) {
-        return new TransitionQueueBuilder(segments, new float[]{1f, 1f, 1f}, globalTotal) {
+    public static TransitionQueueBuilder forScale(List<TransitionSegment> segments, double globalTotal,
+                                                   BackfillDirection direction) {
+        return new TransitionQueueBuilder(segments, new float[]{1f, 1f, 1f}, globalTotal, direction) {
             @Override protected float[] extractFrom(TransitionSegment seg) {
                 return seg.scale() != null ? seg.scale().from() : null;
             }
@@ -241,23 +300,24 @@ public class TransitionQueueBuilder {
     }
 
     /**
-     * Create a builder that extracts the opacity property from segments.
+     * Create a builder that extracts the alpha property from segments.
      */
-    public static TransitionQueueBuilder forOpacity(List<TransitionSegment> segments, double globalTotal) {
-        return new TransitionQueueBuilder(segments, new float[]{1f}, globalTotal) {
+    public static TransitionQueueBuilder forAlpha(List<TransitionSegment> segments, double globalTotal,
+                                                   BackfillDirection direction) {
+        return new TransitionQueueBuilder(segments, new float[]{1f}, globalTotal, direction) {
             @Override protected float[] extractFrom(TransitionSegment seg) {
-                return seg.opacity() != null ? seg.opacity().from() : null;
+                return seg.alpha() != null ? seg.alpha().from() : null;
             }
             @Override protected float[] extractTo(TransitionSegment seg) {
-                return seg.opacity() != null ? seg.opacity().to() : null;
+                return seg.alpha() != null ? seg.alpha().to() : null;
             }
             @Override protected double extractDuration(TransitionSegment seg) {
-                return seg.opacity() != null && seg.opacity().propertyDuration() != null
-                    ? seg.opacity().propertyDuration() : seg.duration();
+                return seg.alpha() != null && seg.alpha().propertyDuration() != null
+                    ? seg.alpha().propertyDuration() : seg.duration();
             }
             @Override protected EasingType extractEasing(TransitionSegment seg) {
-                return seg.opacity() != null && seg.opacity().propertyEasing() != null
-                    ? seg.opacity().propertyEasing() : seg.easing();
+                return seg.alpha() != null && seg.alpha().propertyEasing() != null
+                    ? seg.alpha().propertyEasing() : seg.easing();
             }
         };
     }

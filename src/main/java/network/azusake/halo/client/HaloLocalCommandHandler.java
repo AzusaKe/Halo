@@ -231,8 +231,13 @@ public final class HaloLocalCommandHandler {
         HaloInstance inst = HaloManager.getInstance().getInstance(client.player.getUuid());
         if (inst != null) {
             inst.setHiddenByState(false);
+            // Align the shutdown head to the idle animation's actual phase
+            // at the hide moment (rawAnimTime - startupDur after a startup).
+            HaloDefinition def = HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
+            double freeze = inst.currentAnimTime(
+                def != null ? def.startupAnimation().orElse(null) : null);
             inst.setTransitionState(HaloTransitionState.ENDING);
-            inst.startTransition();
+            inst.startTransition(freeze);
         }
         HaloLocalManager.getInstance().hideHalo(serverKey, client.player.getUuid());
         return "§a已移除自己的本地光环。";

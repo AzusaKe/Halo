@@ -335,7 +335,7 @@ class HaloRendererTest {
     class AlphaGlowComposition {
 
         @Test
-        @DisplayName("finalAlpha = layer alpha × transition opacity")
+        @DisplayName("during a transition the transition alpha is the sole alpha driver")
         void finalAlphaComposes() {
             // animation.alpha: sin(A=0.2, ω=2) at t=0.25 → sin(π/2)=1 → 0.2
             LayerAnimation anim = new LayerAnimation(
@@ -348,14 +348,16 @@ class HaloRendererTest {
             float layerAlpha = anim.evaluateAlpha(0.25);
             assertEquals(0.2f, layerAlpha, 0.001f);
 
-            // Transition at 50% opacity
-            float transitionOpacity = 0.5f;
-            float finalAlpha = layerAlpha * transitionOpacity;
-            assertEquals(0.1f, finalAlpha, 0.001f);
+            // During a transition the layer's own animated alpha is
+            // suppressed: finalAlpha = inheritedAlpha × transitionAlpha.
+            float inheritedAlpha = 1.0f;
+            float transitionAlpha = 0.5f;
+            float finalAlpha = inheritedAlpha * transitionAlpha;
+            assertEquals(0.5f, finalAlpha, 0.001f);
         }
 
         @Test
-        @DisplayName("fading alpha keeps multiplying through transition opacity")
+        @DisplayName("outside a transition the layer alpha drives the fade")
         void fadingAlphaThroughTransition() {
             // animation.alpha: linear(start=0, speed=0.5) → 0.5t → at t=1 → 0.5
             LayerAnimation anim = new LayerAnimation(
@@ -368,7 +370,9 @@ class HaloRendererTest {
             float layerAlpha = anim.evaluateAlpha(1.0);
             assertEquals(0.5f, layerAlpha, 0.001f);
 
-            assertEquals(0.5f, layerAlpha * 1.0f, 0.001f);
+            // No transition active → finalAlpha = inheritedAlpha × layerAlpha.
+            float finalAlpha = 1.0f * layerAlpha;
+            assertEquals(0.5f, finalAlpha, 0.001f);
         }
 
         @Test
@@ -416,16 +420,15 @@ class HaloRendererTest {
         @Test
         @DisplayName("alpha inherits multiplicatively down the tree")
         void alphaInheritsMultiplicatively() {
-            // Parent effective alpha 0.5 × child own alpha 0.5 × transition opacity 1.0
+            // Parent effective alpha 0.5 × child own alpha 0.5
             float inheritedAlpha = 0.5f;   // accumulated from ancestors
             float childAlpha = 0.5f;       // child's own animation.alpha
-            float transitionOpacity = 1.0f;
-            float finalAlpha = inheritedAlpha * childAlpha * transitionOpacity;
+            float finalAlpha = inheritedAlpha * childAlpha;
             assertEquals(0.25f, finalAlpha, 0.001f);
 
             // Omitting the channel on the child keeps the inherited value unchanged
             float defaultedChild = 1.0f;
-            assertEquals(0.5f, inheritedAlpha * defaultedChild * transitionOpacity, 0.001f);
+            assertEquals(0.5f, inheritedAlpha * defaultedChild, 0.001f);
         }
 
         @Test

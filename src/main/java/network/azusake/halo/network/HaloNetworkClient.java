@@ -5,6 +5,7 @@ import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.animation.StartupAnimationConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -72,21 +73,35 @@ public final class HaloNetworkClient {
                 } else {
                     Identifier defId = buf.readIdentifier();
                     boolean hasDefId = !defId.getPath().isEmpty();
+                    double ageSeconds = buf.readDouble();
                     client.execute(() -> {
                         // Set ENDING state — renderer will play shutdown animation
                         HaloInstance inst = HaloManager.getInstance().getInstance(uuid);
+                        double freeze;
                         if (inst == null && hasDefId) {
                             // In integrated server mode, the server already removed the
                             // instance from the shared activeHalos.  Create a fresh one
-                            // with ENDING so the shutdown animation can play.
+                            // with ENDING so the shutdown animation can play, and
+                            // reconstruct the idle phase at the hide moment from the
+                            // server-reported age (the fresh instance's own elapsed
+                            // time would be ~0, which causes the shutdown head to
+                            // align to idle(0) instead of the last rendered frame).
                             HaloManager.getInstance().putClientHalo(uuid, defId);
                             inst = HaloManager.getInstance().getInstance(uuid);
+                            var def = HaloJsonLoader.getDefinition(defId).orElse(null);
+                            StartupAnimationConfig startup = def != null
+                                ? def.startupAnimation().orElse(null) : null;
+                            freeze = HaloInstance.hidePhaseFromAge(ageSeconds, startup);
+                        } else if (inst != null) {
+                            var def = HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
+                            freeze = inst.currentAnimTime(
+                                def != null ? def.startupAnimation().orElse(null) : null);
+                        } else {
+                            return; // no definition id and no instance — nothing to animate
                         }
-                        if (inst != null) {
-                            inst.setHiddenByState(false);
-                            inst.setTransitionState(HaloTransitionState.ENDING);
-                            inst.startTransition();
-                        }
+                        inst.setHiddenByState(false);
+                        inst.setTransitionState(HaloTransitionState.ENDING);
+                        inst.startTransition(freeze);
                     });
                 }
             }

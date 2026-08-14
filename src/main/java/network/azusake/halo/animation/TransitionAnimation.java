@@ -10,7 +10,7 @@ import java.util.List;
  * per-property timelines.
  *
  * <h3>Queue Model</h3>
- * <p>Each property (offset, scale, opacity) has its own independent timeline.
+ * <p>Each property (offset, scale, alpha) has its own independent timeline.
  * Within a segment, a property starts at {@code max(segStart, prevPropEnd)},
  * ensuring no overlap.  If a property is null in a segment but defined in a
  * later segment, the gap is filled with a hold at the {@code from} value of
@@ -61,20 +61,20 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
      *                 individual properties may override this
      * @param offset   optional offset property (3-component: x, y, z)
      * @param scale    optional scale property (3-component: x, y, z)
-     * @param opacity  optional opacity property (1-component, stored as float[1])
+     * @param alpha    optional alpha property (1-component, stored as float[1])
      */
     public record TransitionSegment(
         double duration,
         EasingType easing,
         TransitionProperty offset,
         TransitionProperty scale,
-        TransitionProperty opacity
+        TransitionProperty alpha
     ) {}
 
     /**
      * The result of evaluating a {@link TransitionAnimation} at a specific time.
      */
-    public record TransitionResult(Vec3d offset, float[] scale, float opacity) {
+    public record TransitionResult(Vec3d offset, float[] scale, float alpha) {
 
         /** Default result (identity: no change). */
         public static final TransitionResult DEFAULT = new TransitionResult(
@@ -88,7 +88,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
 
     private static final float[] DEFAULT_OFFSET = new float[]{0f, 0f, 0f};
     private static final float[] DEFAULT_SCALE  = new float[]{1f, 1f, 1f};
-    private static final float   DEFAULT_OPACITY = 1.0f;
+    private static final float   DEFAULT_ALPHA = 1.0f;
 
     // ------------------------------------------------------------------
     // Total duration
@@ -131,8 +131,8 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             if (reversed) {
                 float[] off = evaluateRevProperty(revQueue, evalTime, DEFAULT_OFFSET, e -> e.propOffset());
                 float[] scl = evaluateRevProperty(revQueue, evalTime, DEFAULT_SCALE, e -> e.propScale());
-                float op = evaluateRevScalar(revQueue, evalTime, DEFAULT_OPACITY, e -> e.propOpacity());
-                return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, op);
+                float a = evaluateRevScalar(revQueue, evalTime, DEFAULT_ALPHA, e -> e.propAlpha());
+                return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a);
             }
             return resolveFinalOrFirst(segments, false);
         }
@@ -143,13 +143,13 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         float[] scale = reversed
             ? evaluateRevProperty(revQueue, elapsed, DEFAULT_SCALE, e -> e.propScale())
             : evaluateProperty(segments, elapsed, DEFAULT_SCALE, seg -> seg.scale());
-        float opacity = reversed
-            ? evaluateRevScalar(revQueue, elapsed, DEFAULT_OPACITY, e -> e.propOpacity())
-            : evaluatePropertyScalar(segments, elapsed, DEFAULT_OPACITY, seg -> seg.opacity());
+        float alpha = reversed
+            ? evaluateRevScalar(revQueue, elapsed, DEFAULT_ALPHA, e -> e.propAlpha())
+            : evaluatePropertyScalar(segments, elapsed, DEFAULT_ALPHA, seg -> seg.alpha());
 
         return new TransitionResult(
             new Vec3d(offset[0], offset[1], offset[2]),
-            scale, opacity
+            scale, alpha
         );
     }
 
@@ -233,7 +233,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     private record QueueEntry(double startTime, double duration, EasingType easing,
                                TransitionProperty propOffset,
                                TransitionProperty propScale,
-                               TransitionProperty propOpacity) {}
+                               TransitionProperty propAlpha) {}
 
     /**
      * Build the reversed queue: for each property, compute the original queue
@@ -244,17 +244,17 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         // Compute per-property queue timelines
         List<PropQueueEntry> offQ = computePropQueue(seg -> seg.offset(), DEFAULT_OFFSET);
         List<PropQueueEntry> sclQ = computePropQueue(seg -> seg.scale(), DEFAULT_SCALE);
-        List<PropQueueEntry> opQ  = computePropQueue(seg -> seg.opacity(), new float[]{DEFAULT_OPACITY});
+        List<PropQueueEntry> aQ   = computePropQueue(seg -> seg.alpha(), new float[]{DEFAULT_ALPHA});
 
         double total = totalDurationFor(segments);
 
         // Reverse each queue
         List<PropQueueEntry> offR = reversePropQueue(offQ, total, DEFAULT_OFFSET);
         List<PropQueueEntry> sclR = reversePropQueue(sclQ, total, DEFAULT_SCALE);
-        List<PropQueueEntry> opR  = reversePropQueue(opQ, total, new float[]{DEFAULT_OPACITY});
+        List<PropQueueEntry> aR   = reversePropQueue(aQ, total, new float[]{DEFAULT_ALPHA});
 
         // Merge into unified entries
-        return mergeQueues(offR, sclR, opR);
+        return mergeQueues(offR, sclR, aR);
     }
 
     private record PropQueueEntry(double startTime, double duration, EasingType easing,
@@ -340,12 +340,12 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
      * Merge per-property reversed queues into unified QueueEntry list.
      */
     private List<QueueEntry> mergeQueues(List<PropQueueEntry> off, List<PropQueueEntry> scl,
-                                          List<PropQueueEntry> op) {
+                                          List<PropQueueEntry> a) {
         // Collect all unique time boundaries
         List<Double> boundaries = new ArrayList<>();
         for (PropQueueEntry e : off) { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
         for (PropQueueEntry e : scl) { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
-        for (PropQueueEntry e : op)  { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
+        for (PropQueueEntry e : a)   { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
         boundaries = boundaries.stream().sorted().distinct().toList();
 
         List<QueueEntry> result = new ArrayList<>();
@@ -357,7 +357,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
 
             TransitionProperty oProp = findPropAt(off, start);
             TransitionProperty sProp = findPropAt(scl, start);
-            TransitionProperty aProp = findPropAt(op, start);
+            TransitionProperty aProp = findPropAt(a, start);
             EasingType easing = EasingType.LINEAR;
             if (oProp != null) easing = oProp.propertyEasing() != null ? oProp.propertyEasing() : easing;
             if (sProp != null) easing = sProp.propertyEasing() != null ? sProp.propertyEasing() : easing;
@@ -409,8 +409,8 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         QueueEntry first = queue.get(0);
         float[] off = first.propOffset() != null ? (first.propOffset().from() != null ? first.propOffset().from() : DEFAULT_OFFSET) : DEFAULT_OFFSET;
         float[] scl = first.propScale() != null ? (first.propScale().from() != null ? first.propScale().from() : DEFAULT_SCALE) : DEFAULT_SCALE;
-        float op = first.propOpacity() != null ? (first.propOpacity().from() != null ? first.propOpacity().from()[0] : DEFAULT_OPACITY) : DEFAULT_OPACITY;
-        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, op);
+        float a = first.propAlpha() != null ? (first.propAlpha().from() != null ? first.propAlpha().from()[0] : DEFAULT_ALPHA) : DEFAULT_ALPHA;
+        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a);
     }
 
     /**
@@ -432,7 +432,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     private static boolean isIdleEntry(QueueEntry e) {
         TransitionProperty prop = (e.propScale() != null) ? e.propScale()
             : (e.propOffset() != null) ? e.propOffset()
-            : e.propOpacity();
+            : e.propAlpha();
         if (prop == null || prop.from() == null || prop.to() == null) return true;
         for (int i = 0; i < Math.max(prop.from().length, prop.to().length); i++) {
             float f = i < prop.from().length ? prop.from()[i] : 0;
@@ -450,7 +450,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         double maxEnd = 0;
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.offset()));
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.scale()));
-        maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.opacity()));
+        maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.alpha()));
         double segTotal = 0;
         for (TransitionSegment seg : segs) segTotal += seg.duration();
         return Math.max(maxEnd, segTotal);
@@ -518,11 +518,11 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         float[] scale = isFirst
             ? resolvePropertyFirst(segs, DEFAULT_SCALE, seg -> seg.scale())
             : resolvePropertyFinal(segs, DEFAULT_SCALE, seg -> seg.scale());
-        float[] op = isFirst
-            ? resolvePropertyFirst(segs, new float[]{DEFAULT_OPACITY}, seg -> seg.opacity())
-            : resolvePropertyFinal(segs, new float[]{DEFAULT_OPACITY}, seg -> seg.opacity());
+        float[] a = isFirst
+            ? resolvePropertyFirst(segs, new float[]{DEFAULT_ALPHA}, seg -> seg.alpha())
+            : resolvePropertyFinal(segs, new float[]{DEFAULT_ALPHA}, seg -> seg.alpha());
 
-        return new TransitionResult(new Vec3d(offset[0], offset[1], offset[2]), scale, op[0]);
+        return new TransitionResult(new Vec3d(offset[0], offset[1], offset[2]), scale, a[0]);
     }
 
     private static float[] resolvePropertyFirst(List<TransitionSegment> segs, float[] defaultVal,

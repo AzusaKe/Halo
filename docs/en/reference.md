@@ -176,7 +176,7 @@ Each element in the `layers` array is a **group** — a transform node that can 
 - **Type**: Boolean
 - **Required**: No
 - **Default**: `true`
-- **Description**: Whether descendant groups inherit this group's animated alpha. When `true` (default), a descendant's effective alpha = inherited parent value × own alpha × transition opacity, flowing down the tree layer by layer. When `false`, this group's alpha only applies to its own primitives and the subtree restarts from 1.0 (fully opaque).
+- **Description**: Whether descendant groups inherit this group's animated alpha. When `true` (default), a descendant's effective alpha = inherited parent value × own alpha (during a transition the transition's `alpha` channel replaces the own animated alpha), flowing down the tree layer by layer. When `false`, this group's alpha only applies to its own primitives and the subtree restarts from 1.0 (fully opaque).
 
 ### `inherit_glow`
 
@@ -295,12 +295,12 @@ The animation system uses mathematical functions to describe how position offset
 - **`offset`**: Position offset animation, organized into three optional axis arrays: `x`, `y`, `z`
 - **`rotation`**: Rotation animation, organized into three optional axis arrays: `yaw`, `pitch`, `roll`
 - **`scale`**: Scale animation, organized into three optional axis arrays: `x`, `y`, `z`. Terms are **delta factors** added to a base of 1.0 (e.g. `sin(A=0.1)` oscillates between 0.9 and 1.1). Omitted axes default to 1.0 (no scaling). Scale animation is **multiplicative** — in a child group, it compounds with the parent's scale: final scale = parent scale × child scale × animated scale.
-- **`alpha`**: Opacity animation (**scalar channel**). Omitted → 1.0 (fully opaque); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means fully transparent (layer invisible), 1 means fully opaque. The value is **multiplied** with the alpha inherited from the parent (final alpha = parent alpha × own alpha × transition opacity). Use it for fades and overall brightness pulses.
+- **`alpha`**: Opacity animation (**scalar channel**). Omitted → 1.0 (fully opaque); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means fully transparent (layer invisible), 1 means fully opaque. The value is **multiplied** with the alpha inherited from the parent (final alpha = parent alpha × own alpha; during a transition the own animated alpha is replaced by the transition's `alpha` channel). Use it for fades and overall brightness pulses.
 - **`glow`**: Self-illumination intensity animation (**scalar channel**). Omitted → 1.0 (full glow); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means no glow (dark), 1 means full glow. The value is **multiplied** with the glow inherited from the parent (`final glow = parent glow × own glow`). When the group's `glowing` is `true` (default), the final glow directly becomes the primitive's own brightness; when `glowing=false` the group's brightness follows ambient light, but its glow value is still passed to descendants multiplicatively.
 
 Each axis value is an **array of animation term objects**; `alpha`/`glow` are scalar channels whose values are flat term arrays. Multiple terms on the same channel are **summed together** (linear superposition), so you can combine multiple functions to produce complex motion. The entire animation block, each group, and each channel are all optional — omit what you don't need.
 
-> **Group inheritance**: `offset`/`rotation`/`scale` compose down the scene tree (child groups inherit the parent's transform). `alpha` and `glow` are **inherited multiplicatively** as well — each group's effective value = inherited value × its own animated value (alpha also multiplies in the group's transition opacity: `final alpha = parent alpha × own alpha × transition opacity`; glow: `final glow = parent glow × own glow`). Groups that omit a channel use 1.0 (no change to the inherited value), so defining an `alpha` animation on a parent group fades the whole subtree together. Glow flows down the tree regardless of the `glowing` flag — the flag only selects whether a group's own primitives use glow or ambient brightness. For finer control, set `inherit_alpha`/`inherit_glow` to `false` on any group to cut the chain at that boundary (the subtree restarts from 1.0); for fully independent parts, simply define two sibling trees.
+> **Group inheritance**: `offset`/`rotation`/`scale` compose down the scene tree (child groups inherit the parent's transform). `alpha` and `glow` are **inherited multiplicatively** as well — each group's effective value = inherited value × its own animated value (during a transition the transition's `alpha` channel is the sole alpha driver: `final alpha = parent alpha × transition alpha`; otherwise `final alpha = parent alpha × own alpha`; glow: `final glow = parent glow × own glow`). Groups that omit a channel use 1.0 (no change to the inherited value), so defining an `alpha` animation on a parent group fades the whole subtree together. Glow flows down the tree regardless of the `glowing` flag — the flag only selects whether a group's own primitives use glow or ambient brightness. For finer control, set `inherit_alpha`/`inherit_glow` to `false` on any group to cut the chain at that boundary (the subtree restarts from 1.0); for fully independent parts, simply define two sibling trees.
 
 ### Units
 
@@ -590,7 +590,7 @@ Use groups to share transforms across multiple primitives, and `children` to bui
 
 ### 7. Startup / Shutdown Transition Animations
 
-Halos can play a multi-segment fade-in animation when appearing (`/halo show`, wake up, become visible) and a fade-out when disappearing (`/halo hide`, sleep, become invisible). If no explicit `shutdown` is configured, the startup animation is automatically reversed.
+Halos can play a multi-segment fade-in animation when appearing (`/halo show`, wake up, become visible) and a fade-out when disappearing (`/halo hide`, sleep, become invisible). The derived endpoints of a transition are automatically aligned to the actual phase of the idle animation (the `animation` field) at the trigger moment, so neither hand-off jumps.
 
 ```json
 {
@@ -606,21 +606,26 @@ Halos can play a multi-segment fade-in animation when appearing (`/halo show`, w
         ]
       }
     }
+  },
+  "shutdown": {
+    "segments": [
+      { "duration": 0.5, "easing": "ease_in_out_cubic", "scale": { "to": [0, 0, 0] } }
+    ]
   }
 }
 ```
 
 | Field | Description |
 |------|------|
-| `startup` | Startup (fade-in) transition config |
-| `shutdown` | Shutdown (fade-out) transition config. If omitted, startup is automatically reversed |
+| `startup` | Startup (fade-in) transition config. Every property must author `from` on the **first segment declaring it**; `to` may be omitted (aligned to the idle animation at the resume phase) |
+| `shutdown` | Shutdown (fade-out) transition config. Every property must author `to` on the **last segment declaring it**; `from` may be omitted (inherits the idle state at the hide moment). If omitted entirely, startup is automatically reversed as the fade-out |
 | `segments` | Default segments applied to all groups without an `id_overrides` entry |
 | `id_overrides` | Per-group-id segment overrides, keyed by the group's `id` field |
 | `segments[].duration` | Duration of this segment in seconds |
 | `segments[].easing` | Easing curve: `linear`, `ease_out_cubic`, `ease_in_out_cubic` |
 | `segments[].offset` | Offset animation `{ "from": [x,y,z], "to": [x,y,z] }` |
-| `segments[].scale` | Scale animation `{ "from": [x,y,z] }` (to defaults to `[1,1,1]`) |
-| `segments[].opacity` | Opacity animation `{ "from": 0.0 }` (to defaults to `1.0`) |
+| `segments[].scale` | Scale animation `{ "from": [x,y,z] }` (`to` may be omitted, aligned to the idle value) |
+| `segments[].alpha` | Opacity animation `{ "from": 0.0 }` (`to` may be omitted, aligned to the idle value). `opacity` is a deprecated alias kept for legacy packs |
 
 **Per-property duration/easing override**: Each property can override the segment's duration and easing:
 ```json
@@ -630,10 +635,14 @@ Halos can play a multi-segment fade-in animation when appearing (`/halo show`, w
 
 **Behavior**:
 - Groups not listed in `id_overrides` and without a default `segments` array are not animated (instant appear/disappear)
-- Leading gaps (before the first segment) hold at the next segment's `from` value
-- Trailing gaps (after the last segment) hold at the animation's end value
-- Periodic animations (`animation` field) are blocked during the entire transition and resume seamlessly after it ends
-- The shutdown animation reverses the startup queue: elements are reversed and `from`/`to` are swapped
+- Leading gaps (before the first segment) hold at the next segment's `from` value; trailing gaps (after the last segment) hold at the animation's end value
+- Derived transition endpoints are aligned to the idle animation's actual phase:
+  - Startup: derived tail values (no explicit `to`) match `offset`/`scale`/`alpha` of the idle animation at the resume phase, so the transition hands off seamlessly
+  - Shutdown: derived head values (no explicit `from`) match the idle animation's value at the hide phase, so hiding does not jump
+  - Explicit `from`/`to` always win; alignment responsibility lies with the author
+- Periodic animations (`animation` field) freeze at the trigger phase during the transition and resume at their actual phase afterwards; during a transition the transition's `alpha` is the sole alpha driver (the layer's own alpha channel is suppressed, while glow keeps following the frozen phase)
+- An explicit `shutdown` plays exactly as written, never reversed; the startup queue is only reversed as a fade-out when no `shutdown` is defined
+- A `shutdown` `from` left empty inherits the hide-moment idle state; a mid-segment `from` left empty inherits the previous segment's end value (forward cascade)
 
 ---
 

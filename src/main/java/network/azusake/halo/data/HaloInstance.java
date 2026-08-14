@@ -1,9 +1,12 @@
 package network.azusake.halo.data;
 
 import network.azusake.halo.animation.StartupAnimationConfig;
+import network.azusake.halo.animation.TransitionAnimationResult;
 import net.minecraft.util.Identifier;
 
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Per-entity runtime marker for a single halo.
@@ -46,6 +49,22 @@ public class HaloInstance {
 
     /** Epoch-millis timestamp when the current transition started. */
     private long transitionStartTime = 0;
+
+    /**
+     * The idle-animation phase (seconds since creation) frozen for the
+     * current transition.  Startup end points align to the idle value at this
+     * phase (the resume moment); shutdown head points align to the idle value
+     * at this phase (the hide moment).
+     */
+    private double transitionFreezeAnimTime = 0;
+
+    /**
+     * Per-group patched transition animations for the current transition.
+     * Built lazily on the render thread with endpoint alignment applied, then
+     * reused every frame.  Cleared whenever a new transition starts.
+     */
+    private final Map<String, TransitionAnimationResult> transitionAnimCache =
+        new ConcurrentHashMap<>();
 
     /**
      * Whether the current ENDING/NULL state was caused by sleep/invisibility
@@ -181,11 +200,106 @@ public class HaloInstance {
     }
 
     /**
-     * Start a transition animation. The direction (startup/shutdown) is
-     * determined by the current {@link #transitionState}.
+     * The frozen idle-animation phase for the current transition, in seconds.
      */
-    public void startTransition() {
+    public double getTransitionFreezeAnimTime() {
+        return transitionFreezeAnimTime;
+    }
+
+    /**
+     * The idle-animation phase the renderer would use right now — i.e. the
+     * current {@code animTime}.  After a completed startup transition the
+     * idle animation lags wall-clock time by the startup duration (it was
+     * frozen while the startup played), so transitions triggered later must
+     * align to {@code rawAnimTime - startupDur}, not the raw elapsed time.
+     *
+     * @param startupConfig the definition's startup config (may be null)
+     * @return the idle phase in seconds for the current moment
+     */
+    public double currentAnimTime(StartupAnimationConfig startupConfig) {
+        return currentAnimTime(System.currentTimeMillis(), startupConfig);
+    }
+
+    /**
+     * Reconstruct the idle-animation phase at the hide moment for a halo whose
+     * local instance was lost (e.g. the server removed the shared instance
+     * before the remove packet arrived on an integrated server).
+     *
+     * <p>The phase lags the raw wall-clock age by the startup duration: while
+     * the startup transition played the idle animation was frozen, so after it
+     * completes the idle resumes at {@code raw - startupDur}.</p>
+     *
+     * @param ageSeconds   wall-clock seconds since the server created the halo
+     * @param startupConfig the definition's startup config (may be null)
+     * @return the idle phase in seconds at the hide moment, never negative
+     */
+    public static double hidePhaseFromAge(double ageSeconds, StartupAnimationConfig startupConfig) {
+        double startupDur = startupConfig != null ? startupConfig.maxDuration() : 0.0;
+        return Math.max(0.0, ageSeconds - startupDur);
+    }
+
+    /**
+     * Testable variant of {@link #currentAnimTime(StartupAnimationConfig)}
+     * with an explicit wall-clock moment.
+     *
+     * @param nowMillis     the wall-clock moment in epoch millis
+     * @param startupConfig the definition's startup config (may be null)
+     * @return the idle phase in seconds at {@code nowMillis}
+     */
+    double currentAnimTime(long nowMillis, StartupAnimationConfig startupConfig) {
+        double raw = (nowMillis - createdAtTime) / 1000.0;
+        if (transitionStartTime > 0) {
+            if (transitionState == HaloTransitionState.STARTING
+                    || transitionState == HaloTransitionState.ENDING) {
+                // The idle animation is frozen at the captured phase.
+                return transitionFreezeAnimTime;
+            }
+            double startupDur = startupConfig != null ? startupConfig.maxDuration() : 0.0;
+            double elapsed = (nowMillis - transitionStartTime) / 1000.0;
+            if (elapsed >= startupDur) {
+                // NORMAL after a completed startup — the idle resumed at
+                // freeze and has been playing since, so it lags wall-clock
+                // time by exactly the startup duration.
+                return Math.max(0.0, raw - startupDur);
+            }
+        }
+        return raw;
+    }
+
+    /**
+     * Start a transition animation.  The direction (startup/shutdown) is
+     * determined by the current {@link #transitionState}.
+     *
+     * @param freezeAnimTime the idle-animation phase (seconds since creation)
+     *                       to freeze while the transition plays; used both as
+     *                       the frozen {@code animTime} during the transition
+     *                       and as the endpoint-alignment phase for per-group
+     *                       patched animations
+     */
+    public void startTransition(double freezeAnimTime) {
         this.transitionStartTime = System.currentTimeMillis();
+        this.transitionFreezeAnimTime = freezeAnimTime;
+        this.transitionAnimCache.clear();
+    }
+
+    /**
+     * Get the per-instance patched transition animation for a group, or
+     * {@code null} when not yet built this transition.
+     *
+     * @param groupKey the group id (empty string for unnamed groups)
+     */
+    public TransitionAnimationResult getTransitionAnimation(String groupKey) {
+        return transitionAnimCache.get(groupKey);
+    }
+
+    /**
+     * Cache a per-instance patched transition animation for a group.
+     *
+     * @param groupKey the group id (empty string for unnamed groups)
+     * @param anim     the endpoint-aligned animation
+     */
+    public void putTransitionAnimation(String groupKey, TransitionAnimationResult anim) {
+        transitionAnimCache.put(groupKey, anim);
     }
 
     /**

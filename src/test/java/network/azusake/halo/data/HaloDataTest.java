@@ -118,6 +118,97 @@ class HaloDataTest {
             inst.markNeedsSnap();
             assertTrue(inst.isNeedsSnap());
         }
+
+        private StartupAnimationConfig startupConfig(double duration) {
+            return new StartupAnimationConfig(
+                List.of(new TransitionAnimation.TransitionSegment(
+                    duration, EasingType.LINEAR, null, null, null)),
+                Map.of());
+        }
+
+        @Test
+        @DisplayName("currentAnimTime: fresh instance uses raw elapsed time")
+        void currentAnimTimeFreshUsesRawElapsed() {
+            HaloInstance inst = new HaloInstance(
+                java.util.UUID.randomUUID(), new Identifier("halo", "ring_default"));
+            assertEquals(5.0, inst.currentAnimTime(inst.getCreatedAtTime() + 5_000, null), 0.001);
+        }
+
+        @Test
+        @DisplayName("currentAnimTime: frozen during STARTING / ENDING")
+        void currentAnimTimeFrozenDuringTransitions() {
+            HaloInstance inst = new HaloInstance(
+                java.util.UUID.randomUUID(), new Identifier("halo", "ring_default"));
+            inst.startTransition(4.0);
+            long start = inst.getTransitionStartTime();
+            StartupAnimationConfig cfg = startupConfig(7.0);
+
+            inst.setTransitionState(HaloTransitionState.STARTING);
+            assertEquals(4.0, inst.currentAnimTime(start + 100_000, cfg), 0.001);
+
+            inst.setTransitionState(HaloTransitionState.ENDING);
+            assertEquals(4.0, inst.currentAnimTime(start + 100_000, cfg), 0.001);
+        }
+
+        @Test
+        @DisplayName("currentAnimTime: NORMAL after a completed startup lags wall-clock by startup duration")
+        void currentAnimTimeLagsByStartupDuration() {
+            HaloInstance inst = new HaloInstance(
+                java.util.UUID.randomUUID(), new Identifier("halo", "ring_default"));
+            inst.startTransition(0.0);
+            long start = inst.getTransitionStartTime();
+            inst.setTransitionState(HaloTransitionState.NORMAL);
+            StartupAnimationConfig cfg = startupConfig(7.0);
+
+            long now = start + 17_000;
+            double raw = (now - inst.getCreatedAtTime()) / 1000.0;
+            assertEquals(raw - 7.0, inst.currentAnimTime(now, cfg), 0.001);
+        }
+
+        @Test
+        @DisplayName("currentAnimTime: shutdown head aligns to the actual idle phase (regression for hide jump)")
+        void currentAnimTimeMatchesRenderedIdlePhase() {
+            // Full cycle: created → STARTING (frozen at 0) → NORMAL (resumes at
+            // raw - 7) → hide.  The ENDING freeze must equal the NORMAL animTime
+            // the renderer was using, not the raw wall-clock elapsed time.
+            HaloInstance inst = new HaloInstance(
+                java.util.UUID.randomUUID(), new Identifier("abydos", "shiroko"));
+            StartupAnimationConfig cfg = startupConfig(7.0);
+
+            inst.startTransition(0.0);
+            long start = inst.getTransitionStartTime();
+            inst.setTransitionState(HaloTransitionState.NORMAL);
+
+            // Hide 20s after creation: NORMAL animTime = raw - 7.
+            long hideNow = inst.getCreatedAtTime() + 20_000;
+            double idlePhaseAtHide = inst.currentAnimTime(hideNow, cfg);
+            assertEquals(20.0 - 7.0, idlePhaseAtHide, 0.001);
+
+            // The renderer's last NORMAL frame used the same phase.
+            double rawAtHide = (hideNow - inst.getCreatedAtTime()) / 1000.0;
+            assertNotEquals(rawAtHide, idlePhaseAtHide, 0.001);
+        }
+
+        @Test
+        @DisplayName("hidePhaseFromAge: no startup config → phase is the raw age")
+        void hidePhaseFromAgeWithoutStartup() {
+            assertEquals(30.0, HaloInstance.hidePhaseFromAge(30.0, null), 0.001);
+        }
+
+        @Test
+        @DisplayName("hidePhaseFromAge: after a completed startup the phase lags by the startup duration")
+        void hidePhaseFromAgeLagsByStartupDuration() {
+            StartupAnimationConfig cfg = startupConfig(7.0);
+            // Hidden 20s after creation with a 7s startup → idle resumed at raw - 7.
+            assertEquals(13.0, HaloInstance.hidePhaseFromAge(20.0, cfg), 0.001);
+        }
+
+        @Test
+        @DisplayName("hidePhaseFromAge: never negative when hidden mid-startup")
+        void hidePhaseFromAgeClampsToZero() {
+            StartupAnimationConfig cfg = startupConfig(7.0);
+            assertEquals(0.0, HaloInstance.hidePhaseFromAge(3.0, cfg), 0.001);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1290,8 +1381,8 @@ class HaloDataTest {
         }
 
         @Test
-        @DisplayName("Opacity fade from 0 to 1")
-        void opacityFade() {
+        @DisplayName("Alpha fade from 0 to 1")
+        void alphaFade() {
             var segment = new TransitionAnimation.TransitionSegment(
                 1.0,
                 EasingType.LINEAR,
@@ -1302,9 +1393,9 @@ class HaloDataTest {
             );
             var anim = new TransitionAnimation(List.of(segment));
 
-            assertEquals(0.0f, anim.evaluate(0.0, false).opacity(), 1e-6f);
-            assertEquals(0.5f, anim.evaluate(0.5, false).opacity(), 1e-6f);
-            assertEquals(1.0f, anim.evaluate(1.0, false).opacity(), 1e-6f);
+            assertEquals(0.0f, anim.evaluate(0.0, false).alpha(), 1e-6f);
+            assertEquals(0.5f, anim.evaluate(0.5, false).alpha(), 1e-6f);
+            assertEquals(1.0f, anim.evaluate(1.0, false).alpha(), 1e-6f);
         }
 
         @Test
@@ -1313,7 +1404,7 @@ class HaloDataTest {
             var anim = new TransitionAnimation(List.of());
             var result = anim.evaluate(0.5, false);
             assertEquals(TransitionAnimation.TransitionResult.DEFAULT.offset(), result.offset());
-            assertEquals(1.0f, result.opacity(), 1e-6f);
+            assertEquals(1.0f, result.alpha(), 1e-6f);
         }
 
         @Test
@@ -1377,7 +1468,7 @@ class HaloDataTest {
                         "duration": 0.5,
                         "easing": "ease_out_cubic",
                         "offset": { "from": [0.0, 0.05, 0.0], "to": [0.0, 0.0, 0.0] },
-                        "opacity": { "from": 0.0, "to": 1.0 }
+                        "alpha": { "from": 0.0, "to": 1.0 }
                       }
                     ],
                     "id_overrides": {
@@ -1385,7 +1476,7 @@ class HaloDataTest {
                         {
                           "duration": 0.3,
                           "easing": "linear",
-                          "opacity": { "from": 0.0, "to": 0.8 }
+                          "alpha": { "from": 0.0, "to": 0.8 }
                         }
                       ]
                     }
@@ -1407,9 +1498,9 @@ class HaloDataTest {
             assertEquals(0.5, config.segments().get(0).duration(), 1e-9);
             assertEquals(EasingType.EASE_OUT_CUBIC, config.segments().get(0).easing());
             assertNotNull(config.segments().get(0).offset());
-            assertNotNull(config.segments().get(0).opacity());
-            assertEquals(0.0f, config.segments().get(0).opacity().from()[0], 1e-6f);
-            assertEquals(1.0f, config.segments().get(0).opacity().to()[0], 1e-6f);
+            assertNotNull(config.segments().get(0).alpha());
+            assertEquals(0.0f, config.segments().get(0).alpha().from()[0], 1e-6f);
+            assertEquals(1.0f, config.segments().get(0).alpha().to()[0], 1e-6f);
 
             // id_overrides
             assertTrue(config.idOverrides().containsKey("glow"));
@@ -1440,7 +1531,7 @@ class HaloDataTest {
                       {
                         "duration": 1.0,
                         "easing": "ease_in_out_cubic",
-                        "opacity": { "from": 1.0, "to": 0.0 },
+                        "alpha": { "from": 1.0, "to": 0.0 },
                         "scale": { "from": [1.0, 1.0, 1.0], "to": [0.8, 0.8, 0.8] }
                       }
                     ]
@@ -1461,9 +1552,9 @@ class HaloDataTest {
             assertEquals(1, config.segments().size());
             assertEquals(1.0, config.segments().get(0).duration(), 1e-9);
             assertEquals(EasingType.EASE_IN_OUT_CUBIC, config.segments().get(0).easing());
-            assertNotNull(config.segments().get(0).opacity());
-            assertEquals(1.0f, config.segments().get(0).opacity().from()[0], 1e-6f);
-            assertEquals(0.0f, config.segments().get(0).opacity().to()[0], 1e-6f);
+            assertNotNull(config.segments().get(0).alpha());
+            assertEquals(1.0f, config.segments().get(0).alpha().from()[0], 1e-6f);
+            assertEquals(0.0f, config.segments().get(0).alpha().to()[0], 1e-6f);
             assertNotNull(config.segments().get(0).scale());
             assertEquals(0.8f, config.segments().get(0).scale().to()[0], 1e-6f);
         }
@@ -1525,11 +1616,429 @@ class HaloDataTest {
             var noIdResult = config.getSegmentsForGroup(Optional.empty());
             assertEquals(1, noIdResult.size());
         }
+
+        @Test
+        @DisplayName("opacity alias parses to alpha")
+        void opacityAliasParsesToAlpha() {
+            String json = """
+                {
+                  "id": "halo:alias_test",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "startup": {
+                    "segments": [
+                      { "duration": 0.5, "easing": "linear", "opacity": { "from": 0.2, "to": 0.9 } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var config = def.startupAnimation().get();
+            var alpha = config.segments().get(0).alpha();
+            assertNotNull(alpha);
+            assertEquals(0.2f, alpha.from()[0], 1e-6f);
+            assertEquals(0.9f, alpha.to()[0], 1e-6f);
+        }
+
+        @Test
+        @DisplayName("alpha takes precedence over deprecated opacity")
+        void alphaWinsOverOpacity() {
+            String json = """
+                {
+                  "id": "halo:alias_win",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "shutdown": {
+                    "segments": [
+                      { "duration": 0.5, "easing": "linear",
+                        "alpha": { "from": 1.0, "to": 0.3 },
+                        "opacity": { "from": 1.0, "to": 0.1 } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var config = def.shutdownAnimation().get();
+            var alpha = config.segments().get(0).alpha();
+            assertNotNull(alpha);
+            assertEquals(0.3f, alpha.to()[0], 1e-6f);
+        }
+
+        @Test
+        @DisplayName("startup missing from on first property segment is backfilled with steady-state")
+        void startupMissingFromBackfills() {
+            String json = """
+                {
+                  "id": "halo:startup_no_from",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "startup": {
+                    "segments": [
+                      { "duration": 0.5, "easing": "linear",
+                        "scale": { "to": [0.5, 0.5, 0.5] } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var config = def.startupAnimation().get();
+            var scale = config.segments().get(0).scale();
+            assertNotNull(scale);
+            assertNotNull(scale.from());
+            assertArrayEquals(new float[]{1f, 1f, 1f}, scale.from(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("shutdown missing to on last property segment is backfilled with steady-state")
+        void shutdownMissingToBackfills() {
+            String json = """
+                {
+                  "id": "halo:shutdown_no_to",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "shutdown": {
+                    "segments": [
+                      { "duration": 0.5, "easing": "linear",
+                        "alpha": { "from": 0.5 } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var config = def.shutdownAnimation().get();
+            var alpha = config.segments().get(0).alpha();
+            assertNotNull(alpha);
+            assertNotNull(alpha.to());
+            assertArrayEquals(new float[]{1f}, alpha.to(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("shutdown config parses with SHUTDOWN backfill direction")
+        void shutdownConfigUsesShutdownDirection() {
+            String json = """
+                {
+                  "id": "halo:shutdown_dir",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "shutdown": {
+                    "segments": [
+                      { "duration": 1.0, "easing": "linear", "scale": { "to": [0.0, 0.0, 0.0] } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var config = def.shutdownAnimation().get();
+            assertEquals(TransitionQueueBuilder.BackfillDirection.SHUTDOWN, config.direction());
+        }
     }
 
     // ------------------------------------------------------------------
     // 12. Ring Default Startup Animation (integration test)
     // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // 9. TransitionQueue endpoint patching & directional backfill
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("TransitionQueue endpoint patching & directional backfill")
+    class TransitionQueuePatchTests {
+
+        /** Idle animation: offset.y = 0.1, scale.x = 1.2, alpha = 0.7 at any phase. */
+        private LayerAnimation constantIdle() {
+            return new LayerAnimation(
+                List.of(), List.of(new AnimationTerm.Linear(0.1, 0.0)), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(0.2, 0.0)), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(0.7, 0.0)),
+                List.of()
+            );
+        }
+
+        @Test
+        @DisplayName("withTailEnd patches only derived tail values")
+        void withTailEndPatchesDerivedTailOnly() {
+            // scale from=[0,0,0] with no `to` → derived tail
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f}, null), null);
+            var config = new StartupAnimationConfig(List.of(seg), Map.of());
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withTail(constantIdle(), 0.0);
+            var r = patched.evaluate(1.0);
+            assertArrayEquals(new float[]{1.2f, 1f, 1f}, r.scale(), 1e-5f, "derived tail aligned to idle scale");
+            assertEquals(0.7f, r.alpha(), 1e-5f, "empty alpha queue becomes hold at idle alpha");
+            assertEquals(0.1f, r.offset().y, 1e-5f, "empty offset queue becomes hold at idle offset");
+        }
+
+        @Test
+        @DisplayName("withTailEnd never overrides explicit to")
+        void withTailEndKeepsExplicitTo() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0f, 0f, 0f}, new float[]{0.5f, 0.5f, 0.5f}), null);
+            var config = new StartupAnimationConfig(List.of(seg), Map.of());
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withTail(constantIdle(), 0.0);
+            var r = patched.evaluate(1.0);
+            assertArrayEquals(new float[]{0.5f, 0.5f, 0.5f}, r.scale(), 1e-5f, "explicit to wins");
+        }
+
+        @Test
+        @DisplayName("withHeadStart patches only derived head values")
+        void withHeadStartPatchesDerivedHeadOnly() {
+            // scale to=[0,0,0] with no `from` → derived head
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(null, new float[]{0f, 0f, 0f}), null);
+            var config = new StartupAnimationConfig(
+                List.of(seg), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withHead(constantIdle(), 1.5);
+            var r = patched.evaluate(0.0);
+            assertArrayEquals(new float[]{1.2f, 1f, 1f}, r.scale(), 1e-5f, "derived head aligned to idle scale");
+            assertEquals(0.7f, r.alpha(), 1e-5f, "empty alpha queue becomes hold at idle alpha");
+            assertEquals(0.1f, r.offset().y, 1e-5f, "empty offset queue becomes hold at idle offset");
+        }
+
+        @Test
+        @DisplayName("withHeadStart never overrides explicit from")
+        void withHeadStartKeepsExplicitFrom() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0.3f, 0.3f, 0.3f}, new float[]{0f, 0f, 0f}), null);
+            var config = new StartupAnimationConfig(
+                List.of(seg), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withHead(constantIdle(), 1.5);
+            var r = patched.evaluate(0.0);
+            assertArrayEquals(new float[]{0.3f, 0.3f, 0.3f}, r.scale(), 1e-5f, "explicit from wins");
+        }
+
+        @Test
+        @DisplayName("shutdown backfill is head-anchored: to-only cascade inherits previous end")
+        void shutdownBackfillForwardCascade() {
+            var seg1 = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(null, new float[]{0.8f, 0.8f, 0.8f}), null);
+            var seg2 = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(null, new float[]{0f, 0f, 0f}), null);
+            var config = new StartupAnimationConfig(
+                List.of(seg1, seg2), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var anim = config.getAnimationForGroup(Optional.empty());
+
+            var r = anim.evaluate(0.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 1e-5f, "shutdown head anchor placeholder");
+            r = anim.evaluate(0.5);
+            assertArrayEquals(new float[]{0.9f, 0.9f, 0.9f}, r.scale(), 1e-5f, "first cascade mid");
+            r = anim.evaluate(1.0);
+            assertArrayEquals(new float[]{0.8f, 0.8f, 0.8f}, r.scale(), 1e-5f, "first cascade end");
+            r = anim.evaluate(1.5);
+            assertArrayEquals(new float[]{0.4f, 0.4f, 0.4f}, r.scale(), 1e-5f, "second cascade mid");
+            r = anim.evaluate(2.0);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 1e-5f, "shutdown final to");
+        }
+
+        @Test
+        @DisplayName("shutdown leading gap holds the head anchor placeholder")
+        void shutdownLeadingGapHoldsHeadAnchor() {
+            var gapSeg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null);
+            var activeSeg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(null, new float[]{0f, 0f, 0f}), null);
+            var config = new StartupAnimationConfig(
+                List.of(gapSeg, activeSeg), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var anim = config.getAnimationForGroup(Optional.empty());
+
+            var r = anim.evaluate(0.5);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 1e-5f, "leading gap holds head anchor");
+            r = anim.evaluate(1.5);
+            assertArrayEquals(new float[]{0.5f, 0.5f, 0.5f}, r.scale(), 1e-5f, "ramp mid");
+        }
+
+        @Test
+        @DisplayName("startup backfill stays end-anchored (regression)")
+        void startupBackfillStaysEndAnchored() {
+            // scale from=[0,0,0] with no `to` → derived tail = steady-state
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f}, null), null);
+            var config = new StartupAnimationConfig(List.of(seg), Map.of()); // STARTUP
+            var anim = config.getAnimationForGroup(Optional.empty());
+
+            var r = anim.evaluate(0.5);
+            assertArrayEquals(new float[]{0.5f, 0.5f, 0.5f}, r.scale(), 1e-5f, "startup ramp to derived tail");
+            r = anim.evaluate(1.0);
+            assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 1e-5f, "startup derived tail = steady-state");
+        }
+
+        @Test
+        @DisplayName("F8: reversed fallback head aligns to idle at the actual hide phase, not idle(0)")
+        void reversedFallbackHeadAlignsToHidePhase() {
+            // shiroko-like startup: offset from=[0,-0.1,0] (no to), scale
+            // from=[0,0,0] (no to), no alpha segment.  Idle offset.y oscillates
+            // (sin), so idle(0) differs from idle(hidePhase) — a fresh instance
+            // that froze at phase 0 must NOT patch the head to idle(0).
+            var seg = new TransitionAnimation.TransitionSegment(
+                7.0, EasingType.EASE_OUT_CUBIC,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, -0.1f, 0f}, null),
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f}, null),
+                null);
+            var config = new StartupAnimationConfig(List.of(seg), Map.of());
+
+            LayerAnimation idle = new LayerAnimation(
+                List.of(), List.of(new AnimationTerm.Sin(0.02, 0.5, 0.0)), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(0.1, 0.0)), List.of(), List.of(),
+                List.of(), List.of());
+
+            double hidePhase = 13.0;
+            Vec3d idleOffsetAtHide = idle.evaluateOffset(hidePhase);
+            float[] idleScaleAtHide = idle.evaluateScale(hidePhase);
+            float idleAlphaAtHide = idle.evaluateAlpha(hidePhase);
+
+            assertNotEquals(idle.evaluateOffset(0.0).y, idleOffsetAtHide.y, 1e-5,
+                "test requires idle phase to matter");
+
+            var reversed = config.getReversedAnimationForGroup(Optional.empty());
+            assertNotNull(reversed, "reversed fallback should be available");
+            var patched = reversed.withHead(idle, hidePhase);
+
+            var r = patched.evaluate(0.0);
+            assertArrayEquals(
+                new float[]{(float) idleOffsetAtHide.x, (float) idleOffsetAtHide.y, (float) idleOffsetAtHide.z},
+                new float[]{(float) r.offset().x, (float) r.offset().y, (float) r.offset().z}, 1e-5f,
+                "shutdown first frame = idle value at the hide phase");
+            assertArrayEquals(idleScaleAtHide, r.scale(), 1e-5f,
+                "scale head aligned to idle at the hide phase");
+            assertEquals(idleAlphaAtHide, r.alpha(), 1e-5f,
+                "empty alpha queue holds idle alpha at the hide phase");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 10. TransitionResolver (F8)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("TransitionResolver shutdown selection")
+    class TransitionResolverTests {
+
+        private StartupAnimationConfig config(List<TransitionAnimation.TransitionSegment> segs) {
+            return new StartupAnimationConfig(segs, Map.of());
+        }
+
+        @Test
+        @DisplayName("STARTING plays startup config forward")
+        void startingPlaysStartupForward() {
+            var startup = config(List.of(new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null)));
+            var resolution = TransitionResolver.resolve(true, startup, null);
+            assertNotNull(resolution);
+            assertSame(startup, resolution.config());
+            assertFalse(resolution.reversed());
+        }
+
+        @Test
+        @DisplayName("STARTING without startup has no transition")
+        void startingWithoutStartupIsNull() {
+            assertNull(TransitionResolver.resolve(true, null, null));
+        }
+
+        @Test
+        @DisplayName("ENDING with explicit shutdown plays it forward")
+        void endingWithShutdownPlaysForward() {
+            var startup = config(List.of(new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null)));
+            var shutdown = config(List.of(new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null)));
+            var resolution = TransitionResolver.resolve(false, startup, shutdown);
+            assertNotNull(resolution);
+            assertSame(shutdown, resolution.config());
+            assertFalse(resolution.reversed());
+        }
+
+        @Test
+        @DisplayName("ENDING without shutdown reverses startup")
+        void endingWithoutShutdownReversesStartup() {
+            var startup = config(List.of(new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null)));
+            var resolution = TransitionResolver.resolve(false, startup, null);
+            assertNotNull(resolution);
+            assertSame(startup, resolution.config());
+            assertTrue(resolution.reversed());
+        }
+
+        @Test
+        @DisplayName("ENDING without either config has no transition")
+        void endingWithoutAnyIsNull() {
+            assertNull(TransitionResolver.resolve(false, null, null));
+        }
+    }
 
     @Nested
     @DisplayName("Ring Default Startup Animation")
@@ -1647,6 +2156,24 @@ class HaloDataTest {
             assertArrayEquals(new float[]{1f, 1f, 1f}, r.scale(), 0.01f, "pointer rev t=2.0 start");
             r = pointerRev.evaluate(5.0);
             assertArrayEquals(new float[]{0f, 0f, 0f}, r.scale(), 0.01f, "pointer rev t=5.0 end");
+        }
+
+        @Test
+        @DisplayName("ring_default startup: reversed fallback queues are cached per config")
+        void reversedCacheIsShared() {
+            var config = buildRingDefaultConfig();
+
+            var first = config.getReversedAnimationForGroup(Optional.of("pointer"));
+            var second = config.getReversedAnimationForGroup(Optional.of("pointer"));
+            assertNotNull(first, "reversed fallback should be available");
+            assertSame(first, second, "reversed queues are cached at the config level");
+
+            // Cached reversed result must match a manual reverse of the forward queue.
+            var manual = config.getAnimationForGroup(Optional.of("pointer")).reversed();
+            for (double t : new double[]{0.0, 1.0, 2.0, 5.0}) {
+                assertArrayEquals(manual.evaluate(t).scale(), first.evaluate(t).scale(), 1e-5f,
+                    "cached reversed equals manual reverse at t=" + t);
+            }
         }
     }
 }
