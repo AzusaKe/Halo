@@ -6,6 +6,7 @@ import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.render.HaloRenderer;
+import network.azusake.halo.render.IdlePhaseTracker;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -79,6 +80,13 @@ public final class HaloNetworkClient {
                     client.execute(() -> {
                         // Set ENDING state — renderer will play shutdown animation
                         HaloInstance inst = HaloManager.getInstance().getInstance(uuid);
+                        // Read the renderer-owned render state (idle phase +
+                        // whether the last frame was inside a transition + the
+                        // per-group values actually drawn) so a hide that lands
+                        // mid-transition starts the fade-out from the exact
+                        // on-screen state.  Rendering state stays client-owned.
+                        IdlePhaseTracker.RenderState renderState =
+                            HaloRenderer.getInstance().readLastRenderState(uuid);
                         double freeze;
                         if (inst == null && hasDefId) {
                             // In integrated server mode, the server already removed the
@@ -90,8 +98,7 @@ public final class HaloNetworkClient {
                             // would align to idle(0) instead of the last rendered frame.
                             HaloManager.getInstance().putClientHalo(uuid, defId);
                             inst = HaloManager.getInstance().getInstance(uuid);
-                            double phase = HaloRenderer.getInstance().readLastIdlePhase(uuid);
-                            freeze = Double.isNaN(phase) ? 0.0 : phase;
+                            freeze = renderState != null ? renderState.phase() : 0.0;
                         } else if (inst != null) {
                             var def = HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
                             freeze = inst.currentAnimTime(
@@ -102,6 +109,12 @@ public final class HaloNetworkClient {
                         inst.setHiddenByState(false);
                         inst.setTransitionState(HaloTransitionState.ENDING);
                         inst.startTransition(freeze);
+                        if (renderState != null && renderState.transitionActive()
+                                && !renderState.groups().isEmpty()) {
+                            // Hide landed mid-transition — head-patch the
+                            // shutdown queues to the exact on-screen values.
+                            inst.setHideVisuals(renderState.groups());
+                        }
                     });
                 }
             }

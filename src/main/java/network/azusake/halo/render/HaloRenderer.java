@@ -6,6 +6,7 @@ import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.animation.StartupAnimationConfig;
 import network.azusake.halo.animation.TransitionAnimationResult;
 import network.azusake.halo.animation.TransitionResolver;
+import network.azusake.halo.data.GroupVisualSnapshot;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -78,9 +79,11 @@ public final class HaloRenderer {
     /** Per-entity previous invis-hidden state, for edge detection. */
     private final Map<UUID, Boolean> prevInvisHidden = new HashMap<>();
     /**
-     * Last rendered idle-animation phase per halo.  Owned entirely by the
-     * renderer; the network layer reads it for shutdown alignment when the
-     * shared instance was already removed by the integrated server.
+     * Last rendered render state per halo (idle phase, transition-active
+     * flag, and the per-group offset/scale/alpha values drawn during a
+     * transition).  Owned entirely by the renderer; the network layer reads
+     * it for shutdown alignment when the shared instance was already removed
+     * by the integrated server.
      */
     private final IdlePhaseTracker idlePhaseTracker = new IdlePhaseTracker();
 
@@ -98,16 +101,17 @@ public final class HaloRenderer {
     }
 
     /**
-     * The last idle-animation phase this halo was rendered at, or
-     * {@link Double#NaN} when there is no fresh record.  Used by the network
-     * layer to align a shutdown head after the shared instance was already
-     * removed (integrated server) — rendering state stays client-owned.
+     * The last rendered render state of a halo (idle phase + whether the last
+     * frame was inside a transition + per-group visual values), or {@code null}
+     * when there is no fresh record.  Used by the network layer to align a
+     * shutdown head after the shared instance was already removed (integrated
+     * server) — rendering state stays client-owned.
      *
      * @param uuid the halo's entity UUID
-     * @return the last rendered idle phase in seconds, or NaN
+     * @return the last render state, or null when never rendered recently
      */
-    public double readLastIdlePhase(UUID uuid) {
-        return idlePhaseTracker.get(uuid, System.currentTimeMillis());
+    public IdlePhaseTracker.RenderState readLastRenderState(UUID uuid) {
+        return idlePhaseTracker.read(uuid, System.currentTimeMillis());
     }
 
     /** Drop all recorded phases (full sync / world change). */
@@ -224,6 +228,22 @@ public final class HaloRenderer {
     // Single halo
     // ------------------------------------------------------------------
 
+    /**
+     * When a halo is hidden while still inside a transition (e.g. during its
+     * startup), the shutdown must start from the values the renderer was
+     * actually drawing — not from the idle animation — or the fade-out would
+     * jump.  Reads the per-group visuals recorded on the last transition
+     * frame and stashes them on the instance for {@link #resolveAnimation}.
+     */
+    private void stashMidTransitionVisuals(HaloInstance instance) {
+        IdlePhaseTracker.RenderState renderState = idlePhaseTracker.read(
+            instance.getEntityUuid(), System.currentTimeMillis());
+        if (renderState != null && renderState.transitionActive()
+                && !renderState.groups().isEmpty()) {
+            instance.setHideVisuals(renderState.groups());
+        }
+    }
+
     private boolean renderSingleHalo(HaloInstance instance, MatrixStack matrices,
                                       Camera camera, float tickDelta, MinecraftClient client,
                                       double dt) {
@@ -285,6 +305,7 @@ public final class HaloRenderer {
                     double freeze = instance.currentAnimTime(startupConfig);
                     instance.setTransitionState(HaloTransitionState.ENDING);
                     instance.startTransition(freeze);
+                    stashMidTransitionVisuals(instance);
                     state = HaloTransitionState.ENDING;
                 }
             } else if (wasHidden && !nowHidden) {
@@ -364,7 +385,7 @@ public final class HaloRenderer {
         } else {
             animTime = rawAnimTime;
         }
-        idlePhaseTracker.record(instance.getEntityUuid(), animTime);
+        idlePhaseTracker.record(instance.getEntityUuid(), animTime, transitionActive);
 
         // ---- compute light at halo position for non-glowing layers ----
         BlockPos lightPos = BlockPos.ofFloored(frame.worldPosition());
@@ -471,12 +492,24 @@ public final class HaloRenderer {
             if (transitionActive) {
                 TransitionAnimationResult anim = resolveAnimation(
                     group, instance, isStartup, startupConfig, shutdownConfig);
+                float[] appliedOffset = new float[]{0f, 0f, 0f};
+                float[] appliedScale = new float[]{1f, 1f, 1f};
+                float appliedAlpha = 1.0f;
                 if (anim != null) {
                     TransitionAnimationResult.TransitionResult tr = anim.evaluate(transitionElapsed);
                     matrices.translate(tr.offset().x, tr.offset().y, tr.offset().z);
                     matrices.scale(tr.scale()[0], tr.scale()[1], tr.scale()[2]);
                     transitionAlpha = tr.alpha();
+                    appliedOffset = new float[]{
+                        (float) tr.offset().x, (float) tr.offset().y, (float) tr.offset().z};
+                    appliedScale = tr.scale();
+                    appliedAlpha = tr.alpha();
                 }
+                // Record the values this frame actually drew so a hide that
+                // lands mid-transition can head-patch the shutdown queues to
+                // the exact on-screen state instead of the idle animation.
+                idlePhaseTracker.recordGroupVisual(instance.getEntityUuid(), group.id().orElse(""),
+                    appliedOffset, appliedScale, appliedAlpha, System.currentTimeMillis());
             }
 
             // During transitions the transition's alpha channel is the sole
@@ -546,7 +579,9 @@ public final class HaloRenderer {
      * aligned to the group's idle animation at the resume phase.  ENDING plays
      * an explicit shutdown config forward with derived head values aligned to
      * the idle animation at the hide phase; when no shutdown is defined the
-     * startup config is reversed and aligned the same way.</p>
+     * startup config is reversed and aligned the same way.  A hide that lands
+     * mid-transition instead head-aligns to the exact on-screen values the
+     * renderer was drawing (stashed via {@link HaloInstance#getHideVisuals()}).</p>
      */
     private TransitionAnimationResult resolveAnimation(HaloGroup group, HaloInstance instance,
                                                         boolean isStartup,
@@ -568,6 +603,10 @@ public final class HaloRenderer {
         }
         LayerAnimation idle = group.animation().orElse(LayerAnimation.EMPTY);
         double freeze = instance.getTransitionFreezeAnimTime();
+        // A hide that happened mid-transition must start the fade-out from
+        // the exact on-screen values the renderer was drawing (recorded every
+        // transition frame), not from the idle animation.
+        GroupVisualSnapshot hide = instance.getHideVisuals().get(groupKey);
         TransitionAnimationResult patched;
         if (isStartup) {
             patched = base.withTail(idle, freeze);
@@ -580,9 +619,13 @@ public final class HaloRenderer {
             if (reversedBase == null) {
                 return null;
             }
-            patched = reversedBase.withHead(idle, freeze);
+            patched = hide != null
+                ? reversedBase.withHeadValues(hide.offset(), hide.scale(), hide.alpha())
+                : reversedBase.withHead(idle, freeze);
         } else {
-            patched = base.withHead(idle, freeze);
+            patched = hide != null
+                ? base.withHeadValues(hide.offset(), hide.scale(), hide.alpha())
+                : base.withHead(idle, freeze);
         }
         instance.putTransitionAnimation(groupKey, patched);
         return patched;

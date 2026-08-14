@@ -1858,6 +1858,49 @@ class HaloDataTest {
         }
 
         @Test
+        @DisplayName("withHeadValues patches derived head to the given on-screen values")
+        void withHeadValuesPatchesDerivedHead() {
+            // scale to=[0,0,0] with no `from` → derived head
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(null, new float[]{0f, 0f, 0f}), null);
+            var config = new StartupAnimationConfig(
+                List.of(seg), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withHeadValues(
+                new float[]{0.2f, 0.3f, 0.4f},
+                new float[]{0.9f, 0.9f, 0.9f},
+                0.35f);
+            var r = patched.evaluate(0.0);
+            assertArrayEquals(new float[]{0.9f, 0.9f, 0.9f}, r.scale(), 1e-5f,
+                "derived head aligned to on-screen scale");
+            assertEquals(0.35f, r.alpha(), 1e-5f,
+                "empty alpha queue becomes hold at on-screen alpha");
+            assertEquals(0.2f, r.offset().x, 1e-5f,
+                "empty offset queue becomes hold at on-screen offset");
+            assertEquals(0.3f, r.offset().y, 1e-5f);
+            assertEquals(0.4f, r.offset().z, 1e-5f);
+        }
+
+        @Test
+        @DisplayName("withHeadValues never overrides explicit from")
+        void withHeadValuesKeepsExplicitFrom() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0.3f, 0.3f, 0.3f}, new float[]{0f, 0f, 0f}), null);
+            var config = new StartupAnimationConfig(
+                List.of(seg), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withHeadValues(
+                new float[]{0f, 0f, 0f}, new float[]{0.5f, 0.5f, 0.5f}, 1.0f);
+            var r = patched.evaluate(0.0);
+            assertArrayEquals(new float[]{0.3f, 0.3f, 0.3f}, r.scale(), 1e-5f, "explicit from wins");
+        }
+
+        @Test
         @DisplayName("shutdown backfill is head-anchored: to-only cascade inherits previous end")
         void shutdownBackfillForwardCascade() {
             var seg1 = new TransitionAnimation.TransitionSegment(

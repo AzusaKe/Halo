@@ -24,7 +24,7 @@ class IdlePhaseTrackerTest {
             IdlePhaseTracker tracker = new IdlePhaseTracker();
             UUID uuid = UUID.randomUUID();
 
-            tracker.record(uuid, 13.0, 1_000L);
+            tracker.record(uuid, 13.0, false, 1_000L);
             assertEquals(13.0, tracker.get(uuid, 1_000L), 1e-9);
             assertEquals(13.0, tracker.get(uuid, 1_500L), 1e-9, "still fresh within TTL");
         }
@@ -41,7 +41,7 @@ class IdlePhaseTrackerTest {
         void ttlBoundaryStillValid() {
             IdlePhaseTracker tracker = new IdlePhaseTracker();
             UUID uuid = UUID.randomUUID();
-            tracker.record(uuid, 5.0, 0L);
+            tracker.record(uuid, 5.0, false, 0L);
             assertEquals(5.0, tracker.get(uuid, IdlePhaseTracker.ENTRY_TTL_MS), 1e-9);
         }
 
@@ -50,7 +50,7 @@ class IdlePhaseTrackerTest {
         void staleEntryExpires() {
             IdlePhaseTracker tracker = new IdlePhaseTracker();
             UUID uuid = UUID.randomUUID();
-            tracker.record(uuid, 7.0, 0L);
+            tracker.record(uuid, 7.0, false, 0L);
 
             long now = IdlePhaseTracker.ENTRY_TTL_MS + 1;
             assertTrue(Double.isNaN(tracker.get(uuid, now)));
@@ -63,8 +63,8 @@ class IdlePhaseTrackerTest {
             IdlePhaseTracker tracker = new IdlePhaseTracker();
             UUID stale = UUID.randomUUID();
             UUID fresh = UUID.randomUUID();
-            tracker.record(stale, 1.0, 0L);
-            tracker.record(fresh, 2.0, 9_000L);
+            tracker.record(stale, 1.0, false, 0L);
+            tracker.record(fresh, 2.0, false, 9_000L);
 
             tracker.prune(IdlePhaseTracker.ENTRY_TTL_MS + 1);
             assertTrue(Double.isNaN(tracker.get(stale, IdlePhaseTracker.ENTRY_TTL_MS + 1)));
@@ -75,9 +75,54 @@ class IdlePhaseTrackerTest {
         @DisplayName("clear drops all records")
         void clearEmpties() {
             IdlePhaseTracker tracker = new IdlePhaseTracker();
-            tracker.record(UUID.randomUUID(), 3.0, 0L);
+            tracker.record(UUID.randomUUID(), 3.0, false, 0L);
             tracker.clear();
             assertEquals(0, tracker.size());
+        }
+
+        @Test
+        @DisplayName("recordGroupVisual stores per-group transition values")
+        void recordGroupVisualStoresValues() {
+            IdlePhaseTracker tracker = new IdlePhaseTracker();
+            UUID uuid = UUID.randomUUID();
+            tracker.record(uuid, 4.0, true, 0L);
+            tracker.recordGroupVisual(uuid, "ring", new float[]{0.5f, 0f, 0f},
+                new float[]{0.8f, 0.8f, 0.8f}, 0.6f, 1_000L);
+
+            var state = tracker.read(uuid, 1_500L);
+            assertNotNull(state);
+            assertEquals(4.0, state.phase(), 1e-9);
+            assertTrue(state.transitionActive());
+            var snap = state.groups().get("ring");
+            assertNotNull(snap);
+            assertArrayEquals(new float[]{0.5f, 0f, 0f}, snap.offset(), 1e-6f);
+            assertArrayEquals(new float[]{0.8f, 0.8f, 0.8f}, snap.scale(), 1e-6f);
+            assertEquals(0.6f, snap.alpha(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("recordGroupVisual updates without losing phase or sibling groups")
+        void recordGroupVisualPreservesPhaseAndSiblings() {
+            IdlePhaseTracker tracker = new IdlePhaseTracker();
+            UUID uuid = UUID.randomUUID();
+            tracker.record(uuid, 9.0, true, 0L);
+            tracker.recordGroupVisual(uuid, "a", new float[]{1f, 0f, 0f},
+                new float[]{1f, 1f, 1f}, 1.0f, 1_000L);
+            tracker.recordGroupVisual(uuid, "b", new float[]{0f, 1f, 0f},
+                new float[]{1f, 1f, 1f}, 0.5f, 2_000L);
+
+            var state = tracker.read(uuid, 3_000L);
+            assertNotNull(state);
+            assertEquals(9.0, state.phase(), 1e-9);
+            assertNotNull(state.groups().get("a"));
+            assertNotNull(state.groups().get("b"));
+        }
+
+        @Test
+        @DisplayName("read returns null for an unknown uuid")
+        void readUnknownReturnsNull() {
+            IdlePhaseTracker tracker = new IdlePhaseTracker();
+            assertNull(tracker.read(UUID.randomUUID(), 1_000L));
         }
     }
 }

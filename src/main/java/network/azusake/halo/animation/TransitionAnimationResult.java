@@ -94,6 +94,25 @@ public class TransitionAnimationResult {
     }
 
     /**
+     * Return a copy aligned for a shutdown triggered mid-transition: every
+     * property's leading value (derived {@code from}) becomes the given
+     * on-screen values the renderer was applying when the hide happened.
+     * Explicitly authored values win; empty queues become a constant hold so
+     * the group freezes at its on-screen state instead of snapping.
+     *
+     * @param offset the applied offset (3 components)
+     * @param scale  the applied scale (3 components)
+     * @param alpha  the applied alpha multiplier
+     */
+    public TransitionAnimationResult withHeadValues(float[] offset, float[] scale, float alpha) {
+        double total = totalDuration();
+        return new TransitionAnimationResult(
+            patchQueue(offsetQueue, offset, total, false),
+            patchQueue(scaleQueue, scale, total, false),
+            patchQueue(alphaQueue, new float[]{alpha}, total, false));
+    }
+
+    /**
      * Return a copy aligned for startup: every property's trailing value
      * (derived {@code to}) becomes the group's idle animation value at
      * {@code phase} (the resume moment).  Explicitly authored values win;

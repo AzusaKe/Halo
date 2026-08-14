@@ -640,6 +640,7 @@ Halos can play a multi-segment fade-in animation when appearing (`/halo show`, w
   - Startup: derived tail values (no explicit `to`) match `offset`/`scale`/`alpha` of the idle animation at the resume phase, so the transition hands off seamlessly
   - Shutdown: derived head values (no explicit `from`) match the idle animation's value at the hide phase, so hiding does not jump
   - Explicit `from`/`to` always win; alignment responsibility lies with the author
+- If a halo is hidden mid-transition (e.g. `/halo hide`, sleep, or invisibility during its startup), the shutdown head is aligned to the exact per-group `offset`/`scale`/`alpha` values the renderer was drawing at the hide moment (recorded client-side by the renderer every frame — no server involvement) instead of the idle animation, so hiding mid-startup does not jump either
 - Periodic animations (`animation` field) freeze at the trigger phase during the transition and resume at their actual phase afterwards; during a transition the transition's `alpha` is the sole alpha driver (the layer's own alpha channel is suppressed, while glow keeps following the frozen phase)
 - An explicit `shutdown` plays exactly as written, never reversed; the startup queue is only reversed as a fade-out when no `shutdown` is defined
 - A `shutdown` `from` left empty inherits the hide-moment idle state; a mid-segment `from` left empty inherits the previous segment's end value (forward cascade)

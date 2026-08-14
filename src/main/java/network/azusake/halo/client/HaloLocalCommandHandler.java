@@ -10,6 +10,8 @@ import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.render.HaloRenderer;
+import network.azusake.halo.render.IdlePhaseTracker;
 
 import java.util.Map;
 import java.util.UUID;
@@ -238,6 +240,15 @@ public final class HaloLocalCommandHandler {
                 def != null ? def.startupAnimation().orElse(null) : null);
             inst.setTransitionState(HaloTransitionState.ENDING);
             inst.startTransition(freeze);
+            // Mid-transition hide (e.g. during startup): start the shutdown
+            // from the exact on-screen values the renderer was drawing
+            // (renderer-owned phase table — no server involvement).
+            IdlePhaseTracker.RenderState renderState =
+                HaloRenderer.getInstance().readLastRenderState(client.player.getUuid());
+            if (renderState != null && renderState.transitionActive()
+                    && !renderState.groups().isEmpty()) {
+                inst.setHideVisuals(renderState.groups());
+            }
         }
         HaloLocalManager.getInstance().hideHalo(serverKey, client.player.getUuid());
         return "§a已移除自己的本地光环。";

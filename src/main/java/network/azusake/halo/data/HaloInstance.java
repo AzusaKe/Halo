@@ -67,6 +67,15 @@ public class HaloInstance {
         new ConcurrentHashMap<>();
 
     /**
+     * Per-group visual values the renderer was actually drawing when this
+     * ENDING transition was triggered (populated only for mid-transition
+     * hides).  Used to head-patch the shutdown queues so the fade-out starts
+     * from the exact on-screen state.  Cleared whenever a new transition
+     * starts.
+     */
+    private Map<String, GroupVisualSnapshot> hideVisuals = Map.of();
+
+    /**
      * Whether the current ENDING/NULL state was caused by sleep/invisibility
      * hiding (recoverable on wake) rather than an explicit hide command
      * (permanent removal).
@@ -262,6 +271,26 @@ public class HaloInstance {
         this.transitionStartTime = System.currentTimeMillis();
         this.transitionFreezeAnimTime = freezeAnimTime;
         this.transitionAnimCache.clear();
+        this.hideVisuals = Map.of();
+    }
+
+    /**
+     * Stash the per-group visuals to use as the shutdown head (mid-transition
+     * hides).  Call after {@link #startTransition(double)} so the transition
+     * does not clear them again.
+     *
+     * @param hideVisuals per-group offset/scale/alpha snapshots, or an empty map
+     */
+    public void setHideVisuals(Map<String, GroupVisualSnapshot> hideVisuals) {
+        this.hideVisuals = hideVisuals != null ? hideVisuals : Map.of();
+    }
+
+    /**
+     * The per-group visuals stashed for the current ENDING transition, or an
+     * empty map when this hide did not happen mid-transition.
+     */
+    public Map<String, GroupVisualSnapshot> getHideVisuals() {
+        return hideVisuals;
     }
 
     /**
