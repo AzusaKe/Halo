@@ -77,6 +77,12 @@ public final class HaloRenderer {
     private final Map<UUID, Boolean> prevSleepHidden = new HashMap<>();
     /** Per-entity previous invis-hidden state, for edge detection. */
     private final Map<UUID, Boolean> prevInvisHidden = new HashMap<>();
+    /**
+     * Last rendered idle-animation phase per halo.  Owned entirely by the
+     * renderer; the network layer reads it for shutdown alignment when the
+     * shared instance was already removed by the integrated server.
+     */
+    private final IdlePhaseTracker idlePhaseTracker = new IdlePhaseTracker();
 
     /** Timestamp (nanoTime) of the previous render frame, for delta-time. */
     private long prevFrameNanos;
@@ -91,6 +97,24 @@ public final class HaloRenderer {
         return INSTANCE;
     }
 
+    /**
+     * The last idle-animation phase this halo was rendered at, or
+     * {@link Double#NaN} when there is no fresh record.  Used by the network
+     * layer to align a shutdown head after the shared instance was already
+     * removed (integrated server) — rendering state stays client-owned.
+     *
+     * @param uuid the halo's entity UUID
+     * @return the last rendered idle phase in seconds, or NaN
+     */
+    public double readLastIdlePhase(UUID uuid) {
+        return idlePhaseTracker.get(uuid, System.currentTimeMillis());
+    }
+
+    /** Drop all recorded phases (full sync / world change). */
+    public void clearIdlePhases() {
+        idlePhaseTracker.clear();
+    }
+
     // ------------------------------------------------------------------
     // Public entry point
     // ------------------------------------------------------------------
@@ -103,6 +127,8 @@ public final class HaloRenderer {
         if (client.world == null) {
             return;
         }
+
+        idlePhaseTracker.prune(System.currentTimeMillis());
 
         var visible = HaloClientManager.getInstance().getVisibleHalos(camera);
 
@@ -338,6 +364,7 @@ public final class HaloRenderer {
         } else {
             animTime = rawAnimTime;
         }
+        idlePhaseTracker.record(instance.getEntityUuid(), animTime);
 
         // ---- compute light at halo position for non-glowing layers ----
         BlockPos lightPos = BlockPos.ofFloored(frame.worldPosition());

@@ -103,13 +103,8 @@ public final class HaloManager {
      * @param entity the target living entity
      */
     public void hideHaloOn(LivingEntity entity) {
-        HaloInstance instance = activeHalos.get(entity.getUuid());
+        HaloInstance instance = activeHalos.remove(entity.getUuid());
         if (instance == null) return;
-        // Capture the wall-clock age before removal — the remove packet carries
-        // it so clients can reconstruct the idle phase at the hide moment even
-        // when their local instance was already removed (integrated server).
-        double ageSeconds = (System.currentTimeMillis() - instance.getCreatedAtTime()) / 1000.0;
-        activeHalos.remove(entity.getUuid());
 
         HaloEntityData.removeHalo(entity);
 
@@ -117,8 +112,7 @@ public final class HaloManager {
         if (server != null) {
             // Revoke ownership in the world-level persistent state
             HaloWorldSaveData.get(server.getOverworld()).remove(entity.getUuid());
-            network.azusake.halo.network.HaloNetwork.sendHaloRemove(
-                server, entity.getUuid(), instance.getDefinitionId(), ageSeconds);
+            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid(), instance.getDefinitionId());
         }
 
         HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());

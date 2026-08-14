@@ -189,26 +189,6 @@ class HaloDataTest {
             assertNotEquals(rawAtHide, idlePhaseAtHide, 0.001);
         }
 
-        @Test
-        @DisplayName("hidePhaseFromAge: no startup config → phase is the raw age")
-        void hidePhaseFromAgeWithoutStartup() {
-            assertEquals(30.0, HaloInstance.hidePhaseFromAge(30.0, null), 0.001);
-        }
-
-        @Test
-        @DisplayName("hidePhaseFromAge: after a completed startup the phase lags by the startup duration")
-        void hidePhaseFromAgeLagsByStartupDuration() {
-            StartupAnimationConfig cfg = startupConfig(7.0);
-            // Hidden 20s after creation with a 7s startup → idle resumed at raw - 7.
-            assertEquals(13.0, HaloInstance.hidePhaseFromAge(20.0, cfg), 0.001);
-        }
-
-        @Test
-        @DisplayName("hidePhaseFromAge: never negative when hidden mid-startup")
-        void hidePhaseFromAgeClampsToZero() {
-            StartupAnimationConfig cfg = startupConfig(7.0);
-            assertEquals(0.0, HaloInstance.hidePhaseFromAge(3.0, cfg), 0.001);
-        }
     }
 
     // ------------------------------------------------------------------

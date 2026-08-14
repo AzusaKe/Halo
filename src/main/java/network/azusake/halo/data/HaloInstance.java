@@ -221,24 +221,6 @@ public class HaloInstance {
     }
 
     /**
-     * Reconstruct the idle-animation phase at the hide moment for a halo whose
-     * local instance was lost (e.g. the server removed the shared instance
-     * before the remove packet arrived on an integrated server).
-     *
-     * <p>The phase lags the raw wall-clock age by the startup duration: while
-     * the startup transition played the idle animation was frozen, so after it
-     * completes the idle resumes at {@code raw - startupDur}.</p>
-     *
-     * @param ageSeconds   wall-clock seconds since the server created the halo
-     * @param startupConfig the definition's startup config (may be null)
-     * @return the idle phase in seconds at the hide moment, never negative
-     */
-    public static double hidePhaseFromAge(double ageSeconds, StartupAnimationConfig startupConfig) {
-        double startupDur = startupConfig != null ? startupConfig.maxDuration() : 0.0;
-        return Math.max(0.0, ageSeconds - startupDur);
-    }
-
-    /**
      * Testable variant of {@link #currentAnimTime(StartupAnimationConfig)}
      * with an explicit wall-clock moment.
      *
