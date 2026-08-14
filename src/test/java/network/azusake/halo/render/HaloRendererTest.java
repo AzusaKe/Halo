@@ -473,6 +473,30 @@ class HaloRendererTest {
             float childGlow = 0.5f;
             assertEquals(0.5f, childInheritedGlow * childGlow, 0.001f);
         }
+
+        @Test
+        @DisplayName("definition root alpha/glow seed the inheritance chain")
+        void definitionRootSeedsInheritance() {
+            // The top-level animation acts as an implicit root group: its
+            // alpha/glow become the inherited values for every top-level group.
+            LayerAnimation defAnim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(0.5, 0.0)),  // def alpha → 0.5
+                List.of(new AnimationTerm.Linear(0.7, 0.0))   // def glow → 0.7
+            );
+            float defAlpha = defAnim.evaluateAlpha(0.0);
+            float defGlow = defAnim.evaluateGlow(0.0);
+            assertEquals(0.5f, defAlpha, 0.001f);
+            assertEquals(0.7f, defGlow, 0.001f);
+
+            // A top-level group's own alpha/glow multiplies on top
+            float groupAlpha = 0.8f;
+            float groupGlow = 0.5f;
+            assertEquals(0.4f, defAlpha * groupAlpha, 0.001f);
+            assertEquals(0.35f, defGlow * groupGlow, 0.001f);
+        }
     }
 
     // ------------------------------------------------------------------

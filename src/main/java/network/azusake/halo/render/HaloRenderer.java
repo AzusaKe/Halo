@@ -366,20 +366,32 @@ public final class HaloRenderer {
             applyQuaternionRotation(matrices, frame.worldOrientation());
             matrices.scale(frame.scale(), frame.scale(), frame.scale());
 
-            // Step 2: Definition-level animation (whole-halo-body, visual only)
-            def.animation().ifPresent(anim -> {
-                if (!anim.isEmpty()) {
-                    Vec3d defOffset = anim.evaluateOffset(animTime);
-                    Quaternionf defRot = anim.evaluateRotation(animTime);
+            // Step 2: Definition-level animation (whole-halo-body, visual only).
+            // The definition animation acts as an implicit root group: its
+            // alpha/glow become the initial inherited values for every top-level
+            // group, so animation.alpha at the definition root fades the whole
+            // halo (offset/rotation/scale still apply to the whole body).
+            float defAlpha = 1.0f;
+            float defGlow = 1.0f;
+            var defAnimOpt = def.animation();
+            if (defAnimOpt.isPresent()) {
+                var defAnim = defAnimOpt.get();
+                if (!defAnim.isEmpty()) {
+                    Vec3d defOffset = defAnim.evaluateOffset(animTime);
+                    Quaternionf defRot = defAnim.evaluateRotation(animTime);
+                    float[] defScale = defAnim.evaluateScale(animTime);
                     matrices.translate(defOffset.x, defOffset.y, defOffset.z);
                     applyQuaternionRotation(matrices, defRot);
+                    matrices.scale(defScale[0], defScale[1], defScale[2]);
+                    defAlpha = defAnim.evaluateAlpha(animTime);
+                    defGlow = defAnim.evaluateGlow(animTime);
                 }
-            });
+            }
 
             // Step 3: Recursive group rendering
             for (HaloGroup group : model.groups()) {
-                // Root groups inherit alpha = 1.0 and glow = 1.0
-                renderGroup(group, matrices, animTime, brightness, 1.0f, 1.0f,
+                // Root groups inherit the definition root's alpha/glow
+                renderGroup(group, matrices, animTime, brightness, defAlpha, defGlow,
                     transitionActive, transitionElapsed, isStartup,
                     startupConfig, shutdownConfig);
             }

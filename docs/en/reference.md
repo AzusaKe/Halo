@@ -86,7 +86,7 @@ A halo definition JSON file contains the following top-level fields:
 
 - **Type**: Animation object
 - **Required**: No
-- **Description**: Halo-level overall animation. Has the same structure as per-layer animation. Set to `{}` for no animation. See [Animation System](#animation-system) for details.
+- **Description**: Halo-level overall animation. Has the same structure as per-layer animation. Set to `{}` for no animation. This animation acts as an **implicit root group**: its `offset`/`rotation`/`scale` apply to the whole halo, while its `alpha`/`glow` become the initial inherited values for every top-level group (whole-halo fades and overall scale animations can be written directly here). See [Animation System](#animation-system) for details.
 
 ### `hide_on_sleep`
 
@@ -264,7 +264,7 @@ More primitive types will be supported in the future:
 
 ## Animation System
 
-The animation system uses mathematical functions to describe how position offsets and rotation angles change over time. Animations can be defined at the top level (`animation`, affecting the entire halo) or at the layer level (`layers[i].animation`, affecting only that layer).
+The animation system uses mathematical functions to describe how position offsets and rotation angles change over time. Animations can be defined at the top level (`animation`, affecting the entire halo) or at the layer level (`layers[i].animation`, affecting only that layer). The top-level `alpha`/`glow` act as an **implicit root group** that every top-level group inherits multiplicatively.
 
 > **The Power of Fourier Series**: Since multiple animation terms on the same axis are summed together, and `sin` and `cos` form the basis of Fourier series, you can theoretically approximate **any periodic motion** by superimposing sine/cosine terms with different frequencies, amplitudes, and phases — from simple bobbing to complex trajectories, even a tiny stick figure dancing.
 
