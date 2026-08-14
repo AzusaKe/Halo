@@ -86,6 +86,12 @@ public class TransitionQueueBuilder {
         // Phase 3: Backfill null startVal/endVal
         backfillNulls(filled);
 
+        // Phase 4: Apply the minimum-travel rule for elements that carry
+        // degrees.  Idempotent — also re-run after every per-instance endpoint
+        // patch (withHead/withTail), since derived endpoints depend on the idle
+        // animation at the trigger phase.
+        TransitionQueue.normalizeDegrees(filled);
+
         return new TransitionQueue(filled, steadyStateValue);
     }
 
@@ -120,7 +126,10 @@ public class TransitionQueueBuilder {
                 // This segment has animation for this property
                 double start = Math.max(prevEnd, segTimeAccum);
                 double end = start + dur;
-                elements.add(new TransitionQueueElement(start, end, dur, from, to, easing));
+                float[] degrees = extractDegrees(seg);
+                elements.add(degrees != null
+                    ? new TransitionQueueElement(start, end, dur, from, to, easing, degrees)
+                    : new TransitionQueueElement(start, end, dur, from, to, easing));
                 prevEnd = end;
             }
             // else: no animation for this property in this segment
@@ -134,6 +143,7 @@ public class TransitionQueueBuilder {
     // These will be set by the per-property builder subclass
     protected float[] extractFrom(TransitionSegment seg) { return null; }
     protected float[] extractTo(TransitionSegment seg) { return null; }
+    protected float[] extractDegrees(TransitionSegment seg) { return null; }
     protected double extractDuration(TransitionSegment seg) { return seg.duration(); }
     protected EasingType extractEasing(TransitionSegment seg) { return seg.easing(); }
 
@@ -295,6 +305,33 @@ public class TransitionQueueBuilder {
             @Override protected EasingType extractEasing(TransitionSegment seg) {
                 return seg.scale() != null && seg.scale().propertyEasing() != null
                     ? seg.scale().propertyEasing() : seg.easing();
+            }
+        };
+    }
+
+    /**
+     * Create a builder that extracts the rotation property from segments.
+     * Rotation values are YXZ Euler degrees; steady state is identity [0, 0, 0].
+     */
+    public static TransitionQueueBuilder forRotation(List<TransitionSegment> segments, double globalTotal,
+                                                      BackfillDirection direction) {
+        return new TransitionQueueBuilder(segments, new float[]{0f, 0f, 0f}, globalTotal, direction) {
+            @Override protected float[] extractFrom(TransitionSegment seg) {
+                return seg.rotation() != null ? seg.rotation().from() : null;
+            }
+            @Override protected float[] extractTo(TransitionSegment seg) {
+                return seg.rotation() != null ? seg.rotation().to() : null;
+            }
+            @Override protected float[] extractDegrees(TransitionSegment seg) {
+                return seg.rotation() != null ? seg.rotation().degrees() : null;
+            }
+            @Override protected double extractDuration(TransitionSegment seg) {
+                return seg.rotation() != null && seg.rotation().propertyDuration() != null
+                    ? seg.rotation().propertyDuration() : seg.duration();
+            }
+            @Override protected EasingType extractEasing(TransitionSegment seg) {
+                return seg.rotation() != null && seg.rotation().propertyEasing() != null
+                    ? seg.rotation().propertyEasing() : seg.easing();
             }
         };
     }

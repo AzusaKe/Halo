@@ -44,11 +44,23 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
      */
     public record TransitionProperty(float[] from, float[] to,
                                      Double propertyDuration,
-                                     EasingType propertyEasing) {
+                                     EasingType propertyEasing,
+                                     float[] degrees) {
 
         /** Convenience constructor without per-property overrides. */
         public TransitionProperty(float[] from, float[] to) {
-            this(from, to, null, null);
+            this(from, to, null, null, null);
+        }
+
+        /** Convenience constructor without per-property overrides or degrees. */
+        public TransitionProperty(float[] from, float[] to,
+                                  Double propertyDuration, EasingType propertyEasing) {
+            this(from, to, propertyDuration, propertyEasing, null);
+        }
+
+        /** Copy with a new degrees vector (or {@code null} to clear it). */
+        public TransitionProperty withDegrees(float[] newDegrees) {
+            return new TransitionProperty(from, to, propertyDuration, propertyEasing, newDegrees);
         }
     }
 
@@ -68,17 +80,27 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         EasingType easing,
         TransitionProperty offset,
         TransitionProperty scale,
-        TransitionProperty alpha
-    ) {}
+        TransitionProperty alpha,
+        TransitionProperty rotation
+    ) {
+        /** Convenience constructor without a rotation property. */
+        public TransitionSegment(
+            double duration, EasingType easing,
+            TransitionProperty offset, TransitionProperty scale, TransitionProperty alpha
+        ) {
+            this(duration, easing, offset, scale, alpha, null);
+        }
+    }
 
     /**
      * The result of evaluating a {@link TransitionAnimation} at a specific time.
      */
-    public record TransitionResult(Vec3d offset, float[] scale, float alpha) {
+    public record TransitionResult(Vec3d offset, float[] scale, float alpha,
+                                   float[] rotationDegrees) {
 
         /** Default result (identity: no change). */
         public static final TransitionResult DEFAULT = new TransitionResult(
-            Vec3d.ZERO, new float[]{1f, 1f, 1f}, 1.0f
+            Vec3d.ZERO, new float[]{1f, 1f, 1f}, 1.0f, new float[]{0f, 0f, 0f}
         );
     }
 
@@ -86,9 +108,10 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     // Static defaults
     // ------------------------------------------------------------------
 
-    private static final float[] DEFAULT_OFFSET = new float[]{0f, 0f, 0f};
-    private static final float[] DEFAULT_SCALE  = new float[]{1f, 1f, 1f};
-    private static final float   DEFAULT_ALPHA = 1.0f;
+    private static final float[] DEFAULT_OFFSET   = new float[]{0f, 0f, 0f};
+    private static final float[] DEFAULT_SCALE    = new float[]{1f, 1f, 1f};
+    private static final float[] DEFAULT_ROTATION = new float[]{0f, 0f, 0f};
+    private static final float   DEFAULT_ALPHA    = 1.0f;
 
     // ------------------------------------------------------------------
     // Total duration
@@ -131,8 +154,9 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             if (reversed) {
                 float[] off = evaluateRevProperty(revQueue, evalTime, DEFAULT_OFFSET, e -> e.propOffset());
                 float[] scl = evaluateRevProperty(revQueue, evalTime, DEFAULT_SCALE, e -> e.propScale());
+                float[] rot = evaluateRevProperty(revQueue, evalTime, DEFAULT_ROTATION, e -> e.propRotation());
                 float a = evaluateRevScalar(revQueue, evalTime, DEFAULT_ALPHA, e -> e.propAlpha());
-                return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a);
+                return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a, rot);
             }
             return resolveFinalOrFirst(segments, false);
         }
@@ -143,13 +167,16 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         float[] scale = reversed
             ? evaluateRevProperty(revQueue, elapsed, DEFAULT_SCALE, e -> e.propScale())
             : evaluateProperty(segments, elapsed, DEFAULT_SCALE, seg -> seg.scale());
+        float[] rotation = reversed
+            ? evaluateRevProperty(revQueue, elapsed, DEFAULT_ROTATION, e -> e.propRotation())
+            : evaluateProperty(segments, elapsed, DEFAULT_ROTATION, seg -> seg.rotation());
         float alpha = reversed
             ? evaluateRevScalar(revQueue, elapsed, DEFAULT_ALPHA, e -> e.propAlpha())
             : evaluatePropertyScalar(segments, elapsed, DEFAULT_ALPHA, seg -> seg.alpha());
 
         return new TransitionResult(
             new Vec3d(offset[0], offset[1], offset[2]),
-            scale, alpha
+            scale, alpha, rotation
         );
     }
 
@@ -233,7 +260,8 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     private record QueueEntry(double startTime, double duration, EasingType easing,
                                TransitionProperty propOffset,
                                TransitionProperty propScale,
-                               TransitionProperty propAlpha) {}
+                               TransitionProperty propAlpha,
+                               TransitionProperty propRotation) {}
 
     /**
      * Build the reversed queue: for each property, compute the original queue
@@ -244,6 +272,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         // Compute per-property queue timelines
         List<PropQueueEntry> offQ = computePropQueue(seg -> seg.offset(), DEFAULT_OFFSET);
         List<PropQueueEntry> sclQ = computePropQueue(seg -> seg.scale(), DEFAULT_SCALE);
+        List<PropQueueEntry> rotQ = computePropQueue(seg -> seg.rotation(), DEFAULT_ROTATION);
         List<PropQueueEntry> aQ   = computePropQueue(seg -> seg.alpha(), new float[]{DEFAULT_ALPHA});
 
         double total = totalDurationFor(segments);
@@ -251,14 +280,15 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         // Reverse each queue
         List<PropQueueEntry> offR = reversePropQueue(offQ, total, DEFAULT_OFFSET);
         List<PropQueueEntry> sclR = reversePropQueue(sclQ, total, DEFAULT_SCALE);
+        List<PropQueueEntry> rotR = reversePropQueue(rotQ, total, DEFAULT_ROTATION);
         List<PropQueueEntry> aR   = reversePropQueue(aQ, total, new float[]{DEFAULT_ALPHA});
 
         // Merge into unified entries
-        return mergeQueues(offR, sclR, aR);
+        return mergeQueues(offR, sclR, aR, rotR);
     }
 
     private record PropQueueEntry(double startTime, double duration, EasingType easing,
-                                   float[] from, float[] to) {}
+                                   float[] from, float[] to, float[] degrees) {}
 
     /**
      * Compute the forward queue for a single property.
@@ -276,8 +306,13 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
                 float[] from = (prop.from() != null) ? prop.from() : defaultVal;
                 // When to is null, use defaultVal (steady-state), not from
                 float[] to = (prop.to() != null) ? prop.to() : defaultVal;
+                // degrees forces a minimum signed travel — the effective end
+                // replaces `to` before the queue is built
+                if (prop.degrees() != null) {
+                    to = RotationTravel.effectiveEnds(from, to, prop.degrees());
+                }
                 EasingType easing = propEasing(prop, seg.easing());
-                queue.add(new PropQueueEntry(propStart, propDur, easing, from, to));
+                queue.add(new PropQueueEntry(propStart, propDur, easing, from, to, prop.degrees()));
                 prevPropEnd = propStart + propDur;
             }
             segStart += seg.duration();
@@ -310,7 +345,8 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             PropQueueEntry e = forward.get(i);
             double idleGap = (i == forward.size() - 1) ? 0 : e.startTime - prevFwdStart;
             prevFwdStart = e.startTime;
-            reversed.add(new PropQueueEntry(idleGap, e.duration, e.easing, e.to, e.from));
+            reversed.add(new PropQueueEntry(idleGap, e.duration, e.easing, e.to, e.from,
+                e.degrees != null ? RotationTravel.negated(e.degrees) : null));
         }
 
         // Assign absolute start times based on cumulative idle
@@ -321,16 +357,16 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             double idle = rev.startTime; // startTime temporarily holds the idle gap
             if (idle > 0.0001) {
                 result.add(new PropQueueEntry(cursor, idle,
-                    EasingType.LINEAR, defaultVal, defaultVal));
+                    EasingType.LINEAR, defaultVal, defaultVal, null));
             }
             double propStart = cursor + idle;
-            result.add(new PropQueueEntry(propStart, rev.duration, rev.easing, rev.from, rev.to));
+            result.add(new PropQueueEntry(propStart, rev.duration, rev.easing, rev.from, rev.to, rev.degrees));
             cursor = propStart + rev.duration;
         }
 
         if (cursor < total - 0.0001) {
             result.add(new PropQueueEntry(cursor, total - cursor,
-                EasingType.LINEAR, defaultVal, defaultVal));
+                EasingType.LINEAR, defaultVal, defaultVal, null));
         }
 
         return result;
@@ -340,12 +376,13 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
      * Merge per-property reversed queues into unified QueueEntry list.
      */
     private List<QueueEntry> mergeQueues(List<PropQueueEntry> off, List<PropQueueEntry> scl,
-                                          List<PropQueueEntry> a) {
+                                          List<PropQueueEntry> a, List<PropQueueEntry> rot) {
         // Collect all unique time boundaries
         List<Double> boundaries = new ArrayList<>();
         for (PropQueueEntry e : off) { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
         for (PropQueueEntry e : scl) { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
         for (PropQueueEntry e : a)   { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
+        for (PropQueueEntry e : rot) { boundaries.add(e.startTime); boundaries.add(e.startTime + e.duration); }
         boundaries = boundaries.stream().sorted().distinct().toList();
 
         List<QueueEntry> result = new ArrayList<>();
@@ -358,12 +395,14 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             TransitionProperty oProp = findPropAt(off, start);
             TransitionProperty sProp = findPropAt(scl, start);
             TransitionProperty aProp = findPropAt(a, start);
+            TransitionProperty rProp = findPropAt(rot, start);
             EasingType easing = EasingType.LINEAR;
             if (oProp != null) easing = oProp.propertyEasing() != null ? oProp.propertyEasing() : easing;
             if (sProp != null) easing = sProp.propertyEasing() != null ? sProp.propertyEasing() : easing;
             if (aProp != null) easing = aProp.propertyEasing() != null ? aProp.propertyEasing() : easing;
+            if (rProp != null) easing = rProp.propertyEasing() != null ? rProp.propertyEasing() : easing;
 
-            result.add(new QueueEntry(start, dur, easing, oProp, sProp, aProp));
+            result.add(new QueueEntry(start, dur, easing, oProp, sProp, aProp, rProp));
         }
         return result;
     }
@@ -371,7 +410,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     private static TransitionProperty findPropAt(List<PropQueueEntry> queue, double time) {
         for (PropQueueEntry e : queue) {
             if (time >= e.startTime - 0.0001 && time < e.startTime + e.duration - 0.0001) {
-                return new TransitionProperty(e.from, e.to, null, e.easing);
+                return new TransitionProperty(e.from, e.to, null, e.easing, e.degrees);
             }
         }
         return null;
@@ -409,8 +448,9 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         QueueEntry first = queue.get(0);
         float[] off = first.propOffset() != null ? (first.propOffset().from() != null ? first.propOffset().from() : DEFAULT_OFFSET) : DEFAULT_OFFSET;
         float[] scl = first.propScale() != null ? (first.propScale().from() != null ? first.propScale().from() : DEFAULT_SCALE) : DEFAULT_SCALE;
+        float[] rot = first.propRotation() != null ? (first.propRotation().from() != null ? first.propRotation().from() : DEFAULT_ROTATION) : DEFAULT_ROTATION;
         float a = first.propAlpha() != null ? (first.propAlpha().from() != null ? first.propAlpha().from()[0] : DEFAULT_ALPHA) : DEFAULT_ALPHA;
-        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a);
+        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a, rot);
     }
 
     /**
@@ -432,7 +472,8 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     private static boolean isIdleEntry(QueueEntry e) {
         TransitionProperty prop = (e.propScale() != null) ? e.propScale()
             : (e.propOffset() != null) ? e.propOffset()
-            : e.propAlpha();
+            : (e.propAlpha() != null) ? e.propAlpha()
+            : e.propRotation();
         if (prop == null || prop.from() == null || prop.to() == null) return true;
         for (int i = 0; i < Math.max(prop.from().length, prop.to().length); i++) {
             float f = i < prop.from().length ? prop.from()[i] : 0;
@@ -451,6 +492,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.offset()));
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.scale()));
         maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.alpha()));
+        maxEnd = Math.max(maxEnd, computePropertyEnd(segs, seg -> seg.rotation()));
         double segTotal = 0;
         for (TransitionSegment seg : segs) segTotal += seg.duration();
         return Math.max(maxEnd, segTotal);
@@ -482,6 +524,9 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     private static float[] interpolateProperty(TransitionProperty prop, float[] defaultVal, double easedT) {
         float[] from = (prop.from() != null) ? prop.from() : defaultVal;
         float[] to   = (prop.to()   != null) ? prop.to()   : defaultVal;
+        if (prop.degrees() != null) {
+            to = RotationTravel.effectiveEnds(from, to, prop.degrees());
+        }
         int len = Math.max(from.length, to.length);
         float[] result = new float[len];
         for (int i = 0; i < len; i++) {
@@ -503,6 +548,9 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             // fills null to with defaultVal). For final resolution, defaultVal is correct.
             if (prop.to() != null) {
                 last = prop.to();
+                if (prop.degrees() != null && prop.from() != null) {
+                    last = RotationTravel.effectiveEnds(prop.from(), last, prop.degrees());
+                }
             }
             // else: to is null → steady-state = defaultVal, don't set last
         }
@@ -518,11 +566,14 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         float[] scale = isFirst
             ? resolvePropertyFirst(segs, DEFAULT_SCALE, seg -> seg.scale())
             : resolvePropertyFinal(segs, DEFAULT_SCALE, seg -> seg.scale());
+        float[] rotation = isFirst
+            ? resolvePropertyFirst(segs, DEFAULT_ROTATION, seg -> seg.rotation())
+            : resolvePropertyFinal(segs, DEFAULT_ROTATION, seg -> seg.rotation());
         float[] a = isFirst
             ? resolvePropertyFirst(segs, new float[]{DEFAULT_ALPHA}, seg -> seg.alpha())
             : resolvePropertyFinal(segs, new float[]{DEFAULT_ALPHA}, seg -> seg.alpha());
 
-        return new TransitionResult(new Vec3d(offset[0], offset[1], offset[2]), scale, a[0]);
+        return new TransitionResult(new Vec3d(offset[0], offset[1], offset[2]), scale, a[0], rotation);
     }
 
     private static float[] resolvePropertyFirst(List<TransitionSegment> segs, float[] defaultVal,

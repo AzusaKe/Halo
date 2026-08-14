@@ -482,21 +482,24 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         }
 
         TransitionAnimation.TransitionProperty offset = obj.has("offset")
-            ? parseTransitionProperty(obj.getAsJsonObject("offset"), 3)
+            ? warnDegreesOnNonRotation("offset", parseTransitionProperty(obj.getAsJsonObject("offset"), 3))
             : null;
         TransitionAnimation.TransitionProperty scale = obj.has("scale")
-            ? parseTransitionProperty(obj.getAsJsonObject("scale"), 3)
+            ? warnDegreesOnNonRotation("scale", parseTransitionProperty(obj.getAsJsonObject("scale"), 3))
             : null;
         TransitionAnimation.TransitionProperty alpha = null;
         if (obj.has("alpha")) {
-            alpha = parseTransitionProperty(obj.getAsJsonObject("alpha"), 1);
+            alpha = warnDegreesOnNonRotation("alpha", parseTransitionProperty(obj.getAsJsonObject("alpha"), 1));
         } else if (obj.has("opacity")) {
             // Deprecated alias — alpha wins when both are present.
-            alpha = parseTransitionProperty(obj.getAsJsonObject("opacity"), 1);
+            alpha = warnDegreesOnNonRotation("opacity", parseTransitionProperty(obj.getAsJsonObject("opacity"), 1));
             LOG.warn("[Halo] transition property 'opacity' is deprecated, use 'alpha' instead");
         }
+        TransitionAnimation.TransitionProperty rotation = obj.has("rotation")
+            ? parseTransitionProperty(obj.getAsJsonObject("rotation"), 3)
+            : null;
 
-        return new TransitionAnimation.TransitionSegment(duration, easing, offset, scale, alpha);
+        return new TransitionAnimation.TransitionSegment(duration, easing, offset, scale, alpha, rotation);
     }
 
     /**
@@ -531,8 +534,13 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         changed |= backfillBoundary(result, isShutdown, context,
             seg -> seg.alpha(),
             (seg, prop) -> new TransitionAnimation.TransitionSegment(
-                seg.duration(), seg.easing(), seg.offset(), seg.scale(), prop),
+                seg.duration(), seg.easing(), seg.offset(), seg.scale(), prop, seg.rotation()),
             new float[]{1f}, "alpha");
+        changed |= backfillBoundary(result, isShutdown, context,
+            seg -> seg.rotation(),
+            (seg, prop) -> new TransitionAnimation.TransitionSegment(
+                seg.duration(), seg.easing(), seg.offset(), seg.scale(), seg.alpha(), prop),
+            new float[]{0f, 0f, 0f}, "rotation");
         return changed ? List.copyOf(result) : segments;
     }
 
@@ -564,9 +572,9 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         float[] fill = steadyState.clone();
         TransitionAnimation.TransitionProperty fixed = isShutdown
             ? new TransitionAnimation.TransitionProperty(
-                prop.from(), fill, prop.propertyDuration(), prop.propertyEasing())
+                prop.from(), fill, prop.propertyDuration(), prop.propertyEasing(), prop.degrees())
             : new TransitionAnimation.TransitionProperty(
-                fill, prop.to(), prop.propertyDuration(), prop.propertyEasing());
+                fill, prop.to(), prop.propertyDuration(), prop.propertyEasing(), prop.degrees());
         segments.set(target, setter.apply(segments.get(target), fixed));
         LOG.warn("[Halo] {} transition '{}' property '{}' is missing '{}' — "
                 + "filled with steady-state {} ({} is required on the {} segment declaring it)",
@@ -587,6 +595,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     private TransitionAnimation.TransitionProperty parseTransitionProperty(JsonObject obj, int componentCount) {
         float[] from = null;
         float[] to = null;
+        float[] degrees = null;
         Double propertyDuration = null;
         EasingType propertyEasing = null;
 
@@ -596,6 +605,9 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         if (obj.has("to") && !obj.get("to").isJsonNull()) {
             to = parseFloatArray(obj.get("to"), componentCount);
         }
+        if (obj.has("degrees") && !obj.get("degrees").isJsonNull()) {
+            degrees = parseFloatArray(obj.get("degrees"), componentCount);
+        }
         if (obj.has("duration") && !obj.get("duration").isJsonNull()) {
             propertyDuration = obj.get("duration").getAsDouble();
         }
@@ -603,10 +615,24 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             propertyEasing = EasingType.fromString(obj.get("easing").getAsString());
         }
 
-        if (from == null && to == null) {
+        if (from == null && to == null && degrees == null) {
             return null;
         }
-        return new TransitionAnimation.TransitionProperty(from, to, propertyDuration, propertyEasing);
+        return new TransitionAnimation.TransitionProperty(from, to, propertyDuration, propertyEasing, degrees);
+    }
+
+    /**
+     * {@code degrees} is a rotation-only field (F8).  Warn and strip it when a
+     * non-rotation transition property carries it, rather than silently
+     * honouring a meaningless minimum-travel on offset/scale/alpha.
+     */
+    private TransitionAnimation.TransitionProperty warnDegreesOnNonRotation(
+            String propertyName, TransitionAnimation.TransitionProperty prop) {
+        if (prop != null && prop.degrees() != null) {
+            LOG.warn("[Halo] transition property '{}' does not support 'degrees' — ignoring", propertyName);
+            return prop.withDegrees(null);
+        }
+        return prop;
     }
 
     /**

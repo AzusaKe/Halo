@@ -104,15 +104,45 @@ public record LayerAnimation(
      * @return rotation quaternion (identity if no rotation terms)
      */
     public Quaternionf evaluateRotation(double t) {
-        float yaw   = (float) Math.toRadians(sumTerms(rotationYaw, t));
-        float pitch = (float) Math.toRadians(sumTerms(rotationPitch, t));
-        float roll  = (float) Math.toRadians(sumTerms(rotationRoll, t));
+        float yaw   = (float) sumTerms(rotationYaw, t);
+        float pitch = (float) sumTerms(rotationPitch, t);
+        float roll  = (float) sumTerms(rotationRoll, t);
+        return quaternionFromYxzDegrees(yaw, pitch, roll);
+    }
+
+    /**
+     * Evaluate the total animated rotation at time {@code t} as raw YXZ Euler
+     * degrees {@code [yaw, pitch, roll]} — the values <em>before</em> the
+     * quaternion conversion in {@link #evaluateRotation(double)}.
+     *
+     * <p>Transition endpoint alignment uses these raw degrees (F8) instead of
+     * decomposing the quaternion back into Euler angles, which would be
+     * ambiguous under gimbal lock.</p>
+     *
+     * @param t wall-clock time in seconds
+     * @return rotation degrees [yaw, pitch, roll]
+     */
+    public float[] evaluateRotationDegrees(double t) {
+        return new float[]{
+            (float) sumTerms(rotationYaw, t),
+            (float) sumTerms(rotationPitch, t),
+            (float) sumTerms(rotationRoll, t)};
+    }
+
+    /**
+     * Build a quaternion from YXZ Euler degrees (yaw around Y, then pitch
+     * around X, then roll around Z) — the convention used everywhere in the
+     * mod for layer rotation.
+     */
+    public static Quaternionf quaternionFromYxzDegrees(float yawDegrees, float pitchDegrees,
+                                                        float rollDegrees) {
+        float yaw   = (float) Math.toRadians(yawDegrees);
+        float pitch = (float) Math.toRadians(pitchDegrees);
+        float roll  = (float) Math.toRadians(rollDegrees);
 
         if (yaw == 0f && pitch == 0f && roll == 0f) {
             return new Quaternionf(); // identity — avoid unnecessary multiply
         }
-
-        // YXZ order, matching HaloDefinitionDeserializer.parseLayer()
         return new Quaternionf().rotateY(yaw).rotateX(pitch).rotateZ(roll);
     }
 

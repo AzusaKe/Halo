@@ -96,6 +96,7 @@ public class TransitionQueue {
         for (int i = elements.size() - 1; i >= 0; i--) {
             reversed.add(elements.get(i).reversed(totalDuration));
         }
+        normalizeDegrees(reversed);
         return new TransitionQueue(reversed, steadyStateValue);
     }
 
@@ -125,6 +126,7 @@ public class TransitionQueue {
                 break;
             }
         }
+        normalizeDegrees(patched);
         return changed ? new TransitionQueue(patched, steadyStateValue) : this;
     }
 
@@ -154,7 +156,29 @@ public class TransitionQueue {
                 break;
             }
         }
+        normalizeDegrees(patched);
         return changed ? new TransitionQueue(patched, steadyStateValue) : this;
+    }
+
+    /**
+     * Idempotent pass applying each element's {@code degrees} minimum-travel
+     * rule: the effective end becomes {@code from + d} (see
+     * {@link RotationTravel}).  Elements without degrees are untouched.
+     * Runs after build and after every per-instance endpoint patch, because
+     * derived from/to depend on the idle animation at the trigger phase.
+     */
+    static void normalizeDegrees(List<TransitionQueueElement> elements) {
+        for (int i = 0; i < elements.size(); i++) {
+            TransitionQueueElement e = elements.get(i);
+            float[] degrees = e.degrees();
+            if (degrees == null || e.startVal() == null || e.endVal() == null) {
+                continue;
+            }
+            float[] end = RotationTravel.effectiveEnds(e.startVal(), e.endVal(), degrees);
+            if (!java.util.Arrays.equals(e.endVal(), end)) {
+                elements.set(i, e.withEndVal(end));
+            }
+        }
     }
 
     /**

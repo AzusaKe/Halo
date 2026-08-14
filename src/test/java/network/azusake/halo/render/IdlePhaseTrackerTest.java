@@ -87,7 +87,7 @@ class IdlePhaseTrackerTest {
             UUID uuid = UUID.randomUUID();
             tracker.record(uuid, 4.0, true, 0L);
             tracker.recordGroupVisual(uuid, "ring", new float[]{0.5f, 0f, 0f},
-                new float[]{0.8f, 0.8f, 0.8f}, 0.6f, 1_000L);
+                new float[]{0.8f, 0.8f, 0.8f}, 0.6f, new float[]{90f, 0f, 0f}, 1_000L);
 
             var state = tracker.read(uuid, 1_500L);
             assertNotNull(state);
@@ -98,6 +98,7 @@ class IdlePhaseTrackerTest {
             assertArrayEquals(new float[]{0.5f, 0f, 0f}, snap.offset(), 1e-6f);
             assertArrayEquals(new float[]{0.8f, 0.8f, 0.8f}, snap.scale(), 1e-6f);
             assertEquals(0.6f, snap.alpha(), 1e-6f);
+            assertArrayEquals(new float[]{90f, 0f, 0f}, snap.rotation(), 1e-6f);
         }
 
         @Test
@@ -107,9 +108,9 @@ class IdlePhaseTrackerTest {
             UUID uuid = UUID.randomUUID();
             tracker.record(uuid, 9.0, true, 0L);
             tracker.recordGroupVisual(uuid, "a", new float[]{1f, 0f, 0f},
-                new float[]{1f, 1f, 1f}, 1.0f, 1_000L);
+                new float[]{1f, 1f, 1f}, 1.0f, new float[]{0f, 0f, 0f}, 1_000L);
             tracker.recordGroupVisual(uuid, "b", new float[]{0f, 1f, 0f},
-                new float[]{1f, 1f, 1f}, 0.5f, 2_000L);
+                new float[]{1f, 1f, 1f}, 0.5f, new float[]{0f, 0f, 0f}, 2_000L);
 
             var state = tracker.read(uuid, 3_000L);
             assertNotNull(state);

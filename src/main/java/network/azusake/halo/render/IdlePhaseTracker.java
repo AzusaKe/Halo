@@ -18,9 +18,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * state.</p>
  *
  * <p>While a transition is active the renderer additionally records the
- * per-group visual values it actually applies (offset/scale/alpha).  Hiding
- * mid-transition must start the fade-out from those on-screen values rather
- * than from the idle animation, otherwise the halo would visibly jump.</p>
+ * per-group visual values it actually applies (offset/scale/alpha/rotation).
+ * Hiding mid-transition must start the fade-out from those on-screen values
+ * rather than from the idle animation, otherwise the halo would visibly jump.</p>
  *
  * <p>Entries are pruned by a TTL so halos that died, unloaded, or were never
  * rendered again do not leak memory.</p>
@@ -66,11 +66,11 @@ public final class IdlePhaseTracker {
      */
     public void recordGroupVisual(UUID uuid, String groupKey,
                                   float[] offset, float[] scale, float alpha,
-                                  long nowMillis) {
+                                  float[] rotation, long nowMillis) {
         phases.compute(uuid, (key, old) -> {
             Map<String, GroupVisualSnapshot> groups =
                 new HashMap<>(old != null ? old.groups() : Map.of());
-            groups.put(groupKey, new GroupVisualSnapshot(offset, scale, alpha));
+            groups.put(groupKey, new GroupVisualSnapshot(offset, scale, alpha, rotation));
             return new Entry(
                 old != null ? old.phase() : 0.0,
                 old != null && old.transitionActive(),

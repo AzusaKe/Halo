@@ -626,6 +626,7 @@ Halos can play a multi-segment fade-in animation when appearing (`/halo show`, w
 | `segments[].offset` | Offset animation `{ "from": [x,y,z], "to": [x,y,z] }` |
 | `segments[].scale` | Scale animation `{ "from": [x,y,z] }` (`to` may be omitted, aligned to the idle value) |
 | `segments[].alpha` | Opacity animation `{ "from": 0.0 }` (`to` may be omitted, aligned to the idle value). `opacity` is a deprecated alias kept for legacy packs |
+| `segments[].rotation` | Rotation animation `{ "from": [yaw,pitch,roll], "to": [yaw,pitch,roll], "degrees": [dyaw,dpitch,droll] }` in YXZ Euler degrees. `degrees` forces a minimum signed travel: the element adds whole turns so the visual endpoint stays the authored `to` |
 
 **Per-property duration/easing override**: Each property can override the segment's duration and easing:
 ```json
@@ -637,13 +638,15 @@ Halos can play a multi-segment fade-in animation when appearing (`/halo show`, w
 - Groups not listed in `id_overrides` and without a default `segments` array are not animated (instant appear/disappear)
 - Leading gaps (before the first segment) hold at the next segment's `from` value; trailing gaps (after the last segment) hold at the animation's end value
 - Derived transition endpoints are aligned to the idle animation's actual phase:
-  - Startup: derived tail values (no explicit `to`) match `offset`/`scale`/`alpha` of the idle animation at the resume phase, so the transition hands off seamlessly
+  - Startup: derived tail values (no explicit `to`) match `offset`/`scale`/`alpha`/`rotation` of the idle animation at the resume phase, so the transition hands off seamlessly
   - Shutdown: derived head values (no explicit `from`) match the idle animation's value at the hide phase, so hiding does not jump
   - Explicit `from`/`to` always win; alignment responsibility lies with the author
-- If a halo is hidden mid-transition (e.g. `/halo hide`, sleep, or invisibility during its startup), the shutdown head is aligned to the exact per-group `offset`/`scale`/`alpha` values the renderer was drawing at the hide moment (recorded client-side by the renderer every frame — no server involvement) instead of the idle animation, so hiding mid-startup does not jump either
+- If a halo is hidden mid-transition (e.g. `/halo hide`, sleep, or invisibility during its startup), the shutdown head is aligned to the exact per-group `offset`/`scale`/`alpha`/`rotation` values the renderer was drawing at the hide moment (recorded client-side by the renderer every frame — no server involvement) instead of the idle animation, so hiding mid-startup does not jump either
 - Periodic animations (`animation` field) freeze at the trigger phase during the transition and resume at their actual phase afterwards; during a transition the transition's `alpha` is the sole alpha driver (the layer's own alpha channel is suppressed, while glow keeps following the frozen phase)
 - An explicit `shutdown` plays exactly as written, never reversed; the startup queue is only reversed as a fade-out when no `shutdown` is defined
 - A `shutdown` `from` left empty inherits the hide-moment idle state; a mid-segment `from` left empty inherits the previous segment's end value (forward cascade)
+- Rotation interpolates per-axis in degrees — never quaternion slerp (which would take the shortest path and swallow whole turns). `degrees` (rotation only) sets a minimum signed travel per axis: `rotation: { "from": [0,0,0], "to": [30,0,0], "degrees": [90,0,0] }` spins +390°; a missing or zero `degrees` keeps plain `from`→`to` interpolation. The easing applies once across the whole travel, not per 360° segment
+- During a transition every group's periodic rotation stays frozen at the trigger phase: groups with a transition rotation segment animate to exactly that frozen value (with `degrees` adding whole turns), and child groups without a transition segment (e.g. `ring_default`'s spinning hands) simply hold their current angle — previously they snapped back to the base rotation and jumped on resume. Rotation resumes seamlessly afterwards
 
 ---
 

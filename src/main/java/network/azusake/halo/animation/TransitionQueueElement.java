@@ -23,7 +23,8 @@ public record TransitionQueueElement(
     float[] endVal,
     EasingType easing,
     boolean fromExplicit,
-    boolean toExplicit
+    boolean toExplicit,
+    float[] degrees
 ) {
     /**
      * Convenience constructor deriving the explicit flags from whether the
@@ -34,25 +35,43 @@ public record TransitionQueueElement(
         float[] startVal, float[] endVal, EasingType easing
     ) {
         this(startTime, endTime, duration, startVal, endVal, easing,
-            startVal != null, endVal != null);
+            startVal != null, endVal != null, null);
+    }
+
+    /**
+     * Convenience constructor with a minimum-travel {@code degrees} vector
+     * (rotation only; {@code null} = none).
+     */
+    public TransitionQueueElement(
+        double startTime, double endTime, double duration,
+        float[] startVal, float[] endVal, EasingType easing, float[] degrees
+    ) {
+        this(startTime, endTime, duration, startVal, endVal, easing,
+            startVal != null, endVal != null, degrees);
     }
 
     /** Copy with a new start value, keeping all flags. */
     public TransitionQueueElement withStartVal(float[] value) {
         return new TransitionQueueElement(startTime, endTime, duration, value, endVal, easing,
-            fromExplicit, toExplicit);
+            fromExplicit, toExplicit, degrees);
     }
 
     /** Copy with a new end value, keeping all flags. */
     public TransitionQueueElement withEndVal(float[] value) {
         return new TransitionQueueElement(startTime, endTime, duration, startVal, value, easing,
-            fromExplicit, toExplicit);
+            fromExplicit, toExplicit, degrees);
+    }
+
+    /** Copy with a new degrees vector (rotation minimum travel). */
+    public TransitionQueueElement withDegrees(float[] value) {
+        return new TransitionQueueElement(startTime, endTime, duration, startVal, endVal, easing,
+            fromExplicit, toExplicit, value);
     }
 
     /** Copy with new start and end values, keeping all flags. */
     public TransitionQueueElement withValues(float[] newStartVal, float[] newEndVal) {
         return new TransitionQueueElement(startTime, endTime, duration, newStartVal, newEndVal, easing,
-            fromExplicit, toExplicit);
+            fromExplicit, toExplicit, degrees);
     }
 
     /** Whether this element holds a constant value (startVal == endVal). */
@@ -93,8 +112,9 @@ public record TransitionQueueElement(
     public TransitionQueueElement reversed(double totalDuration) {
         double newStart = totalDuration - endTime;
         double newEnd = totalDuration - startTime;
+        float[] revDegrees = degrees != null ? RotationTravel.negated(degrees) : null;
         return new TransitionQueueElement(newStart, newEnd, duration, endVal, startVal, easing,
-            toExplicit, fromExplicit);
+            toExplicit, fromExplicit, revDegrees);
     }
 
     private static float[] lerp(float[] a, float[] b, float t) {

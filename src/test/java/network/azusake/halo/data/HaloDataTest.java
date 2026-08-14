@@ -400,6 +400,29 @@ class HaloDataTest {
         void emptyIsEmpty() {
             assertTrue(LayerAnimation.EMPTY.isEmpty());
         }
+        @Test
+        @DisplayName("evaluateRotationDegrees returns raw YXZ degrees and matches evaluateRotation")
+        void evaluateRotationDegrees() {
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(12.0, 0.0)),   // yaw (constant 12)
+                List.of(new AnimationTerm.Sin(5.0, 1.0, 0.0)),  // pitch
+                List.of(new AnimationTerm.Linear(-3.0, 0.0)),   // roll (constant -3)
+                List.of(), List.of(), List.of(),                 // scales
+                List.of(), List.of()                             // alpha, glow
+            );
+            // pitch sin(A=5, ω=1) at t=0.5 → 5*sin(π/2) = 5
+            float[] deg = anim.evaluateRotationDegrees(0.5);
+            assertArrayEquals(new float[]{12f, 5f, -3f}, deg, 1e-5f);
+
+            // The shared YXZ helper must agree with the animation's own conversion.
+            Quaternionf direct = LayerAnimation.quaternionFromYxzDegrees(deg[0], deg[1], deg[2]);
+            Quaternionf viaAnim = anim.evaluateRotation(0.5);
+            assertEquals(viaAnim.x(), direct.x(), 1e-6f);
+            assertEquals(viaAnim.y(), direct.y(), 1e-6f);
+            assertEquals(viaAnim.z(), direct.z(), 1e-6f);
+            assertEquals(viaAnim.w(), direct.w(), 1e-6f);
+        }
 
         @Test
         @DisplayName("Single Y offset sin term evaluates correctly")
@@ -1771,6 +1794,122 @@ class HaloDataTest {
     // ------------------------------------------------------------------
     // 12. Ring Default Startup Animation (integration test)
     // ------------------------------------------------------------------
+    // 12b. Transition rotation JSON parsing (F8)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("Transition rotation JSON parsing (F8)")
+    class TransitionRotationJsonTests {
+
+        @Test
+        @DisplayName("startup rotation segment parses from/to/degrees")
+        void startupRotationParses() {
+            String json = """
+                {
+                  "id": "halo:rot_parse",
+                  "layers": [ { "primitive": { "type": "billboard", "texture": "halo:textures/halo/ring.png", "size": [0.5, 0.5] } } ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "startup": {
+                    "segments": [
+                      { "duration": 1.0, "easing": "linear",
+                        "rotation": { "from": [0.0, 0.0, 0.0], "to": [30.0, 0.0, 0.0], "degrees": [90.0, 0.0, 0.0] } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var rotation = def.startupAnimation().get().segments().get(0).rotation();
+            assertNotNull(rotation);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, rotation.from(), 1e-6f);
+            assertArrayEquals(new float[]{30f, 0f, 0f}, rotation.to(), 1e-6f);
+            assertArrayEquals(new float[]{90f, 0f, 0f}, rotation.degrees(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("startup rotation missing from is backfilled with steady-state")
+        void startupRotationMissingFromBackfilled() {
+            String json = """
+                {
+                  "id": "halo:rot_missing_from",
+                  "layers": [ { "primitive": { "type": "billboard", "texture": "halo:textures/halo/ring.png", "size": [0.5, 0.5] } } ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "startup": {
+                    "segments": [
+                      { "duration": 1.0, "easing": "linear",
+                        "rotation": { "to": [30.0, 0.0, 0.0] } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var rotation = def.startupAnimation().get().segments().get(0).rotation();
+            assertNotNull(rotation);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, rotation.from(), 1e-6f,
+                "startup rotation from backfilled with steady state");
+            assertArrayEquals(new float[]{30f, 0f, 0f}, rotation.to(), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("shutdown rotation missing to is backfilled with steady-state")
+        void shutdownRotationMissingToBackfilled() {
+            String json = """
+                {
+                  "id": "halo:rot_missing_to",
+                  "layers": [ { "primitive": { "type": "billboard", "texture": "halo:textures/halo/ring.png", "size": [0.5, 0.5] } } ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "shutdown": {
+                    "segments": [
+                      { "duration": 1.0, "easing": "linear",
+                        "rotation": { "from": [30.0, 0.0, 0.0] } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var rotation = def.shutdownAnimation().get().segments().get(0).rotation();
+            assertNotNull(rotation);
+            assertArrayEquals(new float[]{30f, 0f, 0f}, rotation.from(), 1e-6f);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, rotation.to(), 1e-6f,
+                "shutdown rotation to backfilled with steady state");
+        }
+
+        @Test
+        @DisplayName("degrees on a non-rotation property is warned and stripped")
+        void degreesOnNonRotationStripped() {
+            String json = """
+                {
+                  "id": "halo:rot_nonrot_degrees",
+                  "layers": [ { "primitive": { "type": "billboard", "texture": "halo:textures/halo/ring.png", "size": [0.5, 0.5] } } ],
+                  "positioning": { "offset": [0.0, 1.8, 0.0] },
+                  "damping": { "linearFactor": 0.15, "angularFactor": 0.1, "maxLinearDistance": 3.0, "maxAngularDegrees": 180.0 },
+                  "startup": {
+                    "segments": [
+                      { "duration": 1.0, "easing": "linear",
+                        "scale": { "from": [0.0, 0.0, 0.0], "degrees": [90.0, 0.0, 0.0] } }
+                    ]
+                  }
+                }
+                """;
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class), HaloDefinition.class, null);
+
+            var scale = def.startupAnimation().get().segments().get(0).scale();
+            assertNotNull(scale);
+            assertNull(scale.degrees(), "degrees is stripped from non-rotation properties");
+            assertArrayEquals(new float[]{0f, 0f, 0f}, scale.from(), 1e-6f);
+        }
+    }
+
+    // ------------------------------------------------------------------
 
     // ------------------------------------------------------------------
     // 9. TransitionQueue endpoint patching & directional backfill
@@ -1855,6 +1994,106 @@ class HaloDataTest {
             var patched = base.withHead(constantIdle(), 1.5);
             var r = patched.evaluate(0.0);
             assertArrayEquals(new float[]{0.3f, 0.3f, 0.3f}, r.scale(), 1e-5f, "explicit from wins");
+        }
+        /** Idle animation with a constant yaw rotation (degrees) at any phase. */
+        private LayerAnimation rotatingIdle(double yawDegrees) {
+            return new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(yawDegrees, 0.0)), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of()
+            );
+        }
+
+        @Test
+        @DisplayName("withTailEnd aligns rotation to the idle rotation at the resume phase")
+        void withTailEndPatchesRotationToIdle() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f}, null));
+            var config = new StartupAnimationConfig(List.of(seg), Map.of());
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withTail(rotatingIdle(12.0), 1.0);
+            var r = patched.evaluate(1.0);
+            assertArrayEquals(new float[]{12f, 0f, 0f}, r.rotationDegrees(), 1e-5f,
+                "derived rotation tail aligned to idle rotation at the resume phase");
+        }
+
+        @Test
+        @DisplayName("degrees adds whole turns on top of a derived rotation tail")
+        void withTailEndAppliesDegreesToDerivedRotationTail() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0f, 0f, 0f}, null, null, null,
+                    new float[]{360f, 0f, 0f}));
+            var config = new StartupAnimationConfig(List.of(seg), Map.of());
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withTail(LayerAnimation.EMPTY, 0.0);
+            var r = patched.evaluate(0.5);
+            assertArrayEquals(new float[]{180f, 0f, 0f}, r.rotationDegrees(), 1e-4f,
+                "transition rotates a full turn during startup (midway = 180)");
+            r = patched.evaluate(1.0);
+            assertArrayEquals(new float[]{360f, 0f, 0f}, r.rotationDegrees(), 1e-4f,
+                "visual endpoint ≡ idle rotation after whole turns");
+        }
+
+        @Test
+        @DisplayName("withHead aligns rotation to the idle rotation at the hide phase")
+        void withHeadStartPatchesRotationFromIdle() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null,
+                new TransitionAnimation.TransitionProperty(null, new float[]{0f, 0f, 0f}));
+            var config = new StartupAnimationConfig(
+                List.of(seg), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withHead(rotatingIdle(-25.0), 0.5);
+            var r = patched.evaluate(0.0);
+            assertArrayEquals(new float[]{-25f, 0f, 0f}, r.rotationDegrees(), 1e-5f,
+                "derived rotation head aligned to idle rotation at the hide phase");
+        }
+
+        @Test
+        @DisplayName("withHeadValues head-patches rotation to the recorded on-screen degrees")
+        void withHeadValuesPatchesRotation() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null,
+                new TransitionAnimation.TransitionProperty(null, new float[]{0f, 0f, 0f}));
+            var config = new StartupAnimationConfig(
+                List.of(seg), Map.of(), TransitionQueueBuilder.BackfillDirection.SHUTDOWN);
+            var base = config.getAnimationForGroup(Optional.empty());
+
+            var patched = base.withHeadValues(
+                new float[]{0.2f, 0.3f, 0.4f},
+                new float[]{0.9f, 0.9f, 0.9f},
+                0.35f,
+                new float[]{45f, -10f, 20f});
+            var r = patched.evaluate(0.0);
+            assertArrayEquals(new float[]{45f, -10f, 20f}, r.rotationDegrees(), 1e-5f,
+                "rotation head aligned to the recorded on-screen degrees");
+        }
+
+        @Test
+        @DisplayName("reversed() negates degrees so the fallback shutdown mirrors the travel")
+        void reversedNegatesDegrees() {
+            var seg = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR, null, null, null,
+                new TransitionAnimation.TransitionProperty(
+                    new float[]{0f, 0f, 0f}, new float[]{30f, 0f, 0f}, null, null,
+                    new float[]{90f, 0f, 0f}));
+            var config = new StartupAnimationConfig(List.of(seg), Map.of());
+            var base = config.getAnimationForGroup(Optional.empty());
+            // Forward: 0 → 390 (+390°).
+            assertArrayEquals(new float[]{390f, 0f, 0f}, base.evaluate(1.0).rotationDegrees(), 1e-4f);
+
+            var reversed = base.reversed();
+            // Reversed: 390 → 0 (-390°), ending exactly at the original start.
+            assertArrayEquals(new float[]{390f, 0f, 0f}, reversed.evaluate(0.0).rotationDegrees(), 1e-4f);
+            assertArrayEquals(new float[]{0f, 0f, 0f}, reversed.evaluate(1.0).rotationDegrees(), 1e-4f,
+                "reversed travel mirrors the forward travel exactly");
         }
 
         @Test
@@ -2000,6 +2239,48 @@ class HaloDataTest {
                 "scale head aligned to idle at the hide phase");
             assertEquals(idleAlphaAtHide, r.alpha(), 1e-5f,
                 "empty alpha queue holds idle alpha at the hide phase");
+        }
+
+        @Test
+        @DisplayName("F8: rotationAnimated is true only when the transition drives rotation")
+        void rotationAnimatedFlag() {
+            // A rotation segment → the transition drives rotation.
+            var withRot = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR,
+                null, null, null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f},
+                    new float[]{90f, 0f, 0f}));
+            var rotAnim = new StartupAnimationConfig(List.of(withRot), Map.of())
+                .getAnimationForGroup(Optional.empty());
+            assertNotNull(rotAnim);
+            assertTrue(rotAnim.rotationAnimated(), "rotation segment drives rotation");
+
+            // A scale-only transition (before per-instance patching) has an
+            // empty rotation queue → does not drive rotation.
+            var scaleOnly = new TransitionAnimation.TransitionSegment(
+                1.0, EasingType.LINEAR,
+                null,
+                new TransitionAnimation.TransitionProperty(new float[]{0f, 0f, 0f},
+                    new float[]{1f, 1f, 1f}),
+                null);
+            var sclAnim = new StartupAnimationConfig(List.of(scaleOnly), Map.of())
+                .getAnimationForGroup(Optional.empty());
+            assertNotNull(sclAnim);
+            assertFalse(sclAnim.rotationAnimated(), "scale-only transition does not drive rotation");
+
+            // withTail converts the empty rotation queue into a hold at the
+            // idle value — the transition then draws the frozen idle rotation
+            // itself, so the handoff stays seamless (F8).
+            LayerAnimation idle = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(10.0, 0.0)), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of());
+            var patched = sclAnim.withTail(idle, 3.0);
+            assertTrue(patched.rotationAnimated(), "withTail turns the empty rotation queue into a hold");
+            assertArrayEquals(new float[]{10f, 0f, 0f}, patched.evaluate(0.0).rotationDegrees(), 1e-5f,
+                "hold freezes the idle rotation at the trigger phase");
+            assertArrayEquals(new float[]{10f, 0f, 0f}, patched.evaluate(1.0).rotationDegrees(), 1e-5f);
         }
     }
 
@@ -2197,6 +2478,64 @@ class HaloDataTest {
                 assertArrayEquals(manual.evaluate(t).scale(), first.evaluate(t).scale(), 1e-5f,
                     "cached reversed equals manual reverse at t=" + t);
             }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 11. RotationTravel (F8 degrees minimum travel)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("RotationTravel degrees minimum travel")
+    class RotationTravelTests {
+
+        @Test
+        @DisplayName("effectiveEnd: plan examples")
+        void effectiveEndPlanExamples() {
+            assertEquals(390f, RotationTravel.effectiveEnd(0f, 30f, 90f), 1e-4f, "from=0 to=30 +90 → d=390");
+            assertEquals(-330f, RotationTravel.effectiveEnd(0f, 30f, -90f), 1e-4f, "from=0 to=30 -90 → d=-330");
+        }
+
+        @Test
+        @DisplayName("effectiveEnd: whole-turn and congruent cases")
+        void effectiveEndWholeTurns() {
+            assertEquals(360f, RotationTravel.effectiveEnd(0f, 0f, 90f), 1e-4f, "from≡to spins one full turn");
+            assertEquals(360f, RotationTravel.effectiveEnd(0f, 360f, 90f), 1e-4f);
+            assertEquals(360f, RotationTravel.effectiveEnd(0f, 0f, 360f), 1e-4f);
+            assertEquals(720f, RotationTravel.effectiveEnd(0f, 0f, 361f), 1e-4f);
+            assertEquals(-360f, RotationTravel.effectiveEnd(0f, 0f, -90f), 1e-4f);
+        }
+
+        @Test
+        @DisplayName("effectiveEnd: non-congruent from/to")
+        void effectiveEndNonCongruent() {
+            assertEquals(-370f, RotationTravel.effectiveEnd(10f, 350f, -30f), 1e-4f);
+            assertEquals(730f, RotationTravel.effectiveEnd(350f, 10f, 30f), 1e-4f);
+            assertEquals(30f, RotationTravel.effectiveEnd(0f, 30f, 10f), 1e-4f, "short travel within range");
+            assertEquals(0f, RotationTravel.effectiveEnd(390f, 0f, -90f), 1e-4f, "reversed mirror returns to origin");
+        }
+
+        @Test
+        @DisplayName("effectiveEnd: degrees 0 or missing = raw interpolation")
+        void effectiveEndZeroDegreesIsRaw() {
+            assertEquals(30f, RotationTravel.effectiveEnd(0f, 30f, 0f), 1e-4f);
+            assertEquals(10f, RotationTravel.effectiveEnd(350f, 10f, 0f), 1e-4f,
+                "legacy raw from→to lerp, no wraparound");
+        }
+
+        @Test
+        @DisplayName("effectiveEnds: per-axis, shorter arrays padded with 0")
+        void effectiveEndsPerAxis() {
+            float[] end = RotationTravel.effectiveEnds(
+                new float[]{0f, 0f, 0f}, new float[]{30f, 0f, 0f}, new float[]{90f});
+            assertArrayEquals(new float[]{390f, 0f, 0f}, end, 1e-4f);
+        }
+
+        @Test
+        @DisplayName("negated flips every component")
+        void negatedFlipsComponents() {
+            assertArrayEquals(new float[]{-90f, 15f, 0f},
+                RotationTravel.negated(new float[]{90f, -15f, 0f}), 1e-6f);
         }
     }
 }

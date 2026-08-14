@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Fully resolved transition animation for a single group, consisting of
- * three {@link TransitionQueue}s (offset, scale, alpha).
+ * four {@link TransitionQueue}s (offset, scale, alpha, rotation).
  *
  * <p>Built once from parsed segments, then reused every frame.
  * Shutdown animations are created via {@link #reversed()}; endpoint
@@ -18,17 +18,20 @@ public class TransitionAnimationResult {
     private final TransitionQueue offsetQueue;
     private final TransitionQueue scaleQueue;
     private final TransitionQueue alphaQueue;
+    private final TransitionQueue rotationQueue;
     private final double totalDuration;
 
     public TransitionAnimationResult(TransitionQueue offsetQueue,
                                       TransitionQueue scaleQueue,
-                                      TransitionQueue alphaQueue) {
+                                      TransitionQueue alphaQueue,
+                                      TransitionQueue rotationQueue) {
         this.offsetQueue = offsetQueue;
         this.scaleQueue = scaleQueue;
         this.alphaQueue = alphaQueue;
+        this.rotationQueue = rotationQueue;
         this.totalDuration = Math.max(
             Math.max(offsetQueue.totalDuration(), scaleQueue.totalDuration()),
-            alphaQueue.totalDuration()
+            Math.max(alphaQueue.totalDuration(), rotationQueue.totalDuration())
         );
     }
 
@@ -43,10 +46,20 @@ public class TransitionAnimationResult {
     }
 
     /**
+     * Whether this animation drives the group's rotation (a non-empty rotation
+     * queue).  Groups whose transition does not drive rotation keep their idle
+     * rotation frozen at the trigger phase instead — see
+     * {@code HaloRenderer#frozenIdleRotationDegrees}.
+     */
+    public boolean rotationAnimated() {
+        return !rotationQueue.isEmpty();
+    }
+
+    /**
      * Evaluate the animation at the given time.
      *
      * @param time absolute time in seconds since transition start
-     * @return the interpolated offset, scale, and alpha
+     * @return the interpolated offset, scale, alpha, and rotation
      */
     public TransitionResult evaluate(double time) {
         float[] off = offsetQueue.isEmpty()
@@ -58,11 +71,15 @@ public class TransitionAnimationResult {
         float[] a = alphaQueue.isEmpty()
             ? alphaQueue.steadyStateValue()
             : alphaQueue.evaluate(time);
+        float[] rot = rotationQueue.isEmpty()
+            ? rotationQueue.steadyStateValue()
+            : rotationQueue.evaluate(time);
 
         return new TransitionResult(
             new Vec3d(off[0], off[1], off[2]),
             scl,
-            a[0]
+            a[0],
+            rot
         );
     }
 
@@ -74,7 +91,8 @@ public class TransitionAnimationResult {
         return new TransitionAnimationResult(
             offsetQueue.reversed(),
             scaleQueue.reversed(),
-            alphaQueue.reversed()
+            alphaQueue.reversed(),
+            rotationQueue.reversed()
         );
     }
 
@@ -90,7 +108,8 @@ public class TransitionAnimationResult {
         return new TransitionAnimationResult(
             patchQueue(offsetQueue, offsetOf(idle, phase), total, false),
             patchQueue(scaleQueue, idle.evaluateScale(phase), total, false),
-            patchQueue(alphaQueue, new float[]{idle.evaluateAlpha(phase)}, total, false));
+            patchQueue(alphaQueue, new float[]{idle.evaluateAlpha(phase)}, total, false),
+            patchQueue(rotationQueue, idle.evaluateRotationDegrees(phase), total, false));
     }
 
     /**
@@ -100,16 +119,27 @@ public class TransitionAnimationResult {
      * Explicitly authored values win; empty queues become a constant hold so
      * the group freezes at its on-screen state instead of snapping.
      *
-     * @param offset the applied offset (3 components)
-     * @param scale  the applied scale (3 components)
-     * @param alpha  the applied alpha multiplier
+     * @param offset          the applied offset (3 components)
+     * @param scale           the applied scale (3 components)
+     * @param alpha           the applied alpha multiplier
+     * @param rotationDegrees the applied rotation (YXZ Euler degrees, 3 components)
      */
-    public TransitionAnimationResult withHeadValues(float[] offset, float[] scale, float alpha) {
+    public TransitionAnimationResult withHeadValues(float[] offset, float[] scale, float alpha,
+                                                     float[] rotationDegrees) {
         double total = totalDuration();
         return new TransitionAnimationResult(
             patchQueue(offsetQueue, offset, total, false),
             patchQueue(scaleQueue, scale, total, false),
-            patchQueue(alphaQueue, new float[]{alpha}, total, false));
+            patchQueue(alphaQueue, new float[]{alpha}, total, false),
+            patchQueue(rotationQueue, rotationDegrees, total, false));
+    }
+
+    /**
+     * Back-compat convenience: {@link #withHeadValues(float[], float[], float[], float[])}
+     * with an identity rotation.
+     */
+    public TransitionAnimationResult withHeadValues(float[] offset, float[] scale, float alpha) {
+        return withHeadValues(offset, scale, alpha, new float[]{0f, 0f, 0f});
     }
 
     /**
@@ -123,13 +153,15 @@ public class TransitionAnimationResult {
         return new TransitionAnimationResult(
             patchQueue(offsetQueue, offsetOf(idle, phase), total, true),
             patchQueue(scaleQueue, idle.evaluateScale(phase), total, true),
-            patchQueue(alphaQueue, new float[]{idle.evaluateAlpha(phase)}, total, true));
+            patchQueue(alphaQueue, new float[]{idle.evaluateAlpha(phase)}, total, true),
+            patchQueue(rotationQueue, idle.evaluateRotationDegrees(phase), total, true));
     }
 
     /** The result of evaluating a transition at a specific time. */
-    public record TransitionResult(Vec3d offset, float[] scale, float alpha) {
+    public record TransitionResult(Vec3d offset, float[] scale, float alpha,
+                                   float[] rotationDegrees) {
         public static final TransitionResult DEFAULT = new TransitionResult(
-            Vec3d.ZERO, new float[]{1f, 1f, 1f}, 1.0f
+            Vec3d.ZERO, new float[]{1f, 1f, 1f}, 1.0f, new float[]{0f, 0f, 0f}
         );
     }
 

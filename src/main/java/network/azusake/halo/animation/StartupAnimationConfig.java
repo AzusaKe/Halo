@@ -107,8 +107,9 @@ public class StartupAnimationConfig {
         TransitionQueue offQ = TransitionQueueBuilder.forOffset(segs, globalTotalDuration, direction).build();
         TransitionQueue sclQ = TransitionQueueBuilder.forScale(segs, globalTotalDuration, direction).build();
         TransitionQueue aQ   = TransitionQueueBuilder.forAlpha(segs, globalTotalDuration, direction).build();
+        TransitionQueue rotQ = TransitionQueueBuilder.forRotation(segs, globalTotalDuration, direction).build();
 
-        return new TransitionAnimationResult(offQ, sclQ, aQ);
+        return new TransitionAnimationResult(offQ, sclQ, aQ, rotQ);
     }
 
     public List<TransitionAnimation.TransitionSegment> getSegmentsForGroup(Optional<String> groupId) {

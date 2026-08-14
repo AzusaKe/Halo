@@ -458,7 +458,8 @@ public final class HaloRenderer {
      * draw all primitives, then recurse into child groups.
      *
      * <p>When a transition is active, the group's pre-built animation
-     * is evaluated and applied as additional offset, scale, and alpha.</p>
+     * is evaluated and applied as additional offset, rotation, scale, and
+     * alpha (rotation in YXZ order, matching the idle animation).</p>
      */
     private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness,
                               float inheritedAlpha, float inheritedGlow,
@@ -494,22 +495,40 @@ public final class HaloRenderer {
                     group, instance, isStartup, startupConfig, shutdownConfig);
                 float[] appliedOffset = new float[]{0f, 0f, 0f};
                 float[] appliedScale = new float[]{1f, 1f, 1f};
+                float[] appliedRotation = new float[]{0f, 0f, 0f};
                 float appliedAlpha = 1.0f;
                 if (anim != null) {
                     TransitionAnimationResult.TransitionResult tr = anim.evaluate(transitionElapsed);
                     matrices.translate(tr.offset().x, tr.offset().y, tr.offset().z);
-                    matrices.scale(tr.scale()[0], tr.scale()[1], tr.scale()[2]);
-                    transitionAlpha = tr.alpha();
                     appliedOffset = new float[]{
                         (float) tr.offset().x, (float) tr.offset().y, (float) tr.offset().z};
                     appliedScale = tr.scale();
                     appliedAlpha = tr.alpha();
+                    transitionAlpha = tr.alpha();
+                    // The transition drives rotation when it has a rotation
+                    // queue; otherwise the group's idle rotation stays frozen
+                    // at the trigger phase so the handoff is seamless (F8).
+                    appliedRotation = anim.rotationAnimated()
+                        ? tr.rotationDegrees()
+                        : frozenIdleRotationDegrees(group, animTime);
+                    applyQuaternionRotation(matrices, LayerAnimation.quaternionFromYxzDegrees(
+                        appliedRotation[0], appliedRotation[1], appliedRotation[2]));
+                    matrices.scale(appliedScale[0], appliedScale[1], appliedScale[2]);
+                } else {
+                    // No transition animation for this group (e.g. child groups
+                    // without transition segments): keep the group's idle
+                    // rotation frozen at the trigger phase so billboards hold
+                    // their actual angle across the transition instead of
+                    // snapping back to the base rotation.
+                    appliedRotation = frozenIdleRotationDegrees(group, animTime);
+                    applyQuaternionRotation(matrices, LayerAnimation.quaternionFromYxzDegrees(
+                        appliedRotation[0], appliedRotation[1], appliedRotation[2]));
                 }
                 // Record the values this frame actually drew so a hide that
                 // lands mid-transition can head-patch the shutdown queues to
                 // the exact on-screen state instead of the idle animation.
                 idlePhaseTracker.recordGroupVisual(instance.getEntityUuid(), group.id().orElse(""),
-                    appliedOffset, appliedScale, appliedAlpha, System.currentTimeMillis());
+                    appliedOffset, appliedScale, appliedAlpha, appliedRotation, System.currentTimeMillis());
             }
 
             // During transitions the transition's alpha channel is the sole
@@ -572,6 +591,19 @@ public final class HaloRenderer {
     }
 
     /**
+     * The group's idle rotation as YXZ Euler degrees frozen at
+     * {@code frozenAnimTime} — the rotation a group is drawn with during a
+     * transition that does not itself drive rotation, so the on-screen angle
+     * stays continuous across the handoff (F8).  Identity when the group has
+     * no idle rotation animation.
+     */
+    static float[] frozenIdleRotationDegrees(HaloGroup group, double frozenAnimTime) {
+        return group.animation()
+            .map(a -> a.evaluateRotationDegrees(frozenAnimTime))
+            .orElseGet(() -> new float[]{0f, 0f, 0f});
+    }
+
+    /**
      * Resolve the endpoint-aligned transition animation for a group, caching
      * per-instance so the endpoint patch is computed only once per transition.
      *
@@ -620,11 +652,11 @@ public final class HaloRenderer {
                 return null;
             }
             patched = hide != null
-                ? reversedBase.withHeadValues(hide.offset(), hide.scale(), hide.alpha())
+                ? reversedBase.withHeadValues(hide.offset(), hide.scale(), hide.alpha(), hide.rotation())
                 : reversedBase.withHead(idle, freeze);
         } else {
             patched = hide != null
-                ? base.withHeadValues(hide.offset(), hide.scale(), hide.alpha())
+                ? base.withHeadValues(hide.offset(), hide.scale(), hide.alpha(), hide.rotation())
                 : base.withHead(idle, freeze);
         }
         instance.putTransitionAnimation(groupKey, patched);

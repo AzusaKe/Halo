@@ -3,6 +3,7 @@ package network.azusake.halo.render;
 import network.azusake.halo.animation.AnimationTerm;
 import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.data.HaloInstance;
+import network.azusake.halo.shape.HaloGroup;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,6 +51,20 @@ class HaloRendererTest {
             assertEquals(0.0f, mat.m12(), 0.0001f);
             assertEquals(0.0f, mat.m20(), 0.0001f);
             assertEquals(0.0f, mat.m21(), 0.0001f);
+        }
+
+        @Test
+        @DisplayName("transition rotation: quaternionFromYxzDegrees feeds applyQuaternionRotation (YXZ)")
+        void testTransitionRotationYxz() {
+            // F8: the transition rotation is applied via
+            // LayerAnimation.quaternionFromYxzDegrees -> applyQuaternionRotation.
+            // A 90° yaw must behave exactly like the renderer's own YXZ helper.
+            Quaternionf quat = LayerAnimation.quaternionFromYxzDegrees(90f, 0f, 0f);
+            Matrix4f mat = new Matrix4f().rotation(quat);
+            Vector3f forward = new Vector3f(0, 0, -1);
+            Vector3f result = mat.transformDirection(new Vector3f(forward), new Vector3f());
+            assertEquals(0.0f, result.y, 0.001f, "yaw keeps forward in XZ plane");
+            assertEquals(1.0f, result.length(), 0.001f, "rotation preserves length");
         }
 
         @Test
@@ -670,6 +686,50 @@ class HaloRendererTest {
                     String.format("Frame %d: dist=%.4f > maxDist=%.4f after clamp",
                         frame, distAfter, maxDist));
             }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Frozen idle rotation during transitions (F8 fix)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("Frozen idle rotation during transitions")
+    class FrozenIdleRotation {
+
+        @Test
+        @DisplayName("group with a yaw spin freezes at the trigger phase")
+        void freezesYawSpinAtPhase() {
+            // ring_default hour/minute hands spin at a constant yaw rate; a
+            // child group without a transition must keep that angle frozen
+            // while the startup plays instead of snapping back to base.
+            LayerAnimation spin = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(30.0)),  // yaw: 30 deg/s
+                List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of());
+            HaloGroup group = new HaloGroup(
+                Optional.empty(), new Vec3d(0, 0, 0), new Quaternionf(), 1.0f,
+                List.of(), true, true, true, Optional.of(spin), List.of());
+
+            assertArrayEquals(new float[]{60f, 0f, 0f},
+                HaloRenderer.frozenIdleRotationDegrees(group, 2.0), 1e-5f,
+                "yaw frozen at 60° at t=2s");
+            assertArrayEquals(new float[]{45f, 0f, 0f},
+                HaloRenderer.frozenIdleRotationDegrees(group, 1.5), 1e-5f,
+                "yaw frozen at 45° at t=1.5s");
+        }
+
+        @Test
+        @DisplayName("identity when the group has no idle rotation animation")
+        void identityWithoutAnimation() {
+            HaloGroup plain = new HaloGroup(
+                Optional.empty(), new Vec3d(0, 0, 0), new Quaternionf(), 1.0f,
+                List.of(), true, true, true, Optional.empty(), List.of());
+
+            assertArrayEquals(new float[]{0f, 0f, 0f},
+                HaloRenderer.frozenIdleRotationDegrees(plain, 5.0), 1e-6f);
         }
     }
 }
