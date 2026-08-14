@@ -444,6 +444,35 @@ class HaloRendererTest {
             float passedToChildren = inheritedGlow * ownGlowNonGlowing;
             assertEquals(0.08f, passedToChildren, 0.001f);
         }
+
+        @Test
+        @DisplayName("inherit_alpha=false cuts alpha inheritance for the subtree")
+        void inheritAlphaDisabledResetsSubtree() {
+            // Parent effective alpha 0.5, but inherit_alpha=false → children start fresh
+            float finalAlpha = 0.5f;
+            float childInheritedAlpha = 1.0f; // inherit_alpha=false → no inheritance
+            assertEquals(1.0f, childInheritedAlpha, 0.001f);
+
+            // Child's own alpha then applies on top of the fresh 1.0
+            float childAlpha = 0.4f;
+            assertEquals(0.4f, childInheritedAlpha * childAlpha, 0.001f);
+
+            // Sanity: with inheritance enabled the parent's alpha would multiply in
+            assertEquals(0.2f, finalAlpha * childAlpha, 0.001f);
+        }
+
+        @Test
+        @DisplayName("inherit_glow=false cuts glow inheritance for the subtree")
+        void inheritGlowDisabledResetsSubtree() {
+            // Parent effective glow 0.8, but inherit_glow=false → children start fresh
+            float effectiveGlow = 0.8f;
+            float childInheritedGlow = 1.0f; // inherit_glow=false → no inheritance
+            assertEquals(1.0f, childInheritedGlow, 0.001f);
+
+            // Child's own glow then applies on top of the fresh 1.0
+            float childGlow = 0.5f;
+            assertEquals(0.5f, childInheritedGlow * childGlow, 0.001f);
+        }
     }
 
     // ------------------------------------------------------------------

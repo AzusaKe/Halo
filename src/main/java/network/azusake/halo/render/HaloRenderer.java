@@ -484,10 +484,13 @@ public final class HaloRenderer {
             }
 
             // Recurse into child groups — children inherit this group's effective
-            // alpha/glow multiplicatively; the glowing flag only selects whether
-            // this group's own primitives use glow or ambient brightness.
+            // alpha/glow multiplicatively. A group can opt out per channel via
+            // inherit_alpha / inherit_glow (default true); when disabled, the
+            // subtree starts fresh from 1.0 instead of inheriting.
+            float childAlpha = group.inheritAlpha() ? finalAlpha : 1.0f;
+            float childGlow = group.inheritGlow() ? effectiveGlow : 1.0f;
             for (HaloGroup child : group.children()) {
-                renderGroup(child, matrices, animTime, brightness, finalAlpha, effectiveGlow,
+                renderGroup(child, matrices, animTime, brightness, childAlpha, childGlow,
                     transitionActive, transitionElapsed, isStartup,
                     startupConfig, shutdownConfig);
             }

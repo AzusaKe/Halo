@@ -26,6 +26,8 @@ import java.util.Optional;
  * @param scale      uniform scale multiplier for this group (default 1.0)
  * @param primitives the renderable primitives within this group
  * @param glowing    whether glow layers render for primitives in this group (default true)
+ * @param inheritAlpha whether descendants inherit this group's animated alpha (default true)
+ * @param inheritGlow  whether descendants inherit this group's animated glow (default true)
  * @param animation  optional per-group visual animation (offset + rotation over time)
  * @param children   child groups that inherit this group's transform
  */
@@ -36,17 +38,19 @@ public record HaloGroup(
     float scale,
     List<HaloPrimitive> primitives,
     boolean glowing,
+    boolean inheritAlpha,
+    boolean inheritGlow,
     Optional<LayerAnimation> animation,
     List<HaloGroup> children
 ) {
     /** Convenience constructor for a group with a single primitive and no children. */
     public HaloGroup(Vec3d position, HaloPrimitive primitive) {
-        this(Optional.empty(), position, new Quaternionf(), 1.0f, List.of(primitive), true, Optional.empty(), List.of());
+        this(Optional.empty(), position, new Quaternionf(), 1.0f, List.of(primitive), true, true, true, Optional.empty(), List.of());
     }
 
     /** Convenience constructor with explicit rotation and a single primitive. */
     public HaloGroup(Vec3d position, Quaternionf rotation, HaloPrimitive primitive) {
-        this(Optional.empty(), position, rotation, 1.0f, List.of(primitive), true, Optional.empty(), List.of());
+        this(Optional.empty(), position, rotation, 1.0f, List.of(primitive), true, true, true, Optional.empty(), List.of());
     }
 
     /** Total number of primitives in this group and all descendant groups. */

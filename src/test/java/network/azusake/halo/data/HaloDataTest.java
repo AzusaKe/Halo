@@ -908,8 +908,58 @@ class HaloDataTest {
             HaloGroup group = def.model().groups().get(0);
             assertEquals(Vec3d.ZERO, group.position());             // default position
             assertEquals(1.0f, group.scale(), 0.001f);              // default scale
+            assertTrue(group.inheritAlpha());                       // default inherit
+            assertTrue(group.inheritGlow());                        // default inherit
             assertInstanceOf(BillboardPrimitive.class, group.primitives().get(0));
             assertEquals(1.0, def.positioning().scale(), 0.001);    // scale default
+        }
+
+        @Test
+        @DisplayName("inherit_alpha / inherit_glow toggles parsed per group")
+        void parseInheritanceToggles() {
+            String json = """
+                {
+                  "id": "halo:inherit_test",
+                  "layers": [
+                    {
+                      "inherit_alpha": false,
+                      "primitives": [
+                        {
+                          "type": "billboard",
+                          "texture": "halo:textures/halo/ring.png",
+                          "size": [0.5, 0.5]
+                        }
+                      ],
+                      "children": [
+                        {
+                          "inherit_glow": false,
+                          "primitives": [
+                            {
+                              "type": "billboard",
+                              "texture": "halo:textures/halo/ring.png",
+                              "size": [0.5, 0.5]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            HaloGroup parent = def.model().groups().get(0);
+            assertFalse(parent.inheritAlpha());
+            assertTrue(parent.inheritGlow());
+
+            HaloGroup child = parent.children().get(0);
+            assertTrue(child.inheritAlpha());
+            assertFalse(child.inheritGlow());
         }
 
         @Test

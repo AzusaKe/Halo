@@ -189,6 +189,12 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         // Glowing toggle (default true)
         boolean glowing = !obj.has("glowing") || obj.get("glowing").getAsBoolean();
 
+        // Alpha / glow inheritance toggles (default true — descendants inherit
+        // this group's effective alpha/glow multiplicatively). Set false to cut
+        // the chain so this group's subtree starts fresh from 1.0.
+        boolean inheritAlpha = !obj.has("inherit_alpha") || obj.get("inherit_alpha").getAsBoolean();
+        boolean inheritGlow = !obj.has("inherit_glow") || obj.get("inherit_glow").getAsBoolean();
+
         // Group animation (per-group, visual-only, optional)
         Optional<LayerAnimation> groupAnim = parseLayerAnimation(obj.get("animation"));
 
@@ -216,7 +222,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             }
         }
 
-        return new HaloGroup(id, position, rotation, scale, primitives, glowing, groupAnim, children);
+        return new HaloGroup(id, position, rotation, scale, primitives, glowing, inheritAlpha, inheritGlow, groupAnim, children);
     }
 
     // --- Layer animation (per-layer visual animation) ---

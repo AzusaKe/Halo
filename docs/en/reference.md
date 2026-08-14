@@ -127,6 +127,8 @@ Each element in the `layers` array is a **group** — a transform node that can 
   "rotation": [0.0, 0.0, 0.0],
   "scale": 1.0,
   "glowing": true,
+  "inherit_alpha": true,
+  "inherit_glow": true,
   "animation": { ... },
   "primitives": [ ... ],
   "children": [ ... ]
@@ -168,6 +170,20 @@ Each element in the `layers` array is a **group** — a transform node that can 
 - **Required**: No
 - **Default**: `true` (when absent)
 - **Description**: Controls the self-illumination mode for primitives in this group. When `true` (default), primitives render at full brightness and their brightness can be modulated by the `animation.glow` channel (self-illumination intensity). When `false`, this group's primitives follow the in-game ambient light (brighter during daytime, darker at night) and `animation.glow` does not affect this group's own brightness. Regardless of `glowing`, the glow value is **inherited multiplicatively** down the scene tree (a descendant's effective glow = ancestor value × its own value).
+
+### `inherit_alpha`
+
+- **Type**: Boolean
+- **Required**: No
+- **Default**: `true`
+- **Description**: Whether descendant groups inherit this group's animated alpha. When `true` (default), a descendant's effective alpha = inherited parent value × own alpha × transition opacity, flowing down the tree layer by layer. When `false`, this group's alpha only applies to its own primitives and the subtree restarts from 1.0 (fully opaque).
+
+### `inherit_glow`
+
+- **Type**: Boolean
+- **Required**: No
+- **Default**: `true`
+- **Description**: Whether descendant groups inherit this group's animated glow. When `true` (default), a descendant's effective glow = inherited parent value × own glow, flowing down the tree layer by layer. When `false`, this group's glow only applies to its own primitives and the subtree restarts from 1.0 (full glow).
 
 ### `animation`
 
@@ -284,7 +300,7 @@ The animation system uses mathematical functions to describe how position offset
 
 Each axis value is an **array of animation term objects**; `alpha`/`glow` are scalar channels whose values are flat term arrays. Multiple terms on the same channel are **summed together** (linear superposition), so you can combine multiple functions to produce complex motion. The entire animation block, each group, and each channel are all optional — omit what you don't need.
 
-> **Group inheritance**: `offset`/`rotation`/`scale` compose down the scene tree (child groups inherit the parent's transform). `alpha` and `glow` are **inherited multiplicatively** as well — each group's effective value = inherited value × its own animated value (alpha also multiplies in the group's transition opacity: `final alpha = parent alpha × own alpha × transition opacity`; glow: `final glow = parent glow × own glow`). Groups that omit a channel use 1.0 (no change to the inherited value), so defining an `alpha` animation on a parent group fades the whole subtree together. Glow flows down the tree regardless of the `glowing` flag — the flag only selects whether a group's own primitives use glow or ambient brightness. For fully independent parts, simply define two sibling trees.
+> **Group inheritance**: `offset`/`rotation`/`scale` compose down the scene tree (child groups inherit the parent's transform). `alpha` and `glow` are **inherited multiplicatively** as well — each group's effective value = inherited value × its own animated value (alpha also multiplies in the group's transition opacity: `final alpha = parent alpha × own alpha × transition opacity`; glow: `final glow = parent glow × own glow`). Groups that omit a channel use 1.0 (no change to the inherited value), so defining an `alpha` animation on a parent group fades the whole subtree together. Glow flows down the tree regardless of the `glowing` flag — the flag only selects whether a group's own primitives use glow or ambient brightness. For finer control, set `inherit_alpha`/`inherit_glow` to `false` on any group to cut the chain at that boundary (the subtree restarts from 1.0); for fully independent parts, simply define two sibling trees.
 
 ### Units
 
