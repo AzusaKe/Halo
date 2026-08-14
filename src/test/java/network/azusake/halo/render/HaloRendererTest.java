@@ -1,5 +1,7 @@
 package network.azusake.halo.render;
 
+import network.azusake.halo.animation.AnimationTerm;
+import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.data.HaloInstance;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
@@ -9,6 +11,8 @@ import org.joml.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -371,61 +375,90 @@ class HaloRendererTest {
     }
 
     // ------------------------------------------------------------------
-    // 7. Pulse animation math
+    // 7. Alpha / glow composition math (animation channels)
     // ------------------------------------------------------------------
 
     @Nested
-    @DisplayName("Pulse animation")
-    class PulseAnimation {
+    @DisplayName("Alpha / glow composition math")
+    class AlphaGlowComposition {
 
         @Test
-        @DisplayName("pulsed alpha at t=0 is base + amplitude*sin(phase)")
-        void testPulseAtZero() {
-            float baseAlpha = 0.8f;
-            float amplitude = 0.15f;
-            float frequency = 2.0f;
-            float phase = 0.0f;
+        @DisplayName("finalAlpha = layer alpha × transition opacity")
+        void finalAlphaComposes() {
+            // animation.alpha: sin(A=0.2, ω=2) at t=0.25 → sin(π/2)=1 → 0.2
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Sin(0.2, 2.0, 0.0)),  // alpha
+                List.of()                                       // glow
+            );
+            float layerAlpha = anim.evaluateAlpha(0.25);
+            assertEquals(0.2f, layerAlpha, 0.001f);
 
-            double t = 0.0;
-            float alpha = baseAlpha + amplitude
-                * (float) Math.sin(2.0 * Math.PI * frequency * t + phase);
-
-            assertEquals(0.8f, alpha, 0.001f); // sin(0) = 0
+            // Transition at 50% opacity
+            float transitionOpacity = 0.5f;
+            float finalAlpha = layerAlpha * transitionOpacity;
+            assertEquals(0.1f, finalAlpha, 0.001f);
         }
 
         @Test
-        @DisplayName("pulsed alpha at quarter cycle is base + amplitude")
-        void testPulseAtPeak() {
-            float baseAlpha = 0.8f;
-            float amplitude = 0.15f;
-            float frequency = 2.0f; // 2 Hz
-            float phase = 0.0f;
+        @DisplayName("fading alpha keeps multiplying through transition opacity")
+        void fadingAlphaThroughTransition() {
+            // animation.alpha: linear(start=0, speed=0.5) → 0.5t → at t=1 → 0.5
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(0.0, 0.5)),   // alpha
+                List.of()
+            );
+            float layerAlpha = anim.evaluateAlpha(1.0);
+            assertEquals(0.5f, layerAlpha, 0.001f);
 
-            // Quarter cycle: t = 1/(4*f) = 1/8 = 0.125s
-            // 2*PI*f*t = 2*PI*2*0.125 = PI/2 → sin = 1
-            double t = 0.125;
-            float alpha = baseAlpha + amplitude
-                * (float) Math.sin(2.0 * Math.PI * frequency * t + phase);
-
-            assertEquals(0.8f + 0.15f, alpha, 0.001f);
+            assertEquals(0.5f, layerAlpha * 1.0f, 0.001f);
         }
 
         @Test
-        @DisplayName("pulsed alpha is clamped to [0, 1]")
-        void testPulseClamped() {
-            // Large amplitude that would push alpha above 1 or below 0
-            float baseAlpha = 0.5f;
-            float amplitude = 0.8f; // can go from -0.3 to 1.3
+        @DisplayName("glowing=true uses animated glow as primitive brightness")
+        void glowDrivesBrightnessWhenGlowing() {
+            // animation.glow: cos(A=0.5, ω=1) at t=0 → cos(0)=1 → 0.5
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(),
+                List.of(new AnimationTerm.Cos(0.5, 1.0, 0.0))
+            );
+            float animatedGlow = anim.evaluateGlow(0.0);
+            assertEquals(0.5f, animatedGlow, 0.001f);
 
-            // At peak: alpha = 0.5 + 0.8 = 1.3 → clamped to 1.0
-            float raw = baseAlpha + amplitude * 1.0f;
-            float clamped = Math.max(0.0f, Math.min(1.0f, raw));
-            assertEquals(1.0f, clamped, 0.001f);
+            // glowing=true → brightness = animated glow
+            float environmentBrightness = 0.2f;
+            float glowingBrightness = animatedGlow;
+            assertEquals(0.5f, glowingBrightness, 0.001f);
 
-            // At trough: alpha = 0.5 - 0.8 = -0.3 → clamped to 0.0
-            raw = baseAlpha + amplitude * (-1.0f);
-            clamped = Math.max(0.0f, Math.min(1.0f, raw));
-            assertEquals(0.0f, clamped, 0.001f);
+            // glowing=false → brightness follows ambient light
+            float nonGlowingBrightness = environmentBrightness;
+            assertEquals(0.2f, nonGlowingBrightness, 0.001f);
+        }
+
+        @Test
+        @DisplayName("glow at zero renders the primitive dark")
+        void glowZeroDrivesDark() {
+            // animation.glow: linear(start=-2, speed=0) → clamp 0.0
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(),
+                List.of(new AnimationTerm.Linear(-2.0, 0.0))
+            );
+            float animatedGlow = anim.evaluateGlow(0.0);
+            assertEquals(0.0f, animatedGlow, 0.001f);
+
+            float glowingBrightness = animatedGlow;
+            assertEquals(0.0f, glowingBrightness, 0.001f);
         }
     }
 

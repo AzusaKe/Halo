@@ -156,22 +156,18 @@ class HaloDataTest {
         }
 
         @Test
-        @DisplayName("GlowLayer and PulseConfig records")
-        void glowAndPulse() {
-            PulseConfig pulse = new PulseConfig(0.2f, 2.0f, 0.0f);
-            assertEquals(0.2f, pulse.amplitude());
-            assertEquals(2.0f, pulse.frequency());
-
+        @DisplayName("GlowLayer record")
+        void glowLayer() {
             GlowLayer glow = new GlowLayer(
                 new Identifier("halo", "glow"),
                 new Vector2f(0.6f, 0.6f),
                 0xFFD700,
-                0.8f,
-                pulse
+                0.8f
             );
             assertEquals(0xFFD700, glow.color());
             assertEquals(0.8f, glow.alpha());
-            assertEquals(pulse, glow.pulse());
+            assertEquals(new Identifier("halo", "glow"), glow.texture());
+            assertEquals(0.6f, glow.size().x, 0.001f);
         }
     }
 
@@ -359,7 +355,8 @@ class HaloDataTest {
                 List.of(new AnimationTerm.Sin(0.08, 1.5, 0.0)),  // offsetY
                 List.of(),                                        // offsetZ
                 List.of(), List.of(), List.of(),                  // rotations
-                List.of(), List.of(), List.of()                   // scales
+                List.of(), List.of(), List.of(),                  // scales
+                List.of(), List.of()                              // alpha, glow
             );
             assertFalse(anim.isEmpty());
             Vec3d off = anim.evaluateOffset(1.0 / 3.0);
@@ -380,7 +377,8 @@ class HaloDataTest {
                         new AnimationTerm.Cos(0.5, 2.0, 0.0)),
                 List.of(), List.of(),
                 List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of()
+                List.of(), List.of(), List.of(),
+                List.of(), List.of()
             );
             Vec3d off = anim.evaluateOffset(0.0);
             assertEquals(0.5, off.x, 1e-9);
@@ -395,7 +393,8 @@ class HaloDataTest {
                 List.of(new AnimationTerm.Linear(30.0)),  // yaw
                 List.of(),                                // pitch
                 List.of(),                                // roll
-                List.of(), List.of(), List.of()           // scales
+                List.of(), List.of(), List.of(),          // scales
+                List.of(), List.of()                      // alpha, glow
             );
             Quaternionf q = anim.evaluateRotation(2.0);
             // A pure yaw rotation around Y: should produce non-identity quaternion
@@ -414,7 +413,8 @@ class HaloDataTest {
                 List.of(),                                          // yaw
                 List.of(new AnimationTerm.Sin(5.0, 1.0, 0.0)),     // pitch
                 List.of(),                                          // roll
-                List.of(), List.of(), List.of()                     // scales
+                List.of(), List.of(), List.of(),                    // scales
+                List.of(), List.of()                                // alpha, glow
             );
             Quaternionf q = anim.evaluateRotation(0.5);
             // A pure pitch rotation around X: should produce non-identity quaternion
@@ -432,7 +432,8 @@ class HaloDataTest {
                 List.of(new AnimationTerm.Linear(30.0)), // yaw: spin 30 deg/s
                 List.of(),
                 List.of(),
-                List.of(), List.of(), List.of()           // scales
+                List.of(), List.of(), List.of(),          // scales
+                List.of(), List.of()                      // alpha, glow
             );
             assertFalse(anim.isEmpty());
 
@@ -442,6 +443,100 @@ class HaloDataTest {
 
             Quaternionf q = anim.evaluateRotation(1.0);
             assertNotEquals(0.0f, q.y(), 1e-6f, "30-degree yaw should produce non-zero Y quat component");
+        }
+
+        @Test
+        @DisplayName("Alpha/glow channels: empty terms evaluate to 1.0")
+        void emptyScalarChannelsEvaluateToOne() {
+            assertEquals(1.0f, LayerAnimation.EMPTY.evaluateAlpha(0.0), 1e-6f);
+            assertEquals(1.0f, LayerAnimation.EMPTY.evaluateGlow(0.0), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("Alpha channel: terms summed directly, clamped to [0, 1]")
+        void alphaSumAndClamp() {
+            // sin(A=0.2, ω=2) at t=0.25 → sin(2π·0.25)=sin(π/2)=1 → 0.2
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Sin(0.2, 2.0)),  // alpha
+                List.of()                                   // glow
+            );
+            assertFalse(anim.isEmpty());
+            assertEquals(0.2f, anim.evaluateAlpha(0.25), 1e-6f);
+
+            // sin(A=0.2, ω=2) at t=0.75 → sin(3π/2)=-1 → -0.2 → clamp 0.0
+            assertEquals(0.0f, anim.evaluateAlpha(0.75), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("Alpha channel: large negative term clamps to 0 (fully transparent)")
+        void alphaClampLow() {
+            // Linear(start=-2, speed=0) → alpha = -2.0 → clamp 0.0
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Linear(-2.0, 0.0)),  // alpha
+                List.of()                                       // glow
+            );
+            assertEquals(0.0f, anim.evaluateAlpha(0.5), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("Glow channel: terms summed directly, clamped to [0, 1]")
+        void glowSumAndClamp() {
+            // cos(A=0.5, ω=1) at t=0 → cos(0)=1 → 0.5
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(),                                  // alpha
+                List.of(new AnimationTerm.Cos(0.5, 1.0))    // glow
+            );
+            assertFalse(anim.isEmpty());
+            assertEquals(0.5f, anim.evaluateGlow(0.0), 1e-6f);
+
+            // at t=1 → cos(π)=-1 → -0.5 → clamp 0.0
+            assertEquals(0.0f, anim.evaluateGlow(1.0), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("Empty alpha/glow channels default to 1.0 even when other channels animate")
+        void emptyScalarChannelsDefaultToOne() {
+            // Only offset terms — alpha/glow channels are empty.
+            LayerAnimation anim = new LayerAnimation(
+                List.of(), List.of(new AnimationTerm.Sin(0.08, 1.5, 0.0)), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of()
+            );
+            assertFalse(anim.isEmpty());
+            assertEquals(1.0f, anim.evaluateAlpha(0.0), 1e-6f);
+            assertEquals(1.0f, anim.evaluateGlow(0.0), 1e-6f);
+        }
+
+        @Test
+        @DisplayName("isEmpty includes alpha and glow channels")
+        void isEmptyIncludesScalarChannels() {
+            LayerAnimation alphaOnly = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(new AnimationTerm.Sin(0.1, 1.0)),
+                List.of()
+            );
+            assertFalse(alphaOnly.isEmpty());
+
+            LayerAnimation glowOnly = new LayerAnimation(
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(),
+                List.of(new AnimationTerm.Linear(0.5))
+            );
+            assertFalse(glowOnly.isEmpty());
         }
     }
 
@@ -473,12 +568,7 @@ class HaloDataTest {
                           "texture": "halo:textures/halo/ring_glow.png",
                           "size": [0.6, 0.6],
                           "color": 16777215,
-                          "alpha": 0.8,
-                          "pulse": {
-                            "amplitude": 0.15,
-                            "frequency": 2.0,
-                            "phase": 0.0
-                          }
+                          "alpha": 0.8
                         }
                       }
                     }
@@ -527,8 +617,6 @@ class HaloDataTest {
             assertNotNull(bp.glow());
             assertEquals(0xFF_FFFF, bp.glow().color());
             assertEquals(0.8f, bp.glow().alpha(), 0.001f);
-            assertNotNull(bp.glow().pulse());
-            assertEquals(0.15f, bp.glow().pulse().amplitude(), 0.001f);
 
             // Animation
             assertTrue(def.animation().isPresent());
@@ -726,6 +814,87 @@ class HaloDataTest {
             assertTrue(def.animation().isPresent());
             assertEquals(1, def.animation().get().offsetY().size());
             assertInstanceOf(AnimationTerm.Sin.class, def.animation().get().offsetY().get(0));
+        }
+
+        @Test
+        @DisplayName("Alpha/glow scalar channels parsed from animation block")
+        void parseAlphaGlowChannels() {
+            String json = """
+                {
+                  "id": "halo:alpha_glow",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "animation": {
+                    "alpha": [
+                      {"function": "sin", "A": 0.2, "omega": 2.0, "phi": 0.0},
+                      {"function": "linear", "start": -0.5, "speed": 0.25}
+                    ],
+                    "glow": [
+                      {"function": "cos", "A": 0.5, "omega": 1.0}
+                    ]
+                  },
+                  "positioning": {
+                    "offset": [0.0, 1.8, 0.0]
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertTrue(def.animation().isPresent());
+            LayerAnimation anim = def.animation().get();
+            assertEquals(2, anim.alpha().size());
+            assertInstanceOf(AnimationTerm.Sin.class, anim.alpha().get(0));
+            assertInstanceOf(AnimationTerm.Linear.class, anim.alpha().get(1));
+            assertEquals(1, anim.glow().size());
+            assertInstanceOf(AnimationTerm.Cos.class, anim.glow().get(0));
+        }
+
+        @Test
+        @DisplayName("Animation block with only alpha terms is not empty")
+        void alphaOnlyAnimationBlockIsPresent() {
+            String json = """
+                {
+                  "id": "halo:alpha_only",
+                  "layers": [
+                    {
+                      "primitive": {
+                        "type": "billboard",
+                        "texture": "halo:textures/halo/ring.png",
+                        "size": [0.5, 0.5]
+                      }
+                    }
+                  ],
+                  "animation": {
+                    "alpha": [
+                      {"function": "linear", "start": -1.0, "speed": 0.5}
+                    ]
+                  },
+                  "positioning": {
+                    "offset": [0.0, 1.8, 0.0]
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            assertTrue(def.animation().isPresent());
+            assertFalse(def.animation().get().isEmpty());
         }
 
         @Test

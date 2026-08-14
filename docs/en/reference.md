@@ -167,7 +167,7 @@ Each element in the `layers` array is a **group** — a transform node that can 
 - **Type**: Boolean
 - **Required**: No
 - **Default**: `true` (when absent)
-- **Description**: Controls whether primitives in this group render at full brightness (unaffected by ambient lighting). When set to `false`, primitives are affected by in-game lighting (brighter during daytime, darker at night).
+- **Description**: Controls the self-illumination mode for primitives in this group. When `true` (default), primitives render at full brightness and their brightness can be modulated by the `animation.glow` channel (self-illumination intensity). When `false`, primitive brightness follows the in-game ambient light (brighter during daytime, darker at night) and `animation.glow` has no effect.
 
 ### `animation`
 
@@ -294,15 +294,19 @@ The animation system uses mathematical functions to describe how position offset
     "x": [ ... ],
     "y": [ ... ],
     "z": [ ... ]
-  }
+  },
+  "alpha": [ ... ],
+  "glow": [ ... ]
 }
 ```
 
 - **`offset`**: Position offset animation, organized into three optional axis arrays: `x`, `y`, `z`
 - **`rotation`**: Rotation animation, organized into three optional axis arrays: `yaw`, `pitch`, `roll`
 - **`scale`**: Scale animation, organized into three optional axis arrays: `x`, `y`, `z`. Terms are **delta factors** added to a base of 1.0 (e.g. `sin(A=0.1)` oscillates between 0.9 and 1.1). Omitted axes default to 1.0 (no scaling). Scale animation is **multiplicative** — in a child group, it compounds with the parent's scale: final scale = parent scale × child scale × animated scale.
+- **`alpha`**: Opacity animation (**scalar channel**). Omitted → 1.0 (fully opaque); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means fully transparent (layer invisible), 1 means fully opaque. Use it for fades and overall brightness pulses.
+- **`glow`**: Self-illumination intensity animation (**scalar channel**). Omitted → 1.0 (full glow); when terms are present, the result is `clamp(sum(terms), 0, 1)` — 0 means no glow (dark), 1 means full glow. When the group's `glowing` is `true` (default), this value directly becomes the primitive's own brightness; when `glowing=false` the brightness follows ambient light and the glow channel has no effect.
 
-Each axis value is an **array of animation term objects**. Multiple terms on the same axis are **summed together** (linear superposition), so you can combine multiple functions to produce complex motion. The entire animation block, each group, and each axis are all optional — omit what you don't need.
+Each axis value is an **array of animation term objects**; `alpha`/`glow` are scalar channels whose values are flat term arrays. Multiple terms on the same channel are **summed together** (linear superposition), so you can combine multiple functions to produce complex motion. The entire animation block, each group, and each channel are all optional — omit what you don't need.
 
 ### Units
 
@@ -311,6 +315,8 @@ Each axis value is an **array of animation term objects**. Multiple terms on the
 | `offset` | `x`, `y`, `z` | **Blocks** (meters) |
 | `rotation` | `yaw`, `pitch`, `roll` | **Degrees** |
 | `scale` | `x`, `y`, `z` | **Delta factor** (1.0 = no change) |
+| `alpha` | — (scalar) | **Factor** (1.0 = opaque, range [0, 1]) |
+| `glow` | — (scalar) | **Factor** (1.0 = full glow, range [0, 1]) |
 
 ### Animation Functions
 

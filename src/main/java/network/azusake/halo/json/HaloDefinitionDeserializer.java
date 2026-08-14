@@ -239,8 +239,10 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         List<AnimationTerm> sx = parseAnimationTerms(animObj, "scale", "x");
         List<AnimationTerm> sy = parseAnimationTerms(animObj, "scale", "y");
         List<AnimationTerm> sz = parseAnimationTerms(animObj, "scale", "z");
+        List<AnimationTerm> alphaTerms = parseScalarTerms(animObj, "alpha");
+        List<AnimationTerm> glowTerms = parseScalarTerms(animObj, "glow");
 
-        LayerAnimation result = new LayerAnimation(ox, oy, oz, ry, rp, rr, sx, sy, sz);
+        LayerAnimation result = new LayerAnimation(ox, oy, oz, ry, rp, rr, sx, sy, sz, alphaTerms, glowTerms);
         return result.isEmpty() ? Optional.empty() : Optional.of(result);
     }
 
@@ -256,6 +258,24 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         JsonObject groupObj = groupElem.getAsJsonObject();
         if (!groupObj.has(axis)) return List.of();
         JsonArray arr = groupObj.getAsJsonArray(axis);
+        return parseTermArray(arr);
+    }
+
+    /**
+     * Extract a list of {@link AnimationTerm}s from a flat scalar channel:
+     * {@code parent.key → [...]} (used by {@code alpha} and {@code glow}).
+     * Returns an empty list if the key is missing, null, or empty.
+     */
+    private List<AnimationTerm> parseScalarTerms(JsonObject parent, String key) {
+        if (!parent.has(key) || parent.get(key).isJsonNull()) return List.of();
+        return parseTermArray(parent.getAsJsonArray(key));
+    }
+
+    /**
+     * Parse a JSON array of animation term objects into {@link AnimationTerm}s.
+     * Term syntax is shared by axis channels and scalar channels.
+     */
+    private List<AnimationTerm> parseTermArray(JsonArray arr) {
         if (arr.isEmpty()) return List.of();
 
         List<AnimationTerm> terms = new ArrayList<>(arr.size());
@@ -348,24 +368,14 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         return groups;
     }
 
-    // --- Glow & Pulse (unchanged) ---
+    // --- Glow ---
 
     private GlowLayer parseGlowLayer(JsonObject obj) {
         Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
         Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
         int color = obj.get("color").getAsInt();
         float alpha = obj.get("alpha").getAsFloat();
-        PulseConfig pulse = obj.has("pulse") && !obj.get("pulse").isJsonNull()
-            ? parsePulse(obj.getAsJsonObject("pulse"))
-            : null;
-        return new GlowLayer(texture, size, color, alpha, pulse);
-    }
-
-    private PulseConfig parsePulse(JsonObject obj) {
-        float amplitude = obj.get("amplitude").getAsFloat();
-        float frequency = obj.get("frequency").getAsFloat();
-        float phase = obj.has("phase") ? obj.get("phase").getAsFloat() : 0f;
-        return new PulseConfig(amplitude, frequency, phase);
+        return new GlowLayer(texture, size, color, alpha);
     }
 
     // --- Positioning & Damping (unchanged) ---

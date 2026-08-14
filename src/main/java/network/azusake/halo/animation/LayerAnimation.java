@@ -8,14 +8,18 @@ import java.util.List;
 
 /**
  * Per-layer visual animation — a collection of {@link AnimationTerm}s
- * organised by axis (offset: x/y/z, rotation: yaw/pitch/roll, scale: x/y/z).
+ * organised by axis (offset: x/y/z, rotation: yaw/pitch/roll, scale: x/y/z)
+ * plus two scalar channels (alpha, glow).
  *
  * <p>All terms on a given axis are summed (linear superposition).
  * Offset terms produce values in <b>blocks</b>; rotation terms produce
  * values in <b>degrees</b> (converted to radians when building the
  * quaternion in {@link #evaluateRotation(double)}); scale terms produce
  * <b>delta factors</b> added to a base of 1.0 (e.g. {@code sin(A=0.1)}
- * oscillates between 0.9 and 1.1).</p>
+ * oscillates between 0.9 and 1.1); alpha and glow are scalar channels whose
+ * terms are summed directly and clamped to {@code [0, 1]} — an empty channel
+ * evaluates to 1.0 (fully opaque / full glow), while a populated channel
+ * evaluates to {@code clamp(sum(terms), 0, 1)}.</p>
  *
  * <p>This animation is <em>purely visual</em> — it is applied as extra
  * matrix-stack transforms during rendering and does not affect the
@@ -30,6 +34,8 @@ import java.util.List;
  * @param scaleX        terms driving the local-X scale factor (delta from 1.0)
  * @param scaleY        terms driving the local-Y scale factor (delta from 1.0)
  * @param scaleZ        terms driving the local-Z scale factor (delta from 1.0)
+ * @param alpha         terms driving the layer opacity (delta from 1.0, clamped to [0, 1])
+ * @param glow          terms driving the glow intensity (delta from 1.0, clamped to [0, 1])
  */
 public record LayerAnimation(
     List<AnimationTerm> offsetX,
@@ -40,13 +46,16 @@ public record LayerAnimation(
     List<AnimationTerm> rotationRoll,
     List<AnimationTerm> scaleX,
     List<AnimationTerm> scaleY,
-    List<AnimationTerm> scaleZ
+    List<AnimationTerm> scaleZ,
+    List<AnimationTerm> alpha,
+    List<AnimationTerm> glow
 ) {
-    /** Sentinel instance with no terms on any axis. */
+    /** Sentinel instance with no terms on any channel. */
     public static final LayerAnimation EMPTY = new LayerAnimation(
         List.of(), List.of(), List.of(),
         List.of(), List.of(), List.of(),
-        List.of(), List.of(), List.of());
+        List.of(), List.of(), List.of(),
+        List.of(), List.of());
 
     /**
      * Create a LayerAnimation with defensive copies of each list.
@@ -61,6 +70,8 @@ public record LayerAnimation(
         scaleX = List.copyOf(scaleX);
         scaleY = List.copyOf(scaleY);
         scaleZ = List.copyOf(scaleZ);
+        alpha = List.copyOf(alpha);
+        glow = List.copyOf(glow);
     }
 
     // ------------------------------------------------------------------
@@ -123,18 +134,48 @@ public record LayerAnimation(
         };
     }
 
+    /**
+     * Evaluate the animated layer opacity at time {@code t}.
+     * An empty alpha channel evaluates to 1.0 (fully opaque); otherwise the
+     * result is {@code clamp(sum(terms), 0, 1)} — 0 means fully transparent
+     * (layer invisible), 1 means fully opaque.
+     *
+     * @param t wall-clock time in seconds
+     * @return layer opacity factor in {@code [0, 1]}
+     */
+    public float evaluateAlpha(double t) {
+        if (alpha.isEmpty()) return 1.0f;
+        return (float) clamp01(sumTerms(alpha, t));
+    }
+
+    /**
+     * Evaluate the animated glow intensity at time {@code t}.
+     * An empty glow channel evaluates to 1.0 (full glow); otherwise the
+     * result is {@code clamp(sum(terms), 0, 1)} — 0 means no glow,
+     * 1 means full glow. When the group is {@code glowing} this drives the
+     * primitive's own brightness; when not {@code glowing} it has no effect.
+     *
+     * @param t wall-clock time in seconds
+     * @return glow intensity factor in {@code [0, 1]}
+     */
+    public float evaluateGlow(double t) {
+        if (glow.isEmpty()) return 1.0f;
+        return (float) clamp01(sumTerms(glow, t));
+    }
+
     // ------------------------------------------------------------------
     // Queries
     // ------------------------------------------------------------------
 
     /**
-     * Returns {@code true} if no axis has any animation terms.
+     * Returns {@code true} if no channel has any animation terms.
      * Use this as a fast-path skip at render time.
      */
     public boolean isEmpty() {
         return offsetX.isEmpty() && offsetY.isEmpty() && offsetZ.isEmpty()
             && rotationYaw.isEmpty() && rotationPitch.isEmpty() && rotationRoll.isEmpty()
-            && scaleX.isEmpty() && scaleY.isEmpty() && scaleZ.isEmpty();
+            && scaleX.isEmpty() && scaleY.isEmpty() && scaleZ.isEmpty()
+            && alpha.isEmpty() && glow.isEmpty();
     }
 
     // ------------------------------------------------------------------
@@ -147,5 +188,9 @@ public record LayerAnimation(
             sum += term.evaluate(t);
         }
         return sum;
+    }
+
+    private static double clamp01(double value) {
+        return Math.max(0.0, Math.min(1.0, value));
     }
 }

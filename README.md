@@ -61,7 +61,7 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 ## Planned Features
 
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
-- [x] **More Animations**: Add pulse glow, scale animations, and "intro animations"
+- [x] **More Animations**: Animation-driven `alpha` (opacity) and `glow` intensity channels, scale animations, and "intro animations"
 - [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files)
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality

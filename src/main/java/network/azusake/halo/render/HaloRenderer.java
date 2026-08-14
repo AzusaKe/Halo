@@ -15,7 +15,6 @@ import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
 import network.azusake.halo.shape.GlowLayer;
 import network.azusake.halo.shape.HaloGroup;
-import network.azusake.halo.shape.PulseConfig;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
@@ -441,21 +440,36 @@ public final class HaloRenderer {
                 }
             }
 
+            // Layer alpha + glow are evaluated even during transitions so the
+            // opacity/glow animation keeps driving the layer (animTime is frozen
+            // at 0 while a transition is active); offset/rotation/scale remain
+            // blocked until the transition finishes.
+            float layerAlpha = 1.0f;
+            float animatedGlow = 1.0f;
+            if (group.animation().isPresent()) {
+                var layerAnim = group.animation().get();
+                if (!layerAnim.isEmpty()) {
+                    layerAlpha = layerAnim.evaluateAlpha(animTime);
+                    animatedGlow = layerAnim.evaluateGlow(animTime);
+                }
+            }
+            float finalAlpha = layerAlpha * transitionOpacity;
+
             // Apply opacity if needed
             boolean opacityModified = false;
-            if (transitionOpacity < 1.0f) {
+            if (finalAlpha < 1.0f) {
                 RenderSystem.enableBlend();
                 RenderSystem.defaultBlendFunc();
-                RenderSystem.setShaderColor(1f, 1f, 1f, transitionOpacity);
+                RenderSystem.setShaderColor(1f, 1f, 1f, finalAlpha);
                 opacityModified = true;
             }
 
             // Draw all primitives in this group
             for (HaloPrimitive primitive : group.primitives()) {
                 if (primitive instanceof BillboardPrimitive bp) {
-                    renderBillboard(bp, matrices, group.glowing(), brightness);
+                    renderBillboard(bp, matrices, group.glowing(), brightness, animatedGlow);
                 } else if (primitive instanceof RingPrimitive rp) {
-                    renderRing(rp, matrices, group.glowing(), brightness);
+                    renderRing(rp, matrices, group.glowing(), brightness, animatedGlow);
                 }
             }
 
@@ -500,7 +514,7 @@ public final class HaloRenderer {
      * The layer's accumulated matrix-stack transform provides the
      * world-space placement — no per-quad facing rotation is applied.
      */
-    private void renderBillboard(BillboardPrimitive billboard, MatrixStack matrices, boolean glowing, float brightness) {
+    private void renderBillboard(BillboardPrimitive billboard, MatrixStack matrices, boolean glowing, float brightness, float animatedGlow) {
         float hw = billboard.size().x / 2.0f;  // half-width (X)
         float hd = billboard.size().y / 2.0f;  // half-depth (Z) — size.y maps to Z axis
 
@@ -515,6 +529,10 @@ public final class HaloRenderer {
         BufferBuilder builder = tessellator.getBuffer();
 
         boolean hasTexture = bindTextureSafe(billboard.texture());
+
+        // Self-illuminating primitives are lit by the animation.glow channel;
+        // otherwise brightness follows the ambient light at the halo position.
+        float brightnessFactor = glowing ? animatedGlow : brightness;
 
         // Billboard quads are translucent — disable face culling
         RenderSystem.disableCull();
@@ -533,24 +551,13 @@ public final class HaloRenderer {
             // XZ plane at Y=0, normal = -Y (faces downward toward entity head).
             // Vertex winding from BELOW (-Y) is CCW → front face faces -Y:
             // (-hw, 0, -hd)  →  (+hw, 0, -hd)  →  (+hw, 0, +hd)  →  (-hw, 0, +hd)
-            if (glowing) {
-                // Original fullbright path — unchanged from before glowing toggle was added.
-                // Always renders at max brightness regardless of shader packs.
-                RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-                builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
-                builder.vertex(positionMatrix, -hw, 0.0f, -hd).texture(0.0f, 1.0f).next();
-                builder.vertex(positionMatrix,  hw, 0.0f, -hd).texture(1.0f, 1.0f).next();
-                builder.vertex(positionMatrix,  hw, 0.0f, +hd).texture(1.0f, 0.0f).next();
-                builder.vertex(positionMatrix, -hw, 0.0f, +hd).texture(0.0f, 0.0f).next();
-            } else {
-                // Light-responsive: tint texture by ambient light level at halo position
-                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-                builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-                builder.vertex(positionMatrix, -hw, 0.0f, -hd).texture(0.0f, 1.0f).color(brightness, brightness, brightness, 1f).next();
-                builder.vertex(positionMatrix,  hw, 0.0f, -hd).texture(1.0f, 1.0f).color(brightness, brightness, brightness, 1f).next();
-                builder.vertex(positionMatrix,  hw, 0.0f, +hd).texture(1.0f, 0.0f).color(brightness, brightness, brightness, 1f).next();
-                builder.vertex(positionMatrix, -hw, 0.0f, +hd).texture(0.0f, 0.0f).color(brightness, brightness, brightness, 1f).next();
-            }
+            // Tint texture by the effective brightness factor (fullbright at 1.0)
+            RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+            builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+            builder.vertex(positionMatrix, -hw, 0.0f, -hd).texture(0.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            builder.vertex(positionMatrix,  hw, 0.0f, -hd).texture(1.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            builder.vertex(positionMatrix,  hw, 0.0f, +hd).texture(1.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            builder.vertex(positionMatrix, -hw, 0.0f, +hd).texture(0.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
         } else {
             RenderSystem.setShader(GameRenderer::getPositionColorProgram);
             if (DEBUG_RENDERING) {
@@ -560,16 +567,10 @@ public final class HaloRenderer {
                 RenderSystem.defaultBlendFunc();
             }
             builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-            float r, g, b;
-            if (glowing) {
-                r = 1f; g = 1f; b = 1f;
-            } else {
-                r = brightness; g = brightness; b = brightness;
-            }
-            builder.vertex(positionMatrix, -hw, 0.0f, -hd).color(r, g, b, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, -hd).color(r, g, b, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, +hd).color(r, g, b, 1.0f).next();
-            builder.vertex(positionMatrix, -hw, 0.0f, +hd).color(r, g, b, 1.0f).next();
+            builder.vertex(positionMatrix, -hw, 0.0f, -hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.vertex(positionMatrix,  hw, 0.0f, -hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.vertex(positionMatrix,  hw, 0.0f, +hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.vertex(positionMatrix, -hw, 0.0f, +hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
         }
 
         tessellator.draw();
@@ -612,7 +613,7 @@ public final class HaloRenderer {
      * sides, culling is disabled so the texture is visible from both
      * sides.</p>
      */
-    private void renderRing(RingPrimitive ring, MatrixStack matrices, boolean glowing, float brightness) {
+    private void renderRing(RingPrimitive ring, MatrixStack matrices, boolean glowing, float brightness, float animatedGlow) {
         float radius = ring.size().x;
         float width  = ring.size().y;
         int segments = Math.max(3, ring.segments()); // minimum 3 for a visible shape
@@ -623,6 +624,10 @@ public final class HaloRenderer {
         }
 
         float halfW = width / 2.0f;
+
+        // Self-illuminating primitives are lit by the animation.glow channel;
+        // otherwise brightness follows the ambient light at the halo position.
+        float brightnessFactor = glowing ? animatedGlow : brightness;
 
         Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
 
@@ -659,8 +664,8 @@ public final class HaloRenderer {
             //   tri A: top₀, top₁, bottom₀
             //   tri B: bottom₀, top₁, bottom₁
             if (glowing) {
-                RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE);
+                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
@@ -672,13 +677,13 @@ public final class HaloRenderer {
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                     float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).next();
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
                 }
                 tessellator.draw();
             } else {
@@ -736,8 +741,8 @@ public final class HaloRenderer {
             //   tri A: bottom₀, bottom₁, top₀
             //   tri B: top₀, bottom₁, top₁
             if (glowing) {
-                RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE);
+                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
@@ -749,13 +754,13 @@ public final class HaloRenderer {
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                     float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).next();
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
                 }
                 tessellator.draw();
             } else {
@@ -803,11 +808,7 @@ public final class HaloRenderer {
             }
 
             float r, g, b;
-            if (glowing) {
-                r = 1f; g = 1f; b = 1f;
-            } else {
-                r = brightness; g = brightness; b = brightness;
-            }
+            r = g = b = brightnessFactor;
 
             // Outer surface (CCW)
             builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
@@ -877,15 +878,10 @@ public final class HaloRenderer {
         float g = ((color >> 8) & 0xFF) / 255.0f;
         float b = (color & 0xFF) / 255.0f;
 
-        // Pulsed alpha
-        float alpha = glow.alpha();
-        PulseConfig pulse = glow.pulse();
-        if (pulse != null) {
-            double t = (System.currentTimeMillis() / 1000.0);
-            alpha += pulse.amplitude()
-                * (float) Math.sin(2.0 * Math.PI * pulse.frequency() * t + pulse.phase());
-            alpha = Math.max(0.0f, Math.min(1.0f, alpha));
-        }
+        // The additive glow overlay keeps its own static base alpha; the
+        // layer's finalAlpha is applied via the GL shader colour, so it
+        // multiplies in on top of this vertex alpha.
+        float alpha = Math.max(0.0f, Math.min(1.0f, glow.alpha()));
 
         if (DEBUG_RENDERING) {
             RenderSystem.disableDepthTest();
