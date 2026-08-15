@@ -3,8 +3,11 @@ package network.azusake.halo;
 import network.azusake.halo.client.FabricHaloCommandInterceptor;
 import network.azusake.halo.client.HaloLocalManager;
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.api.AnchorProviderSetupEvent;
+import network.azusake.halo.api.EntityAnchorProviderRegistry;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
+import network.azusake.halo.physics.PlayerAnchorProvider;
 import network.azusake.halo.render.HaloClientManager;
 import network.azusake.halo.render.HaloRenderListener;
 import net.fabricmc.api.ClientModInitializer;
@@ -15,6 +18,7 @@ import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +43,13 @@ public class HaloModClient implements ClientModInitializer {
 
         // Register entity-anchor profile loader on the client side
         network.azusake.halo.json.EntityAnchorLoader.registerClientResources();
+
+        // Register the default anchor providers, then let other mods register
+        // their own providers via the setup event.
+        EntityAnchorProviderRegistry anchorRegistry = EntityAnchorProviderRegistry.getInstance();
+        anchorRegistry.register(PlayerEntity.class, PlayerAnchorProvider.getInstance());
+        AnchorProviderSetupEvent.EVENT.invoker().onSetup(anchorRegistry);
+        LOGGER.info("Default anchor providers registered; AnchorProviderSetupEvent fired");
 
         // Register the halo renderer with Fabric's world-render pipeline
         HaloRenderListener.register();

@@ -95,6 +95,81 @@ static String handle(String command)
 
 ---
 
+## 自定义头部锚点（Custom Head Anchor）
+
+Halo 的锚点计算已经抽象为「头部锚点 Provider」接口，其他模组可以在客户端初始化时注册自己的 Provider，接管（或覆盖）任意实体的头部锚点计算，从而配合自定义渲染/骨骼/动画系统。
+
+### 数据流与调用契约
+
+- `EntityAnchorProvider.resolve(LivingEntity, float tickDelta)` 由 Halo 在**渲染线程每帧**调用一次（非每 tick），传入当前渲染帧的插值进度 `tickDelta`（0~1，低帧率时可能 >1）。
+- Provider 负责在上一/当前 tick 状态之间自行插值，并返回完整的 **6 自由度** `HeadAnchor`：
+  - `Vec3d headCenter`：头部中心世界坐标（3 自由度）
+  - `float yaw` / `float pitch` / `float roll`：头部朝向（3 自由度，度，MC 约定）
+- 模组只需要提供**头部**的 6 自由度；光环自身的位置阻尼、offset、旋转模式等仍由 Halo 内部计算。
+
+### 注册方式
+
+在客户端初始化中监听 `AnchorProviderSetupEvent`（Halo 会在注册默认 Provider 之后触发）：
+
+```java
+import network.azusake.halo.api.AnchorProviderSetupEvent;
+import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.api.EntityAnchorProvider;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.math.Vec3d;
+
+public class MyModClient implements ClientModInitializer {
+    @Override
+    public void onInitializeClient() {
+        AnchorProviderSetupEvent.EVENT.register(registry ->
+            registry.register(LivingEntity.class, new MyHeadProvider()));
+    }
+}
+
+final class MyHeadProvider implements EntityAnchorProvider {
+    @Override
+    public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
+        Vec3d headCenter = ...; // 自定义头部中心（世界坐标）
+        float yaw = ...;        // 头部朝向（度）
+        float pitch = ...;
+        float roll = ...;       // 纯动画模组可自由提供 roll，无需摄像机
+        return new HeadAnchor(headCenter, yaw, pitch, roll);
+    }
+}
+```
+
+### 注册表语义（`EntityAnchorProviderRegistry`）
+
+| 场景 | 做法 | 说明 |
+|------|------|------|
+| 特定实体种类 | `register(ZombieEntity.class, provider)` | 精确类优先；注册父类会影响所有子类 |
+| 特定个体 | `register(uuid, provider)` | UUID 命中优先于任何类型注册 |
+| 任意谓词（NBT/队伍/动态状态） | 委托模式 | 注册前抓取旧 Provider，未命中时委托 |
+
+委托模式示例（只改带特定 NBT 标记的僵尸）：
+
+```java
+EntityAnchorProvider prev = registry.getProvider(ZombieEntity.class); // 注册前抓取，永不 null
+registry.register(ZombieEntity.class, (entity, tickDelta) ->
+    entity.getNbt().getBoolean("my:special_head")
+        ? myAnchor(entity, tickDelta)
+        : prev.resolve(entity, tickDelta));
+```
+
+查找顺序：`UUID → 精确类 → 继承链向上 → FallbackAnchorProvider`。类/UUID 各自「最后注册胜出」。
+
+### 默认行为
+
+- 玩家使用 `PlayerAnchorProvider`（基于 `data/halo/entity_anchors/player.json`）；其他实体使用 `FallbackAnchorProvider`（高度 × 0.85 启发式）。
+- 香草实体头部没有 roll；本地玩家的头部跟随摄像机，因此其 roll 继承真实摄像机的 roll（1.20.1 无 `Camera.getRoll()`，由 `Camera.getRotation()` 剥离 yaw/pitch 后恢复），光环头部坐标系随摄像机 roll 刚体倾斜。
+
+### 6 自由度旋转约定
+
+- 角度单位均为度，roll 符号遵循 MC 摄像机 roll 约定（等价于 `rotationYXZ(-yaw, pitch, roll)`，即 MC 摄像机四元数的 Z 分量）。
+- `roll=0` 时行为与旧版 5DOF 完全一致。
+
+---
+
 ## 网络通道
 
 | 通道 | 方向 | 用途 |

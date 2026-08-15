@@ -3,11 +3,17 @@ package network.azusake.halo.physics;
 import network.azusake.halo.data.EntityAnchorProfile;
 import network.azusake.halo.data.PoseAnchor;
 import network.azusake.halo.json.EntityAnchorLoader;
+import network.azusake.halo.api.EntityAnchorProvider;
+import network.azusake.halo.api.HeadAnchor;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.Camera;
 import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Player-specific {@link EntityAnchorProvider} that resolves the world-space head
@@ -21,7 +27,7 @@ import net.minecraft.util.math.Vec3d;
  *   <li>Compute world-space pivot:
  *       {@code pivotWorld = interpolatedFootPos + pose.pivot()}</li>
  *   <li>Build a head orientation basis (right, headUp, forward) from interpolated
- *       head yaw and pitch.</li>
+ *       head yaw, pitch and roll via {@link HeadFrameMath}.</li>
  *   <li>Project the {@code headCenterVector} through this basis to get the
  *       world-space head center:
  *       {@code headCenter = pivotWorld + right * hcv.x + headUp * hcv.y + forward * hcv.z}</li>
@@ -32,6 +38,8 @@ import net.minecraft.util.math.Vec3d;
  * equivalent to what {@link FallbackAnchorProvider} does for non-player entities.</p>
  */
 public final class PlayerAnchorProvider implements EntityAnchorProvider {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(PlayerAnchorProvider.class);
 
     private static final Identifier PLAYER_ID = new Identifier("minecraft", "player");
 
@@ -53,6 +61,7 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
 
         float yaw = getInterpolatedHeadYaw(entity, tickDelta);
         float pitch = entity.prevPitch + (entity.getPitch() - entity.prevPitch) * tickDelta;
+        float roll = getHeadRoll(entity);
 
         // 2. Pose key → PoseAnchor
         String poseKey = resolvePoseKey(entity);
@@ -61,33 +70,43 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
         // 3. World-space pivot
         Vec3d pivotWorld = footPos.add(pose.pivot());
 
-        // 4. Build head orientation basis (same convention as computeHeadRelativeOffset)
-        float yawRad = (float) Math.toRadians(yaw);
-        float pitchRad = (float) Math.toRadians(pitch);
-
-        Vec3d forward = new Vec3d(
-            -Math.sin(yawRad) * Math.cos(pitchRad),
-            -Math.sin(pitchRad),
-            Math.cos(yawRad) * Math.cos(pitchRad)
-        ).normalize();
-
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        Vec3d right;
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-            right = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
-        } else {
-            right = forward.crossProduct(worldUp).normalize();
-        }
-        Vec3d headUp = right.crossProduct(forward).normalize();
+        // 4. Head orientation basis (shared with AnchorFrameCalculator)
+        HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yaw, pitch, roll);
 
         // 5. Project head_center_vector through basis → world-space head center
         Vec3d hcv = pose.headCenterVector();
-        Vec3d offset = right.multiply(hcv.x)
-            .add(headUp.multiply(hcv.y))
-            .add(forward.multiply(hcv.z));
+        Vec3d offset = frame.right().multiply(hcv.x)
+            .add(frame.headUp().multiply(hcv.y))
+            .add(frame.forward().multiply(hcv.z));
         Vec3d headCenter = pivotWorld.add(offset);
 
-        return new HeadAnchor(headCenter, yaw, pitch);
+        return new HeadAnchor(headCenter, yaw, pitch, roll);
+    }
+
+    /**
+     * Head roll for this entity this frame.  Vanilla entity heads never roll,
+     * but the local player's head follows the camera, so its roll is inherited
+     * from the actual camera rotation.  The 1.20.1 {@link Camera} exposes no
+     * {@code getRoll()}; a roll (when present, e.g. from a camera mod) is folded
+     * into {@link Camera#getRotation()}, so it is recovered by stripping the
+     * camera's own yaw/pitch component.  Other entities (including remote
+     * players) always get 0.
+     */
+    private static float getHeadRoll(LivingEntity entity) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.gameRenderer == null || entity != client.player) {
+            return 0f;
+        }
+        Camera camera = client.gameRenderer.getCamera();
+        if (camera == null) {
+            return 0f;
+        }
+        float roll = HeadFrameMath.recoverRollDeg(camera.getYaw(), camera.getPitch(), camera.getRotation());
+        if (Math.abs(roll) > 0.001f) {
+            LOGGER.debug("Local player head roll recovered from camera: {} deg (camera yaw={}, pitch={})",
+                roll, camera.getYaw(), camera.getPitch());
+        }
+        return roll;
     }
 
     // ------------------------------------------------------------------

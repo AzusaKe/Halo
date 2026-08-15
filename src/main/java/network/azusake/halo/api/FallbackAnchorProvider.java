@@ -1,18 +1,17 @@
-package network.azusake.halo.physics;
+package network.azusake.halo.api;
 
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Vec3d;
 
 /**
- * Fallback {@link EntityAnchorProvider} for non-player entities.
+ * Fallback {@link EntityAnchorProvider} for entities without a dedicated
+ * provider.
  *
- * <p>Uses the original {@code height * 0.85} heuristic to estimate the
- * head centre.  This preserves the Phase 2 behaviour for all entities
- * that do not yet have a dedicated {@code entity_anchors/*.json} profile.</p>
- *
- * <p>Future phases will add JSON profiles for common entity types
- * (cow, pig, chicken, creeper, etc.), after which this fallback only
- * applies to unrecognized / modded entities.</p>
+ * <p>Uses the original {@code height * 0.85} heuristic to estimate the head
+ * centre, preserving the pre-registry behaviour for all entities that have no
+ * dedicated {@code entity_anchors/*.json} profile and no registered provider.
+ * Head orientation is yaw/pitch from the entity and roll is always 0 (vanilla
+ * entity heads never roll).</p>
  */
 public final class FallbackAnchorProvider implements EntityAnchorProvider {
 
@@ -44,6 +43,6 @@ public final class FallbackAnchorProvider implements EntityAnchorProvider {
 
         float pitch = entity.prevPitch + (entity.getPitch() - entity.prevPitch) * tickDelta;
 
-        return new HeadAnchor(headCenter, yaw, pitch);
+        return new HeadAnchor(headCenter, yaw, pitch, 0f);
     }
 }

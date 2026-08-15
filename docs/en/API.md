@@ -96,6 +96,99 @@ a warning; unknown keys are ignored (backwards compatible).
 
 ---
 
+## Custom Head Anchor
+
+Halo's anchor computation is abstracted behind a head-anchor provider
+interface. Other mods can register their own providers during client
+initialisation to take over (or override) the head anchor of any entity, e.g.
+to match a custom renderer / skeletal animation system.
+
+### Data flow & call contract
+
+- `EntityAnchorProvider.resolve(LivingEntity, float tickDelta)` is called by
+  Halo **once per render frame on the render thread** (not per tick). It
+  receives the partial-tick progress `tickDelta` (0–1; may exceed 1 at low
+  frame rates).
+- The provider is responsible for interpolating between the previous and
+  current tick state and returns a full **6-DOF** `HeadAnchor`:
+  - `Vec3d headCenter` — head center in world coordinates (3 DOF)
+  - `float yaw` / `float pitch` / `float roll` — head orientation (3 DOF,
+    degrees, MC convention)
+- Mods only provide the **head**'s 6 DOF; Halo still computes the halo's own
+  position damping, offset and orientation modes internally.
+
+### Registration
+
+Listen to `AnchorProviderSetupEvent` (fired by Halo after the default
+providers are registered):
+
+```java
+import network.azusake.halo.api.AnchorProviderSetupEvent;
+import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.api.EntityAnchorProvider;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.math.Vec3d;
+
+public class MyModClient implements ClientModInitializer {
+    @Override
+    public void onInitializeClient() {
+        AnchorProviderSetupEvent.EVENT.register(registry ->
+            registry.register(LivingEntity.class, new MyHeadProvider()));
+    }
+}
+
+final class MyHeadProvider implements EntityAnchorProvider {
+    @Override
+    public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
+        Vec3d headCenter = ...; // custom head center (world coordinates)
+        float yaw = ...;        // head orientation (degrees)
+        float pitch = ...;
+        float roll = ...;       // pure-animation mods may supply roll freely
+        return new HeadAnchor(headCenter, yaw, pitch, roll);
+    }
+}
+```
+
+### Registry semantics (`EntityAnchorProviderRegistry`)
+
+| Scenario | How | Notes |
+|----------|-----|-------|
+| Specific entity type | `register(ZombieEntity.class, provider)` | Exact class wins; registering a superclass affects all subclasses |
+| Specific individual | `register(uuid, provider)` | UUID hit outranks any class registration |
+| Arbitrary predicate (NBT/team/state) | Delegation pattern | Capture the old provider before registering, delegate on non-match |
+
+Delegation example (zombies carrying a specific NBT flag only):
+
+```java
+EntityAnchorProvider prev = registry.getProvider(ZombieEntity.class); // captured before registering, never null
+registry.register(ZombieEntity.class, (entity, tickDelta) ->
+    entity.getNbt().getBoolean("my:special_head")
+        ? myAnchor(entity, tickDelta)
+        : prev.resolve(entity, tickDelta));
+```
+
+Lookup order: `UUID → exact class → superclass chain → FallbackAnchorProvider`.
+For both class and UUID keys, the last registration wins.
+
+### Default behaviour
+
+- Players use `PlayerAnchorProvider` (driven by
+  `data/halo/entity_anchors/player.json`); other entities use
+  `FallbackAnchorProvider` (height × 0.85 heuristic).
+- Vanilla entity heads have no roll; the local player's head follows the
+  camera, so its roll is inherited from the real camera (in 1.20.1 there is
+  no `Camera.getRoll()`; the roll is recovered from `Camera.getRotation()`)
+  and the halo head frame tilts rigidly with it.
+
+### 6-DOF rotation convention
+
+- Angles are in degrees; the roll sign follows MC's camera-roll convention
+  (equivalent to `rotationYXZ(-yaw, pitch, roll)`, i.e. the Z component of
+  Minecraft's camera quaternion).
+- `roll=0` behaves identically to the old 5-DOF pipeline.
+
+---
+
 ## Network Channels
 
 | Channel | Direction | Purpose |

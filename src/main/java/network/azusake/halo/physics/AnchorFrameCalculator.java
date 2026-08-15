@@ -1,6 +1,9 @@
 package network.azusake.halo.physics;
 
 import network.azusake.halo.config.HaloConfig;
+import network.azusake.halo.api.EntityAnchorProvider;
+import network.azusake.halo.api.EntityAnchorProviderRegistry;
+import network.azusake.halo.api.HeadAnchor;
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
@@ -8,7 +11,6 @@ import network.azusake.halo.data.OrientationMode;
 import network.azusake.halo.manager.HaloManager;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Quaternionf;
 
@@ -62,10 +64,6 @@ public final class AnchorFrameCalculator {
     // ---- per-instance SYNC relative orientation (captured on first frame) ----
     private final Map<UUID, Quaternionf> syncRelativeStates = new HashMap<>();
 
-    // ---- per-instance per-entity-type anchor providers ----
-    private final PlayerAnchorProvider playerProvider = PlayerAnchorProvider.getInstance();
-    private final FallbackAnchorProvider fallbackProvider = FallbackAnchorProvider.getInstance();
-
     private AnchorFrameCalculator() { /* singleton */ }
 
     public static AnchorFrameCalculator getInstance() {
@@ -97,19 +95,17 @@ public final class AnchorFrameCalculator {
     ) {
         UUID uuid = instance.getEntityUuid();
 
-        // 1. Pose-aware head anchor via provider (player vs fallback)
-        EntityAnchorProvider provider = (entity instanceof PlayerEntity)
-            ? playerProvider
-            : fallbackProvider;
+        // 1. Pose-aware head anchor via the provider registry
+        EntityAnchorProvider provider = EntityAnchorProviderRegistry.getInstance().getProvider(entity);
         HeadAnchor ha = provider.resolve(entity, tickDelta);
         Vec3d headAnchor = ha.headCenter();
         float yaw = ha.yaw();
         float pitch = ha.pitch();
-        float yawRad = (float) Math.toRadians(yaw);
+        float roll = ha.roll();
 
         // 2. Head-relative offset → world-space target position
         Vec3d offset = getEffectiveOffset(definition);
-        Vec3d headRelOffset = computeHeadRelativeOffset(yaw, pitch, offset);
+        Vec3d headRelOffset = computeHeadRelativeOffset(yaw, pitch, roll, offset);
         Vec3d targetPos = headAnchor.add(headRelOffset);
 
         // 3. Merge damping config
@@ -148,22 +144,11 @@ public final class AnchorFrameCalculator {
         Vec3d toHead = headAnchor.subtract(haloWorldPos).normalize();
 
         // 6. Head frame vectors (world space): forward, right, headUp
-        //    Reuse the same computation as computeHeadRelativeOffset for consistency.
-        float pitchRad = (float) Math.toRadians(pitch);
-        Vec3d forward = new Vec3d(
-            -Math.sin(yawRad) * Math.cos(pitchRad),
-            -Math.sin(pitchRad),
-            Math.cos(yawRad) * Math.cos(pitchRad)
-        ).normalize();
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        Vec3d right;
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-            // Match computeHeadRelativeOffset fallback — see comment there.
-            right = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
-        } else {
-            right = forward.crossProduct(worldUp).normalize();
-        }
-        Vec3d headUp = right.crossProduct(forward).normalize();
+        //    Same roll-aware computation as computeHeadRelativeOffset.
+        HeadFrameMath.HeadFrame headFrame = HeadFrameMath.of(yaw, pitch, roll);
+        Vec3d forward = headFrame.forward();
+        Vec3d right = headFrame.right();
+        Vec3d headUp = headFrame.headUp();
 
         // 7. Look-at orientation: shortest-arc rotation mapping definition -Y → toHead.
         //    This preserves the "up" direction as close to world-up as the
@@ -231,13 +216,11 @@ public final class AnchorFrameCalculator {
                 worldForward = new Vec3d(0, 0, 1);
             }
             case SYNC -> {
-                // Head orientation from Euler angles (no roll component).
-                // rotateY(−yaw) × rotateX(pitch) reproduces Minecraft's
-                // forward = (−sin yaw·cos pitch, −sin pitch, cos yaw·cos pitch).
-                // def +Z → look direction, def +Y → ≈ world‑up.
-                Quaternionf Q_head = new Quaternionf()
-                    .rotateY(-yawRad)
-                    .rotateX(pitchRad);
+                // Head orientation from Euler angles.  rotateY(−yaw) ×
+                // rotateX(pitch) × rotateZ(roll) reproduces Minecraft's
+                // forward = (−sin yaw·cos pitch, −sin pitch, cos yaw·cos pitch)
+                // and matches the roll-aware HeadFrameMath basis.
+                Quaternionf Q_head = buildHeadQuaternion(yaw, pitch, roll);
 
                 // Retrieve or capture the fixed relative rotation.
                 // First frame: Q_halo(0) = Q_syncOffset × Q_LOCKED.
@@ -494,35 +477,32 @@ public final class AnchorFrameCalculator {
         return rtOffset;
     }
 
-    static Vec3d computeHeadRelativeOffset(float yawDeg, float pitchDeg, Vec3d offset) {
+    static Vec3d computeHeadRelativeOffset(float yawDeg, float pitchDeg, float rollDeg, Vec3d offset) {
+        HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yawDeg, pitchDeg, rollDeg);
+        Vec3d behind = frame.forward().multiply(-1);
+
+        return frame.right().multiply(offset.x)
+            .add(frame.headUp().multiply(offset.y))
+            .add(behind.multiply(offset.z));
+    }
+
+    /**
+     * Head orientation quaternion from yaw/pitch/roll (degrees).
+     *
+     * <p>{@code rotateY(−yaw) · rotateX(pitch) · rotateZ(roll)} reproduces
+     * Minecraft's head/camera Euler convention
+     * ({@code Quaternionf.rotationYXZ(−yaw, pitch, roll)}): the local +Z axis
+     * maps to the look direction and +Y to the (possibly rolled) head-up
+     * vector, matching {@link HeadFrameMath}.</p>
+     */
+    static Quaternionf buildHeadQuaternion(float yawDeg, float pitchDeg, float rollDeg) {
         float yawRad = (float) Math.toRadians(yawDeg);
         float pitchRad = (float) Math.toRadians(pitchDeg);
-
-        Vec3d forward = new Vec3d(
-            -Math.sin(yawRad) * Math.cos(pitchRad),
-            -Math.sin(pitchRad),
-            Math.cos(yawRad) * Math.cos(pitchRad)
-        ).normalize();
-
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        Vec3d right;
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-            // When forward is nearly parallel to worldUp, the cross product
-            // degenerates.  Use a fallback that is continuous with the
-            // cross-product result:  forward × worldUp  normalised to
-            // (–cos yaw, 0, –sin yaw) for cos(pitch) > 0 (the MC pitch
-            // range).  Negating keeps headUp from flipping and avoids the
-            // halo jumping from front to back.
-            right = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
-        } else {
-            right = forward.crossProduct(worldUp).normalize();
-        }
-        Vec3d headUp = right.crossProduct(forward).normalize();
-        Vec3d behind = forward.multiply(-1);
-
-        return right.multiply(offset.x)
-            .add(headUp.multiply(offset.y))
-            .add(behind.multiply(offset.z));
+        float rollRad = (float) Math.toRadians(rollDeg);
+        return new Quaternionf()
+            .rotateY(-yawRad)
+            .rotateX(pitchRad)
+            .rotateZ(rollRad);
     }
 
     // ------------------------------------------------------------------
