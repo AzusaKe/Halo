@@ -6,7 +6,10 @@
         "LivingEntityDataMixin",
         "EntityTeleportMixin"
     ],
-    "client": [],
+    "client": [
+        "PlayerEntityRendererHeadCaptureMixin",
+        "ModelPartHeadCaptureMixin"
+    ],
     "injectors": {
         "defaultRequire": 1
     }

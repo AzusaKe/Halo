@@ -8,6 +8,7 @@ import network.azusake.halo.api.EntityAnchorProviderRegistry;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
 import network.azusake.halo.physics.PlayerAnchorProvider;
+import network.azusake.halo.physics.RenderHeadAnchorProvider;
 import network.azusake.halo.render.HaloClientManager;
 import network.azusake.halo.render.HaloRenderListener;
 import net.fabricmc.api.ClientModInitializer;
@@ -55,6 +56,13 @@ public class HaloModClient implements ClientModInitializer {
         // here could race with other mods registering their listeners.
         EntityAnchorProviderRegistry anchorRegistry = EntityAnchorProviderRegistry.getInstance();
         anchorRegistry.register(PlayerEntity.class, PlayerAnchorProvider.getInstance());
+        // Default player provider: the render-head capture provider anchors
+        // the halo to the actually rendered head.  It keeps PlayerAnchorProvider
+        // (backed by entity_anchors/player.json) as its no-capture fallback for
+        // first-person, culled, or renderer-replaced players.  Both providers
+        // are registered so external mods can still override via the setup
+        // event (last-wins).
+        anchorRegistry.register(PlayerEntity.class, new RenderHeadAnchorProvider(PlayerAnchorProvider.getInstance()));
 
         // Fire AnchorProviderSetupEvent exactly once, at the end of the first
         // client tick.  All mod entrypoints have run by then, so listeners
