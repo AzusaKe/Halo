@@ -16,6 +16,17 @@ import net.minecraft.entity.LivingEntity;
  * implementation via {@link EntityAnchorProviderRegistry}, typically inside
  * {@link AnchorProviderSetupEvent}.  A provider decides itself whether the
  * head orientation comes from the camera or from pure animation.</p>
+ *
+ * <p><strong>Frame-ordering contract:</strong> Halo may invoke {@link #resolve}
+ * before the current frame's camera/head orientation has been computed by the
+ * provider's animation or camera system.  The provider must therefore cache
+ * the previous frame's {@link HeadAnchor} and return it whenever the
+ * current-frame input is not ready yet.</p>
+ *
+ * <p><strong>Never return {@code null}</strong> — Halo treats a {@code null}
+ * result as a provider bug, logs an error and falls back to
+ * {@link FallbackAnchorProvider}.  All {@link HeadAnchor} components must be
+ * finite numbers.</p>
  */
 @FunctionalInterface
 public interface EntityAnchorProvider {

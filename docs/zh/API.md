@@ -107,9 +107,14 @@ Halo 的锚点计算已经抽象为「头部锚点 Provider」接口，其他模
   - `float yaw` / `float pitch` / `float roll`：头部朝向（3 自由度，度，MC 约定）
 - 模组只需要提供**头部**的 6 自由度；光环自身的位置阻尼、offset、旋转模式等仍由 Halo 内部计算。
 
+### 帧内时序与空值契约
+
+- **帧内时序**：Halo 可能在当前帧的摄像机/头部朝向被 provider 的动画或摄像机系统计算出来**之前**就调用 `resolve`。provider 必须**缓存上一帧的 `HeadAnchor`**，并在当前帧输入未就绪时返回缓存值，而不是返回不完整或默认的数据。
+- **禁止返回 `null`**：provider 不得返回 `null`，所有分量必须为有限数值（不得含 NaN）。Halo（resolver）把 `null` 视为 provider 的 bug：记录 error 日志并回退到 `FallbackAnchorProvider`，避免渲染管线崩溃。
+
 ### 注册方式
 
-在客户端初始化中监听 `AnchorProviderSetupEvent`（Halo 会在注册默认 Provider 之后触发）：
+在你的 `ClientModInitializer` 中监听 `AnchorProviderSetupEvent`。Halo 会在**所有模组客户端入口点执行完毕后（第一个客户端 tick 结束时）**触发该事件，因此无论模组加载顺序如何，你的监听器都能被收到：
 
 ```java
 import network.azusake.halo.api.AnchorProviderSetupEvent;

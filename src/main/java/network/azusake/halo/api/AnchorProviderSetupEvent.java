@@ -4,9 +4,15 @@ import net.fabricmc.fabric.api.event.Event;
 import net.fabricmc.fabric.api.event.EventFactory;
 
 /**
- * Fired once during Halo's client initialisation, after the default providers
- * have been registered, so other mods can register their own
- * {@link EntityAnchorProvider}s via {@link EntityAnchorProviderRegistry}.
+ * Fired once by Halo after every client mod entrypoint has run (at the end of
+ * the first client tick), after the default providers have been registered, so
+ * other mods can register their own {@link EntityAnchorProvider}s via
+ * {@link EntityAnchorProviderRegistry}.
+ *
+ * <p>Because Fabric provides no cross-mod ordering guarantee for
+ * {@code ClientModInitializer} entrypoints, registering a listener during your
+ * own {@code onInitializeClient} is always safe: Halo fires this event only
+ * after all entrypoints have completed.</p>
  */
 public interface AnchorProviderSetupEvent {
 

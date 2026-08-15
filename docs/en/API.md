@@ -117,10 +117,24 @@ to match a custom renderer / skeletal animation system.
 - Mods only provide the **head**'s 6 DOF; Halo still computes the halo's own
   position damping, offset and orientation modes internally.
 
+### Frame-ordering and null contract
+
+- **Frame ordering**: Halo may invoke `resolve` *before* the current frame's
+  camera/head orientation has been computed by the provider's animation or
+  camera system. The provider must **cache the previous frame's
+  `HeadAnchor`** and return it whenever the current-frame input is not ready,
+  instead of returning partial or default data.
+- **Never return `null`**: providers must not return `null`, and every
+  component must be a finite number (no NaN). Halo (the resolver) treats
+  `null` as a provider bug: it logs an error and falls back to
+  `FallbackAnchorProvider` so the render pipeline never crashes.
+
 ### Registration
 
-Listen to `AnchorProviderSetupEvent` (fired by Halo after the default
-providers are registered):
+Listen to `AnchorProviderSetupEvent` from your own `ClientModInitializer`.
+Halo fires the event **after every client entrypoint has run (at the end of
+the first client tick)**, so your listener is always observed regardless of
+mod load order:
 
 ```java
 import network.azusake.halo.api.AnchorProviderSetupEvent;

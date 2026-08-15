@@ -23,9 +23,13 @@ import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class HaloModClient implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(HaloMod.MOD_ID);
+
+    private static final AtomicBoolean ANCHOR_SETUP_FIRED = new AtomicBoolean(false);
 
     @Override
     public void onInitializeClient() {
@@ -44,12 +48,23 @@ public class HaloModClient implements ClientModInitializer {
         // Register entity-anchor profile loader on the client side
         network.azusake.halo.json.EntityAnchorLoader.registerClientResources();
 
-        // Register the default anchor providers, then let other mods register
-        // their own providers via the setup event.
+        // Register the default anchor providers immediately.  The setup event
+        // is fired once at the end of the first client tick (see below) so
+        // that every other mod's client entrypoint has run by then — Fabric
+        // gives no cross-mod ordering guarantee for entrypoints, so firing
+        // here could race with other mods registering their listeners.
         EntityAnchorProviderRegistry anchorRegistry = EntityAnchorProviderRegistry.getInstance();
         anchorRegistry.register(PlayerEntity.class, PlayerAnchorProvider.getInstance());
-        AnchorProviderSetupEvent.EVENT.invoker().onSetup(anchorRegistry);
-        LOGGER.info("Default anchor providers registered; AnchorProviderSetupEvent fired");
+
+        // Fire AnchorProviderSetupEvent exactly once, at the end of the first
+        // client tick.  All mod entrypoints have run by then, so listeners
+        // registered in any onInitializeClient are always observed.
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (ANCHOR_SETUP_FIRED.compareAndSet(false, true)) {
+                AnchorProviderSetupEvent.EVENT.invoker().onSetup(anchorRegistry);
+                LOGGER.info("Default anchor providers registered; AnchorProviderSetupEvent fired (first client tick)");
+            }
+        });
 
         // Register the halo renderer with Fabric's world-render pipeline
         HaloRenderListener.register();

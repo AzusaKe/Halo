@@ -3,6 +3,7 @@ package network.azusake.halo.physics;
 import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.api.EntityAnchorProvider;
 import network.azusake.halo.api.EntityAnchorProviderRegistry;
+import network.azusake.halo.api.FallbackAnchorProvider;
 import network.azusake.halo.api.HeadAnchor;
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloDefinition;
@@ -13,6 +14,8 @@ import net.minecraft.client.render.Camera;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Quaternionf;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,6 +44,7 @@ import java.util.UUID;
 public final class AnchorFrameCalculator {
 
     private static final AnchorFrameCalculator INSTANCE = new AnchorFrameCalculator();
+    private static final Logger LOGGER = LoggerFactory.getLogger(AnchorFrameCalculator.class);
 
     /** Reference tick duration in seconds (50 ms = 20 TPS). */
     private static final double REFERENCE_TICK = 0.05;
@@ -98,6 +102,15 @@ public final class AnchorFrameCalculator {
         // 1. Pose-aware head anchor via the provider registry
         EntityAnchorProvider provider = EntityAnchorProviderRegistry.getInstance().getProvider(entity);
         HeadAnchor ha = provider.resolve(entity, tickDelta);
+        if (ha == null) {
+            // Contract: providers must never return null (they should cache
+            // the previous frame's anchor when current-frame data is not ready
+            // yet).  Defend the render path anyway so one misbehaving provider
+            // cannot crash it.
+            LOGGER.error("EntityAnchorProvider {} returned null for entity {}; falling back to FallbackAnchorProvider",
+                provider.getClass().getSimpleName(), uuid);
+            ha = FallbackAnchorProvider.getInstance().resolve(entity, tickDelta);
+        }
         Vec3d headAnchor = ha.headCenter();
         float yaw = ha.yaw();
         float pitch = ha.pitch();
