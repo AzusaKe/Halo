@@ -226,7 +226,8 @@
 {
   "type": "billboard",
   "texture": "halo:textures/halo/example.png",
-  "size": [0.5, 0.5]
+  "size": [0.5, 0.5],
+  "face_camera": false
 }
 ```
 
@@ -235,6 +236,7 @@
 | `type`    | 字符串           | **是** | 固定值 `"billboard"`                                                                                                                                                                                                                                                                                                                        |
 | `texture` | 字符串           | **是** | 贴图资源路径。格式：`命名空间:textures/halo/文件名.png`。路径以 `assets/` 为根目录，其中**命名空间**对应 `assets/` 下的文件夹名。例如 `halo:textures/halo/example.png` 中 `halo` 是命名空间，对应 `assets/halo/` 文件夹。使用自己的命名空间（如 `mypack`）时，将文件放在 `assets/mypack/` 下，路径写为 `mypack:textures/halo/example.png`。 |
 | `size`    | `[width, depth]` | **是** | 面片在 XZ 平面上的尺寸 `[宽, 深]`（格）。通常设为正方形，如 `[0.5, 0.5]`。                                                                                                                                                                                                                                                                  |
+| `face_camera` | 布尔 | 否 | 为 `true` 时，面片始终完全面向摄像机（平面垂直于视线），任何动画（常驻或过渡）都无法覆写该朝向；位移与缩放动画仍然生效。默认 `false`。 |
 
 ### Ring 图元
 

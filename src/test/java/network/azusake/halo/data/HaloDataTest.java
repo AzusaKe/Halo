@@ -1175,6 +1175,70 @@ class HaloDataTest {
         }
 
         @Test
+        @DisplayName("face_camera parsed per billboard primitive (default false)")
+        void parseFaceCamera() {
+            String json = """
+                {
+                  "id": "halo:face_camera_test",
+                  "layers": [
+                    {
+                      "primitives": [
+                        {
+                          "type": "billboard",
+                          "texture": "halo:textures/halo/a.png",
+                          "size": [0.5, 0.5],
+                          "face_camera": true
+                        },
+                        {
+                          "type": "billboard",
+                          "texture": "halo:textures/halo/b.png",
+                          "size": [0.5, 0.5]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            List<HaloPrimitive> primitives = def.model().groups().get(0).primitives();
+            BillboardPrimitive facing = (BillboardPrimitive) primitives.get(0);
+            BillboardPrimitive plain = (BillboardPrimitive) primitives.get(1);
+            assertTrue(facing.faceCamera(), "face_camera: true should be parsed as true");
+            assertFalse(plain.faceCamera(), "missing face_camera should default to false");
+        }
+
+        @Test
+        @DisplayName("legacy shape billboard supports face_camera")
+        void parseLegacyShapeFaceCamera() {
+            String json = """
+                {
+                  "id": "halo:legacy_face_camera",
+                  "shape": {
+                    "type": "billboard",
+                    "texture": "halo:textures/halo/a.png",
+                    "size": [0.5, 0.5],
+                    "face_camera": true
+                  }
+                }
+                """;
+
+            HaloDefinition def = deserializer.deserialize(
+                gson.fromJson(json, JsonObject.class),
+                HaloDefinition.class,
+                null
+            );
+
+            BillboardPrimitive bp = (BillboardPrimitive) def.model().groups().get(0).primitives().get(0);
+            assertTrue(bp.faceCamera(), "legacy shape billboard should parse face_camera");
+        }
+
+        @Test
         @DisplayName("Per-layer animation with empty offset/rotation is Optional.empty()")
         void emptyAnimationBlockIsEmpty() {
             String json = """

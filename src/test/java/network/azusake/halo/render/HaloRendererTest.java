@@ -255,6 +255,118 @@ class HaloRendererTest {
             assertEquals(1.0f, Math.abs(result.x) + Math.abs(result.z), 0.001f,
                 "normal should lie entirely in XZ plane");
         }
+
+        @Test
+        @DisplayName("computeCameraFacing: normal points at the camera, basis orthonormal")
+        void testCameraFacingBasis() {
+            Matrix4f matrix = new Matrix4f().translation(0.0f, 0.0f, -5.0f);
+            HaloRenderer.CameraFacing facing = HaloRenderer.computeCameraFacing(
+                matrix, 1.0f, 1.0f,
+                new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(1.0f, 0.0f, 0.0f));
+
+            // Centre is the camera-relative quad position.
+            assertEquals(0.0f, facing.center().x, 0.001f);
+            assertEquals(0.0f, facing.center().y, 0.001f);
+            assertEquals(-5.0f, facing.center().z, 0.001f);
+
+            // Horizontal camera at the origin: right = +X, up = +Y.
+            assertEquals(1.0f, facing.right().x, 0.001f);
+            assertEquals(0.0f, facing.right().y, 0.001f);
+            assertEquals(0.0f, facing.right().z, 0.001f);
+            assertEquals(0.0f, facing.up().x, 0.001f);
+            assertEquals(1.0f, facing.up().y, 0.001f);
+            assertEquals(0.0f, facing.up().z, 0.001f);
+
+            // right/up are unit length and mutually perpendicular.
+            assertEquals(1.0f, facing.right().length(), 0.001f);
+            assertEquals(1.0f, facing.up().length(), 0.001f);
+            assertEquals(0.0f, facing.right().dot(facing.up()), 0.001f);
+
+            // The quad normal (right × up) points from the centre to the camera.
+            Vector3f normal = new Vector3f(facing.right()).cross(facing.up(), new Vector3f());
+            Vector3f toCamera = new Vector3f(facing.center()).mul(-1.0f).normalize();
+            assertEquals(1.0f, normal.dot(toCamera), 0.001f,
+                "quad normal must point toward the camera");
+
+            // Half extents match the local size at unit scale.
+            assertEquals(1.0f, facing.halfWidth(), 0.001f);
+            assertEquals(1.0f, facing.halfDepth(), 0.001f);
+        }
+
+        @Test
+        @DisplayName("computeCameraFacing: accumulated rotation is discarded")
+        void testCameraFacingIgnoresRotation() {
+            Matrix4f rotated = new Matrix4f()
+                .translation(0.0f, 0.0f, -5.0f)
+                .rotateY((float) Math.toRadians(90.0))
+                .rotateX((float) Math.toRadians(45.0));
+            HaloRenderer.CameraFacing facing = HaloRenderer.computeCameraFacing(
+                rotated, 1.0f, 1.0f,
+                new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(1.0f, 0.0f, 0.0f));
+
+            // Same placement as an unrotated matrix with the same translation.
+            assertEquals(0.0f, facing.center().x, 0.001f);
+            assertEquals(0.0f, facing.center().y, 0.001f);
+            assertEquals(-5.0f, facing.center().z, 0.001f);
+            assertEquals(1.0f, facing.right().x, 0.001f);
+            assertEquals(1.0f, facing.up().y, 0.001f);
+            assertEquals(1.0f, facing.halfWidth(), 0.001f);
+            assertEquals(1.0f, facing.halfDepth(), 0.001f);
+        }
+
+        @Test
+        @DisplayName("computeCameraFacing: non-uniform scale is preserved")
+        void testCameraFacingPreservesScale() {
+            Matrix4f matrix = new Matrix4f()
+                .translation(0.0f, 0.0f, -5.0f)
+                .scale(2.0f, 1.0f, 4.0f);
+            HaloRenderer.CameraFacing facing = HaloRenderer.computeCameraFacing(
+                matrix, 1.0f, 1.0f,
+                new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(1.0f, 0.0f, 0.0f));
+
+            assertEquals(2.0f, facing.halfWidth(), 0.001f, "X scale must survive");
+            assertEquals(4.0f, facing.halfDepth(), 0.001f, "Z scale must survive");
+            assertEquals(1.0f, facing.right().length(), 0.001f, "basis stays unit length");
+            assertEquals(1.0f, facing.up().length(), 0.001f, "basis stays unit length");
+        }
+
+        @Test
+        @DisplayName("computeCameraFacing: looking straight down falls back to camera right")
+        void testCameraFacingVerticalFallback() {
+            Matrix4f matrix = new Matrix4f().translation(0.0f, -5.0f, 0.0f);
+            HaloRenderer.CameraFacing facing = HaloRenderer.computeCameraFacing(
+                matrix, 1.0f, 1.0f,
+                new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(1.0f, 0.0f, 0.0f));
+
+            // dir = +Y is parallel to camera up → right falls back to +X.
+            assertEquals(1.0f, facing.right().x, 0.001f);
+            assertEquals(0.0f, facing.right().y, 0.001f);
+            assertEquals(0.0f, facing.up().x, 0.001f);
+            assertEquals(0.0f, facing.up().y, 0.001f);
+            assertEquals(1.0f, facing.right().length(), 0.001f);
+            assertEquals(1.0f, facing.up().length(), 0.001f);
+            assertEquals(0.0f, facing.right().dot(facing.up()), 0.001f);
+
+            Vector3f normal = new Vector3f(facing.right()).cross(facing.up(), new Vector3f());
+            Vector3f toCamera = new Vector3f(facing.center()).mul(-1.0f).normalize();
+            assertEquals(1.0f, normal.dot(toCamera), 0.001f,
+                "fallback basis must still face the camera");
+        }
+
+        @Test
+        @DisplayName("computeCameraFacing: quad at the camera position stays stable")
+        void testCameraFacingAtCamera() {
+            Matrix4f matrix = new Matrix4f(); // translation (0,0,0)
+            HaloRenderer.CameraFacing facing = HaloRenderer.computeCameraFacing(
+                matrix, 1.0f, 1.0f,
+                new Vector3f(0.0f, 1.0f, 0.0f), new Vector3f(1.0f, 0.0f, 0.0f));
+
+            assertTrue(!Float.isNaN(facing.right().x) && !Float.isNaN(facing.up().y),
+                "degenerate position must not produce NaN");
+            assertEquals(1.0f, facing.right().length(), 0.001f);
+            assertEquals(1.0f, facing.up().length(), 0.001f);
+            assertEquals(0.0f, facing.right().dot(facing.up()), 0.001f);
+        }
     }
 
     // ------------------------------------------------------------------

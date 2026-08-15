@@ -321,7 +321,10 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     private BillboardPrimitive parseBillboardPrimitive(JsonObject obj) {
         Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
         Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
-        return new BillboardPrimitive(texture, size);
+        // face_camera (default false): when true the quad is drawn fully
+        // facing the camera and no animation rotation can override that.
+        boolean faceCamera = obj.has("face_camera") && obj.get("face_camera").getAsBoolean();
+        return new BillboardPrimitive(texture, size, faceCamera);
     }
 
     private RingPrimitive parseRingPrimitive(JsonObject obj) {

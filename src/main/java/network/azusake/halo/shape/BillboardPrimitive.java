@@ -14,9 +14,18 @@ import org.joml.Vector2f;
  *
  * @param texture  the texture resource identifier
  * @param size     width (X) and depth (Z) in definition-local units
+ * @param faceCamera when {@code true} the quad always faces the camera
+ *                   (full camera-facing billboard); no animation rotation
+ *                   can override this orientation
  */
 public record BillboardPrimitive(
     Identifier texture,
-    Vector2f size
+    Vector2f size,
+    boolean faceCamera
 ) implements HaloPrimitive {
+
+    /** Convenience constructor for a billboard that does not face the camera. */
+    public BillboardPrimitive(Identifier texture, Vector2f size) {
+        this(texture, size, false);
+    }
 }

@@ -226,7 +226,8 @@ More primitive types will be supported in the future:
 {
   "type": "billboard",
   "texture": "halo:textures/halo/example.png",
-  "size": [0.5, 0.5]
+  "size": [0.5, 0.5],
+  "face_camera": false
 }
 ```
 
@@ -235,6 +236,7 @@ More primitive types will be supported in the future:
 | `type` | String | **Yes** | Fixed value `"billboard"` |
 | `texture` | String | **Yes** | Texture resource path. Format: `namespace:textures/halo/filename.png`. The path is relative to `assets/`, where the **namespace** corresponds to a folder name under `assets/`. For example, in `halo:textures/halo/example.png`, `halo` is the namespace and maps to the `assets/halo/` folder. When using your own namespace (e.g. `mypack`), place files under `assets/mypack/` and write the path as `mypack:textures/halo/example.png`. |
 | `size` | `[width, depth]` | **Yes** | The quad's dimensions `[width, depth]` on the XZ plane (in blocks). Usually square, e.g. `[0.5, 0.5]`. |
+| `face_camera` | Boolean | No | When `true`, the quad is always drawn fully facing the camera (plane perpendicular to the view direction); no animation rotation (idle or transition) can override this orientation. Offset and scale animations still apply. Default `false`. |
 
 ### Ring Primitive
 

@@ -29,6 +29,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.LightType;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -435,7 +436,7 @@ public final class HaloRenderer {
             // Step 3: Recursive group rendering
             for (HaloGroup group : model.groups()) {
                 // Root groups inherit the definition root's alpha/glow
-                renderGroup(group, matrices, animTime, brightness, defAlpha, defGlow,
+                renderGroup(group, matrices, camera, animTime, brightness, defAlpha, defGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
                     startupConfig, shutdownConfig);
             }
@@ -461,7 +462,7 @@ public final class HaloRenderer {
      * is evaluated and applied as additional offset, rotation, scale, and
      * alpha (rotation in YXZ order, matching the idle animation).</p>
      */
-    private void renderGroup(HaloGroup group, MatrixStack matrices, double animTime, float brightness,
+    private void renderGroup(HaloGroup group, MatrixStack matrices, Camera camera, double animTime, float brightness,
                               float inheritedAlpha, float inheritedGlow,
                               boolean transitionActive, double transitionElapsed, boolean isStartup,
                               HaloInstance instance,
@@ -581,7 +582,7 @@ public final class HaloRenderer {
             // Draw all primitives in this group
             for (HaloPrimitive primitive : group.primitives()) {
                 if (primitive instanceof BillboardPrimitive bp) {
-                    renderBillboard(bp, matrices, group.glowing(), brightness, effectiveGlow);
+                    renderBillboard(bp, matrices, camera, group.glowing(), brightness, effectiveGlow);
                 } else if (primitive instanceof RingPrimitive rp) {
                     renderRing(rp, matrices, group.glowing(), brightness, effectiveGlow);
                 }
@@ -594,7 +595,7 @@ public final class HaloRenderer {
             float childAlpha = group.inheritAlpha() ? finalAlpha : 1.0f;
             float childGlow = group.inheritGlow() ? effectiveGlow : 1.0f;
             for (HaloGroup child : group.children()) {
-                renderGroup(child, matrices, animTime, brightness, childAlpha, childGlow,
+                renderGroup(child, matrices, camera, animTime, brightness, childAlpha, childGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
                     startupConfig, shutdownConfig);
             }
@@ -699,11 +700,15 @@ public final class HaloRenderer {
     // ------------------------------------------------------------------
 
     /**
-     * Draw a billboard quad on the XZ plane (horizontal, normal = -Y).
-     * The layer's accumulated matrix-stack transform provides the
-     * world-space placement — no per-quad facing rotation is applied.
+     * Draw a billboard quad.  By default the quad lies on the XZ plane
+     * (horizontal, normal = -Y) and the layer's accumulated matrix-stack
+     * transform provides the world-space placement.  When the primitive's
+     * {@code face_camera} is set, the quad is instead drawn fully facing the
+     * camera: the plane normal always points toward the camera and that
+     * orientation cannot be overridden by any animation rotation.
      */
-    private void renderBillboard(BillboardPrimitive billboard, MatrixStack matrices, boolean glowing, float brightness, float animatedGlow) {
+    private void renderBillboard(BillboardPrimitive billboard, MatrixStack matrices, Camera camera,
+                                 boolean glowing, float brightness, float animatedGlow) {
         float hw = billboard.size().x / 2.0f;  // half-width (X)
         float hd = billboard.size().y / 2.0f;  // half-depth (Z) — size.y maps to Z axis
 
@@ -712,7 +717,32 @@ public final class HaloRenderer {
             hd *= 5.0f;
         }
 
-        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
+        // Camera-facing quads are rebuilt in camera-relative world space from
+        // the matrix's position + scale (rotation discarded), so no animation
+        // rotation can override the facing.  Other quads keep using the
+        // accumulated matrix-stack transform.
+        Matrix4f positionMatrix;
+        Vector3f c0, c1, c2, c3; // quad corners in the position-matrix space
+        if (billboard.faceCamera()) {
+            CameraFacing facing = computeCameraFacing(
+                matrices.peek().getPositionMatrix(), hw, hd,
+                camera.getVerticalPlane(), camera.getDiagonalPlane());
+            // Identity matrix — the corners are already camera-relative world
+            // coordinates, so every accumulated rotation is fully discarded.
+            positionMatrix = new Matrix4f();
+            Vector3f rightHalf = new Vector3f(facing.right()).mul(facing.halfWidth());
+            Vector3f upHalf = new Vector3f(facing.up()).mul(facing.halfDepth());
+            c0 = new Vector3f(facing.center()).sub(rightHalf).sub(upHalf);
+            c1 = new Vector3f(facing.center()).add(rightHalf).sub(upHalf);
+            c2 = new Vector3f(facing.center()).add(rightHalf).add(upHalf);
+            c3 = new Vector3f(facing.center()).sub(rightHalf).add(upHalf);
+        } else {
+            positionMatrix = matrices.peek().getPositionMatrix();
+            c0 = new Vector3f(-hw, 0.0f, -hd);
+            c1 = new Vector3f( hw, 0.0f, -hd);
+            c2 = new Vector3f( hw, 0.0f,  hd);
+            c3 = new Vector3f(-hw, 0.0f,  hd);
+        }
 
         Tessellator tessellator = Tessellator.getInstance();
         BufferBuilder builder = tessellator.getBuffer();
@@ -737,16 +767,18 @@ public final class HaloRenderer {
         if (hasTexture) {
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
-            // XZ plane at Y=0, normal = -Y (faces downward toward entity head).
+            // Default: XZ plane at Y=0, normal = -Y (faces downward toward the
+            // entity head).
             // Vertex winding from BELOW (-Y) is CCW → front face faces -Y:
             // (-hw, 0, -hd)  →  (+hw, 0, -hd)  →  (+hw, 0, +hd)  →  (-hw, 0, +hd)
+            // face_camera keeps the same UV layout upright (V=0 at the +up side).
             // Tint texture by the effective brightness factor (fullbright at 1.0)
             RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
             builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-            builder.vertex(positionMatrix, -hw, 0.0f, -hd).texture(0.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, -hd).texture(1.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, +hd).texture(1.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
-            builder.vertex(positionMatrix, -hw, 0.0f, +hd).texture(0.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            builder.vertex(positionMatrix, c0.x, c0.y, c0.z).texture(0.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            builder.vertex(positionMatrix, c1.x, c1.y, c1.z).texture(1.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            builder.vertex(positionMatrix, c2.x, c2.y, c2.z).texture(1.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            builder.vertex(positionMatrix, c3.x, c3.y, c3.z).texture(0.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
         } else {
             RenderSystem.setShader(GameRenderer::getPositionColorProgram);
             if (DEBUG_RENDERING) {
@@ -756,10 +788,10 @@ public final class HaloRenderer {
                 RenderSystem.defaultBlendFunc();
             }
             builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-            builder.vertex(positionMatrix, -hw, 0.0f, -hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, -hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
-            builder.vertex(positionMatrix,  hw, 0.0f, +hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
-            builder.vertex(positionMatrix, -hw, 0.0f, +hd).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.vertex(positionMatrix, c0.x, c0.y, c0.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.vertex(positionMatrix, c1.x, c1.y, c1.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.vertex(positionMatrix, c2.x, c2.y, c2.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.vertex(positionMatrix, c3.x, c3.y, c3.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
         }
 
         tessellator.draw();
@@ -771,6 +803,64 @@ public final class HaloRenderer {
             RenderSystem.enableDepthTest();
         }
         RenderSystem.disableBlend();
+    }
+
+    /**
+     * World-space (camera-relative) placement of a camera-facing billboard:
+     * the quad centre, an orthonormal right/up basis, and the world-space
+     * half extents.
+     */
+    record CameraFacing(Vector3f center, Vector3f right, Vector3f up, float halfWidth, float halfDepth) {
+    }
+
+    /**
+     * Compute the placement of a camera-facing billboard from the accumulated
+     * position matrix.  The matrix stack is camera-relative (its origin is the
+     * camera), so the matrix translation is the quad centre and the matrix
+     * column lengths give the world-space scale — group/animation scaling
+     * still applies while every accumulated rotation is discarded, making the
+     * facing immune to all animation rotations.
+     *
+     * <p>The quad normal points from the centre toward the camera.  The quad's
+     * "up" is the projection of the camera's vertical plane (world up for an
+     * unrolled vanilla camera).  When the view direction is (near-)parallel to
+     * the camera up — looking straight down/up — the camera's diagonal (right)
+     * plane provides a well-defined horizontal axis instead.</p>
+     */
+    static CameraFacing computeCameraFacing(Matrix4f positionMatrix, float halfWidthLocal, float halfDepthLocal,
+                                            Vector3f cameraUp, Vector3f cameraRight) {
+        Vector3f center = positionMatrix.getTranslation(new Vector3f());
+
+        // World-space half extents: preserve (possibly non-uniform) scale from
+        // the matrix columns; rotation does not affect their lengths.
+        float scaleX = new Vector3f(positionMatrix.m00(), positionMatrix.m10(), positionMatrix.m20()).length();
+        float scaleZ = new Vector3f(positionMatrix.m02(), positionMatrix.m12(), positionMatrix.m22()).length();
+        float halfWidth = halfWidthLocal * scaleX;
+        float halfDepth = halfDepthLocal * scaleZ;
+
+        // Normal: quad centre → camera (the matrix origin).  Fall back to a
+        // stable direction if the quad is exactly at the camera.
+        Vector3f dir;
+        float lenSq = center.lengthSquared();
+        if (lenSq < 1e-12f) {
+            dir = new Vector3f(0.0f, 0.0f, 1.0f);
+        } else {
+            dir = new Vector3f(center).mul(-1.0f / (float) Math.sqrt(lenSq));
+        }
+
+        Vector3f right = new Vector3f(cameraUp).cross(dir, new Vector3f());
+        float rightLen = right.length();
+        if (rightLen < 1e-6f) {
+            // Looking (almost) straight down/up — the camera's right plane is
+            // well-defined and horizontal, perpendicular to the view direction.
+            right = new Vector3f(cameraRight);
+        } else {
+            right.mul(1.0f / rightLen);
+        }
+
+        Vector3f up = new Vector3f(dir).cross(right, new Vector3f());
+
+        return new CameraFacing(center, right, up, halfWidth, halfDepth);
     }
 
     // ------------------------------------------------------------------
