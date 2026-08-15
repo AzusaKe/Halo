@@ -8,6 +8,8 @@ import net.minecraft.client.render.Camera;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Default player {@link EntityAnchorProvider} that anchors the halo to the
@@ -22,6 +24,8 @@ import org.joml.Matrix4f;
  * {@code entity_anchors/player.json} fallback path stays intact.</p>
  */
 public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("halo");
 
     private final EntityAnchorProvider fallback;
 
@@ -42,11 +46,32 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                     Vec3d cameraPos = camera.getPos();
                     Matrix4f viewMatrix = RenderHeadCapture.getViewMatrix();
                     if (viewMatrix != null) {
-                        return RenderHeadMath.toHeadAnchor(captured, cameraPos, viewMatrix);
+                        HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, viewMatrix);
+                        if (isFinite(anchor)) {
+                            return anchor;
+                        }
+                        // A single degenerate capture (e.g. during a pose
+                        // switch) must never emit NaN — a NaN anchor poisons
+                        // the halo's damping state and hides it until the
+                        // per-frame state is dropped.  Fall back this frame.
+                        LOGGER.warn("[RenderHead] captured anchor not finite for uuid={} "
+                                + "center=({}, {}, {}) yaw={} pitch={} roll={} — falling back",
+                            player.getUuid(),
+                            anchor.headCenter().x, anchor.headCenter().y, anchor.headCenter().z,
+                            anchor.yaw(), anchor.pitch(), anchor.roll());
                     }
                 }
             }
         }
         return fallback.resolve(entity, tickDelta);
+    }
+
+    private static boolean isFinite(HeadAnchor anchor) {
+        if (anchor == null) {
+            return false;
+        }
+        Vec3d center = anchor.headCenter();
+        return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
+            && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
     }
 }

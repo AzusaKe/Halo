@@ -168,8 +168,7 @@ public final class HaloRenderer {
             try {
                 renderSingleHalo(instance, matrices, camera, tickDelta, client, dt);
             } catch (Exception e) {
-                LOG.warn("[HaloRenderer] error rendering halo for entity {}: {}",
-                    instance.getEntityUuid(), e.getMessage());
+                LOG.warn("[HaloRenderer] error rendering halo for entity {}: {}", instance.getEntityUuid(), e.getMessage(), e);
             }
         }
 

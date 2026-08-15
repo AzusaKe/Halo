@@ -1,5 +1,6 @@
 package network.azusake.halo.physics;
 
+import network.azusake.halo.api.HeadAnchor;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -8,7 +9,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for the roll-aware pure math in {@link AnchorFrameCalculator}:
@@ -163,6 +166,71 @@ class AnchorFrameCalculatorTest {
                 Q_lookAt, TO_HEAD, new Vec3d(-1, 0, 0), P);
 
             assertNotEquals(spinUpright, spinRolled, "roll must change the locked spin");
+        }
+    }
+
+    @Nested
+    @DisplayName("NaN / degenerate-frame defense")
+    class BadFrameDefense {
+
+        @Test
+        void lookAtZeroVectorReturnsIdentity() {
+            Quaternionf q = AnchorFrameCalculator.computeLookAtOrientation(Vec3d.ZERO);
+            assertEquals(0f, q.x, 0f);
+            assertEquals(0f, q.y, 0f);
+            assertEquals(0f, q.z, 0f);
+            assertEquals(1f, q.w, 0f);
+        }
+
+        @Test
+        void lookAtNaNVectorReturnsIdentity() {
+            Quaternionf q = AnchorFrameCalculator.computeLookAtOrientation(new Vec3d(Double.NaN, 0, 0));
+            assertEquals(0f, q.x, 0f);
+            assertEquals(0f, q.y, 0f);
+            assertEquals(0f, q.z, 0f);
+            assertEquals(1f, q.w, 0f);
+        }
+
+        @Test
+        void lookAtStillAlignsNormalForValidDirection() {
+            Quaternionf q = AnchorFrameCalculator.computeLookAtOrientation(new Vec3d(0, 1, 0));
+            Vector3f out = q.transform(new Vector3f(0, -1, 0));
+            assertEquals(0f, out.x, EPS);
+            assertEquals(1f, out.y, EPS);
+            assertEquals(0f, out.z, EPS);
+        }
+
+        @Test
+        void isFiniteRejectsNaNAnchors() {
+            assertTrue(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(1, 2, 3), 10f, 20f, 0f)));
+            assertFalse(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(Double.NaN, 2, 3), 10f, 20f, 0f)));
+            assertFalse(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(1, 2, 3), Float.NaN, 20f, 0f)));
+            assertFalse(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(1, 2, 3), 10f, 20f, Float.POSITIVE_INFINITY)));
+            assertFalse(AnchorFrameCalculator.isFinite(null));
+        }
+
+        @Test
+        void dampPositionNeverReturnsNaN() {
+            Vec3d prev = new Vec3d(100, 64, -100);
+            Vec3d target = new Vec3d(101, 64, -99);
+
+            // NaN target with a good previous position → hold the previous position
+            Vec3d held = AnchorFrameCalculator.dampPosition(
+                prev, new Vec3d(Double.NaN, Double.NaN, Double.NaN), 0.2, 1.0);
+            assertVec(prev, held);
+
+            // NaN damped value (poisoned previous state) with a finite target → snap to target
+            Vec3d snapped = AnchorFrameCalculator.dampPosition(
+                new Vec3d(Double.NaN, Double.NaN, Double.NaN), target, 0.2, 1.0);
+            assertVec(target, snapped);
+
+            // First frame (null previous) with a finite target → target
+            assertVec(target, AnchorFrameCalculator.dampPosition(null, target, 0.2, 1.0));
+
+            // Finite case still clamps to maxDist
+            Vec3d farTarget = new Vec3d(200, 64, 0);
+            Vec3d clamped = AnchorFrameCalculator.dampPosition(new Vec3d(0, 0, 0), farTarget, 0.1, 1.0);
+            assertEquals(1.0, clamped.distanceTo(farTarget), EPS);
         }
     }
 }

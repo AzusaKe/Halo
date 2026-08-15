@@ -59,6 +59,12 @@ public final class AnchorFrameCalculator {
     // ---- per-frame position state ----
     private final Map<UUID, Vec3d> prevFramePos = new HashMap<>();
 
+    // ---- last good provider anchor per entity.  A transient non-finite
+    // anchor (bad provider frame) holds this anchor instead of poisoning the
+    // damping state — NaN is sticky and would hide the halo until its
+    // per-frame state is dropped (sleep/invis hide or rejoin). ----
+    private final Map<UUID, HeadAnchor> lastGoodAnchors = new HashMap<>();
+
     // ---- per-instance rotation / spin damping state ----
     private final Map<UUID, HaloDampingState> rotationStates = new HashMap<>();
 
@@ -111,6 +117,15 @@ public final class AnchorFrameCalculator {
                 provider.getClass().getSimpleName(), uuid);
             ha = FallbackAnchorProvider.getInstance().resolve(entity, tickDelta);
         }
+        // A transient non-finite anchor must never enter the damping state.
+        // Hold the last good anchor (or the fallback on the very first frame)
+        // so a single bad provider frame cannot permanently poison the halo.
+        if (!isFinite(ha)) {
+            HeadAnchor lastGood = lastGoodAnchors.get(uuid);
+            ha = lastGood != null ? lastGood : FallbackAnchorProvider.getInstance().resolve(entity, tickDelta);
+        } else {
+            lastGoodAnchors.put(uuid, ha);
+        }
         Vec3d headAnchor = ha.headCenter();
         float yaw = ha.yaw();
         float pitch = ha.pitch();
@@ -141,15 +156,9 @@ public final class AnchorFrameCalculator {
         double kF = 1.0 - Math.pow(1.0 - k, exp);
         kF = Math.max(0.0, Math.min(1.0, kF));
 
-        Vec3d haloWorldPos = prevPos.add(targetPos.subtract(prevPos).multiply(kF));
-
-        // Clamp to maxLinearDistance
-        double dist = haloWorldPos.distanceTo(targetPos);
-        double maxDist = damping.maxLinearDistance();
-        if (dist > maxDist && dist > 1e-9) {
-            Vec3d toTarget = targetPos.subtract(haloWorldPos).normalize();
-            haloWorldPos = targetPos.subtract(toTarget.multiply(maxDist));
-        }
+        // dampPosition never returns NaN/∞, so a single bad frame cannot
+        // poison prevFramePos.
+        Vec3d haloWorldPos = dampPosition(prevPos, targetPos, kF, damping.maxLinearDistance());
 
         prevFramePos.put(uuid, haloWorldPos);
 
@@ -343,6 +352,7 @@ public final class AnchorFrameCalculator {
         rotationStates.keySet().retainAll(activeUuids);
         lockedSpinStates.keySet().retainAll(activeUuids);
         syncRelativeStates.keySet().retainAll(activeUuids);
+        lastGoodAnchors.keySet().retainAll(activeUuids);
     }
 
     // ------------------------------------------------------------------
@@ -362,6 +372,14 @@ public final class AnchorFrameCalculator {
      * @return quaternion that rotates definition -Y to toHead
      */
     static Quaternionf computeLookAtOrientation(Vec3d toHead) {
+        // Degenerate direction (NaN from a bad frame, or exactly zero when the
+        // halo sits on the head centre) has no meaningful look-at — returning
+        // identity avoids the zero-axis NaN quaternion that would otherwise
+        // poison the per-instance rotation state.
+        if (!Double.isFinite(toHead.x) || !Double.isFinite(toHead.y) || !Double.isFinite(toHead.z)
+                || (toHead.x == 0 && toHead.y == 0 && toHead.z == 0)) {
+            return new Quaternionf();
+        }
         Vec3d from = new Vec3d(0, -1, 0); // definition -Y (billboard normal)
         double dot = from.dotProduct(toHead);
         if (dot > 0.9999) {
@@ -497,6 +515,63 @@ public final class AnchorFrameCalculator {
         return frame.right().multiply(offset.x)
             .add(frame.headUp().multiply(offset.y))
             .add(behind.multiply(offset.z));
+    }
+
+    /**
+     * Frame-rate-independent exponential damping toward {@code targetPos},
+     * clamped to {@code maxDist} blocks.
+     *
+     * <p>The result is <em>always finite</em>: a NaN/∞ target or damped value
+     * (a transient bad provider frame) is neutralised by holding the last
+     * good position (or the target, or the origin), so a single bad frame can
+     * never permanently poison the per-frame damping state.</p>
+     *
+     * @param prevPos   previous damped position (may be {@code null})
+     * @param targetPos the target position this frame
+     * @param kF        the frame-rate-independent blend factor in [0, 1]
+     * @param maxDist   maximum linear distance from the target
+     * @return the next damped position, always finite
+     */
+    static Vec3d dampPosition(Vec3d prevPos, Vec3d targetPos, double kF, double maxDist) {
+        if (prevPos == null) {
+            prevPos = targetPos;
+        }
+        Vec3d damped = prevPos.add(targetPos.subtract(prevPos).multiply(kF));
+
+        boolean dampedFinite = Double.isFinite(damped.x) && Double.isFinite(damped.y) && Double.isFinite(damped.z);
+        boolean targetFinite = Double.isFinite(targetPos.x) && Double.isFinite(targetPos.y) && Double.isFinite(targetPos.z);
+        if (!dampedFinite || !targetFinite) {
+            // Never write NaN/∞ into the damping state: snap to the finite
+            // reference we have (target → previous position → origin).
+            if (targetFinite) {
+                return targetPos;
+            }
+            if (prevPos != null && Double.isFinite(prevPos.x) && Double.isFinite(prevPos.y) && Double.isFinite(prevPos.z)) {
+                return prevPos;
+            }
+            return new Vec3d(0, 0, 0);
+        }
+
+        double dist = damped.distanceTo(targetPos);
+        if (dist > maxDist && dist > 1e-9) {
+            Vec3d toTarget = targetPos.subtract(damped).normalize();
+            return targetPos.subtract(toTarget.multiply(maxDist));
+        }
+        return damped;
+    }
+
+    /**
+     * Whether a provider anchor is usable this frame (all components finite).
+     * NaN/∞ anchors are transient garbage and must not enter the damping
+     * state (see {@link #calculate}).
+     */
+    static boolean isFinite(HeadAnchor anchor) {
+        if (anchor == null) {
+            return false;
+        }
+        Vec3d center = anchor.headCenter();
+        return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
+            && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
     }
 
     /**
