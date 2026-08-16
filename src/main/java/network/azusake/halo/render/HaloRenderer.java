@@ -143,7 +143,7 @@ public final class HaloRenderer {
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
             .withCull(false)
             .build());
 
@@ -158,7 +158,7 @@ public final class HaloRenderer {
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
             .withCull(false)
             .build());
 
@@ -173,7 +173,7 @@ public final class HaloRenderer {
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
             .withCull(true)
             .build());
 
@@ -200,6 +200,27 @@ public final class HaloRenderer {
     /** Drop all recorded phases (full sync / world change). */
     public void clearIdlePhases() {
         idlePhaseTracker.clear();
+    }
+
+    /**
+     * A deferred halo primitive draw with its squared camera distance.
+     * Draws are collected during scene-graph traversal and executed after
+     * sorting far→near so translucent alpha blending matches depth order.
+     */
+    private record SortedDraw(double distanceSquared, Runnable draw) {
+    }
+
+    /**
+     * Squared distance of a camera-relative position matrix translation from
+     * the camera.  The pose stack is rooted at the camera ({@code renderHalos}
+     * applies the {@code -cameraPos} translate), so the matrix translation is
+     * already camera-relative world space.
+     */
+    private static double centerDistanceSquared(Matrix4f positionMatrix) {
+        float x = positionMatrix.m30();
+        float y = positionMatrix.m31();
+        float z = positionMatrix.m32();
+        return (double) x * x + (double) y * y + (double) z * z;
     }
 
     // ------------------------------------------------------------------
@@ -252,13 +273,25 @@ public final class HaloRenderer {
         // (the camera view rotation is applied by the GPU at draw time).
         matrices.pushPose();
         matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
+        List<SortedDraw> draws = new ArrayList<>();
         try {
             for (HaloInstance instance : visible) {
                 try {
-                    renderSingleHalo(instance, matrices, camera, cameraPos, tickDelta, client, dt);
+                    renderSingleHalo(instance, matrices, camera, cameraPos, tickDelta, client, dt, draws);
                 } catch (Exception e) {
                     LOG.warn("[HaloRenderer] error rendering halo for entity {}: {}", instance.getEntityUuid(), e.getMessage(), e);
                 }
+            }
+
+            // Execute every collected halo primitive far→near so translucent
+            // alpha blending matches camera depth order (near geometry blends
+            // over far geometry instead of declaration order).  Each primitive
+            // also writes the main depth target, so the nearest halo fragment
+            // depth ends up in the main depth buffer — this lets the vanilla
+            // transparency composite depth-sort clouds/weather against halos.
+            draws.sort(Comparator.comparingDouble(SortedDraw::distanceSquared).reversed());
+            for (SortedDraw sortedDraw : draws) {
+                sortedDraw.draw().run();
             }
 
             // Maintain non-active instances (NULL / deactivated):
@@ -338,7 +371,7 @@ public final class HaloRenderer {
 
     private boolean renderSingleHalo(HaloInstance instance, PoseStack matrices,
                                       Camera camera, Vec3 cameraPos, float tickDelta,
-                                      Minecraft client, double dt) {
+                                      Minecraft client, double dt, List<SortedDraw> draws) {
         // ---- resolve entity ----
         LivingEntity entity = findEntityByUuid(client, instance.getEntityUuid());
         if (entity == null || !entity.isAlive()) {
@@ -532,7 +565,7 @@ public final class HaloRenderer {
                 // Root groups inherit the definition root's alpha/glow
                 renderGroup(group, matrices, camera, cameraPos, animTime, brightness, defAlpha, defGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
-                    startupConfig, shutdownConfig);
+                    startupConfig, shutdownConfig, draws);
             }
         } finally {
             matrices.popPose();
@@ -558,7 +591,8 @@ public final class HaloRenderer {
                               float inheritedAlpha, float inheritedGlow,
                               boolean transitionActive, double transitionElapsed, boolean isStartup,
                               HaloInstance instance,
-                              StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
+                              StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig,
+                              List<SortedDraw> draws) {
         matrices.pushPose();
         try {
             // Group local transform
@@ -660,12 +694,19 @@ public final class HaloRenderer {
                 : inheritedAlpha * layerAlpha;
             float effectiveGlow = inheritedGlow * animatedGlow;
 
-            // Draw all primitives in this group
+            // Collect all primitives in this group as deferred draws, sorted
+            // later by camera distance.  The accumulated position matrix is
+            // snapshotted here because the matrix stack unwinds before the
+            // sorted draws execute.
+            Matrix4f positionMatrix = new Matrix4f(matrices.last().pose());
+            double distSq = centerDistanceSquared(positionMatrix);
             for (HaloPrimitive primitive : group.primitives()) {
                 if (primitive instanceof BillboardPrimitive bp) {
-                    renderBillboard(bp, matrices, camera, group.glowing(), brightness, effectiveGlow, finalAlpha);
+                    draws.add(new SortedDraw(distSq,
+                        () -> renderBillboard(bp, positionMatrix, camera, group.glowing(), brightness, effectiveGlow, finalAlpha)));
                 } else if (primitive instanceof RingPrimitive rp) {
-                    renderRing(rp, matrices, group.glowing(), brightness, effectiveGlow, finalAlpha);
+                    draws.add(new SortedDraw(distSq,
+                        () -> renderRing(rp, positionMatrix, group.glowing(), brightness, effectiveGlow, finalAlpha)));
                 }
             }
 
@@ -678,7 +719,7 @@ public final class HaloRenderer {
             for (HaloGroup child : group.children()) {
                 renderGroup(child, matrices, camera, cameraPos, animTime, brightness, childAlpha, childGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
-                    startupConfig, shutdownConfig);
+                    startupConfig, shutdownConfig, draws);
             }
         } finally {
             matrices.popPose();
@@ -788,7 +829,7 @@ public final class HaloRenderer {
      * camera: the plane normal always points toward the camera and that
      * orientation cannot be overridden by any animation rotation.
      */
-    private void renderBillboard(BillboardPrimitive billboard, PoseStack matrices, Camera camera,
+    private void renderBillboard(BillboardPrimitive billboard, Matrix4f positionMatrix, Camera camera,
                                  boolean glowing, float brightness, float animatedGlow, float alpha) {
         float hw = billboard.size().x / 2.0f;  // half-width (X)
         float hd = billboard.size().y / 2.0f;  // half-depth (Z) — size.y maps to Z axis
@@ -802,8 +843,8 @@ public final class HaloRenderer {
         // the matrix's position + scale (rotation discarded), so no animation
         // rotation can override the facing.  Other quads keep using the
         // accumulated matrix-stack transform.
-        Matrix4f positionMatrix;
         Vector3f c0, c1, c2, c3; // quad corners in the position-matrix space
+        Matrix4f drawMatrix;
         if (billboard.faceCamera()) {
             // The matrix-stack position matrix is camera-relative world space
             // (the GPU applies the view rotation at draw time), and the
@@ -811,11 +852,11 @@ public final class HaloRenderer {
             // screen-right — so the facing basis is computed directly in world
             // space from the accumulated position matrix.
             CameraFacing facing = computeCameraFacing(
-                matrices.last().pose(), hw, hd,
+                positionMatrix, hw, hd,
                 new Vector3f(camera.upVector()), new Vector3f(camera.leftVector()));
             // Identity matrix — the corners are already camera-relative world
             // coordinates, so every accumulated rotation is fully discarded.
-            positionMatrix = new Matrix4f();
+            drawMatrix = new Matrix4f();
             Vector3f rightHalf = new Vector3f(facing.right()).mul(facing.halfWidth());
             Vector3f upHalf = new Vector3f(facing.up()).mul(facing.halfDepth());
             c0 = new Vector3f(facing.center()).sub(rightHalf).sub(upHalf);
@@ -823,7 +864,7 @@ public final class HaloRenderer {
             c2 = new Vector3f(facing.center()).add(rightHalf).add(upHalf);
             c3 = new Vector3f(facing.center()).sub(rightHalf).add(upHalf);
         } else {
-            positionMatrix = matrices.last().pose();
+            drawMatrix = positionMatrix;
             c0 = new Vector3f(-hw, 0.0f, -hd);
             c1 = new Vector3f( hw, 0.0f, -hd);
             c2 = new Vector3f( hw, 0.0f,  hd);
@@ -849,22 +890,22 @@ public final class HaloRenderer {
             // Tint texture by the effective brightness factor (fullbright at 1.0)
             BufferBuilder builder = new BufferBuilder(
                 BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
-            builder.addVertex(positionMatrix, c0.x, c0.y, c0.z).setUv(0.0f, 1.0f).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c1.x, c1.y, c1.z).setUv(1.0f, 1.0f).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c2.x, c2.y, c2.z).setUv(1.0f, 0.0f).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c0.x, c0.y, c0.z).setUv(0.0f, 1.0f).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c2.x, c2.y, c2.z).setUv(1.0f, 0.0f).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c3.x, c3.y, c3.z).setUv(0.0f, 0.0f).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setUv(0.0f, 1.0f).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c1.x, c1.y, c1.z).setUv(1.0f, 1.0f).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setUv(1.0f, 0.0f).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setUv(0.0f, 1.0f).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setUv(1.0f, 0.0f).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c3.x, c3.y, c3.z).setUv(0.0f, 0.0f).setColor(r, g, b, alpha);
             drawPrimitive(PIPELINE_TEX, builder, billboard.texture());
         } else {
             BufferBuilder builder = new BufferBuilder(
                 BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-            builder.addVertex(positionMatrix, c0.x, c0.y, c0.z).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c1.x, c1.y, c1.z).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c2.x, c2.y, c2.z).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c0.x, c0.y, c0.z).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c2.x, c2.y, c2.z).setColor(r, g, b, alpha);
-            builder.addVertex(positionMatrix, c3.x, c3.y, c3.z).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c1.x, c1.y, c1.z).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setColor(r, g, b, alpha);
+            builder.addVertex(drawMatrix, c3.x, c3.y, c3.z).setColor(r, g, b, alpha);
             drawPrimitive(PIPELINE_COLOR, builder, null);
         }
     }
@@ -951,7 +992,7 @@ public final class HaloRenderer {
      * sides, culling is disabled so the texture is visible from both
      * sides.</p>
      */
-    private void renderRing(RingPrimitive ring, PoseStack matrices, boolean glowing, float brightness,
+    private void renderRing(RingPrimitive ring, Matrix4f positionMatrix, boolean glowing, float brightness,
                             float animatedGlow, float alpha) {
         float radius = ring.size().x;
         float width  = ring.size().y;
@@ -970,8 +1011,6 @@ public final class HaloRenderer {
         float r = brightnessFactor;
         float g = brightnessFactor;
         float b = brightnessFactor;
-
-        Matrix4f positionMatrix = matrices.last().pose();
 
         AbstractTexture outerTexture = resolveTexture(ring.outerTexture());
         boolean twoTextures = outerTexture != null && ring.innerTexture() != null;
