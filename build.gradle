@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.10.+'
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.19'
     id 'maven-publish'
 }
 
@@ -8,7 +8,9 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
-archivesBaseName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
+base {
+    archivesName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
+}
 version = project.mod_version
 group = project.maven_group
 
@@ -28,6 +30,7 @@ dependencies {
 
     // Test dependencies
     testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation "com.google.code.gson:gson:2.10.1"
 }
 
@@ -52,7 +55,7 @@ java {
 
 jar {
     from("LICENSE") {
-        rename { "${it}_${project.archivesBaseName}" }
+        rename { "${it}_${project.base.archivesName}" }
     }
 }
 
