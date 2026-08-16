@@ -1,7 +1,12 @@
 package network.azusake.halo.client;
 
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.StringReader;
+import com.mojang.brigadier.arguments.ArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -14,6 +19,7 @@ import net.minecraft.util.Identifier;
 import network.azusake.halo.json.HaloJsonLoader;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Fabric implementation of {@link HaloCommandInterceptor}.
@@ -63,6 +69,39 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             return builder.buildFuture();
         };
 
+    /**
+     * Client-side {@code target} token: any non-whitespace run of characters.
+     *
+     * <p>Selectors such as {@code @s} and player names must be accepted here
+     * without the permission gate that {@code EntityArgumentType} enforces —
+     * on a vanilla server a non-OP player has permission level 0, which makes
+     * entity-selector parsing fail client-side.  The raw token is either
+     * validated by {@link HaloLocalCommandHandler} (LOCAL phase) or forwarded
+     * verbatim to the server (MULTIPLAYER phase), so no selector resolution
+     * ever happens client-side.</p>
+     */
+    private static final ArgumentType<String> TARGET_ARGUMENT = new ArgumentType<String>() {
+        @Override
+        public String parse(StringReader reader) throws CommandSyntaxException {
+            int start = reader.getCursor();
+            while (reader.canRead() && reader.peek() != ' ') {
+                reader.skip();
+            }
+            if (reader.getCursor() == start) {
+                throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherUnknownArgument().createWithContext(reader);
+            }
+            return reader.getString().substring(start, reader.getCursor());
+        }
+
+        @Override
+        public <S> CompletableFuture<Suggestions> listSuggestions(CommandContext<S> context, SuggestionsBuilder builder) {
+            if ("@s".startsWith(builder.getRemaining().toLowerCase())) {
+                builder.suggest("@s");
+            }
+            return builder.buildFuture();
+        }
+    };
+
     private void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher,
                                   net.minecraft.command.CommandRegistryAccess registryAccess) {
 
@@ -76,7 +115,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("show")
                 .executes(ctx -> executeLocal("halo show"))
-                .then(ClientCommandManager.argument("target", StringArgumentType.word())
+                .then(ClientCommandManager.argument("target", TARGET_ARGUMENT)
                     .executes(ctx -> executeLocal("halo show"))
                     .then(ClientCommandManager.argument("definition", net.minecraft.command.argument.IdentifierArgumentType.identifier())
                         .suggests(DEFINITION_SUGGESTIONS)
@@ -90,7 +129,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("hide")
                 .executes(ctx -> executeLocal("halo hide"))
-                .then(ClientCommandManager.argument("target", StringArgumentType.word())
+                .then(ClientCommandManager.argument("target", TARGET_ARGUMENT)
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo hide " + target);
@@ -172,7 +211,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("inspect")
                 .executes(ctx -> executeLocal("halo inspect"))
-                .then(ClientCommandManager.argument("target", StringArgumentType.word())
+                .then(ClientCommandManager.argument("target", TARGET_ARGUMENT)
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo inspect " + target);
