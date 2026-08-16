@@ -39,8 +39,8 @@ public class ServerTickHandler implements ServerTickEvents.EndTick {
             HaloMod.LOGGER.trace(
                 "ServerTickHandler: tick {} – playerCount={}, ticksRunning={}",
                 tickCounter,
-                server.getCurrentPlayerCount(),
-                server.getTicks()
+                server.getPlayerCount(),
+                server.getTickCount()
             );
         }
 

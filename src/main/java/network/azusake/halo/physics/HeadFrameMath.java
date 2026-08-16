@@ -1,6 +1,6 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 /**
@@ -35,30 +35,30 @@ public final class HeadFrameMath {
         float pitchRad = (float) Math.toRadians(pitchDeg);
         float rollRad = (float) Math.toRadians(rollDeg);
 
-        Vec3d forward = new Vec3d(
+        Vec3 forward = new Vec3(
             -Math.sin(yawRad) * Math.cos(pitchRad),
             -Math.sin(pitchRad),
             Math.cos(yawRad) * Math.cos(pitchRad)
         ).normalize();
 
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        Vec3d right;
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
+        Vec3 worldUp = new Vec3(0, 1, 0);
+        Vec3 right;
+        if (Math.abs(forward.dot(worldUp)) > 0.999) {
             // Forward nearly parallel to worldUp — the cross product
             // degenerates.  Use a fallback continuous with the cross-product
             // result: forward × worldUp normalised to (–cos yaw, 0, –sin yaw)
             // for cos(pitch) > 0 (the MC pitch range).
-            right = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
+            right = new Vec3(-Math.cos(yawRad), 0, -Math.sin(yawRad));
         } else {
-            right = forward.crossProduct(worldUp).normalize();
+            right = forward.cross(worldUp).normalize();
         }
-        Vec3d headUp = right.crossProduct(forward).normalize();
+        Vec3 headUp = right.cross(forward).normalize();
 
         if (Math.abs(rollRad) > 0.001f) {
             double cosRoll = Math.cos(rollRad);
             double sinRoll = Math.sin(rollRad);
-            Vec3d newRight = right.multiply(cosRoll).subtract(headUp.multiply(sinRoll));
-            Vec3d newHeadUp = headUp.multiply(cosRoll).add(right.multiply(sinRoll));
+            Vec3 newRight = right.scale(cosRoll).subtract(headUp.scale(sinRoll));
+            Vec3 newHeadUp = headUp.scale(cosRoll).add(right.scale(sinRoll));
             right = newRight.normalize();
             headUp = newHeadUp.normalize();
         }
@@ -96,5 +96,5 @@ public final class HeadFrameMath {
      * Orthonormal head basis in world space: {@code right} (entity's right),
      * {@code headUp}, {@code forward} (look direction).
      */
-    public record HeadFrame(Vec3d right, Vec3d headUp, Vec3d forward) {}
+    public record HeadFrame(Vec3 right, Vec3 headUp, Vec3 forward) {}
 }

@@ -6,8 +6,8 @@ import network.azusake.halo.shape.*;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector2f;
 import org.junit.jupiter.api.DisplayName;
@@ -52,7 +52,7 @@ class HaloDataTest {
         @Test
         @DisplayName("HaloPositioning: canonical construction")
         void positioning() {
-            Vec3d offset = new Vec3d(0, 1.8, 0);
+            Vec3 offset = new Vec3(0, 1.8, 0);
             HaloPositioning p = new HaloPositioning(offset, 1.0);
             assertEquals(offset, p.offset());
             assertEquals(1.0, p.scale());
@@ -69,14 +69,14 @@ class HaloDataTest {
         @Test
         @DisplayName("HaloDefinition: all fields accessible")
         void definition() {
-            Identifier id = Identifier.of("halo", "test");
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath("halo", "test");
             BillboardPrimitive bp = new BillboardPrimitive(
-                Identifier.of("halo", "tex"),
+                ResourceLocation.fromNamespaceAndPath("halo", "tex"),
                 new Vector2f(1, 1)
             );
-            HaloGroup group = new HaloGroup(Vec3d.ZERO, bp);
+            HaloGroup group = new HaloGroup(Vec3.ZERO, bp);
             HaloModel model = new HaloModel(OrientationMode.LOCKED, List.of(group));
-            HaloPositioning pos = new HaloPositioning(Vec3d.ZERO, 1.0);
+            HaloPositioning pos = new HaloPositioning(Vec3.ZERO, 1.0);
             HaloDampingConfig damp = new HaloDampingConfig(0.2, 0.2, 2.0, 90.0, false, 0.3, 45.0);
 
             HaloDefinition def = new HaloDefinition(id, model, Optional.empty(), pos, damp, false, false, SchemaVersion.CURRENT, Optional.empty(), Optional.empty());
@@ -101,7 +101,7 @@ class HaloDataTest {
         void newInstanceNeedsSnap() {
             HaloInstance inst = new HaloInstance(
                 java.util.UUID.randomUUID(),
-                Identifier.of("halo", "ring_default")
+                ResourceLocation.fromNamespaceAndPath("halo", "ring_default")
             );
             assertTrue(inst.isNeedsSnap());
         }
@@ -111,7 +111,7 @@ class HaloDataTest {
         void markNeedsSnap() {
             HaloInstance inst = new HaloInstance(
                 java.util.UUID.randomUUID(),
-                Identifier.of("halo", "ring_default")
+                ResourceLocation.fromNamespaceAndPath("halo", "ring_default")
             );
             inst.setNeedsSnap(false);
             assertFalse(inst.isNeedsSnap());
@@ -130,7 +130,7 @@ class HaloDataTest {
         @DisplayName("currentAnimTime: fresh instance uses raw elapsed time")
         void currentAnimTimeFreshUsesRawElapsed() {
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), Identifier.of("halo", "ring_default"));
+                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
             assertEquals(5.0, inst.currentAnimTime(inst.getCreatedAtTime() + 5_000, null), 0.001);
         }
 
@@ -138,7 +138,7 @@ class HaloDataTest {
         @DisplayName("currentAnimTime: frozen during STARTING / ENDING")
         void currentAnimTimeFrozenDuringTransitions() {
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), Identifier.of("halo", "ring_default"));
+                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
             inst.startTransition(4.0);
             long start = inst.getTransitionStartTime();
             StartupAnimationConfig cfg = startupConfig(7.0);
@@ -154,7 +154,7 @@ class HaloDataTest {
         @DisplayName("currentAnimTime: NORMAL after a completed startup lags wall-clock by startup duration")
         void currentAnimTimeLagsByStartupDuration() {
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), Identifier.of("halo", "ring_default"));
+                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
             inst.startTransition(0.0);
             long start = inst.getTransitionStartTime();
             inst.setTransitionState(HaloTransitionState.NORMAL);
@@ -172,7 +172,7 @@ class HaloDataTest {
             // raw - 7) → hide.  The ENDING freeze must equal the NORMAL animTime
             // the renderer was using, not the raw wall-clock elapsed time.
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), Identifier.of("abydos", "shiroko"));
+                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("abydos", "shiroko"));
             StartupAnimationConfig cfg = startupConfig(7.0);
 
             inst.startTransition(0.0);
@@ -203,7 +203,7 @@ class HaloDataTest {
         @DisplayName("BillboardPrimitive implements HaloPrimitive")
         void billboardIsHaloPrimitive() {
             BillboardPrimitive b = new BillboardPrimitive(
-                Identifier.of("halo", "ring"),
+                ResourceLocation.fromNamespaceAndPath("halo", "ring"),
                 new Vector2f(0.5f, 0.5f)
             );
             assertInstanceOf(HaloPrimitive.class, b);
@@ -212,11 +212,11 @@ class HaloDataTest {
         @Test
         @DisplayName("HaloModel groups list preserves order")
         void modelGroupsOrder() {
-            var bp1 = new BillboardPrimitive(Identifier.of("halo", "a"), new Vector2f(1, 1));
-            var bp2 = new BillboardPrimitive(Identifier.of("halo", "b"), new Vector2f(2, 2));
+            var bp1 = new BillboardPrimitive(ResourceLocation.fromNamespaceAndPath("halo", "a"), new Vector2f(1, 1));
+            var bp2 = new BillboardPrimitive(ResourceLocation.fromNamespaceAndPath("halo", "b"), new Vector2f(2, 2));
             HaloModel m = new HaloModel(OrientationMode.LOCKED, List.of(
-                new HaloGroup(Vec3d.ZERO, bp1),
-                new HaloGroup(new Vec3d(0, 0.2, 0), bp2)
+                new HaloGroup(Vec3.ZERO, bp1),
+                new HaloGroup(new Vec3(0, 0.2, 0), bp2)
             ));
             assertEquals(2, m.groups().size());
             assertEquals(OrientationMode.LOCKED, m.orientationMode());
@@ -377,9 +377,9 @@ class HaloDataTest {
     class LayerAnimationTests {
 
         @Test
-        @DisplayName("EMPTY evaluates to Vec3d.ZERO offset")
+        @DisplayName("EMPTY evaluates to Vec3.ZERO offset")
         void emptyEvaluatesToZeroOffset() {
-            Vec3d off = LayerAnimation.EMPTY.evaluateOffset(0.0);
+            Vec3 off = LayerAnimation.EMPTY.evaluateOffset(0.0);
             assertEquals(0.0, off.x, 1e-9);
             assertEquals(0.0, off.y, 1e-9);
             assertEquals(0.0, off.z, 1e-9);
@@ -436,7 +436,7 @@ class HaloDataTest {
                 List.of(), List.of()                              // alpha, glow
             );
             assertFalse(anim.isEmpty());
-            Vec3d off = anim.evaluateOffset(1.0 / 3.0);
+            Vec3 off = anim.evaluateOffset(1.0 / 3.0);
             // omega=1.5 → ωπ = 1.5π → at t=1/3: arg = 1.5π/3 = π/2, sin=1
             assertEquals(0.08, off.y, 1e-9);
             assertEquals(0.0, off.x, 1e-9);
@@ -457,7 +457,7 @@ class HaloDataTest {
                 List.of(), List.of(), List.of(),
                 List.of(), List.of()
             );
-            Vec3d off = anim.evaluateOffset(0.0);
+            Vec3 off = anim.evaluateOffset(0.0);
             assertEquals(0.5, off.x, 1e-9);
         }
 
@@ -514,7 +514,7 @@ class HaloDataTest {
             );
             assertFalse(anim.isEmpty());
 
-            Vec3d off = anim.evaluateOffset(1.0);
+            Vec3 off = anim.evaluateOffset(1.0);
             assertEquals(0.1, off.x, 1e-9);
             assertEquals(0.0, off.y, 1e-9);  // sin(π)=0
 
@@ -1000,7 +1000,7 @@ class HaloDataTest {
             );
 
             HaloGroup group = def.model().groups().get(0);
-            assertEquals(Vec3d.ZERO, group.position());             // default position
+            assertEquals(Vec3.ZERO, group.position());             // default position
             assertEquals(1.0f, group.scale(), 0.001f);              // default scale
             assertTrue(group.inheritAlpha());                       // default inherit
             assertTrue(group.inheritGlow());                        // default inherit
@@ -1272,11 +1272,11 @@ class HaloDataTest {
         }
 
         @Test
-        @DisplayName("Vec3d adapter: array ↔ Vec3d round-trip")
+        @DisplayName("Vec3 adapter: array ↔ Vec3 round-trip")
         void vec3dAdapterRoundTrip() {
-            Vec3d original = new Vec3d(1.5, -2.0, 3.25);
+            Vec3 original = new Vec3(1.5, -2.0, 3.25);
             String serialized = gson.toJson(original);
-            Vec3d deserialized = gson.fromJson(serialized, Vec3d.class);
+            Vec3 deserialized = gson.fromJson(serialized, Vec3.class);
             assertEquals(original.x, deserialized.x, 1e-9);
             assertEquals(original.y, deserialized.y, 1e-9);
             assertEquals(original.z, deserialized.z, 1e-9);
@@ -1293,12 +1293,12 @@ class HaloDataTest {
         }
 
         @Test
-        @DisplayName("Identifier adapter: string ↔ Identifier round-trip")
+        @DisplayName("ResourceLocation adapter: string ↔ ResourceLocation round-trip")
         void identifierAdapterRoundTrip() {
-            Identifier original = Identifier.of("halo", "textures/halo/ring");
+            ResourceLocation original = ResourceLocation.fromNamespaceAndPath("halo", "textures/halo/ring");
             String serialized = gson.toJson(original);
             assertTrue(serialized.contains("halo:textures/halo/ring"));
-            Identifier deserialized = gson.fromJson(serialized, Identifier.class);
+            ResourceLocation deserialized = gson.fromJson(serialized, ResourceLocation.class);
             assertEquals(original.toString(), deserialized.toString());
         }
     }
@@ -2283,7 +2283,7 @@ class HaloDataTest {
                 List.of(), List.of());
 
             double hidePhase = 13.0;
-            Vec3d idleOffsetAtHide = idle.evaluateOffset(hidePhase);
+            Vec3 idleOffsetAtHide = idle.evaluateOffset(hidePhase);
             float[] idleScaleAtHide = idle.evaluateScale(hidePhase);
             float idleAlphaAtHide = idle.evaluateAlpha(hidePhase);
 

@@ -1,8 +1,7 @@
 package network.azusake.halo.animation;
 
-import net.minecraft.util.math.Vec3d;
-
 import java.util.List;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Fully resolved transition animation for a single group, consisting of
@@ -76,7 +75,7 @@ public class TransitionAnimationResult {
             : rotationQueue.evaluate(time);
 
         return new TransitionResult(
-            new Vec3d(off[0], off[1], off[2]),
+            new Vec3(off[0], off[1], off[2]),
             scl,
             a[0],
             rot
@@ -158,10 +157,10 @@ public class TransitionAnimationResult {
     }
 
     /** The result of evaluating a transition at a specific time. */
-    public record TransitionResult(Vec3d offset, float[] scale, float alpha,
+    public record TransitionResult(Vec3 offset, float[] scale, float alpha,
                                    float[] rotationDegrees) {
         public static final TransitionResult DEFAULT = new TransitionResult(
-            Vec3d.ZERO, new float[]{1f, 1f, 1f}, 1.0f, new float[]{0f, 0f, 0f}
+            Vec3.ZERO, new float[]{1f, 1f, 1f}, 1.0f, new float[]{0f, 0f, 0f}
         );
     }
 
@@ -170,7 +169,7 @@ public class TransitionAnimationResult {
     // ------------------------------------------------------------------
 
     private static float[] offsetOf(LayerAnimation idle, double phase) {
-        Vec3d v = idle.evaluateOffset(phase);
+        Vec3 v = idle.evaluateOffset(phase);
         return new float[]{(float) v.x, (float) v.y, (float) v.z};
     }
 

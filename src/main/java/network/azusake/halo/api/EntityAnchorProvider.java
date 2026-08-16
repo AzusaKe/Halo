@@ -1,6 +1,6 @@
 package network.azusake.halo.api;
 
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Provides a world-space {@link HeadAnchor} for a given {@link LivingEntity}.

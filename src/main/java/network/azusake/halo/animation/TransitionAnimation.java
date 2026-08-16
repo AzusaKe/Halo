@@ -1,9 +1,8 @@
 package network.azusake.halo.animation;
 
-import net.minecraft.util.math.Vec3d;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Multi-segment transition animation with easing curves and queue-based
@@ -95,12 +94,12 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
     /**
      * The result of evaluating a {@link TransitionAnimation} at a specific time.
      */
-    public record TransitionResult(Vec3d offset, float[] scale, float alpha,
+    public record TransitionResult(Vec3 offset, float[] scale, float alpha,
                                    float[] rotationDegrees) {
 
         /** Default result (identity: no change). */
         public static final TransitionResult DEFAULT = new TransitionResult(
-            Vec3d.ZERO, new float[]{1f, 1f, 1f}, 1.0f, new float[]{0f, 0f, 0f}
+            Vec3.ZERO, new float[]{1f, 1f, 1f}, 1.0f, new float[]{0f, 0f, 0f}
         );
     }
 
@@ -156,7 +155,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
                 float[] scl = evaluateRevProperty(revQueue, evalTime, DEFAULT_SCALE, e -> e.propScale());
                 float[] rot = evaluateRevProperty(revQueue, evalTime, DEFAULT_ROTATION, e -> e.propRotation());
                 float a = evaluateRevScalar(revQueue, evalTime, DEFAULT_ALPHA, e -> e.propAlpha());
-                return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a, rot);
+                return new TransitionResult(new Vec3(off[0], off[1], off[2]), scl, a, rot);
             }
             return resolveFinalOrFirst(segments, false);
         }
@@ -175,7 +174,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             : evaluatePropertyScalar(segments, elapsed, DEFAULT_ALPHA, seg -> seg.alpha());
 
         return new TransitionResult(
-            new Vec3d(offset[0], offset[1], offset[2]),
+            new Vec3(offset[0], offset[1], offset[2]),
             scale, alpha, rotation
         );
     }
@@ -450,7 +449,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
         float[] scl = first.propScale() != null ? (first.propScale().from() != null ? first.propScale().from() : DEFAULT_SCALE) : DEFAULT_SCALE;
         float[] rot = first.propRotation() != null ? (first.propRotation().from() != null ? first.propRotation().from() : DEFAULT_ROTATION) : DEFAULT_ROTATION;
         float a = first.propAlpha() != null ? (first.propAlpha().from() != null ? first.propAlpha().from()[0] : DEFAULT_ALPHA) : DEFAULT_ALPHA;
-        return new TransitionResult(new Vec3d(off[0], off[1], off[2]), scl, a, rot);
+        return new TransitionResult(new Vec3(off[0], off[1], off[2]), scl, a, rot);
     }
 
     /**
@@ -573,7 +572,7 @@ public record TransitionAnimation(List<TransitionSegment> segments) {
             ? resolvePropertyFirst(segs, new float[]{DEFAULT_ALPHA}, seg -> seg.alpha())
             : resolvePropertyFinal(segs, new float[]{DEFAULT_ALPHA}, seg -> seg.alpha());
 
-        return new TransitionResult(new Vec3d(offset[0], offset[1], offset[2]), scale, a[0], rotation);
+        return new TransitionResult(new Vec3(offset[0], offset[1], offset[2]), scale, a[0], rotation);
     }
 
     private static float[] resolvePropertyFirst(List<TransitionSegment> segs, float[] defaultVal,

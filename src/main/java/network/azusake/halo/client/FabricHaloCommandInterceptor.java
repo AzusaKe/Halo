@@ -13,9 +13,9 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import network.azusake.halo.json.HaloJsonLoader;
 
 import java.util.List;
@@ -57,7 +57,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
     private static final SuggestionProvider<FabricClientCommandSource> DEFINITION_SUGGESTIONS =
         (ctx, builder) -> {
             String remaining = builder.getRemaining().toLowerCase();
-            for (Identifier id : HaloJsonLoader.getDefinitions().keySet()) {
+            for (ResourceLocation id : HaloJsonLoader.getDefinitions().keySet()) {
                 String idStr = id.toString();
                 if (idStr.toLowerCase().startsWith(remaining)) {
                     builder.suggest(idStr);
@@ -103,7 +103,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
     };
 
     private void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher,
-                                  net.minecraft.command.CommandRegistryAccess registryAccess) {
+                                  net.minecraft.commands.CommandBuildContext registryAccess) {
 
         var haloNode = ClientCommandManager.literal("halo")
             .executes(ctx -> executeLocal("halo"))
@@ -117,7 +117,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
                 .executes(ctx -> executeLocal("halo show"))
                 .then(ClientCommandManager.argument("target", TARGET_ARGUMENT)
                     .executes(ctx -> executeLocal("halo show"))
-                    .then(ClientCommandManager.argument("definition", net.minecraft.command.argument.IdentifierArgumentType.identifier())
+                    .then(ClientCommandManager.argument("definition", net.minecraft.commands.arguments.ResourceLocationArgument.id())
                         .suggests(DEFINITION_SUGGESTIONS)
                         .executes(ctx -> {
                             String target = ctx.getInput().split(" ")[2];
@@ -241,13 +241,13 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
      * @return {@code 0}
      */
     private static int executeLocal(String command) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
 
         if (HaloPhaseTracker.getInstance().shouldIntercept()) {
             // LOCAL phase: handle on the client
             String result = HaloLocalCommandHandler.handle(command);
             if (result != null && client.player != null) {
-                client.player.sendMessage(Text.literal(result), false);
+                client.player.displayClientMessage(Component.literal(result), false);
             }
             return 0;
         }
@@ -256,7 +256,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
         // forward the command directly to the Netty pipeline via
         // CommandExecutionC2SPacket, bypassing Fabric's ClientCommandInternals
         // hook to avoid re-entering our own client-command executor.
-        if (client.getNetworkHandler() != null) {
+        if (client.getConnection() != null) {
             sendCommandRaw(command);
         }
         return 0;
@@ -268,13 +268,13 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
      * re-enter our own client-command executor.
      */
     private static void sendCommandRaw(String command) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.getNetworkHandler() == null) return;
+        Minecraft client = Minecraft.getInstance();
+        if (client.getConnection() == null) return;
 
         // In 1.21.1 the packet only carries the command string; sending it
         // directly avoids Fabric's client-command interception entirely.
-        var packet = new net.minecraft.network.packet.c2s.play.CommandExecutionC2SPacket(command);
+        var packet = new net.minecraft.network.protocol.game.ServerboundChatCommandPacket(command);
 
-        client.getNetworkHandler().getConnection().send(packet);
+        client.getConnection().getConnection().send(packet);
     }
 }

@@ -2,7 +2,7 @@ package network.azusake.halo.client;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 /**
  * Tracks whether the client is in {@link Phase#LOCAL} or {@link Phase#MULTIPLAYER} phase.
@@ -72,7 +72,7 @@ public final class HaloPhaseTracker {
      * LAN host) — commands flow to the integrated Brigadier dispatcher as normal.
      */
     public boolean shouldIntercept() {
-        if (MinecraftClient.getInstance().isIntegratedServerRunning()) {
+        if (Minecraft.getInstance().hasSingleplayerServer()) {
             return false;
         }
         return phase == Phase.LOCAL;

@@ -7,10 +7,9 @@ import network.azusake.halo.manager.HaloManager;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.server.level.ServerPlayer;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -32,16 +31,16 @@ import java.util.UUID;
 public final class HaloNetwork {
 
     /** Full-state snapshot — sent to a player on join. */
-    public static final Identifier CHANNEL_SYNC = HaloPayloads.Sync.ID.id();
+    public static final ResourceLocation CHANNEL_SYNC = HaloPayloads.Sync.ID.id();
 
     /** Incremental attach / remove — broadcast to all players. */
-    public static final Identifier CHANNEL_UPDATE = HaloPayloads.Update.ID.id();
+    public static final ResourceLocation CHANNEL_UPDATE = HaloPayloads.Update.ID.id();
 
     /** C2S — client reports its locally-available definition IDs. */
-    public static final Identifier CHANNEL_DEFS_REPORT = HaloPayloads.DefsReport.ID.id();
+    public static final ResourceLocation CHANNEL_DEFS_REPORT = HaloPayloads.DefsReport.ID.id();
 
     /** S2C — handshake, sent on player join to signal "server has the mod installed". */
-    public static final Identifier CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
+    public static final ResourceLocation CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
 
     private HaloNetwork() {
         // utility class
@@ -73,12 +72,12 @@ public final class HaloNetwork {
             (payload, context) -> {
                 var buf = payload.buf();
                 int count = buf.readInt();
-                Set<Identifier> ids = new LinkedHashSet<>(count);
+                Set<ResourceLocation> ids = new LinkedHashSet<>(count);
                 for (int i = 0; i < count; i++) {
-                    ids.add(buf.readIdentifier());
+                    ids.add(buf.readResourceLocation());
                 }
                 context.server().execute(() ->
-                    HaloJsonLoader.putClientReportedDefs(context.player().getUuid(), ids)
+                    HaloJsonLoader.putClientReportedDefs(context.player().getUUID(), ids)
                 );
             }
         );
@@ -94,7 +93,7 @@ public final class HaloNetwork {
      *
      * @param player the player who just joined
      */
-    public static void sendFullSync(ServerPlayerEntity player) {
+    public static void sendFullSync(ServerPlayer player) {
         var instances = HaloManager.getInstance().getAllInstances();
         // Count only active instances
         int count = 0;
@@ -107,7 +106,7 @@ public final class HaloNetwork {
         for (HaloInstance inst : instances) {
             if (!inst.isActive()) continue;
             writeUuid(buf, inst.getEntityUuid());
-            buf.writeIdentifier(inst.getDefinitionId());
+            buf.writeResourceLocation(inst.getDefinitionId());
         }
 
         ServerPlayNetworking.send(player, new HaloPayloads.Sync(buf));
@@ -120,14 +119,14 @@ public final class HaloNetwork {
      * @param entityUuid the entity that gained a halo
      * @param defId      the halo definition identifier
      */
-    public static void sendHaloAttach(MinecraftServer server, UUID entityUuid, Identifier defId) {
+    public static void sendHaloAttach(MinecraftServer server, UUID entityUuid, ResourceLocation defId) {
         var buf = PacketByteBufs.create();
         writeUuid(buf, entityUuid);
         buf.writeBoolean(true); // isAttach
-        buf.writeIdentifier(defId);
+        buf.writeResourceLocation(defId);
 
         HaloPayloads.Update payload = new HaloPayloads.Update(buf);
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             ServerPlayNetworking.send(player, payload);
         }
     }
@@ -147,14 +146,14 @@ public final class HaloNetwork {
      * @param entityUuid the entity whose halo was removed
      * @param defId      the halo definition identifier (for client-side shutdown animation)
      */
-    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, Identifier defId) {
+    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, ResourceLocation defId) {
         var buf = PacketByteBufs.create();
         writeUuid(buf, entityUuid);
         buf.writeBoolean(false); // isAttach = false → removal
-        buf.writeIdentifier(defId);
+        buf.writeResourceLocation(defId);
 
         HaloPayloads.Update payload = new HaloPayloads.Update(buf);
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             ServerPlayNetworking.send(player, payload);
         }
     }
@@ -167,7 +166,7 @@ public final class HaloNetwork {
      *
      * @param player the player to notify
      */
-    public static void sendHello(ServerPlayerEntity player) {
+    public static void sendHello(ServerPlayer player) {
         ServerPlayNetworking.send(player, new HaloPayloads.Hello(PacketByteBufs.create()));
     }
 
@@ -181,7 +180,7 @@ public final class HaloNetwork {
      * <p>Kept as explicit two-long serialisation to match the legacy 1.20.x
      * wire format byte-for-byte.</p>
      */
-    public static void writeUuid(net.minecraft.network.PacketByteBuf buf, UUID uuid) {
+    public static void writeUuid(net.minecraft.network.FriendlyByteBuf buf, UUID uuid) {
         buf.writeLong(uuid.getMostSignificantBits());
         buf.writeLong(uuid.getLeastSignificantBits());
     }
@@ -192,7 +191,7 @@ public final class HaloNetwork {
      * <p>This is the inverse of {@link #writeUuid} and is used by the client
      * receiver in {@link HaloNetworkClient}.</p>
      */
-    public static UUID readUuid(net.minecraft.network.PacketByteBuf buf) {
+    public static UUID readUuid(net.minecraft.network.FriendlyByteBuf buf) {
         long most = buf.readLong();
         long least = buf.readLong();
         return new UUID(most, least);

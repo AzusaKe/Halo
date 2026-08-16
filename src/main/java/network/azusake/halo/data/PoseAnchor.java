@@ -1,6 +1,6 @@
 package network.azusake.halo.data;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * A pose-specific anchor configuration for an entity type.
@@ -18,6 +18,6 @@ import net.minecraft.util.math.Vec3d;
  * @param headCenterVector  local vector from pivot to head visual center (blocks)
  */
 public record PoseAnchor(
-    Vec3d pivot,
-    Vec3d headCenterVector
+    Vec3 pivot,
+    Vec3 headCenterVector
 ) {}

@@ -6,10 +6,9 @@ import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.HaloWorldSaveData;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.world.entity.LivingEntity;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
@@ -67,7 +66,7 @@ public final class HaloManager {
      * @param entity the target living entity
      * @param defId  identifier of the halo definition to attach
      */
-    public void showHaloOn(LivingEntity entity, Identifier defId) {
+    public void showHaloOn(LivingEntity entity, ResourceLocation defId) {
         // Accept any identifier — the server is a dumb authority.
         // If a client doesn't have the definition, it will log a warning
         // and skip rendering rather than crashing.
@@ -75,8 +74,8 @@ public final class HaloManager {
             HaloMod.LOGGER.info("Halo definition '{}' not installed on server — accepting anyway (clients may have it)", defId);
         }
 
-        HaloInstance instance = new HaloInstance(entity.getUuid(), defId);
-        activeHalos.put(entity.getUuid(), instance);
+        HaloInstance instance = new HaloInstance(entity.getUUID(), defId);
+        activeHalos.put(entity.getUUID(), instance);
 
         // Persist to entity NBT so the halo survives world reload
         HaloEntityData.attachHalo(entity, defId);
@@ -86,13 +85,13 @@ public final class HaloManager {
         // /halo hide may modify it; death/respawn/dimension-travel only read it.
         MinecraftServer server = entity.getServer();
         if (server != null) {
-            HaloWorldSaveData.get(server.getOverworld()).set(entity.getUuid(), defId);
+            HaloWorldSaveData.get(server.overworld()).set(entity.getUUID(), defId);
 
             // Broadcast to all players on a dedicated server
-            network.azusake.halo.network.HaloNetwork.sendHaloAttach(server, entity.getUuid(), defId);
+            network.azusake.halo.network.HaloNetwork.sendHaloAttach(server, entity.getUUID(), defId);
         }
 
-        HaloMod.LOGGER.debug("Halo '{}' shown on entity {} (uuid={})", defId, entity.getName().getString(), entity.getUuid());
+        HaloMod.LOGGER.debug("Halo '{}' shown on entity {} (uuid={})", defId, entity.getName().getString(), entity.getUUID());
     }
 
     /**
@@ -103,7 +102,7 @@ public final class HaloManager {
      * @param entity the target living entity
      */
     public void hideHaloOn(LivingEntity entity) {
-        HaloInstance instance = activeHalos.remove(entity.getUuid());
+        HaloInstance instance = activeHalos.remove(entity.getUUID());
         if (instance == null) return;
 
         HaloEntityData.removeHalo(entity);
@@ -111,11 +110,11 @@ public final class HaloManager {
         MinecraftServer server = entity.getServer();
         if (server != null) {
             // Revoke ownership in the world-level persistent state
-            HaloWorldSaveData.get(server.getOverworld()).remove(entity.getUuid());
-            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUuid(), instance.getDefinitionId());
+            HaloWorldSaveData.get(server.overworld()).remove(entity.getUUID());
+            network.azusake.halo.network.HaloNetwork.sendHaloRemove(server, entity.getUUID(), instance.getDefinitionId());
         }
 
-        HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUuid());
+        HaloMod.LOGGER.debug("Halo hidden on entity {} (uuid={})", entity.getName().getString(), entity.getUUID());
     }
 
     /**
@@ -152,7 +151,7 @@ public final class HaloManager {
      * @param entityUuid the entity UUID
      * @param defId      the halo definition identifier
      */
-    public void putClientHalo(UUID entityUuid, Identifier defId) {
+    public void putClientHalo(UUID entityUuid, ResourceLocation defId) {
         activeHalos.put(entityUuid, new HaloInstance(entityUuid, defId));
     }
 
@@ -165,7 +164,7 @@ public final class HaloManager {
      * @param defId      the halo definition identifier
      * @param state      the initial transition state (e.g. {@code STARTING})
      */
-    public void putClientHalo(UUID entityUuid, Identifier defId, network.azusake.halo.data.HaloTransitionState state) {
+    public void putClientHalo(UUID entityUuid, ResourceLocation defId, network.azusake.halo.data.HaloTransitionState state) {
         HaloInstance inst = new HaloInstance(entityUuid, defId);
         inst.setTransitionState(state);
         // STARTING/ENDING instances need the transition timer started, otherwise
@@ -203,7 +202,7 @@ public final class HaloManager {
      *
      * @param snapshot map of entity UUID → definition ID
      */
-    public void replaceAllClientHalos(Map<UUID, Identifier> snapshot) {
+    public void replaceAllClientHalos(Map<UUID, ResourceLocation> snapshot) {
         activeHalos.clear();
         for (var entry : snapshot.entrySet()) {
             activeHalos.put(entry.getKey(), new HaloInstance(entry.getKey(), entry.getValue()));
@@ -309,7 +308,7 @@ public final class HaloManager {
      * @return the entity, or {@code null} if not found
      */
     private static LivingEntity findEntityByUuid(MinecraftServer server, UUID uuid) {
-        for (var world : server.getWorlds()) {
+        for (var world : server.getAllLevels()) {
             var entity = world.getEntity(uuid);
             if (entity instanceof LivingEntity living) {
                 return living;

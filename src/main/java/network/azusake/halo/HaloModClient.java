@@ -17,10 +17,10 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.world.entity.player.Player;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,14 +55,14 @@ public class HaloModClient implements ClientModInitializer {
         // gives no cross-mod ordering guarantee for entrypoints, so firing
         // here could race with other mods registering their listeners.
         EntityAnchorProviderRegistry anchorRegistry = EntityAnchorProviderRegistry.getInstance();
-        anchorRegistry.register(PlayerEntity.class, PlayerAnchorProvider.getInstance());
+        anchorRegistry.register(Player.class, PlayerAnchorProvider.getInstance());
         // Default player provider: the render-head capture provider anchors
         // the halo to the actually rendered head.  It keeps PlayerAnchorProvider
         // (backed by entity_anchors/player.json) as its no-capture fallback for
         // first-person, culled, or renderer-replaced players.  Both providers
         // are registered so external mods can still override via the setup
         // event (last-wins).
-        anchorRegistry.register(PlayerEntity.class, new RenderHeadAnchorProvider(PlayerAnchorProvider.getInstance()));
+        anchorRegistry.register(Player.class, new RenderHeadAnchorProvider(PlayerAnchorProvider.getInstance()));
 
         // Fire AnchorProviderSetupEvent exactly once, at the end of the first
         // client tick.  All mod entrypoints have run by then, so listeners
@@ -90,7 +90,7 @@ public class HaloModClient implements ClientModInitializer {
         // Clean up entity cache when entities are unloaded from the client world
         ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             if (entity != null) {
-                HaloClientManager.getInstance().onEntityUnloaded(entity.getUuid());
+                HaloClientManager.getInstance().onEntityUnloaded(entity.getUUID());
             }
         });
 
@@ -109,15 +109,15 @@ public class HaloModClient implements ClientModInitializer {
         // covers both bootstrap and incremental updates.  The sendDefsReport()
         // method safely no-ops when not connected to a server world.
         ResourceManagerHelper
-            .get(ResourceType.CLIENT_RESOURCES)
+            .get(PackType.CLIENT_RESOURCES)
             .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
                 @Override
-                public Identifier getFabricId() {
-                    return Identifier.of(HaloMod.MOD_ID, "defs_report_trigger");
+                public ResourceLocation getFabricId() {
+                    return ResourceLocation.fromNamespaceAndPath(HaloMod.MOD_ID, "defs_report_trigger");
                 }
                 @Override
-                public void reload(ResourceManager manager) {
-                    net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
+                public void onResourceManagerReload(ResourceManager manager) {
+                    net.minecraft.client.Minecraft.getInstance().execute(() -> {
                         HaloNetworkClient.sendDefsReport();
                     });
                 }

@@ -55,7 +55,7 @@ public final class HaloRenderListener {
             HaloRenderer.getInstance().renderHalos(
                 context.matrixStack(),
                 context.camera(),
-                context.tickCounter().getTickDelta(true)
+                context.tickCounter().getGameTimeDeltaPartialTick(true)
             );
         });
 

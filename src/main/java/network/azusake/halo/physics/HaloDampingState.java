@@ -1,6 +1,6 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 /**
@@ -14,7 +14,7 @@ import org.joml.Quaternionf;
 public class HaloDampingState {
 
     /** The damped relative position computed on the previous tick. */
-    Vec3d prevRelativePosition;
+    Vec3 prevRelativePosition;
 
     /** The damped relative rotation computed on the previous tick. */
     Quaternionf prevRelativeRotation;
@@ -41,7 +41,7 @@ public class HaloDampingState {
      */
     public HaloDampingState() {
         this.needsSnap = true;
-        this.prevRelativePosition = Vec3d.ZERO;
+        this.prevRelativePosition = Vec3.ZERO;
         this.prevRelativeRotation = new Quaternionf();
         this.prevDampedOrientation = null; // null = snap on first frame
         this.lastTickTime = System.nanoTime();
@@ -54,7 +54,7 @@ public class HaloDampingState {
      * @param position  the damped relative position just computed
      * @param rotation  the damped relative rotation just computed
      */
-    public void recordTick(Vec3d position, Quaternionf rotation) {
+    public void recordTick(Vec3 position, Quaternionf rotation) {
         this.prevRelativePosition = position;
         this.prevRelativeRotation = new Quaternionf(rotation);
         this.lastTickTime = System.nanoTime();

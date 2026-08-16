@@ -11,8 +11,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.resources.ResourceLocation;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -49,10 +48,10 @@ public final class HaloNetworkClient {
             (payload, context) -> {
                 var buf = payload.buf();
                 int count = buf.readInt();
-                Map<UUID, Identifier> incoming = new HashMap<>(count);
+                Map<UUID, ResourceLocation> incoming = new HashMap<>(count);
                 for (int i = 0; i < count; i++) {
                     UUID uuid = HaloNetwork.readUuid(buf);
-                    Identifier defId = buf.readIdentifier();
+                    ResourceLocation defId = buf.readResourceLocation();
                     incoming.put(uuid, defId);
                 }
                 context.client().execute(() -> {
@@ -72,12 +71,12 @@ public final class HaloNetworkClient {
                 UUID uuid = HaloNetwork.readUuid(buf);
                 boolean isAttach = buf.readBoolean();
                 if (isAttach) {
-                    Identifier defId = buf.readIdentifier();
+                    ResourceLocation defId = buf.readResourceLocation();
                     context.client().execute(() ->
                         HaloManager.getInstance().putClientHalo(uuid, defId, HaloTransitionState.STARTING)
                     );
                 } else {
-                    Identifier defId = buf.readIdentifier();
+                    ResourceLocation defId = buf.readResourceLocation();
                     boolean hasDefId = !defId.getPath().isEmpty();
                     context.client().execute(() -> {
                         // Set ENDING state — renderer will play shutdown animation
@@ -147,8 +146,8 @@ public final class HaloNetworkClient {
 
         var buf = PacketByteBufs.create();
         buf.writeInt(defs.size());
-        for (Identifier id : defs.keySet()) {
-            buf.writeIdentifier(id);
+        for (ResourceLocation id : defs.keySet()) {
+            buf.writeResourceLocation(id);
         }
         ClientPlayNetworking.send(new HaloPayloads.DefsReport(buf));
     }

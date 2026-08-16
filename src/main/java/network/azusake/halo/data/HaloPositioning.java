@@ -1,6 +1,6 @@
 package network.azusake.halo.data;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Static offsets for halo placement relative to an entity's head anchor.
@@ -9,6 +9,6 @@ import net.minecraft.util.math.Vec3d;
  * @param scale  uniform scale multiplier applied to the halo
  */
 public record HaloPositioning(
-    Vec3d offset,
+    Vec3 offset,
     double scale
 ) {}

@@ -1,12 +1,12 @@
 package network.azusake.halo.api;
 
-import net.minecraft.entity.LivingEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Registry of {@link EntityAnchorProvider}s, consulted by the halo anchor
@@ -74,7 +74,7 @@ public final class EntityAnchorProviderRegistry {
      * superclass chain → fallback).
      */
     public EntityAnchorProvider getProvider(LivingEntity entity) {
-        return getProvider(entity.getUuid(), entity.getClass());
+        return getProvider(entity.getUUID(), entity.getClass());
     }
 
     /**

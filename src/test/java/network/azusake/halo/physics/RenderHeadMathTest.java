@@ -1,7 +1,7 @@
 package network.azusake.halo.physics;
 
 import network.azusake.halo.api.HeadAnchor;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector4f;
@@ -46,7 +46,7 @@ class RenderHeadMathTest {
      * axes the way the renderer's {@code scale(-1,-1,1)} flip does:
      * {@code +X → right}, {@code +Y → -headUp}, {@code +Z → -forward}.
      */
-    private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3d cubeOrigin) {
+    private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3 cubeOrigin) {
         Matrix4f m = new Matrix4f();
         m.m00((float) frame.right().x); m.m01((float) frame.right().y); m.m02((float) frame.right().z); m.m03(0f);
         m.m10((float) -frame.headUp().x); m.m11((float) -frame.headUp().y); m.m12((float) -frame.headUp().z); m.m13(0f);
@@ -55,7 +55,7 @@ class RenderHeadMathTest {
         return m;
     }
 
-    private static Matrix4f pipelineRoot(Vec3d entityPos, Vec3d cameraPos, float bodyYawDeg) {
+    private static Matrix4f pipelineRoot(Vec3 entityPos, Vec3 cameraPos, float bodyYawDeg) {
         Matrix4f m = new Matrix4f();
         m.translate(
             (float) (entityPos.x - cameraPos.x),
@@ -66,18 +66,18 @@ class RenderHeadMathTest {
         return m;
     }
 
-    private static Vec3d transformDirection(Matrix4f m, float x, float y, float z) {
+    private static Vec3 transformDirection(Matrix4f m, float x, float y, float z) {
         Vector4f o = m.transform(new Vector4f(0f, 0f, 0f, 1f));
         Vector4f d = m.transform(new Vector4f(x, y, z, 1f));
-        return new Vec3d(d.x - o.x, d.y - o.y, d.z - o.z).normalize();
+        return new Vec3(d.x - o.x, d.y - o.y, d.z - o.z).normalize();
     }
 
-    private static Vec3d transformPoint(Matrix4f m, float x, float y, float z) {
+    private static Vec3 transformPoint(Matrix4f m, float x, float y, float z) {
         Vector4f p = m.transform(new Vector4f(x, y, z, 1f));
-        return new Vec3d(p.x, p.y, p.z);
+        return new Vec3(p.x, p.y, p.z);
     }
 
-    private static void assertVec(Vec3d expected, Vec3d actual, String label) {
+    private static void assertVec(Vec3 expected, Vec3 actual, String label) {
         assertEquals(expected.x, actual.x, 1e-3, label + " x");
         assertEquals(expected.y, actual.y, 1e-3, label + " y");
         assertEquals(expected.z, actual.z, 1e-3, label + " z");
@@ -97,7 +97,7 @@ class RenderHeadMathTest {
                 for (float pitch : new float[]{-75f, -20f, 0f, 45f}) {
                     for (float roll : new float[]{-120f, -30f, 0f, 60f, 170f}) {
                         HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yaw, pitch, roll);
-                        Matrix4f m = matrixFromFrame(frame, new Vec3d(0, 1.5, 0));
+                        Matrix4f m = matrixFromFrame(frame, new Vec3(0, 1.5, 0));
                         float[] ypr = RenderHeadMath.toYawPitchRoll(m);
                         String ctx = "yaw=" + yaw + " pitch=" + pitch + " roll=" + roll;
                         assertEquals(yaw, ypr[0], 0.05, ctx + " yaw");
@@ -111,12 +111,12 @@ class RenderHeadMathTest {
         @Test
         void extractedBasisIsOrthonormalNearVerticalPitch() {
             HeadFrameMath.HeadFrame frame = HeadFrameMath.of(45f, 89.9f, 20f);
-            Matrix4f m = matrixFromFrame(frame, new Vec3d(0, 1, 0));
+            Matrix4f m = matrixFromFrame(frame, new Vec3(0, 1, 0));
             float[] ypr = RenderHeadMath.toYawPitchRoll(m);
             HeadFrameMath.HeadFrame out = HeadFrameMath.of(ypr[0], ypr[1], ypr[2]);
             assertEquals(1.0, out.forward().length(), EPS, "forward length");
             assertEquals(1.0, out.headUp().length(), EPS, "headUp length");
-            assertEquals(0.0, out.forward().dotProduct(out.headUp()), EPS, "forward·headUp");
+            assertEquals(0.0, out.forward().dot(out.headUp()), EPS, "forward·headUp");
         }
     }
 
@@ -127,10 +127,10 @@ class RenderHeadMathTest {
         @Test
         void standingHeadBoxCenterIsQuarterBlockAboveCubeOrigin() {
             HeadFrameMath.HeadFrame frame = HeadFrameMath.of(0f, 0f, 0f);
-            Vec3d cubeOrigin = new Vec3d(10, 1.5, -3);
+            Vec3 cubeOrigin = new Vec3(10, 1.5, -3);
             Matrix4f m = matrixFromFrame(frame, cubeOrigin);
-            Vec3d cameraPos = new Vec3d(10, 1.5, -5);
-            Vec3d center = RenderHeadMath.headCenter(m, cameraPos);
+            Vec3 cameraPos = new Vec3(10, 1.5, -5);
+            Vec3 center = RenderHeadMath.headCenter(m, cameraPos);
             assertEquals(cubeOrigin.x, center.x - cameraPos.x, EPS, "x");
             assertEquals(cubeOrigin.y + 0.25, center.y - cameraPos.y, EPS, "y");
             assertEquals(cubeOrigin.z, center.z - cameraPos.z, EPS, "z");
@@ -143,8 +143,8 @@ class RenderHeadMathTest {
 
         @Test
         void matchesManualTranslateRotateScalePipeline() {
-            Vec3d entityPos = new Vec3d(10, 64, -20);
-            Vec3d cameraPos = new Vec3d(10, 64, -18);
+            Vec3 entityPos = new Vec3(10, 64, -20);
+            Vec3 cameraPos = new Vec3(10, 64, -18);
             float bodyYawDeg = 37f;
             float headYawDeg = -12f;
             float headPitchDeg = 15f;
@@ -180,8 +180,8 @@ class RenderHeadMathTest {
 
         @Test
         void fullAnchorRoundTripMatchesMatrixBasisAndCenter() {
-            Vec3d entityPos = new Vec3d(10, 64, -20);
-            Vec3d cameraPos = new Vec3d(10, 64, -18);
+            Vec3 entityPos = new Vec3(10, 64, -20);
+            Vec3 cameraPos = new Vec3(10, 64, -18);
             float bodyYawDeg = 37f;
             float headYawDeg = -12f;
             float headPitchDeg = 15f;
@@ -204,7 +204,7 @@ class RenderHeadMathTest {
             assertVec(transformDirection(head, 0f, 0f, -1f), frame.forward(), "forward");
             assertVec(transformDirection(head, 0f, -1f, 0f), frame.headUp(), "headUp");
 
-            Vec3d expectedCenter = cameraPos.add(transformPoint(head, 0f, -0.25f, 0f));
+            Vec3 expectedCenter = cameraPos.add(transformPoint(head, 0f, -0.25f, 0f));
             assertVec(expectedCenter, anchor.headCenter(), "headCenter");
         }
     }
@@ -215,8 +215,8 @@ class RenderHeadMathTest {
 
         @Test
         void forwardIsHorizontalAndPitchRollAreZero() {
-            Vec3d entityPos = new Vec3d(0, 64, 0);
-            Vec3d cameraPos = new Vec3d(5, 64, 3);
+            Vec3 entityPos = new Vec3(0, 64, 0);
+            Vec3 cameraPos = new Vec3(5, 64, 3);
             for (float bodyYawDeg : new float[]{0f, 45f, 120f}) {
                 for (float headYawDeg : new float[]{-30f, 0f, 25f}) {
                     Matrix4f root = pipelineRoot(entityPos, cameraPos, bodyYawDeg);
@@ -243,8 +243,8 @@ class RenderHeadMathTest {
 
         @Test
         void upStaysOrthogonalToForward() {
-            Vec3d entityPos = new Vec3d(10, 64, -20);
-            Vec3d cameraPos = new Vec3d(10, 64, -18);
+            Vec3 entityPos = new Vec3(10, 64, -20);
+            Vec3 cameraPos = new Vec3(10, 64, -18);
             Matrix4f root = pipelineRoot(entityPos, cameraPos, 37f);
             RenderHeadCapture.CapturedHead captured = capture(
                 root, 0f, 0f, 0f,
@@ -258,7 +258,7 @@ class RenderHeadMathTest {
             HeadFrameMath.HeadFrame frame = HeadFrameMath.of(ypr[0], ypr[1], ypr[2]);
 
             assertVec(transformDirection(head, 0f, 0f, -1f), frame.forward(), "forward");
-            assertEquals(0.0, frame.headUp().dotProduct(frame.forward()), 1e-3, "headUp·forward");
+            assertEquals(0.0, frame.headUp().dot(frame.forward()), 1e-3, "headUp·forward");
             assertEquals(1.0, frame.headUp().length(), 1e-3, "headUp length");
             assertEquals(1.0, frame.forward().length(), 1e-3, "forward length");
         }
@@ -270,8 +270,8 @@ class RenderHeadMathTest {
 
         @Test
         void viewSpaceAnchorEqualsWorldAnchor() {
-            Vec3d entityPos = new Vec3d(10, 64, -20);
-            Vec3d cameraPos = new Vec3d(10, 64, -18);
+            Vec3 entityPos = new Vec3(10, 64, -20);
+            Vec3 cameraPos = new Vec3(10, 64, -18);
             float bodyYawDeg = 37f;
             float headYawDeg = -12f;
             float headPitchDeg = 15f;

@@ -4,7 +4,7 @@ import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloPositioning;
 import network.azusake.halo.manager.HaloManager;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -124,15 +124,15 @@ class HaloCommandTest {
         }
 
         @Test
-        @DisplayName("positionOffset and rotationOffset accept any Vec3d")
+        @DisplayName("positionOffset and rotationOffset accept any Vec3")
         void offsetSetters() {
             HaloConfig config = new HaloConfig();
 
-            Vec3d pos = new Vec3d(1.0, 2.0, 3.0);
+            Vec3 pos = new Vec3(1.0, 2.0, 3.0);
             config.setPositionOffset(pos);
             assertEquals(pos, config.getPositionOffset());
 
-            Vec3d rot = new Vec3d(45.0, 90.0, 0.0);
+            Vec3 rot = new Vec3(45.0, 90.0, 0.0);
             config.setRotationOffset(rot);
             assertEquals(rot, config.getRotationOffset());
         }
@@ -150,8 +150,8 @@ class HaloCommandTest {
             assertEquals(0.3, config.getAngularMomentumFactor(), 1e-9);
             assertEquals(45.0, config.getMaxAngularMomentumDegrees(), 1e-9);
             assertEquals(1.0, config.getHaloScale(), 1e-9);
-            assertEquals(new Vec3d(0, 0.2, 0), config.getPositionOffset());
-            assertEquals(new Vec3d(0, 0, 0), config.getRotationOffset());
+            assertEquals(new Vec3(0, 0.2, 0), config.getPositionOffset());
+            assertEquals(new Vec3(0, 0, 0), config.getRotationOffset());
         }
 
         @Test
@@ -249,7 +249,7 @@ class HaloCommandTest {
         @DisplayName("toPositioning converts current positioning values")
         void toPositioning() {
             HaloConfig config = new HaloConfig();
-            Vec3d offset = new Vec3d(0, 0.5, 0);
+            Vec3 offset = new Vec3(0, 0.5, 0);
             config.setPositionOffset(offset);
             config.setHaloScale(2.0);
 
