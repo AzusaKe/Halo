@@ -43,7 +43,7 @@ public abstract class PlayerEntityRendererHeadCaptureMixin {
         Entity entity = Minecraft.getInstance().level.getEntity(avatarState.id);
         if (entity instanceof AbstractClientPlayer) {
             PlayerModel model = ((LivingEntityRenderer<?, ?, PlayerModel>) (Object) this).getModel();
-            RenderHeadCapture.beginSubmit(entity.getUUID(), model);
+            RenderHeadCapture.registerPlayer(avatarState.id, entity.getUUID(), model);
         }
     }
 }

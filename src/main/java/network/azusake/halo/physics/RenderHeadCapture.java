@@ -2,7 +2,6 @@ package network.azusake.halo.physics;
 
 import org.joml.Matrix4f;
 import com.mojang.blaze3d.vertex.PoseStack;
-import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,27 +11,32 @@ import net.minecraft.client.model.geom.ModelPart;
 /**
  * Per-frame capture of the player head's rendered transform.
  *
- * <p>Hooks installed by the client mixins bracket {@code AvatarRenderer.submit}
- * (ThreadLocal context) and snapshot the model root matrix plus the head
- * {@link ModelPart}'s final pose when the head part is actually rendered in
- * the deferred draw phase.  Because 26.1 defers model drawing until after all
- * entities have submitted, the per-frame entity association is bridged with a
- * FIFO queue: each player submit pushes its UUID, and each rendered player head
- * pops the next UUID.  Captures are keyed by entity UUID and cleared once per
- * frame ({@link #clearFrame}), so a missing entry means "not rendered this
- * frame" — consumers should fall back to their previous provider.</p>
+ * <p>Hooks installed by the client mixins register the base player body model
+ * per entity at submit time ({@link #registerPlayer}), then — because 26.1
+ * defers model drawing until after all entities have submitted — set the
+ * draw-time capture context from the entity render state right before each
+ * model is drawn ({@link #beginDraw}, invoked from {@code PlayerModel.setupAnim}).
+ * The {@link ModelPart#render} hook snapshots the head part's final pose when
+ * the base player body's head is actually rendered.  Captures are keyed by
+ * entity UUID and cleared once per frame ({@link #clearFrame}), so a missing
+ * entry means "not rendered this frame" — consumers should fall back to their
+ * previous provider.</p>
  *
- * <p>This is the default player-anchor capture path: hooks bracket
- * {@code PlayerEntityRenderer.render} with {@link #begin}/{@link #end} and
- * snapshot the head {@link ModelPart}'s rendered transform, then the anchor
- * pipeline converts the camera-relative matrix back to world space via the
- * per-frame view matrix recorded by {@link #setViewMatrix}.</p>
+ * <p>Unlike a submission-order FIFO, this does not depend on the deferred draw
+ * phase executing models in the same order they were submitted — entity submit
+ * nodes are bucketed by render type and translucent models are sorted by
+ * distance, so the draw order is not guaranteed.  The render state carried by
+ * each model submit identifies the entity being drawn.</p>
  */
 public final class RenderHeadCapture {
 
     private static final ThreadLocal<PlayerModel> CURRENT_MODEL = new ThreadLocal<>();
-    private static final ThreadLocal<ArrayDeque<UUID>> PENDING_UUIDS = ThreadLocal.withInitial(ArrayDeque::new);
+    private static final ThreadLocal<UUID> CURRENT_UUID = new ThreadLocal<>();
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
+    /** Base player body model per entity id, registered at submit time. */
+    private static final Map<Integer, PlayerModel> BASE_MODEL_BY_ENTITY_ID = new ConcurrentHashMap<>();
+    /** Entity UUID per entity id, registered at submit time. */
+    private static final Map<Integer, UUID> UUID_BY_ENTITY_ID = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
      * before entities render.  On 1.21.1+ the world-render matrix stack has an
@@ -47,20 +51,38 @@ public final class RenderHeadCapture {
     private RenderHeadCapture() { /* utility class */ }
 
     /**
-     * Called at the HEAD of {@code AvatarRenderer.submit}.  Records the player
-     * model for the upcoming deferred draw and enqueues the entity UUID so the
-     * next rendered player head can be attributed to this entity.
+     * Called at the HEAD of {@code AvatarRenderer.submit}.  Records the base
+     * player body model and entity UUID for the entity id so the deferred draw
+     * phase can attribute the head render to the right player.
      */
-    public static void beginSubmit(UUID entityUuid, PlayerModel model) {
-        CURRENT_MODEL.set(model);
-        PENDING_UUIDS.get().addLast(entityUuid);
+    public static void registerPlayer(int entityId, UUID entityUuid, PlayerModel model) {
+        BASE_MODEL_BY_ENTITY_ID.put(entityId, model);
+        UUID_BY_ENTITY_ID.put(entityId, entityUuid);
+    }
+
+    /**
+     * Called at the HEAD of {@code PlayerModel.setupAnim} during the deferred
+     * draw phase, right before the model is rendered.  Sets the capture context
+     * only for the base player body model of the entity being drawn; layer and
+     * armour models clear the context so their head parts are not captured.
+     */
+    public static void beginDraw(int entityId, PlayerModel model) {
+        if (BASE_MODEL_BY_ENTITY_ID.get(entityId) == model) {
+            CURRENT_MODEL.set(model);
+            CURRENT_UUID.set(UUID_BY_ENTITY_ID.get(entityId));
+        } else {
+            CURRENT_MODEL.remove();
+            CURRENT_UUID.remove();
+        }
     }
 
     /** Drop all captures from the previous frame; call before entity rendering. */
     public static void clearFrame() {
         CAPTURES.clear();
-        PENDING_UUIDS.get().clear();
+        BASE_MODEL_BY_ENTITY_ID.clear();
+        UUID_BY_ENTITY_ID.clear();
         CURRENT_MODEL.remove();
+        CURRENT_UUID.remove();
     }
 
     /** Record the frame's view matrix (world → camera). */
@@ -83,7 +105,7 @@ public final class RenderHeadCapture {
         if (model == null || part != model.getHead()) {
             return;
         }
-        UUID entityUuid = PENDING_UUIDS.get().pollFirst();
+        UUID entityUuid = CURRENT_UUID.get();
         if (entityUuid == null) {
             return;
         }
