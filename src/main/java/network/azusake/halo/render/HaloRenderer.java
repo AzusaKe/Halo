@@ -1133,7 +1133,7 @@ public final class HaloRenderer {
                 renderPass.bindTexture("Sampler0", texture.getTextureView(), texture.getSampler());
             }
             renderPass.setVertexBuffer(0, verticesSlice);
-            renderPass.draw(0, drawState.vertexCount(), 0, 1);
+            renderPass.draw(drawState.vertexCount(), 1, 0, 0);
         }
 
         built.close();
