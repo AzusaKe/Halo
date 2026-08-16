@@ -1,6 +1,7 @@
 package network.azusake.halo.client;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -75,7 +76,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("show")
                 .executes(ctx -> executeLocal("halo show"))
-                .then(ClientCommandManager.argument("target", net.minecraft.command.argument.EntityArgumentType.entity())
+                .then(ClientCommandManager.argument("target", StringArgumentType.word())
                     .executes(ctx -> executeLocal("halo show"))
                     .then(ClientCommandManager.argument("definition", net.minecraft.command.argument.IdentifierArgumentType.identifier())
                         .suggests(DEFINITION_SUGGESTIONS)
@@ -89,7 +90,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("hide")
                 .executes(ctx -> executeLocal("halo hide"))
-                .then(ClientCommandManager.argument("target", net.minecraft.command.argument.EntityArgumentType.entity())
+                .then(ClientCommandManager.argument("target", StringArgumentType.word())
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo hide " + target);
@@ -171,7 +172,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("inspect")
                 .executes(ctx -> executeLocal("halo inspect"))
-                .then(ClientCommandManager.argument("target", net.minecraft.command.argument.EntityArgumentType.entity())
+                .then(ClientCommandManager.argument("target", StringArgumentType.word())
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo inspect " + target);

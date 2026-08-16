@@ -42,11 +42,13 @@ public final class HaloRenderListener {
         // that did not render this frame fall back to their previous provider.
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
             RenderHeadCapture.clearFrame();
-            // The world-render stack is at its root (the camera view
-            // matrix) right before entities render.  Captured head
-            // matrices are camera-relative, so the halo pipeline needs
-            // this view matrix to recover world-space anchors.
-            RenderHeadCapture.setViewMatrix(new Matrix4f(context.positionMatrix()));
+            // On 1.21.1+ the world-render matrix stack has an identity root
+            // (the camera view rotation is applied by the GPU at draw time),
+            // so the head matrices captured during entity rendering are
+            // already camera-relative world space.  The anchor pipeline
+            // therefore must NOT un-rotate them — an identity "view matrix"
+            // leaves the captures unchanged.
+            RenderHeadCapture.setViewMatrix(new Matrix4f());
         });
 
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {

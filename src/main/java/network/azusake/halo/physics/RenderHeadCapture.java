@@ -33,9 +33,12 @@ public final class RenderHeadCapture {
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
-     * before entities render.  The captured head matrices are camera-relative,
-     * so consumers must un-rotate them with this matrix to recover world
-     * positions and angles.
+     * before entities render.  On 1.21.1+ the world-render matrix stack has an
+     * identity root, so captured head matrices are already camera-relative
+     * world space and this is set to the identity matrix — consumers must NOT
+     * un-rotate them (doing so double-rotates the anchor).  Kept for the
+     * conversion API contract; pass identity when the capture is already in
+     * world space.
      */
     private static volatile Matrix4f viewMatrix;
 
