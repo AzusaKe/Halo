@@ -9,10 +9,11 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash"]
     tags: ["v*"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash"]
+  workflow_dispatch:
 
 jobs:
   build:
