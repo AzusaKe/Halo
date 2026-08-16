@@ -33,11 +33,9 @@ import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BindGroupLayouts;
-import net.minecraft.client.renderer.MappableRingBuffer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -121,9 +119,6 @@ public final class HaloRenderer {
 
     /** Shared vertex-data allocator for building per-primitive meshes. */
     private static final ByteBufferBuilder BUFFER_ALLOCATOR = new ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE);
-
-    /** Ring buffer for uploading vertex data to the GPU (3 rotating slots). */
-    private MappableRingBuffer vertexBuffer;
 
     private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
     private static final Vector3f MODEL_OFFSET = new Vector3f();
@@ -1107,9 +1102,10 @@ public final class HaloRenderer {
     /**
      * Upload the built vertex data and execute a single draw with the given
      * pipeline.  Follows the Fabric 26.1.2 reference render-pipeline pattern:
-     * map a rotating GPU buffer, copy the mesh into it, then set
-     * pipeline / dynamic transforms / texture and draw non-indexed (all halo
-     * primitives are emitted as triangle soup, so no index buffer is needed).
+     * upload the mesh through the encoder's transient memory (auto-recycled
+     * per submit), then set pipeline / dynamic transforms / texture and draw
+     * non-indexed (all halo primitives are emitted as triangle soup, so no
+     * index buffer is needed).
      */
     private void drawPrimitive(RenderPipeline pipeline, BufferBuilder builder, Identifier textureId) {
         MeshData built = builder.buildOrThrow();
@@ -1118,22 +1114,10 @@ public final class HaloRenderer {
         // Resolve/load the texture BEFORE opening the render pass — GPU texture
         // uploads (writeToTexture) are not allowed while a pass is active.
         AbstractTexture texture = textureId != null ? resolveTexture(textureId) : null;
-        VertexFormat format = drawState.format();
-
-        int vertexBufferSize = drawState.vertexCount() * format.getVertexSize();
-        if (vertexBuffer == null || vertexBuffer.size() < vertexBufferSize) {
-            if (vertexBuffer != null) {
-                vertexBuffer.close();
-            }
-            vertexBuffer = new MappableRingBuffer(
-                () -> HaloMod.MOD_ID + " halo",
-                GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE | GpuBuffer.USAGE_COPY_DST,
-                vertexBufferSize);
-        }
 
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        GpuBufferSlice verticesSlice = vertexBuffer.currentBuffer().slice(0, built.vertexBuffer().remaining());
-        encoder.writeToBuffer(verticesSlice, built.vertexBuffer());
+        GpuBufferSlice verticesSlice = encoder.transientMemory()
+            .uploadStaging(built.vertexBuffer(), 0L, GpuBuffer.USAGE_VERTEX);
 
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
             .writeTransform(RenderSystem.getModelViewMatrixCopy(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
@@ -1153,7 +1137,6 @@ public final class HaloRenderer {
         }
 
         built.close();
-        vertexBuffer.rotate();
     }
 
     /**
