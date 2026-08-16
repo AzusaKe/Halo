@@ -1,7 +1,7 @@
 package network.azusake.halo.api;
 
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.player.Player;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -38,15 +38,15 @@ class EntityAnchorProviderRegistryTest {
         void superclassMatch() {
             EntityAnchorProviderRegistry registry = new EntityAnchorProviderRegistry();
             registry.register(LivingEntity.class, PROVIDER_A);
-            assertSame(PROVIDER_A, registry.getProvider(Zombie.class));
+            assertSame(PROVIDER_A, registry.getProvider(Creeper.class));
         }
 
         @Test
         void exactClassBeatsSuperclass() {
             EntityAnchorProviderRegistry registry = new EntityAnchorProviderRegistry();
             registry.register(LivingEntity.class, PROVIDER_A);
-            registry.register(Zombie.class, PROVIDER_B);
-            assertSame(PROVIDER_B, registry.getProvider(Zombie.class));
+            registry.register(Creeper.class, PROVIDER_B);
+            assertSame(PROVIDER_B, registry.getProvider(Creeper.class));
             assertSame(PROVIDER_A, registry.getProvider(Player.class));
         }
 
@@ -61,7 +61,7 @@ class EntityAnchorProviderRegistryTest {
         @Test
         void unregisteredFallsBackToFallbackProvider() {
             EntityAnchorProviderRegistry registry = new EntityAnchorProviderRegistry();
-            assertSame(FallbackAnchorProvider.getInstance(), registry.getProvider(Zombie.class));
+            assertSame(FallbackAnchorProvider.getInstance(), registry.getProvider(Creeper.class));
         }
 
         @Test
@@ -93,23 +93,23 @@ class EntityAnchorProviderRegistryTest {
         void uuidBeatsClassRegistration() {
             EntityAnchorProviderRegistry registry = new EntityAnchorProviderRegistry();
             UUID uuid = UUID.randomUUID();
-            registry.register(Zombie.class, PROVIDER_A);
+            registry.register(Creeper.class, PROVIDER_A);
             registry.register(uuid, PROVIDER_B);
-            assertSame(PROVIDER_B, registry.getProvider(uuid, Zombie.class));
+            assertSame(PROVIDER_B, registry.getProvider(uuid, Creeper.class));
         }
 
         @Test
         void unknownUuidFallsThroughToClass() {
             EntityAnchorProviderRegistry registry = new EntityAnchorProviderRegistry();
-            registry.register(Zombie.class, PROVIDER_A);
-            assertSame(PROVIDER_A, registry.getProvider(UUID.randomUUID(), Zombie.class));
+            registry.register(Creeper.class, PROVIDER_A);
+            assertSame(PROVIDER_A, registry.getProvider(UUID.randomUUID(), Creeper.class));
         }
 
         @Test
         void unknownUuidFallsThroughToFallback() {
             EntityAnchorProviderRegistry registry = new EntityAnchorProviderRegistry();
             assertSame(FallbackAnchorProvider.getInstance(),
-                registry.getProvider(UUID.randomUUID(), Zombie.class));
+                registry.getProvider(UUID.randomUUID(), Creeper.class));
         }
 
         @Test
@@ -118,7 +118,7 @@ class EntityAnchorProviderRegistryTest {
             UUID uuid = UUID.randomUUID();
             registry.register(uuid, PROVIDER_A);
             registry.register(uuid, PROVIDER_B);
-            assertSame(PROVIDER_B, registry.getProvider(uuid, Zombie.class));
+            assertSame(PROVIDER_B, registry.getProvider(uuid, Creeper.class));
         }
 
         @Test

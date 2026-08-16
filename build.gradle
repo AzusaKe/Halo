@@ -1,11 +1,11 @@
 plugins {
-    id 'net.fabricmc.fabric-loom-remap' version '1.17.19'
+    id 'net.fabricmc.fabric-loom' version '1.17.19'
     id 'maven-publish'
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 base {
@@ -22,11 +22,10 @@ repositories {
 dependencies {
     // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     // Fabric API. This is technically optional, but you probably want it anyway.
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     // Test dependencies
     testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
@@ -44,8 +43,8 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // Minecraft 1.20.5 and above require Java 21.
-    it.options.release = 21
+    // Minecraft 26.1 and above require Java 25.
+    it.options.release = 25
 }
 
 java {
@@ -68,6 +67,7 @@ test {
 
 // Client run configuration: 2560x1600 window, non-fullscreen
 loom {
+    accessWidenerPath = file("src/main/resources/halo.accesswidener")
     runs {
         client {
             programArgs("--width", "2560")

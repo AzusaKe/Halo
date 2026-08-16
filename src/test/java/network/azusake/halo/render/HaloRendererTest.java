@@ -4,7 +4,7 @@ import network.azusake.halo.animation.AnimationTerm;
 import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.shape.HaloGroup;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;

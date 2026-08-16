@@ -17,7 +17,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.entity.player.Player;
@@ -112,8 +112,8 @@ public class HaloModClient implements ClientModInitializer {
             .get(PackType.CLIENT_RESOURCES)
             .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
                 @Override
-                public ResourceLocation getFabricId() {
-                    return ResourceLocation.fromNamespaceAndPath(HaloMod.MOD_ID, "defs_report_trigger");
+                public Identifier getFabricId() {
+                    return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "defs_report_trigger");
                 }
                 @Override
                 public void onResourceManagerReload(ResourceManager manager) {

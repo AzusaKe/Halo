@@ -2,20 +2,23 @@ package network.azusake.halo.physics;
 
 import org.joml.Matrix4f;
 import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.client.player.AbstractClientPlayer;
 
 /**
  * Per-frame capture of the player head's rendered transform.
  *
- * <p>Hooks installed by the client mixins bracket {@code PlayerEntityRenderer.render}
- * with {@link #begin}/{@link #end} (ThreadLocal context) and snapshot the model
- * root matrix plus the head {@link ModelPart}'s final pose when the head part is
- * actually rendered.  Captures are keyed by entity UUID and cleared once per
+ * <p>Hooks installed by the client mixins bracket {@code AvatarRenderer.submit}
+ * (ThreadLocal context) and snapshot the model root matrix plus the head
+ * {@link ModelPart}'s final pose when the head part is actually rendered in
+ * the deferred draw phase.  Because 26.1 defers model drawing until after all
+ * entities have submitted, the per-frame entity association is bridged with a
+ * FIFO queue: each player submit pushes its UUID, and each rendered player head
+ * pops the next UUID.  Captures are keyed by entity UUID and cleared once per
  * frame ({@link #clearFrame}), so a missing entry means "not rendered this
  * frame" — consumers should fall back to their previous provider.</p>
  *
@@ -27,8 +30,8 @@ import net.minecraft.client.player.AbstractClientPlayer;
  */
 public final class RenderHeadCapture {
 
-    private static final ThreadLocal<AbstractClientPlayer> CURRENT_ENTITY = new ThreadLocal<>();
-    private static final ThreadLocal<PlayerModel<?>> CURRENT_MODEL = new ThreadLocal<>();
+    private static final ThreadLocal<PlayerModel> CURRENT_MODEL = new ThreadLocal<>();
+    private static final ThreadLocal<ArrayDeque<UUID>> PENDING_UUIDS = ThreadLocal.withInitial(ArrayDeque::new);
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
@@ -43,21 +46,21 @@ public final class RenderHeadCapture {
 
     private RenderHeadCapture() { /* utility class */ }
 
-    /** Called at the HEAD of {@code PlayerEntityRenderer.render}. */
-    public static void begin(AbstractClientPlayer entity, PlayerModel<?> model) {
-        CURRENT_ENTITY.set(entity);
+    /**
+     * Called at the HEAD of {@code AvatarRenderer.submit}.  Records the player
+     * model for the upcoming deferred draw and enqueues the entity UUID so the
+     * next rendered player head can be attributed to this entity.
+     */
+    public static void beginSubmit(UUID entityUuid, PlayerModel model) {
         CURRENT_MODEL.set(model);
-    }
-
-    /** Called at the TAIL of {@code PlayerEntityRenderer.render}. */
-    public static void end() {
-        CURRENT_ENTITY.remove();
-        CURRENT_MODEL.remove();
+        PENDING_UUIDS.get().addLast(entityUuid);
     }
 
     /** Drop all captures from the previous frame; call before entity rendering. */
     public static void clearFrame() {
         CAPTURES.clear();
+        PENDING_UUIDS.get().clear();
+        CURRENT_MODEL.remove();
     }
 
     /** Record the frame's view matrix (world → camera). */
@@ -76,15 +79,15 @@ public final class RenderHeadCapture {
      * snapshotted.
      */
     public static void capture(PoseStack matrices, ModelPart part) {
-        PlayerModel<?> model = CURRENT_MODEL.get();
+        PlayerModel model = CURRENT_MODEL.get();
         if (model == null || part != model.getHead()) {
             return;
         }
-        AbstractClientPlayer entity = CURRENT_ENTITY.get();
-        if (entity == null) {
+        UUID entityUuid = PENDING_UUIDS.get().pollFirst();
+        if (entityUuid == null) {
             return;
         }
-        CAPTURES.put(entity.getUUID(), new CapturedHead(
+        CAPTURES.put(entityUuid, new CapturedHead(
             new Matrix4f(matrices.last().pose()),
             part.x, part.y, part.z,
             part.xRot, part.yRot, part.zRot,

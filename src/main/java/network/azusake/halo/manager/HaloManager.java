@@ -6,7 +6,7 @@ import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.HaloWorldSaveData;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.LivingEntity;
 import java.util.Collection;
@@ -66,7 +66,7 @@ public final class HaloManager {
      * @param entity the target living entity
      * @param defId  identifier of the halo definition to attach
      */
-    public void showHaloOn(LivingEntity entity, ResourceLocation defId) {
+    public void showHaloOn(LivingEntity entity, Identifier defId) {
         // Accept any identifier — the server is a dumb authority.
         // If a client doesn't have the definition, it will log a warning
         // and skip rendering rather than crashing.
@@ -83,7 +83,7 @@ public final class HaloManager {
         // Record ownership in the world-level persistent state — the single
         // authoritative record of who owns which halo.  Only /halo show and
         // /halo hide may modify it; death/respawn/dimension-travel only read it.
-        MinecraftServer server = entity.getServer();
+        MinecraftServer server = entity.level().getServer();
         if (server != null) {
             HaloWorldSaveData.get(server.overworld()).set(entity.getUUID(), defId);
 
@@ -107,7 +107,7 @@ public final class HaloManager {
 
         HaloEntityData.removeHalo(entity);
 
-        MinecraftServer server = entity.getServer();
+        MinecraftServer server = entity.level().getServer();
         if (server != null) {
             // Revoke ownership in the world-level persistent state
             HaloWorldSaveData.get(server.overworld()).remove(entity.getUUID());
@@ -151,7 +151,7 @@ public final class HaloManager {
      * @param entityUuid the entity UUID
      * @param defId      the halo definition identifier
      */
-    public void putClientHalo(UUID entityUuid, ResourceLocation defId) {
+    public void putClientHalo(UUID entityUuid, Identifier defId) {
         activeHalos.put(entityUuid, new HaloInstance(entityUuid, defId));
     }
 
@@ -164,7 +164,7 @@ public final class HaloManager {
      * @param defId      the halo definition identifier
      * @param state      the initial transition state (e.g. {@code STARTING})
      */
-    public void putClientHalo(UUID entityUuid, ResourceLocation defId, network.azusake.halo.data.HaloTransitionState state) {
+    public void putClientHalo(UUID entityUuid, Identifier defId, network.azusake.halo.data.HaloTransitionState state) {
         HaloInstance inst = new HaloInstance(entityUuid, defId);
         inst.setTransitionState(state);
         // STARTING/ENDING instances need the transition timer started, otherwise
@@ -202,7 +202,7 @@ public final class HaloManager {
      *
      * @param snapshot map of entity UUID → definition ID
      */
-    public void replaceAllClientHalos(Map<UUID, ResourceLocation> snapshot) {
+    public void replaceAllClientHalos(Map<UUID, Identifier> snapshot) {
         activeHalos.clear();
         for (var entry : snapshot.entrySet()) {
             activeHalos.put(entry.getKey(), new HaloInstance(entry.getKey(), entry.getValue()));

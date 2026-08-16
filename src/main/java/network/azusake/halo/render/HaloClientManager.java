@@ -99,7 +99,7 @@ public final class HaloClientManager {
             lastCacheRebuild = now;
         }
 
-        Vec3 camPos = camera.getPosition();
+        Vec3 camPos = camera.position();
         List<HaloInstance> visible = new ArrayList<>();
 
         for (HaloInstance instance : allInstances) {

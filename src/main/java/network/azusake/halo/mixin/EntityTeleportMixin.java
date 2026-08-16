@@ -10,32 +10,24 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Hooks both {@code requestTeleport} and {@code refreshPositionAfterTeleport} on
+ * Hooks the 26.1 teleport entry points {@code snapTo} and {@code teleportTo} on
  * {@link Entity} so any teleport — regardless of distance, dimension, or whether
  * a subclass overrides one path — instantly triggers a halo snap.
  *
  * <h3>Why these two hooks cover <em>every</em> vanilla teleport</h3>
  *
- * <p>Both methods are {@code final} on {@code Entity.class}. Every subclass
- * that needs to move an entity discontinuously must go through one of them.
- * The complete call-chain audit:</p>
+ * <p>Every subclass that needs to move an entity discontinuously must go
+ * through one of them. The complete call-chain audit:</p>
  *
  * <pre>
- * Teleport source           → entry point                                  → hook hit
- * ─────────────────────────────────────────────────────────────────────────────────────
- * /tp                       → TeleportCommand → Entity.requestTeleport()   → requestTeleport
- * /teleport (alias)         → same as /tp                                  → requestTeleport
- * /spreadplayers            → SpreadPlayersCommand → Entity.requestTeleport() → requestTeleport
- * /spectate                 → SpectatorCommand → Entity.teleport()         → requestTeleport
- * Ender pearl impact        → EnderPearlEntity → Player.requestTeleport()  → requestTeleport
- * Chorus fruit              → ChorusFruitItem → LivingEntity.teleport()    → requestTeleport
- * Boat / minecart dismount  → BoatEntity etc. → passenger.requestTeleport()→ requestTeleport
- * Nether portal travel      → Entity.changeDimension()                     → refreshPositionAfterTeleport
- * End portal travel         → Entity.changeDimension()                     → refreshPositionAfterTeleport
- * End gateway               → Entity.changeDimension()                     → refreshPositionAfterTeleport
- * /execute in <dim>         → ServerPlayerEntity.changeDimension()         → refreshPositionAfterTeleport
- * Player respawn            → ServerPlayerEntity.onRespawn()               → refreshPositionAfterTeleport
- * End return portal         → Entity.changeDimension()                     → refreshPositionAfterTeleport
+ * Teleport source           → entry point                     → hook hit
+ * ─────────────────────────────────────────────────────────────────────────
+ * /tp                       → TeleportCommand → Entity.snapTo() → snapTo
+ * /spreadplayers            → SpreadPlayersCommand → Entity.snapTo() → snapTo
+ * Ender pearl impact        → EnderPearlEntity → Player.teleportTo() → teleportTo
+ * Chorus fruit              → ChorusFruitItem → LivingEntity.teleportTo() → teleportTo
+ * Nether / End travel       → Entity.changeDimension()         → teleportTo
+ * Player respawn            → ServerPlayer.onRespawn()         → teleportTo
  * </pre>
  *
  * <p>Both hooks call {@code markIfHasHalo()} which delegates to
@@ -44,21 +36,27 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * distance-based safety net (threshold: 1000² blocks) as a last resort
  * against other mods that might bypass both canonical methods.</p>
  *
- * <p><b>Note:</b> {@code refreshPositionAfterTeleport} is also called by
- * {@code requestTeleport} internally, so some teleport paths fire both hooks.
- * This is harmless — the tracker's grace period (250 ms) debounces redundant
- * triggers.</p>
+ * <p><b>Note:</b> {@code snapTo} is also called internally by some teleport
+ * paths, so some teleports fire both hooks. This is harmless — the tracker's
+ * grace period (250 ms) debounces redundant triggers.</p>
  */
 @Mixin(Entity.class)
 public abstract class EntityTeleportMixin {
 
-    @Inject(method = "moveTo(DDD)V", at = @At("TAIL"))
-    private void halo$afterTeleport(double x, double y, double z, CallbackInfo ci) {
+    @Inject(method = "snapTo(DDD)V", at = @At("TAIL"))
+    private void halo$afterSnapTo(double x, double y, double z, CallbackInfo ci) {
         markIfHasHalo();
     }
 
     @Inject(method = "teleportTo(DDD)V", at = @At("HEAD"))
-    private void halo$onRequestTeleport(double x, double y, double z, CallbackInfo ci) {
+    private void halo$onTeleportTo(double x, double y, double z, CallbackInfo ci) {
+        markIfHasHalo();
+    }
+
+    @Inject(method = "teleportTo(Lnet/minecraft/server/level/ServerLevel;DDDLjava/util/Set;FFZ)Z", at = @At("HEAD"))
+    private void halo$onTeleportToLevel(net.minecraft.server.level.ServerLevel level, double x, double y, double z,
+                                        java.util.Set<net.minecraft.world.entity.Relative> relatives,
+                                        float yaw, float pitch, boolean teleportCamera, CallbackInfo ci) {
         markIfHasHalo();
     }
 

@@ -6,14 +6,14 @@ import network.azusake.halo.manager.HaloManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * World-level persistent state that records halo assignments so they survive
@@ -33,7 +33,6 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public class HaloWorldSaveData extends SavedData {
 
-    private static final String NAME = "halo_world_data";
     private static final String HALOS_KEY = "Halos";
     private static final String UUID_KEY = "UUID";
     private static final String DEF_KEY = "Definition";
@@ -41,60 +40,30 @@ public class HaloWorldSaveData extends SavedData {
     /** Halo assignments persisted to / loaded from world NBT. */
     private final List<HaloEntry> entries = new ArrayList<>();
 
-    /** PersistentState type descriptor used by {@link #get(ServerLevel)}. */
-    public static final SavedData.Factory<HaloWorldSaveData> TYPE = new SavedData.Factory<>(
+    /** Codec serialising the durable halo-ownership record to world storage. */
+    private static final Codec<HaloWorldSaveData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        HaloEntry.CODEC.listOf().fieldOf(HALOS_KEY).orElse(List.of())
+            .forGetter(data -> List.copyOf(data.entries))
+    ).apply(instance, HaloWorldSaveData::new));
+
+    /** SavedData type descriptor used by {@link #get(ServerLevel)}. */
+    public static final SavedDataType<HaloWorldSaveData> TYPE = new SavedDataType<>(
+        Identifier.fromNamespaceAndPath("halo", "world_data"),
         HaloWorldSaveData::new,
-        HaloWorldSaveData::fromNbt,
+        CODEC,
         DataFixTypes.SAVED_DATA_MAP_DATA
     );
 
     // ------------------------------------------------------------------
-    // PersistentState contract
+    // SavedData contract
     // ------------------------------------------------------------------
 
-    @Override
-    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registryLookup) {
-        // Serialise the stored entries directly.  Deliberately NOT synced from
-        // HaloManager's activeHalos — that map is transient (cleared on death)
-        // and must not overwrite the durable ownership record.
-        ListTag haloList = new ListTag();
-
-        for (HaloEntry entry : entries) {
-            CompoundTag haloTag = new CompoundTag();
-            haloTag.putString(UUID_KEY, entry.entityUuid().toString());
-            haloTag.putString(DEF_KEY, entry.definitionId().toString());
-            haloList.add(haloTag);
-        }
-
-        nbt.put(HALOS_KEY, haloList);
-        return nbt;
+    private HaloWorldSaveData() {
+        // codec/type constructor
     }
 
-    /**
-     * Factory: reconstruct from saved NBT.
-     */
-    public static HaloWorldSaveData fromNbt(CompoundTag nbt, HolderLookup.Provider registryLookup) {
-        HaloWorldSaveData data = new HaloWorldSaveData();
-
-        if (!nbt.contains(HALOS_KEY)) {
-            return data;
-        }
-
-        ListTag haloList = nbt.getList(HALOS_KEY, Tag.TAG_COMPOUND);
-        for (int i = 0; i < haloList.size(); i++) {
-            CompoundTag haloTag = haloList.getCompound(i);
-            try {
-                UUID uuid = UUID.fromString(haloTag.getString(UUID_KEY));
-                ResourceLocation defId = ResourceLocation.parse(haloTag.getString(DEF_KEY));
-                data.entries.add(new HaloEntry(uuid, defId));
-            } catch (Exception e) {
-                HaloMod.LOGGER.warn("HaloWorldSaveData: skipping malformed halo entry at index {}: {}",
-                    i, e.getMessage());
-            }
-        }
-
-        HaloMod.LOGGER.debug("HaloWorldSaveData: loaded {} halo entries from world NBT", data.entries.size());
-        return data;
+    private HaloWorldSaveData(List<HaloEntry> halos) {
+        this.entries.addAll(halos);
     }
 
     // ------------------------------------------------------------------
@@ -108,7 +77,7 @@ public class HaloWorldSaveData extends SavedData {
      * @return the persistent state instance, never {@code null}
      */
     public static HaloWorldSaveData get(ServerLevel world) {
-        return world.getDataStorage().computeIfAbsent(TYPE, NAME);
+        return world.getDataStorage().computeIfAbsent(TYPE);
     }
 
     // ------------------------------------------------------------------
@@ -128,7 +97,7 @@ public class HaloWorldSaveData extends SavedData {
      * @param entityUuid the owning entity
      * @param defId      the halo definition identifier
      */
-    public void set(UUID entityUuid, ResourceLocation defId) {
+    public void set(UUID entityUuid, Identifier defId) {
         entries.removeIf(e -> e.entityUuid().equals(entityUuid));
         entries.add(new HaloEntry(entityUuid, defId));
         setDirty();
@@ -159,9 +128,9 @@ public class HaloWorldSaveData extends SavedData {
      * if none is recorded.
      *
      * @param entityUuid the owning entity UUID
-     * @return the definition {@link ResourceLocation}, or {@code null}
+     * @return the definition {@link Identifier}, or {@code null}
      */
-    public ResourceLocation get(UUID entityUuid) {
+    public Identifier get(UUID entityUuid) {
         for (HaloEntry entry : entries) {
             if (entry.entityUuid().equals(entityUuid)) {
                 return entry.definitionId();
@@ -197,5 +166,12 @@ public class HaloWorldSaveData extends SavedData {
      * @param entityUuid   the entity that bears the halo
      * @param definitionId the halo definition identifier
      */
-    public record HaloEntry(UUID entityUuid, ResourceLocation definitionId) {}
+    public record HaloEntry(UUID entityUuid, Identifier definitionId) {
+
+        /** Codec for a single halo ownership entry. */
+        public static final Codec<HaloEntry> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            UUIDUtil.CODEC.fieldOf(UUID_KEY).forGetter(HaloEntry::entityUuid),
+            Identifier.CODEC.fieldOf(DEF_KEY).forGetter(HaloEntry::definitionId)
+        ).apply(instance, HaloEntry::new));
+    }
 }

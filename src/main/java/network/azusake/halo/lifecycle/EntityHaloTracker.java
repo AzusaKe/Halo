@@ -9,7 +9,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -254,7 +254,7 @@ public final class EntityHaloTracker {
         // A dead non-player will never respawn — drop its stale ownership entry.
         // A dead player keeps theirs so the halo returns on respawn.
         if (!(entity instanceof ServerPlayer)) {
-            var server = entity.getServer();
+            var server = entity.level().getServer();
             if (server != null) {
                 HaloWorldSaveData.get(server.overworld()).remove(uuid);
             }
@@ -326,12 +326,12 @@ public final class EntityHaloTracker {
             return;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) {
             return;
         }
 
-        ResourceLocation defId = HaloWorldSaveData.get(server.overworld()).get(uuid);
+        Identifier defId = HaloWorldSaveData.get(server.overworld()).get(uuid);
         if (defId == null) {
             return;
         }
@@ -346,12 +346,12 @@ public final class EntityHaloTracker {
      * @param entity the entity that just loaded
      */
     private static void restoreFromWorldSave(LivingEntity entity) {
-        MinecraftServer server = entity.getServer();
+        MinecraftServer server = entity.level().getServer();
         if (server == null) {
             return;
         }
 
-        ResourceLocation defId = HaloWorldSaveData.get(server.overworld()).get(entity.getUUID());
+        Identifier defId = HaloWorldSaveData.get(server.overworld()).get(entity.getUUID());
         if (defId == null) {
             return;
         }

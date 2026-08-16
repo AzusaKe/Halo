@@ -4,7 +4,7 @@ import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.animation.StartupAnimationConfig;
 import network.azusake.halo.shape.HaloModel;
 import java.util.Optional;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A fully parsed halo definition loaded from a JSON resource file.
@@ -22,7 +22,7 @@ import net.minecraft.resources.ResourceLocation;
  * @param shutdownAnimation optional shutdown transition animation config
  */
 public record HaloDefinition(
-    ResourceLocation id,
+    Identifier id,
     HaloModel model,
     Optional<LayerAnimation> animation,
     HaloPositioning positioning,

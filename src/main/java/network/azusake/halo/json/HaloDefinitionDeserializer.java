@@ -23,7 +23,7 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -64,7 +64,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         this.gson = new GsonBuilder()
             .registerTypeAdapter(Vec3.class, new Vec3dAdapter())
             .registerTypeAdapter(Vector2f.class, new Vec2fAdapter())
-            .registerTypeAdapter(ResourceLocation.class, new IdentifierAdapter())
+            .registerTypeAdapter(Identifier.class, new IdentifierAdapter())
             .create();
     }
 
@@ -98,7 +98,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             }
         }
 
-        ResourceLocation id = parseId(root, "id");
+        Identifier id = parseId(root, "id");
         HaloModel model = parseModel(root, schemaVersion);
         Optional<LayerAnimation> animation = parseLayerAnimation(root.get("animation"));
         HaloPositioning positioning = parsePositioning(root.getAsJsonObject("positioning"));
@@ -319,7 +319,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     }
 
     private BillboardPrimitive parseBillboardPrimitive(JsonObject obj) {
-        ResourceLocation texture = ResourceLocation.tryParse(obj.get("texture").getAsString());
+        Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
         Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
         // face_camera (default false): when true the quad is drawn fully
         // facing the camera and no animation rotation can override that.
@@ -329,16 +329,16 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
 
     private RingPrimitive parseRingPrimitive(JsonObject obj) {
         // Outer texture: try "outer_texture" first, fall back to "texture"
-        ResourceLocation outerTexture;
+        Identifier outerTexture;
         if (obj.has("outer_texture")) {
-            outerTexture = ResourceLocation.tryParse(obj.get("outer_texture").getAsString());
+            outerTexture = Identifier.tryParse(obj.get("outer_texture").getAsString());
         } else {
-            outerTexture = ResourceLocation.tryParse(obj.get("texture").getAsString());
+            outerTexture = Identifier.tryParse(obj.get("texture").getAsString());
         }
 
         // Inner texture: optional, defaults to outer
-        ResourceLocation innerTexture = obj.has("inner_texture")
-            ? ResourceLocation.tryParse(obj.get("inner_texture").getAsString())
+        Identifier innerTexture = obj.has("inner_texture")
+            ? Identifier.tryParse(obj.get("inner_texture").getAsString())
             : null;
 
         // Size: [radius, width]
@@ -660,9 +660,9 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     // Sub-parsers
     // ------------------------------------------------------------------
 
-    private ResourceLocation parseId(JsonObject root, String key) {
+    private Identifier parseId(JsonObject root, String key) {
         String raw = root.get(key).getAsString();
-        return ResourceLocation.tryParse(raw);
+        return Identifier.tryParse(raw);
     }
 
     // ------------------------------------------------------------------
@@ -702,14 +702,14 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         }
     }
 
-    private static class IdentifierAdapter implements JsonDeserializer<ResourceLocation>, JsonSerializer<ResourceLocation> {
+    private static class IdentifierAdapter implements JsonDeserializer<Identifier>, JsonSerializer<Identifier> {
         @Override
-        public ResourceLocation deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
-            return ResourceLocation.tryParse(json.getAsString());
+        public Identifier deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
+            return Identifier.tryParse(json.getAsString());
         }
 
         @Override
-        public JsonElement serialize(ResourceLocation src, Type typeOfSrc, JsonSerializationContext context) {
+        public JsonElement serialize(Identifier src, Type typeOfSrc, JsonSerializationContext context) {
             return new JsonPrimitive(src.toString());
         }
     }

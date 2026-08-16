@@ -6,7 +6,7 @@ import network.azusake.halo.shape.*;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector2f;
@@ -69,9 +69,9 @@ class HaloDataTest {
         @Test
         @DisplayName("HaloDefinition: all fields accessible")
         void definition() {
-            ResourceLocation id = ResourceLocation.fromNamespaceAndPath("halo", "test");
+            Identifier id = Identifier.fromNamespaceAndPath("halo", "test");
             BillboardPrimitive bp = new BillboardPrimitive(
-                ResourceLocation.fromNamespaceAndPath("halo", "tex"),
+                Identifier.fromNamespaceAndPath("halo", "tex"),
                 new Vector2f(1, 1)
             );
             HaloGroup group = new HaloGroup(Vec3.ZERO, bp);
@@ -101,7 +101,7 @@ class HaloDataTest {
         void newInstanceNeedsSnap() {
             HaloInstance inst = new HaloInstance(
                 java.util.UUID.randomUUID(),
-                ResourceLocation.fromNamespaceAndPath("halo", "ring_default")
+                Identifier.fromNamespaceAndPath("halo", "ring_default")
             );
             assertTrue(inst.isNeedsSnap());
         }
@@ -111,7 +111,7 @@ class HaloDataTest {
         void markNeedsSnap() {
             HaloInstance inst = new HaloInstance(
                 java.util.UUID.randomUUID(),
-                ResourceLocation.fromNamespaceAndPath("halo", "ring_default")
+                Identifier.fromNamespaceAndPath("halo", "ring_default")
             );
             inst.setNeedsSnap(false);
             assertFalse(inst.isNeedsSnap());
@@ -130,7 +130,7 @@ class HaloDataTest {
         @DisplayName("currentAnimTime: fresh instance uses raw elapsed time")
         void currentAnimTimeFreshUsesRawElapsed() {
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
+                java.util.UUID.randomUUID(), Identifier.fromNamespaceAndPath("halo", "ring_default"));
             assertEquals(5.0, inst.currentAnimTime(inst.getCreatedAtTime() + 5_000, null), 0.001);
         }
 
@@ -138,7 +138,7 @@ class HaloDataTest {
         @DisplayName("currentAnimTime: frozen during STARTING / ENDING")
         void currentAnimTimeFrozenDuringTransitions() {
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
+                java.util.UUID.randomUUID(), Identifier.fromNamespaceAndPath("halo", "ring_default"));
             inst.startTransition(4.0);
             long start = inst.getTransitionStartTime();
             StartupAnimationConfig cfg = startupConfig(7.0);
@@ -154,7 +154,7 @@ class HaloDataTest {
         @DisplayName("currentAnimTime: NORMAL after a completed startup lags wall-clock by startup duration")
         void currentAnimTimeLagsByStartupDuration() {
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
+                java.util.UUID.randomUUID(), Identifier.fromNamespaceAndPath("halo", "ring_default"));
             inst.startTransition(0.0);
             long start = inst.getTransitionStartTime();
             inst.setTransitionState(HaloTransitionState.NORMAL);
@@ -172,7 +172,7 @@ class HaloDataTest {
             // raw - 7) → hide.  The ENDING freeze must equal the NORMAL animTime
             // the renderer was using, not the raw wall-clock elapsed time.
             HaloInstance inst = new HaloInstance(
-                java.util.UUID.randomUUID(), ResourceLocation.fromNamespaceAndPath("abydos", "shiroko"));
+                java.util.UUID.randomUUID(), Identifier.fromNamespaceAndPath("abydos", "shiroko"));
             StartupAnimationConfig cfg = startupConfig(7.0);
 
             inst.startTransition(0.0);
@@ -203,7 +203,7 @@ class HaloDataTest {
         @DisplayName("BillboardPrimitive implements HaloPrimitive")
         void billboardIsHaloPrimitive() {
             BillboardPrimitive b = new BillboardPrimitive(
-                ResourceLocation.fromNamespaceAndPath("halo", "ring"),
+                Identifier.fromNamespaceAndPath("halo", "ring"),
                 new Vector2f(0.5f, 0.5f)
             );
             assertInstanceOf(HaloPrimitive.class, b);
@@ -212,8 +212,8 @@ class HaloDataTest {
         @Test
         @DisplayName("HaloModel groups list preserves order")
         void modelGroupsOrder() {
-            var bp1 = new BillboardPrimitive(ResourceLocation.fromNamespaceAndPath("halo", "a"), new Vector2f(1, 1));
-            var bp2 = new BillboardPrimitive(ResourceLocation.fromNamespaceAndPath("halo", "b"), new Vector2f(2, 2));
+            var bp1 = new BillboardPrimitive(Identifier.fromNamespaceAndPath("halo", "a"), new Vector2f(1, 1));
+            var bp2 = new BillboardPrimitive(Identifier.fromNamespaceAndPath("halo", "b"), new Vector2f(2, 2));
             HaloModel m = new HaloModel(OrientationMode.LOCKED, List.of(
                 new HaloGroup(Vec3.ZERO, bp1),
                 new HaloGroup(new Vec3(0, 0.2, 0), bp2)
@@ -1293,12 +1293,12 @@ class HaloDataTest {
         }
 
         @Test
-        @DisplayName("ResourceLocation adapter: string ↔ ResourceLocation round-trip")
+        @DisplayName("Identifier adapter: string ↔ Identifier round-trip")
         void identifierAdapterRoundTrip() {
-            ResourceLocation original = ResourceLocation.fromNamespaceAndPath("halo", "textures/halo/ring");
+            Identifier original = Identifier.fromNamespaceAndPath("halo", "textures/halo/ring");
             String serialized = gson.toJson(original);
             assertTrue(serialized.contains("halo:textures/halo/ring"));
-            ResourceLocation deserialized = gson.fromJson(serialized, ResourceLocation.class);
+            Identifier deserialized = gson.fromJson(serialized, Identifier.class);
             assertEquals(original.toString(), deserialized.toString());
         }
     }

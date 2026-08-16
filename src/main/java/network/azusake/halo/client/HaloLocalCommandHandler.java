@@ -5,7 +5,7 @@ import network.azusake.halo.data.HaloInstance;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -88,13 +88,13 @@ public final class HaloLocalCommandHandler {
     // ------------------------------------------------------------------
 
     private static String handleList() {
-        Map<ResourceLocation, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+        Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
         if (defs.isEmpty()) {
             return "§e本地没有加载任何光环定义。请将光环定义 JSON 放入资源包并运行 §f/reload§e。";
         }
         StringBuilder sb = new StringBuilder();
         sb.append("§a本地光环定义 (§f").append(defs.size()).append("§a):");
-        for (ResourceLocation id : defs.keySet()) {
+        for (Identifier id : defs.keySet()) {
             sb.append("\n  §7- §f").append(id);
         }
         return sb.toString();
@@ -109,7 +109,7 @@ public final class HaloLocalCommandHandler {
         UUID playerUuid = client.player.getUUID();
         String serverKey = getServerKey(client);
 
-        Map<ResourceLocation, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+        Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
 
         StringBuilder sb = new StringBuilder();
         sb.append("§a=== 本地光环状态 ===");
@@ -119,7 +119,7 @@ public final class HaloLocalCommandHandler {
             var halo = HaloLocalManager.getInstance().getHalo(serverKey, playerUuid);
             sb.append("\n§7你的光环: ");
             if (halo.isPresent()) {
-                ResourceLocation defId = halo.get();
+                Identifier defId = halo.get();
                 sb.append("§a").append(defId);
                 HaloDefinition def = defs.get(defId);
                 if (def != null) {
@@ -139,7 +139,7 @@ public final class HaloLocalCommandHandler {
         // Loaded definitions summary
         sb.append("\n§7本地已加载定义: §f").append(defs.size()).append("§7 个");
         if (!defs.isEmpty()) {
-            for (ResourceLocation id : defs.keySet()) {
+            for (Identifier id : defs.keySet()) {
                 HaloDefinition def = defs.get(id);
                 sb.append("\n  §7- §f").append(id)
                     .append(" §8v=§7").append(def.schemaVersion())
@@ -175,9 +175,9 @@ public final class HaloLocalCommandHandler {
             return "§c无效的定义 ID: §f" + defStr + "\n§7定义 ID 必须包含命名空间，例如: halo:ring_default";
         }
 
-        ResourceLocation defId;
+        Identifier defId;
         try {
-            defId = ResourceLocation.parse(defStr);
+            defId = Identifier.parse(defStr);
         } catch (Exception e) {
             return "§c无效的定义 ID: §f" + defStr;
         }

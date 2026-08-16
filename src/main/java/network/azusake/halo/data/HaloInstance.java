@@ -5,7 +5,7 @@ import network.azusake.halo.animation.TransitionAnimationResult;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * Per-entity runtime marker for a single halo.
@@ -23,7 +23,7 @@ import net.minecraft.resources.ResourceLocation;
 public class HaloInstance {
 
     private final UUID entityUuid;
-    private final ResourceLocation definitionId;
+    private final Identifier definitionId;
 
     /** When true the next pose calculation snaps instantly (ignores damping). */
     private boolean needsSnap;
@@ -81,7 +81,7 @@ public class HaloInstance {
      */
     private boolean hiddenByState = false;
 
-    public HaloInstance(UUID entityUuid, ResourceLocation definitionId) {
+    public HaloInstance(UUID entityUuid, Identifier definitionId) {
         this.entityUuid = entityUuid;
         this.definitionId = definitionId;
         this.needsSnap = true;
@@ -97,7 +97,7 @@ public class HaloInstance {
         return entityUuid;
     }
 
-    public ResourceLocation getDefinitionId() {
+    public Identifier getDefinitionId() {
         return definitionId;
     }
 

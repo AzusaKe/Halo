@@ -6,7 +6,7 @@ import com.google.gson.reflect.TypeToken;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.InetSocketAddress;
@@ -49,7 +49,7 @@ public final class HaloLocalManager {
      * Outer key: server identifier ({@code "host:port"}).
      * Inner map: entity UUID → halo definition ID.
      */
-    private final ConcurrentHashMap<String, ConcurrentHashMap<UUID, ResourceLocation>> serverHalos =
+    private final ConcurrentHashMap<String, ConcurrentHashMap<UUID, Identifier>> serverHalos =
         new ConcurrentHashMap<>();
 
     private volatile boolean loaded = false;
@@ -90,11 +90,11 @@ public final class HaloLocalManager {
                 String serverKey = serverEntry.getKey();
                 Map<String, String> uuidMap = serverEntry.getValue();
                 if (uuidMap == null) continue;
-                ConcurrentHashMap<UUID, ResourceLocation> inner = new ConcurrentHashMap<>();
+                ConcurrentHashMap<UUID, Identifier> inner = new ConcurrentHashMap<>();
                 for (var uuidEntry : uuidMap.entrySet()) {
                     try {
                         UUID uuid = UUID.fromString(uuidEntry.getKey());
-                        ResourceLocation defId = ResourceLocation.parse(uuidEntry.getValue());
+                        Identifier defId = Identifier.parse(uuidEntry.getValue());
                         inner.put(uuid, defId);
                     } catch (IllegalArgumentException e) {
                         // skip malformed entries silently
@@ -140,7 +140,7 @@ public final class HaloLocalManager {
     /**
      * Record (or replace) a halo on the given entity for the given server.
      */
-    public void showHalo(String serverKey, UUID entityUuid, ResourceLocation defId) {
+    public void showHalo(String serverKey, UUID entityUuid, Identifier defId) {
         ensureLoaded();
         serverHalos
             .computeIfAbsent(serverKey, k -> new ConcurrentHashMap<>())
@@ -153,7 +153,7 @@ public final class HaloLocalManager {
      */
     public void hideHalo(String serverKey, UUID entityUuid) {
         ensureLoaded();
-        ConcurrentHashMap<UUID, ResourceLocation> map = serverHalos.get(serverKey);
+        ConcurrentHashMap<UUID, Identifier> map = serverHalos.get(serverKey);
         if (map != null) {
             map.remove(entityUuid);
         }
@@ -165,9 +165,9 @@ public final class HaloLocalManager {
      *
      * @return the definition ID, or {@link Optional#empty()} if none is set
      */
-    public Optional<ResourceLocation> getHalo(String serverKey, UUID entityUuid) {
+    public Optional<Identifier> getHalo(String serverKey, UUID entityUuid) {
         ensureLoaded();
-        ConcurrentHashMap<UUID, ResourceLocation> map = serverHalos.get(serverKey);
+        ConcurrentHashMap<UUID, Identifier> map = serverHalos.get(serverKey);
         if (map == null) return Optional.empty();
         return Optional.ofNullable(map.get(entityUuid));
     }
@@ -180,7 +180,7 @@ public final class HaloLocalManager {
      */
     public Set<UUID> getHalosForServer(String serverKey) {
         ensureLoaded();
-        ConcurrentHashMap<UUID, ResourceLocation> map = serverHalos.get(serverKey);
+        ConcurrentHashMap<UUID, Identifier> map = serverHalos.get(serverKey);
         if (map == null) return Set.of();
         return Collections.unmodifiableSet(map.keySet());
     }

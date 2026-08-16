@@ -6,8 +6,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
@@ -57,7 +56,7 @@ public final class HaloEntityData {
      * @param offsetY      Y offset from entity anchor
      * @param offsetZ      Z offset from entity anchor
      */
-    public static void attachHalo(LivingEntity entity, ResourceLocation definitionId,
+    public static void attachHalo(LivingEntity entity, Identifier definitionId,
                                   double scale, double offsetX, double offsetY, double offsetZ) {
         CompoundTag haloTag = new CompoundTag();
         haloTag.putString(DEF_KEY, definitionId.toString());
@@ -79,7 +78,7 @@ public final class HaloEntityData {
      * @param entity       the target living entity
      * @param definitionId the halo definition identifier
      */
-    public static void attachHalo(LivingEntity entity, ResourceLocation definitionId) {
+    public static void attachHalo(LivingEntity entity, Identifier definitionId) {
         attachHalo(entity, definitionId, 1.0, 0.0, 0.3, 0.0);
     }
 
@@ -111,12 +110,12 @@ public final class HaloEntityData {
         }
         // Return a copy so the mixin can mutate it without affecting the stored version
         CompoundTag copy = new CompoundTag();
-        copy.putString(DEF_KEY, tag.getString(DEF_KEY));
+        copy.putString(DEF_KEY, tag.getStringOr(DEF_KEY, ""));
         if (tag.contains(SCALE_KEY)) {
-            copy.putDouble(SCALE_KEY, tag.getDouble(SCALE_KEY));
+            copy.putDouble(SCALE_KEY, tag.getDoubleOr(SCALE_KEY, 0.0));
         }
         if (tag.contains(OFFSET_KEY)) {
-            copy.put(OFFSET_KEY, tag.getList(OFFSET_KEY, Tag.TAG_DOUBLE));
+            copy.put(OFFSET_KEY, tag.getListOrEmpty(OFFSET_KEY));
         }
         return copy;
     }
@@ -131,13 +130,13 @@ public final class HaloEntityData {
     public static void loadFromTag(LivingEntity entity, CompoundTag tag) {
         CompoundTag stored = new CompoundTag();
         if (tag.contains(DEF_KEY)) {
-            stored.putString(DEF_KEY, tag.getString(DEF_KEY));
+            stored.putString(DEF_KEY, tag.getStringOr(DEF_KEY, ""));
         }
         if (tag.contains(SCALE_KEY)) {
-            stored.putDouble(SCALE_KEY, tag.getDouble(SCALE_KEY));
+            stored.putDouble(SCALE_KEY, tag.getDoubleOr(SCALE_KEY, 0.0));
         }
         if (tag.contains(OFFSET_KEY)) {
-            stored.put(OFFSET_KEY, tag.getList(OFFSET_KEY, Tag.TAG_DOUBLE));
+            stored.put(OFFSET_KEY, tag.getListOrEmpty(OFFSET_KEY));
         }
         DATA.put(entity.getUUID(), stored);
     }
@@ -170,16 +169,16 @@ public final class HaloEntityData {
      * Read the halo definition identifier from the store.
      *
      * @param entity the target living entity
-     * @return the definition {@link ResourceLocation}, or {@code null} if absent or malformed
+     * @return the definition {@link Identifier}, or {@code null} if absent or malformed
      */
-    public static ResourceLocation getHaloDefinition(LivingEntity entity) {
+    public static Identifier getHaloDefinition(LivingEntity entity) {
         CompoundTag tag = DATA.get(entity.getUUID());
         if (tag == null || !tag.contains(DEF_KEY)) {
             return null;
         }
 
         try {
-            return ResourceLocation.parse(tag.getString(DEF_KEY));
+            return Identifier.parse(tag.getStringOr(DEF_KEY, ""));
         } catch (Exception e) {
             HaloMod.LOGGER.warn("HaloEntityData: malformed Definition in NBT for entity {}",
                 entity.getUUID());
@@ -198,7 +197,7 @@ public final class HaloEntityData {
         if (tag == null || !tag.contains(SCALE_KEY)) {
             return 1.0;
         }
-        return tag.getDouble(SCALE_KEY);
+        return tag.getDoubleOr(SCALE_KEY, 0.0);
     }
 
     /**
@@ -213,14 +212,14 @@ public final class HaloEntityData {
             return null;
         }
 
-        ListTag list = tag.getList(OFFSET_KEY, Tag.TAG_DOUBLE);
+        ListTag list = tag.getListOrEmpty(OFFSET_KEY);
         if (list.size() < 3) {
             return null;
         }
         return new double[]{
-            list.getDouble(0),
-            list.getDouble(1),
-            list.getDouble(2)
+            list.getDoubleOr(0, 0.0),
+            list.getDoubleOr(1, 0.0),
+            list.getDoubleOr(2, 0.0)
         };
     }
 }

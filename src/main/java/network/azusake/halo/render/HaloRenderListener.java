@@ -2,7 +2,8 @@ package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.physics.RenderHeadCapture;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,28 +38,34 @@ public final class HaloRenderListener {
         }
         registered = true;
 
-        // Drop last frame's head captures right before entities render so the
-        // halo pass (AFTER_ENTITIES) only sees this frame's captures; entities
-        // that did not render this frame fall back to their previous provider.
-        WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
+        // Extraction phase (thread-safe, no GL): drop last frame's head
+        // captures and record the frame tick delta so the drawing phase can
+        // interpolate halo animation.  Entities that did not render this frame
+        // fall back to their previous anchor provider.
+        LevelRenderEvents.END_EXTRACTION.register(context -> {
             RenderHeadCapture.clearFrame();
-            // On 1.21.1+ the world-render matrix stack has an identity root
-            // (the camera view rotation is applied by the GPU at draw time),
-            // so the head matrices captured during entity rendering are
+            // On 1.21.1+ / 26.1 the world-render matrix stack has an identity
+            // root (the camera view rotation is applied by the GPU at draw
+            // time), so the head matrices captured during entity rendering are
             // already camera-relative world space.  The anchor pipeline
             // therefore must NOT un-rotate them — an identity "view matrix"
             // leaves the captures unchanged.
             RenderHeadCapture.setViewMatrix(new Matrix4f());
+            lastTickDelta = context.deltaTracker().getGameTimeDeltaPartialTick(true);
         });
 
-        WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            HaloRenderer.getInstance().renderHalos(
-                context.matrixStack(),
-                context.camera(),
-                context.tickCounter().getGameTimeDeltaPartialTick(true)
-            );
+        // Drawing phase: halos are drawn after terrain, entities and their
+        // translucent submits so they always appear on top of the entity they
+        // are attached to.  The glow layer uses additive blending and renders
+        // correctly against both opaque and translucent geometry.
+        LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(context -> {
+            Vec3 camPos = context.levelState().cameraRenderState.pos;
+            HaloRenderer.getInstance().renderHalos(context.poseStack(), camPos, lastTickDelta);
         });
 
-        LOG.info("[HaloRenderListener] registered on WorldRenderEvents.AFTER_ENTITIES");
+        LOG.info("[HaloRenderListener] registered on LevelRenderEvents.END_EXTRACTION / AFTER_TRANSLUCENT_TERRAIN");
     }
+
+    /** Frame tick delta captured during extraction, consumed by the draw pass. */
+    private static volatile float lastTickDelta;
 }

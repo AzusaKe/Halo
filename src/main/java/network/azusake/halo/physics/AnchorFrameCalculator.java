@@ -103,6 +103,24 @@ public final class AnchorFrameCalculator {
         float tickDelta,
         double frameDt
     ) {
+        return calculate(instance, entity, definition, camera.position(), tickDelta, frameDt);
+    }
+
+    /**
+     * Camera-agnostic overload for the 26.1 GPU pipeline, where the drawing
+     * phase has the camera position as a plain {@link Vec3} instead of a
+     * {@link Camera} object.
+     *
+     * @param cameraPosition the camera position this frame
+     */
+    public AnchorFrame calculate(
+        HaloInstance instance,
+        LivingEntity entity,
+        HaloDefinition definition,
+        Vec3 cameraPosition,
+        float tickDelta,
+        double frameDt
+    ) {
         UUID uuid = instance.getEntityUuid();
 
         // 1. Pose-aware head anchor via the provider registry
@@ -334,7 +352,7 @@ public final class AnchorFrameCalculator {
         float scale = getRuntimeScaleOverride(definition);
 
         // 11. Camera-relative position
-        Vec3 camPos = camera.getPosition();
+        Vec3 camPos = cameraPosition;
         Vec3 camRelPos = new Vec3(
             haloWorldPos.x - camPos.x,
             haloWorldPos.y - camPos.y,

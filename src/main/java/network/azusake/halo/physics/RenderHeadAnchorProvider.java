@@ -43,7 +43,7 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                     ? client.gameRenderer.getMainCamera()
                     : null;
                 if (camera != null) {
-                    Vec3 cameraPos = camera.getPosition();
+                    Vec3 cameraPos = camera.position();
                     Matrix4f viewMatrix = RenderHeadCapture.getViewMatrix();
                     if (viewMatrix != null) {
                         HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, viewMatrix);

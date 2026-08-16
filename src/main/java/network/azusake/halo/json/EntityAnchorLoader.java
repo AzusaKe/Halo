@@ -9,7 +9,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.phys.Vec3;
@@ -26,7 +26,7 @@ import java.util.*;
  * registry.
  *
  * <p>Loaded profiles are stored in a static {@link LinkedHashMap} keyed by
- * entity type {@link ResourceLocation}.  Client-pack entries override server-pack
+ * entity type {@link Identifier}.  Client-pack entries override server-pack
  * entries with the same entity key, matching the Fabric resource-loading
  * convention.</p>
  *
@@ -39,13 +39,13 @@ public final class EntityAnchorLoader {
     private static final Logger LOG = LoggerFactory.getLogger(HaloMod.MOD_ID);
     private static final String PROFILES_PATH = "entity_anchors";
 
-    private static final Map<ResourceLocation, EntityAnchorProfile> PROFILES = new LinkedHashMap<>();
+    private static final Map<Identifier, EntityAnchorProfile> PROFILES = new LinkedHashMap<>();
 
     /** IDs loaded by the server listener. */
-    private static final Set<ResourceLocation> serverLoadedIds = new LinkedHashSet<>();
+    private static final Set<Identifier> serverLoadedIds = new LinkedHashSet<>();
 
     /** IDs loaded by the client listener. */
-    private static final Set<ResourceLocation> clientLoadedIds = new LinkedHashSet<>();
+    private static final Set<Identifier> clientLoadedIds = new LinkedHashSet<>();
 
     private static volatile boolean serverRegistered;
     private static volatile boolean clientRegistered;
@@ -53,7 +53,7 @@ public final class EntityAnchorLoader {
     // Gson: reuse HaloDefinitionDeserializer's Vec3dAdapter approach
     private static final Gson GSON = new GsonBuilder()
         .registerTypeAdapter(Vec3.class, new Vec3dAdapter())
-        .registerTypeAdapter(ResourceLocation.class, new IdentifierAdapter())
+        .registerTypeAdapter(Identifier.class, new IdentifierAdapter())
         .create();
 
     private EntityAnchorLoader() { /* utility */ }
@@ -95,7 +95,7 @@ public final class EntityAnchorLoader {
     /**
      * Look up a single profile by entity type identifier.
      */
-    public static Optional<EntityAnchorProfile> getProfile(ResourceLocation entityId) {
+    public static Optional<EntityAnchorProfile> getProfile(Identifier entityId) {
         return Optional.ofNullable(PROFILES.get(entityId));
     }
 
@@ -103,22 +103,22 @@ public final class EntityAnchorLoader {
     // Reload logic
     // ------------------------------------------------------------------
 
-    private static void reload(ResourceManager manager, Set<ResourceLocation> sourceSet) {
+    private static void reload(ResourceManager manager, Set<Identifier> sourceSet) {
         // Remove only entries previously loaded by this source
-        for (ResourceLocation id : sourceSet) {
+        for (Identifier id : sourceSet) {
             PROFILES.remove(id);
         }
         sourceSet.clear();
 
-        Map<ResourceLocation, net.minecraft.server.packs.resources.Resource> resources = manager.listResources(
+        Map<Identifier, net.minecraft.server.packs.resources.Resource> resources = manager.listResources(
             PROFILES_PATH,
             id -> id.getPath().endsWith(".json")
         );
 
         LOG.info("Found {} entity anchor profile(s) to load", resources.size());
 
-        for (Map.Entry<ResourceLocation, net.minecraft.server.packs.resources.Resource> entry : resources.entrySet()) {
-            ResourceLocation fileId = entry.getKey();
+        for (Map.Entry<Identifier, net.minecraft.server.packs.resources.Resource> entry : resources.entrySet()) {
+            Identifier fileId = entry.getKey();
             try (InputStreamReader reader = new InputStreamReader(entry.getValue().open())) {
                 JsonElement root = JsonParser.parseReader(reader);
                 EntityAnchorProfile profile = deserialize(root);
@@ -142,7 +142,7 @@ public final class EntityAnchorLoader {
     static EntityAnchorProfile deserialize(JsonElement json) {
         var root = json.getAsJsonObject();
 
-        ResourceLocation entity = ResourceLocation.tryParse(root.get("entity").getAsString());
+        Identifier entity = Identifier.tryParse(root.get("entity").getAsString());
         String defaultPose = root.get("default_pose").getAsString();
 
         Map<String, PoseAnchor> poses = new LinkedHashMap<>();
@@ -166,8 +166,8 @@ public final class EntityAnchorLoader {
 
     private static class ServerListener implements SimpleSynchronousResourceReloadListener {
         @Override
-        public ResourceLocation getFabricId() {
-            return ResourceLocation.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors");
+        public Identifier getFabricId() {
+            return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors");
         }
 
         @Override
@@ -178,8 +178,8 @@ public final class EntityAnchorLoader {
 
     private static class ClientListener implements SimpleSynchronousResourceReloadListener {
         @Override
-        public ResourceLocation getFabricId() {
-            return ResourceLocation.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors_client");
+        public Identifier getFabricId() {
+            return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors_client");
         }
 
         @Override
@@ -201,11 +201,11 @@ public final class EntityAnchorLoader {
         }
     }
 
-    static class IdentifierAdapter implements com.google.gson.JsonDeserializer<ResourceLocation> {
+    static class IdentifierAdapter implements com.google.gson.JsonDeserializer<Identifier> {
         @Override
-        public ResourceLocation deserialize(JsonElement json, java.lang.reflect.Type typeOfT,
+        public Identifier deserialize(JsonElement json, java.lang.reflect.Type typeOfT,
                                        com.google.gson.JsonDeserializationContext context) {
-            return ResourceLocation.tryParse(json.getAsString());
+            return Identifier.tryParse(json.getAsString());
         }
     }
 }

@@ -2,7 +2,7 @@ package network.azusake.halo.lifecycle;
 
 import network.azusake.halo.data.HaloInstance;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,7 +61,7 @@ class EntityHaloTrackerTest {
         void testAttachHasReadRemove() {
             CompoundTag persistent = new CompoundTag();
             UUID entityUuid = UUID.randomUUID();
-            ResourceLocation defId = ResourceLocation.fromNamespaceAndPath("halo", "ring_default");
+            Identifier defId = Identifier.fromNamespaceAndPath("halo", "ring_default");
 
             // --- Attach ---
             CompoundTag haloTag = new CompoundTag();
@@ -80,18 +80,18 @@ class EntityHaloTrackerTest {
                 "persistent NBT must contain HaloInstance key after attach");
 
             // --- Read ---
-            CompoundTag readBack = persistent.getCompound("HaloInstance");
-            assertEquals(entityUuid.toString(), readBack.getString("HaloId"),
+            CompoundTag readBack = persistent.getCompoundOrEmpty("HaloInstance");
+            assertEquals(entityUuid.toString(), readBack.getStringOr("HaloId", ""),
                 "HaloId must round-trip");
-            assertEquals(defId.toString(), readBack.getString("Definition"),
+            assertEquals(defId.toString(), readBack.getStringOr("Definition", ""),
                 "Definition must round-trip");
-            assertEquals(1.5, readBack.getDouble("Scale"), 0.0001,
+            assertEquals(1.5, readBack.getDoubleOr("Scale", 0.0), 0.0001,
                 "Scale must round-trip");
 
-            net.minecraft.nbt.ListTag offset = readBack.getList("Offset", net.minecraft.nbt.Tag.TAG_DOUBLE);
-            assertEquals(0.0, offset.getDouble(0), 0.0001);
-            assertEquals(0.5, offset.getDouble(1), 0.0001);
-            assertEquals(0.0, offset.getDouble(2), 0.0001);
+            net.minecraft.nbt.ListTag offset = readBack.getListOrEmpty("Offset");
+            assertEquals(0.0, offset.getDoubleOr(0, 0.0), 0.0001);
+            assertEquals(0.5, offset.getDoubleOr(1, 0.0), 0.0001);
+            assertEquals(0.0, offset.getDoubleOr(2, 0.0), 0.0001);
 
             // --- Remove ---
             persistent.remove("HaloInstance");
@@ -108,9 +108,9 @@ class EntityHaloTrackerTest {
             haloTag.putString("Definition", "not:a:valid:identifier");
             persistent.put("HaloInstance", haloTag);
 
-            // ResourceLocation constructor should throw for triple-colon format
+            // Identifier constructor should throw for triple-colon format
             assertThrows(Exception.class, () -> {
-                ResourceLocation.parse(persistent.getCompound("HaloInstance").getString("Definition"));
+                Identifier.parse(persistent.getCompoundOrEmpty("HaloInstance").getStringOr("Definition", ""));
             }, "malformed identifier string must throw");
         }
 
@@ -130,8 +130,8 @@ class EntityHaloTrackerTest {
 
             UUID uuid1 = UUID.randomUUID();
             UUID uuid2 = UUID.randomUUID();
-            ResourceLocation def1 = ResourceLocation.fromNamespaceAndPath("halo", "ring_a");
-            ResourceLocation def2 = ResourceLocation.fromNamespaceAndPath("halo", "ring_b");
+            Identifier def1 = Identifier.fromNamespaceAndPath("halo", "ring_a");
+            Identifier def2 = Identifier.fromNamespaceAndPath("halo", "ring_b");
 
             // Attach to entity 1
             CompoundTag tag1 = new CompoundTag();
@@ -148,10 +148,10 @@ class EntityHaloTrackerTest {
             // Verify independence
             assertTrue(entity1Nbt.contains("HaloInstance"));
             assertTrue(entity2Nbt.contains("HaloInstance"));
-            assertEquals(uuid1.toString(), entity1Nbt.getCompound("HaloInstance").getString("HaloId"));
-            assertEquals(uuid2.toString(), entity2Nbt.getCompound("HaloInstance").getString("HaloId"));
-            assertEquals(def1.toString(), entity1Nbt.getCompound("HaloInstance").getString("Definition"));
-            assertEquals(def2.toString(), entity2Nbt.getCompound("HaloInstance").getString("Definition"));
+            assertEquals(uuid1.toString(), entity1Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("HaloId", ""));
+            assertEquals(uuid2.toString(), entity2Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("HaloId", ""));
+            assertEquals(def1.toString(), entity1Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("Definition", ""));
+            assertEquals(def2.toString(), entity2Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("Definition", ""));
 
             // Remove from entity 1 — entity 2 unaffected
             entity1Nbt.remove("HaloInstance");
@@ -174,7 +174,7 @@ class EntityHaloTrackerTest {
         void testMarkTeleportSetsNeedsSnap() {
             UUID entityUuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(entityUuid,
-                ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
+                Identifier.fromNamespaceAndPath("halo", "ring_default"));
 
             // Fresh instance starts with needsSnap = true
             assertTrue(instance.isNeedsSnap(),
@@ -241,7 +241,7 @@ class EntityHaloTrackerTest {
         void testLargeMovementTriggersTeleport() {
             UUID uuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(uuid,
-                ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
+                Identifier.fromNamespaceAndPath("halo", "ring_default"));
             instance.setNeedsSnap(false);
 
             // Simulate: entity was at (0,0,0), now at (2000,0,0) — 2000 block jump
@@ -264,7 +264,7 @@ class EntityHaloTrackerTest {
         void testSmallMovementDoesNotTrigger() {
             UUID uuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(uuid,
-                ResourceLocation.fromNamespaceAndPath("halo", "ring_default"));
+                Identifier.fromNamespaceAndPath("halo", "ring_default"));
             instance.setNeedsSnap(false);
 
             // Simulate: entity moved 50 blocks (normal fast travel)
@@ -338,7 +338,7 @@ class EntityHaloTrackerTest {
         void testDeactivatedInstance() {
             HaloInstance instance = new HaloInstance(
                 UUID.randomUUID(),
-                ResourceLocation.fromNamespaceAndPath("halo", "ring_default")
+                Identifier.fromNamespaceAndPath("halo", "ring_default")
             );
 
             assertTrue(instance.isActive(),
@@ -365,7 +365,7 @@ class EntityHaloTrackerTest {
             long before = System.currentTimeMillis();
             HaloInstance instance = new HaloInstance(
                 UUID.randomUUID(),
-                ResourceLocation.fromNamespaceAndPath("halo", "ring_default")
+                Identifier.fromNamespaceAndPath("halo", "ring_default")
             );
             long after = System.currentTimeMillis();
 
@@ -407,17 +407,16 @@ class EntityHaloTrackerTest {
             root.put("Halos", haloList);
 
             // --- Read ---
-            net.minecraft.nbt.ListTag readBack = root.getList("Halos",
-                net.minecraft.nbt.Tag.TAG_COMPOUND);
+            net.minecraft.nbt.ListTag readBack = root.getListOrEmpty("Halos");
             assertEquals(2, readBack.size(), "halo list must contain 2 entries");
 
-            CompoundTag entry1 = readBack.getCompound(0);
-            assertEquals(uuid1.toString(), entry1.getString("UUID"));
-            assertEquals("halo:ring_default", entry1.getString("Definition"));
+            CompoundTag entry1 = readBack.getCompoundOrEmpty(0);
+            assertEquals(uuid1.toString(), entry1.getStringOr("UUID", ""));
+            assertEquals("halo:ring_default", entry1.getStringOr("Definition", ""));
 
-            CompoundTag entry2 = readBack.getCompound(1);
-            assertEquals(uuid2.toString(), entry2.getString("UUID"));
-            assertEquals("halo:ring_elite", entry2.getString("Definition"));
+            CompoundTag entry2 = readBack.getCompoundOrEmpty(1);
+            assertEquals(uuid2.toString(), entry2.getStringOr("UUID", ""));
+            assertEquals("halo:ring_elite", entry2.getStringOr("Definition", ""));
         }
 
         @Test
@@ -438,10 +437,10 @@ class EntityHaloTrackerTest {
     class HaloEntryRecord {
 
         @Test
-        @DisplayName("HaloEntry stores and retrieves UUID and ResourceLocation correctly")
+        @DisplayName("HaloEntry stores and retrieves UUID and Identifier correctly")
         void testHaloEntry() {
             UUID uuid = UUID.randomUUID();
-            ResourceLocation defId = ResourceLocation.fromNamespaceAndPath("halo", "ring_test");
+            Identifier defId = Identifier.fromNamespaceAndPath("halo", "ring_test");
 
             HaloWorldSaveData.HaloEntry entry = new HaloWorldSaveData.HaloEntry(uuid, defId);
 
@@ -453,7 +452,7 @@ class EntityHaloTrackerTest {
         @DisplayName("two HaloEntry instances with same values are equal")
         void testHaloEntryEquality() {
             UUID uuid = UUID.randomUUID();
-            ResourceLocation defId = ResourceLocation.fromNamespaceAndPath("halo", "ring_test");
+            Identifier defId = Identifier.fromNamespaceAndPath("halo", "ring_test");
 
             HaloWorldSaveData.HaloEntry entry1 = new HaloWorldSaveData.HaloEntry(uuid, defId);
             HaloWorldSaveData.HaloEntry entry2 = new HaloWorldSaveData.HaloEntry(uuid, defId);

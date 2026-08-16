@@ -1,10 +1,15 @@
 package network.azusake.halo.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.player.PlayerRenderer;
+import net.minecraft.client.model.player.PlayerModel;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.world.entity.Entity;
 import network.azusake.halo.physics.RenderHeadCapture;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,42 +17,31 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Bracket {@link PlayerRenderer#render} with the head-capture context so
- * {@link ModelPartHeadCaptureMixin} can identify the current player model.
+ * Bracket {@link AvatarRenderer#submit} with the head-capture context so
+ * {@link ModelPartHeadCaptureMixin} can attribute the deferred head draw to
+ * the player being submitted.
  */
-@Mixin(PlayerRenderer.class)
+@Mixin(AvatarRenderer.class)
 public abstract class PlayerEntityRendererHeadCaptureMixin {
 
     @Inject(
-        method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+        method = "submit(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
         at = @At("HEAD")
     )
     private void halo$beginHeadCapture(
-        AbstractClientPlayer entity,
-        float yaw,
-        float tickDelta,
+        AvatarRenderState state,
         PoseStack matrices,
-        MultiBufferSource vertexConsumers,
-        int light,
+        SubmitNodeCollector submitNodeCollector,
+        CameraRenderState camera,
         CallbackInfo ci
     ) {
-        PlayerModel<?> model = (PlayerModel<?>) ((PlayerRenderer) (Object) this).getModel();
-        RenderHeadCapture.begin(entity, model);
-    }
-
-    @Inject(
-        method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
-        at = @At("TAIL")
-    )
-    private void halo$endHeadCapture(
-        AbstractClientPlayer entity,
-        float yaw,
-        float tickDelta,
-        PoseStack matrices,
-        MultiBufferSource vertexConsumers,
-        int light,
-        CallbackInfo ci
-    ) {
-        RenderHeadCapture.end();
+        if (Minecraft.getInstance().level == null) {
+            return;
+        }
+        Entity entity = Minecraft.getInstance().level.getEntity(state.id);
+        if (entity instanceof AbstractClientPlayer) {
+            PlayerModel model = ((LivingEntityRenderer<?, ?, PlayerModel>) (Object) this).getModel();
+            RenderHeadCapture.beginSubmit(entity.getUUID(), model);
+        }
     }
 }

@@ -10,8 +10,8 @@ import network.azusake.halo.render.IdlePhaseTracker;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.resources.ResourceLocation;
+import net.fabricmc.fabric.api.networking.v1.FriendlyByteBufs;
+import net.minecraft.resources.Identifier;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -48,10 +48,10 @@ public final class HaloNetworkClient {
             (payload, context) -> {
                 var buf = payload.buf();
                 int count = buf.readInt();
-                Map<UUID, ResourceLocation> incoming = new HashMap<>(count);
+                Map<UUID, Identifier> incoming = new HashMap<>(count);
                 for (int i = 0; i < count; i++) {
                     UUID uuid = HaloNetwork.readUuid(buf);
-                    ResourceLocation defId = buf.readResourceLocation();
+                    Identifier defId = buf.readIdentifier();
                     incoming.put(uuid, defId);
                 }
                 context.client().execute(() -> {
@@ -71,12 +71,12 @@ public final class HaloNetworkClient {
                 UUID uuid = HaloNetwork.readUuid(buf);
                 boolean isAttach = buf.readBoolean();
                 if (isAttach) {
-                    ResourceLocation defId = buf.readResourceLocation();
+                    Identifier defId = buf.readIdentifier();
                     context.client().execute(() ->
                         HaloManager.getInstance().putClientHalo(uuid, defId, HaloTransitionState.STARTING)
                     );
                 } else {
-                    ResourceLocation defId = buf.readResourceLocation();
+                    Identifier defId = buf.readIdentifier();
                     boolean hasDefId = !defId.getPath().isEmpty();
                     context.client().execute(() -> {
                         // Set ENDING state — renderer will play shutdown animation
@@ -144,10 +144,10 @@ public final class HaloNetworkClient {
         var defs = HaloJsonLoader.getDefinitions();
         if (defs.isEmpty()) return;
 
-        var buf = PacketByteBufs.create();
+        var buf = FriendlyByteBufs.create();
         buf.writeInt(defs.size());
-        for (ResourceLocation id : defs.keySet()) {
-            buf.writeResourceLocation(id);
+        for (Identifier id : defs.keySet()) {
+            buf.writeIdentifier(id);
         }
         ClientPlayNetworking.send(new HaloPayloads.DefsReport(buf));
     }

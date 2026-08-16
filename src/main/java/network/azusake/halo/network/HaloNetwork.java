@@ -4,10 +4,10 @@ import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.FriendlyByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import java.util.LinkedHashSet;
@@ -31,16 +31,16 @@ import java.util.UUID;
 public final class HaloNetwork {
 
     /** Full-state snapshot — sent to a player on join. */
-    public static final ResourceLocation CHANNEL_SYNC = HaloPayloads.Sync.ID.id();
+    public static final Identifier CHANNEL_SYNC = HaloPayloads.Sync.ID.id();
 
     /** Incremental attach / remove — broadcast to all players. */
-    public static final ResourceLocation CHANNEL_UPDATE = HaloPayloads.Update.ID.id();
+    public static final Identifier CHANNEL_UPDATE = HaloPayloads.Update.ID.id();
 
     /** C2S — client reports its locally-available definition IDs. */
-    public static final ResourceLocation CHANNEL_DEFS_REPORT = HaloPayloads.DefsReport.ID.id();
+    public static final Identifier CHANNEL_DEFS_REPORT = HaloPayloads.DefsReport.ID.id();
 
     /** S2C — handshake, sent on player join to signal "server has the mod installed". */
-    public static final ResourceLocation CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
+    public static final Identifier CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
 
     private HaloNetwork() {
         // utility class
@@ -52,10 +52,10 @@ public final class HaloNetwork {
      * the integrated server can send S2C payloads and receive C2S payloads.
      */
     public static void register() {
-        PayloadTypeRegistry.playS2C().register(HaloPayloads.Sync.ID, HaloPayloads.Sync.CODEC);
-        PayloadTypeRegistry.playS2C().register(HaloPayloads.Update.ID, HaloPayloads.Update.CODEC);
-        PayloadTypeRegistry.playS2C().register(HaloPayloads.Hello.ID, HaloPayloads.Hello.CODEC);
-        PayloadTypeRegistry.playC2S().register(HaloPayloads.DefsReport.ID, HaloPayloads.DefsReport.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(HaloPayloads.Sync.ID, HaloPayloads.Sync.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(HaloPayloads.Update.ID, HaloPayloads.Update.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(HaloPayloads.Hello.ID, HaloPayloads.Hello.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HaloPayloads.DefsReport.ID, HaloPayloads.DefsReport.CODEC);
 
         HaloMod.LOGGER.info("HaloNetwork: S2C channels registered (sync={}, update={}, defs_report={}, hello={})",
             CHANNEL_SYNC, CHANNEL_UPDATE, CHANNEL_DEFS_REPORT, CHANNEL_HELLO);
@@ -72,9 +72,9 @@ public final class HaloNetwork {
             (payload, context) -> {
                 var buf = payload.buf();
                 int count = buf.readInt();
-                Set<ResourceLocation> ids = new LinkedHashSet<>(count);
+                Set<Identifier> ids = new LinkedHashSet<>(count);
                 for (int i = 0; i < count; i++) {
-                    ids.add(buf.readResourceLocation());
+                    ids.add(buf.readIdentifier());
                 }
                 context.server().execute(() ->
                     HaloJsonLoader.putClientReportedDefs(context.player().getUUID(), ids)
@@ -101,12 +101,12 @@ public final class HaloNetwork {
             if (inst.isActive()) count++;
         }
 
-        var buf = PacketByteBufs.create();
+        var buf = FriendlyByteBufs.create();
         buf.writeInt(count);
         for (HaloInstance inst : instances) {
             if (!inst.isActive()) continue;
             writeUuid(buf, inst.getEntityUuid());
-            buf.writeResourceLocation(inst.getDefinitionId());
+            buf.writeIdentifier(inst.getDefinitionId());
         }
 
         ServerPlayNetworking.send(player, new HaloPayloads.Sync(buf));
@@ -119,11 +119,11 @@ public final class HaloNetwork {
      * @param entityUuid the entity that gained a halo
      * @param defId      the halo definition identifier
      */
-    public static void sendHaloAttach(MinecraftServer server, UUID entityUuid, ResourceLocation defId) {
-        var buf = PacketByteBufs.create();
+    public static void sendHaloAttach(MinecraftServer server, UUID entityUuid, Identifier defId) {
+        var buf = FriendlyByteBufs.create();
         writeUuid(buf, entityUuid);
         buf.writeBoolean(true); // isAttach
-        buf.writeResourceLocation(defId);
+        buf.writeIdentifier(defId);
 
         HaloPayloads.Update payload = new HaloPayloads.Update(buf);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -146,11 +146,11 @@ public final class HaloNetwork {
      * @param entityUuid the entity whose halo was removed
      * @param defId      the halo definition identifier (for client-side shutdown animation)
      */
-    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, ResourceLocation defId) {
-        var buf = PacketByteBufs.create();
+    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, Identifier defId) {
+        var buf = FriendlyByteBufs.create();
         writeUuid(buf, entityUuid);
         buf.writeBoolean(false); // isAttach = false → removal
-        buf.writeResourceLocation(defId);
+        buf.writeIdentifier(defId);
 
         HaloPayloads.Update payload = new HaloPayloads.Update(buf);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -167,7 +167,7 @@ public final class HaloNetwork {
      * @param player the player to notify
      */
     public static void sendHello(ServerPlayer player) {
-        ServerPlayNetworking.send(player, new HaloPayloads.Hello(PacketByteBufs.create()));
+        ServerPlayNetworking.send(player, new HaloPayloads.Hello(FriendlyByteBufs.create()));
     }
 
     // ------------------------------------------------------------------

@@ -1,6 +1,6 @@
 package network.azusake.halo.shape;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.joml.Vector2f;
 
 /**
@@ -19,13 +19,13 @@ import org.joml.Vector2f;
  *                   can override this orientation
  */
 public record BillboardPrimitive(
-    ResourceLocation texture,
+    Identifier texture,
     Vector2f size,
     boolean faceCamera
 ) implements HaloPrimitive {
 
     /** Convenience constructor for a billboard that does not face the camera. */
-    public BillboardPrimitive(ResourceLocation texture, Vector2f size) {
+    public BillboardPrimitive(Identifier texture, Vector2f size) {
         this(texture, size, false);
     }
 }

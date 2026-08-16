@@ -17,11 +17,13 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.commands.arguments.IdentifierArgument;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.permissions.Permission;
+import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import java.util.LinkedHashSet;
@@ -65,7 +67,8 @@ public final class HaloConfigCommand {
      */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         var haloNode = literal("halo")
-            .requires(source -> source.hasPermission(HaloModConfigStore.getPermissionLevel()));
+            .requires(source -> source.permissions().hasPermission(
+                new Permission.HasCommandLevel(PermissionLevel.byId(HaloModConfigStore.getPermissionLevel()))));
 
         // --- /halo list ---
         haloNode.then(literal("list")
@@ -110,7 +113,7 @@ public final class HaloConfigCommand {
         // Use IdentifierArgumentType which allows ':' in unquoted input, unlike word()/string()
         haloNode.then(literal("show")
             .then(argument("target", EntityArgument.entity())
-                .then(argument("definition", ResourceLocationArgument.id())
+                .then(argument("definition", IdentifierArgument.id())
                     .suggests(HaloConfigCommand::suggestDefinitions)
                     .executes(HaloConfigCommand::showHalo)
                 )
@@ -199,17 +202,17 @@ public final class HaloConfigCommand {
      */
     private static int listDefinitions(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
-        Map<ResourceLocation, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
-        Set<ResourceLocation> clientIds = HaloJsonLoader.getClientReportedDefIds();
+        Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+        Set<Identifier> clientIds = HaloJsonLoader.getClientReportedDefIds();
 
         // Current player's own reported IDs — highlighted in green
         UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUUID() : null;
-        Set<ResourceLocation> myDefs = playerUuid != null
+        Set<Identifier> myDefs = playerUuid != null
             ? HaloJsonLoader.getClientReportedDefs(playerUuid) : Set.of();
 
         // Client-only IDs: reported by clients but not in the server registry
-        Set<ResourceLocation> clientOnlyIds = new LinkedHashSet<>();
-        for (ResourceLocation id : clientIds) {
+        Set<Identifier> clientOnlyIds = new LinkedHashSet<>();
+        for (Identifier id : clientIds) {
             if (!defs.containsKey(id)) {
                 clientOnlyIds.add(id);
             }
@@ -222,10 +225,10 @@ public final class HaloConfigCommand {
         }
 
         source.sendSuccess(() -> Component.literal("§aLoaded halo definitions (" + total + "):"), false);
-        for (ResourceLocation id : defs.keySet()) {
+        for (Identifier id : defs.keySet()) {
             source.sendSuccess(() -> Component.literal("  §7- §f" + id), false);
         }
-        for (ResourceLocation id : clientOnlyIds) {
+        for (Identifier id : clientOnlyIds) {
             if (myDefs.contains(id)) {
                 source.sendSuccess(() -> Component.literal("  §7- §a" + id + " §8(client-side, installed locally)"), false);
             } else {
@@ -240,10 +243,10 @@ public final class HaloConfigCommand {
      */
     private static int dumpDefinitions(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
-        Map<ResourceLocation, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
+        Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
 
         UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUUID() : null;
-        Set<ResourceLocation> myDefs = playerUuid != null
+        Set<Identifier> myDefs = playerUuid != null
             ? HaloJsonLoader.getClientReportedDefs(playerUuid) : Set.of();
 
         if (defs.isEmpty()) {
@@ -263,9 +266,9 @@ public final class HaloConfigCommand {
         }
 
         // Also show client-side-only definitions currently known
-        Set<ResourceLocation> clientIds = HaloJsonLoader.getClientReportedDefIds();
-        Set<ResourceLocation> clientOnlyIds = new LinkedHashSet<>();
-        for (ResourceLocation id : clientIds) {
+        Set<Identifier> clientIds = HaloJsonLoader.getClientReportedDefIds();
+        Set<Identifier> clientOnlyIds = new LinkedHashSet<>();
+        for (Identifier id : clientIds) {
             if (!defs.containsKey(id)) {
                 clientOnlyIds.add(id);
             }
@@ -273,7 +276,7 @@ public final class HaloConfigCommand {
         if (!clientOnlyIds.isEmpty()) {
             source.sendSuccess(() -> Component.literal("§d=== Client-side definitions in use (" + clientOnlyIds.size() + ") ===\n"
                 + "§8(JSON not installed on server — provided by client resource packs)"), false);
-            for (ResourceLocation id : clientOnlyIds) {
+            for (Identifier id : clientOnlyIds) {
                 if (myDefs.contains(id)) {
                     source.sendSuccess(() -> Component.literal("  §7- §a" + id + " §8(installed locally)"), false);
                 } else {
@@ -296,7 +299,7 @@ public final class HaloConfigCommand {
     /**
      * /halo show &lt;entity&gt; &lt;definition&gt; — attach a halo to a living entity.
      *
-     * <p>The server accepts any valid {@link ResourceLocation} — it does not require
+     * <p>The server accepts any valid {@link Identifier} — it does not require
      * the definition JSON to be installed locally.  Clients are responsible for
      * providing the actual halo definition via their own resource packs.</p>
      */
@@ -316,13 +319,13 @@ public final class HaloConfigCommand {
             return 0;
         }
 
-        ResourceLocation defId = ResourceLocationArgument.getId(ctx, "definition");
+        Identifier defId = IdentifierArgument.getId(ctx, "definition");
 
         // (no namespace fallback — the server is a thin authority that accepts any
         // valid identifier; the namespace comes directly from tab-completion)
 
         // Capture a final copy for use in lambdas below
-        final ResourceLocation resolvedId = defId;
+        final Identifier resolvedId = defId;
 
         HaloManager.getInstance().showHaloOn(living, resolvedId);
 
@@ -351,16 +354,16 @@ public final class HaloConfigCommand {
         CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder
     ) {
         String remaining = builder.getRemaining().toLowerCase();
-        Set<ResourceLocation> allIds = HaloJsonLoader.getAllKnownDefinitionIds();
+        Set<Identifier> allIds = HaloJsonLoader.getAllKnownDefinitionIds();
 
-        for (ResourceLocation id : allIds) {
+        for (Identifier id : allIds) {
             suggestIfMatch(builder, id, remaining);
         }
 
         return builder.buildFuture();
     }
 
-    private static void suggestIfMatch(SuggestionsBuilder builder, ResourceLocation id, String remaining) {
+    private static void suggestIfMatch(SuggestionsBuilder builder, Identifier id, String remaining) {
         String idStr = id.toString();
         if (idStr.toLowerCase().startsWith(remaining)) {
             builder.suggest(idStr);
@@ -516,7 +519,7 @@ public final class HaloConfigCommand {
             // (e.g. the owning entity died permanently and was not pruned).
             MinecraftServer server = source.getServer();
             ServerLevel overworld = server.overworld();
-            ResourceLocation persistedDef = overworld != null
+            Identifier persistedDef = overworld != null
                 ? HaloWorldSaveData.get(overworld).get(uuid)
                 : null;
             if (persistedDef != null) {

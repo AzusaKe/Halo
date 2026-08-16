@@ -5,7 +5,7 @@ import network.azusake.halo.data.PoseAnchor;
 import network.azusake.halo.json.EntityAnchorLoader;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.phys.Vec3;
@@ -40,7 +40,7 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PlayerAnchorProvider.class);
 
-    private static final ResourceLocation PLAYER_ID = ResourceLocation.fromNamespaceAndPath("minecraft", "player");
+    private static final Identifier PLAYER_ID = Identifier.fromNamespaceAndPath("minecraft", "player");
 
     private static final PlayerAnchorProvider INSTANCE = new PlayerAnchorProvider();
 
@@ -100,10 +100,10 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
         if (camera == null) {
             return 0f;
         }
-        float roll = HeadFrameMath.recoverRollDeg(camera.getYRot(), camera.getXRot(), camera.rotation());
+        float roll = HeadFrameMath.recoverRollDeg(camera.yRot(), camera.xRot(), camera.rotation());
         if (Math.abs(roll) > 0.001f) {
             LOGGER.debug("Local player head roll recovered from camera: {} deg (camera yaw={}, pitch={})",
-                roll, camera.getYRot(), camera.getXRot());
+                roll, camera.yRot(), camera.xRot());
         }
         return roll;
     }
