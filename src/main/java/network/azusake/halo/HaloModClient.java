@@ -15,8 +15,8 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import network.azusake.halo.resource.SynchronousResourceReloadListener;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -108,15 +108,11 @@ public class HaloModClient implements ClientModInitializer {
         // This listener fires on the initial load cycle AND every /reload, so it
         // covers both bootstrap and incremental updates.  The sendDefsReport()
         // method safely no-ops when not connected to a server world.
-        ResourceManagerHelper
-            .get(PackType.CLIENT_RESOURCES)
-            .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
+        Identifier defsReportId = Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "defs_report_trigger");
+        ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(defsReportId,
+            new SynchronousResourceReloadListener(defsReportId) {
                 @Override
-                public Identifier getFabricId() {
-                    return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "defs_report_trigger");
-                }
-                @Override
-                public void onResourceManagerReload(ResourceManager manager) {
+                protected void load(ResourceManager manager) {
                     net.minecraft.client.Minecraft.getInstance().execute(() -> {
                         HaloNetworkClient.sendDefsReport();
                     });

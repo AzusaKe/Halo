@@ -4,7 +4,7 @@
 </h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-26.1--26.1.2-green.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-26.2-green.svg)
 ![模组加载器](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 中文 | [English](README.md)
@@ -34,7 +34,7 @@
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-目前支持 Minecraft 26.1 ~ 26.1.2 的 Fabric 环境（NeoForge 可通过 [Sinytra Connector](https://modrinth.com/mod/connector) 运行，渲染、持久化等核心功能已实测可用）。
+目前支持 Minecraft 26.2 的 Fabric 环境（NeoForge 可通过 [Sinytra Connector](https://modrinth.com/mod/connector) 运行，渲染、持久化等核心功能已实测可用）。
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
 
@@ -71,7 +71,7 @@
 
 ## 安装
 
-1. 为 Minecraft 26.1 ~ 26.1.2 安装 [Fabric Loader](https://fabricmc.net/use/) 0.19.3+。
+1. 为 Minecraft 26.2 安装 [Fabric Loader](https://fabricmc.net/use/) 0.19.3+。
 2. 下载对应版本的 [Fabric API](https://modrinth.com/mod/fabric-api)。
 3. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载最新的 **Halo** 模组 JAR 文件。
 4. 将两个 JAR 文件放入 Minecraft 安装目录的 `mods` 文件夹中。
@@ -81,7 +81,7 @@
 
 本模组为 Fabric 原生模组，但可通过 [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api) 在 **NeoForge**（相同 Minecraft 版本）上运行。核心功能（光环渲染、持久化）已实测可用；高版本 Minecraft 不推荐使用 Forge。
 
-1. 安装 NeoForge（Minecraft 26.1 ~ 26.1.2）
+1. 安装 NeoForge（Minecraft 26.2）
 2. 安装 [Sinytra Connector](https://modrinth.com/mod/connector)
 3. 安装 [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
 4. 将 Halo 模组 JAR 放入 `mods` 文件夹
@@ -259,7 +259,7 @@
 
 ### 前置条件
 
-- **JDK 25** — Minecraft 26.1 所需
+- **JDK 25** — Minecraft 26.2 所需
 - 互联网连接（Gradle 从 Maven 仓库下载依赖）
 
 <a id="构建"></a>
@@ -272,7 +272,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-26.1.2-fabric-1.2.1.jar`。
+编译好的 JAR 文件位于 `build/libs/halo-26.2-fabric-1.2.1.jar`。
 
 <a id="运行测试"></a>
 
@@ -331,7 +331,7 @@ src/main/
 
 欢迎对 Halo 进行贡献！如果你有想法、建议或想报告 Bug，请在 [GitHub 仓库](https://github.com/AzusaKe/Halo) 提交 Issue。如果你想贡献代码，请 Fork 仓库并提交 Pull Request。
 
-- **开发环境**：Minecraft 26.1.2 + Fabric Loader 0.19.3+
+- **开发环境**：Minecraft 26.2 + Fabric Loader 0.19.3+
 - **IDE**：推荐 IntelliJ IDEA（配合 Minecraft Development 插件）或 VS Code
 
 <a id="许可证"></a>

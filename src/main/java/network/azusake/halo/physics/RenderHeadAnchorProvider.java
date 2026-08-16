@@ -40,7 +40,7 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
             if (captured != null) {
                 Minecraft client = Minecraft.getInstance();
                 Camera camera = client != null && client.gameRenderer != null
-                    ? client.gameRenderer.getMainCamera()
+        ? client.gameRenderer.mainCamera()
                     : null;
                 if (camera != null) {
                     Vec3 cameraPos = camera.position();
