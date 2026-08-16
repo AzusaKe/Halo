@@ -1117,7 +1117,7 @@ public final class HaloRenderer {
 
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
         GpuBufferSlice verticesSlice = encoder.transientMemory()
-            .uploadStaging(built.vertexBuffer(), 0L, GpuBuffer.USAGE_VERTEX);
+            .uploadStaging(built.vertexBuffer(), 1L, GpuBuffer.USAGE_VERTEX);
 
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
             .writeTransform(RenderSystem.getModelViewMatrixCopy(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
