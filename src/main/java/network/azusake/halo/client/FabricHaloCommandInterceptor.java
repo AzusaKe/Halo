@@ -223,27 +223,17 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
     }
 
     /**
-     * Send a command to the server as a raw {@code ChatMessageC2SPacket},
+     * Send a command to the server as a raw {@code CommandExecutionC2SPacket},
      * bypassing Fabric's {@code ClientCommandInternals} hook so we don't
      * re-enter our own client-command executor.
-     *
-     * <p>In 1.20.1 the server treats chat messages starting with {@code /}
-     * as commands.  We serialize the packet by hand because the alternative
-     * ({@code sendCommand()}) would be re-intercepted by Fabric and loop.</p>
      */
     private static void sendCommandRaw(String command) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.getNetworkHandler() == null) return;
 
-        // Send a CommandExecutionC2SPacket directly to the Netty pipeline,
-        // bypassing Fabric's ClientCommandInternals hook entirely.
-        // The constructor takes: command, timestamp, salt, argumentSignatures, lastSeenMessages
-        var now = java.time.Instant.now();
-        var emptySigs = net.minecraft.network.message.ArgumentSignatureDataMap.EMPTY;
-        var lastSeen = new net.minecraft.network.message.LastSeenMessageList.Acknowledgment(0, new java.util.BitSet());
-
-        var packet = new net.minecraft.network.packet.c2s.play.CommandExecutionC2SPacket(
-            command, now, 0L, emptySigs, lastSeen);
+        // In 1.21.1 the packet only carries the command string; sending it
+        // directly avoids Fabric's client-command interception entirely.
+        var packet = new net.minecraft.network.packet.c2s.play.CommandExecutionC2SPacket(command);
 
         client.getNetworkHandler().getConnection().send(packet);
     }

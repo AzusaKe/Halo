@@ -5,6 +5,7 @@ import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -23,33 +24,40 @@ import java.util.UUID;
  *   <li>{@code halo:update} — incremental attach / remove broadcast to all players</li>
  * </ul>
  *
- * <p>For Fabric API 0.92.0+1.20.1, S2C channels do not require explicit server-side
- * registration — only the client must register a global receiver.  The
- * {@link #register()} method exists as a documentation hook and for future C2S
- * extension.</p>
+ * <p>Fabric API 1.20.5+ removed the legacy {@code Identifier}-based networking
+ * API, so all channels now use {@code CustomPayload} records registered via
+ * {@link PayloadTypeRegistry}.  The payloads wrap the exact same byte layout
+ * as the 1.20.x protocol (see {@link HaloPayloads}).</p>
  */
 public final class HaloNetwork {
 
     /** Full-state snapshot — sent to a player on join. */
-    public static final Identifier CHANNEL_SYNC = new Identifier("halo", "sync");
+    public static final Identifier CHANNEL_SYNC = HaloPayloads.Sync.ID.id();
 
     /** Incremental attach / remove — broadcast to all players. */
-    public static final Identifier CHANNEL_UPDATE = new Identifier("halo", "update");
+    public static final Identifier CHANNEL_UPDATE = HaloPayloads.Update.ID.id();
 
     /** C2S — client reports its locally-available definition IDs. */
-    public static final Identifier CHANNEL_DEFS_REPORT = new Identifier("halo", "defs_report");
+    public static final Identifier CHANNEL_DEFS_REPORT = HaloPayloads.DefsReport.ID.id();
 
     /** S2C — handshake, sent on player join to signal "server has the mod installed". */
-    public static final Identifier CHANNEL_HELLO = new Identifier("halo", "hello");
+    public static final Identifier CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
 
     private HaloNetwork() {
         // utility class
     }
 
     /**
-     * Initialise the network layer (currently a no-op for S2C-only channels).
+     * Initialise the network layer: register payload types (codecs + IDs) and
+     * the C2S receiver.  Runs in common init so both the dedicated server and
+     * the integrated server can send S2C payloads and receive C2S payloads.
      */
     public static void register() {
+        PayloadTypeRegistry.playS2C().register(HaloPayloads.Sync.ID, HaloPayloads.Sync.CODEC);
+        PayloadTypeRegistry.playS2C().register(HaloPayloads.Update.ID, HaloPayloads.Update.CODEC);
+        PayloadTypeRegistry.playS2C().register(HaloPayloads.Hello.ID, HaloPayloads.Hello.CODEC);
+        PayloadTypeRegistry.playC2S().register(HaloPayloads.DefsReport.ID, HaloPayloads.DefsReport.CODEC);
+
         HaloMod.LOGGER.info("HaloNetwork: S2C channels registered (sync={}, update={}, defs_report={}, hello={})",
             CHANNEL_SYNC, CHANNEL_UPDATE, CHANNEL_DEFS_REPORT, CHANNEL_HELLO);
         registerServerReceivers();
@@ -59,17 +67,18 @@ public final class HaloNetwork {
      * Register C2S packet handlers on the server side.
      */
     public static void registerServerReceivers() {
-        // ---- Client definition report ----
+        // ---- Client definition report (C2S) ----
         ServerPlayNetworking.registerGlobalReceiver(
-            CHANNEL_DEFS_REPORT,
-            (server, player, handler, buf, responseSender) -> {
+            HaloPayloads.DefsReport.ID,
+            (payload, context) -> {
+                var buf = payload.buf();
                 int count = buf.readInt();
                 Set<Identifier> ids = new LinkedHashSet<>(count);
                 for (int i = 0; i < count; i++) {
                     ids.add(buf.readIdentifier());
                 }
-                server.execute(() ->
-                    HaloJsonLoader.putClientReportedDefs(player.getUuid(), ids)
+                context.server().execute(() ->
+                    HaloJsonLoader.putClientReportedDefs(context.player().getUuid(), ids)
                 );
             }
         );
@@ -101,7 +110,7 @@ public final class HaloNetwork {
             buf.writeIdentifier(inst.getDefinitionId());
         }
 
-        ServerPlayNetworking.send(player, CHANNEL_SYNC, buf);
+        ServerPlayNetworking.send(player, new HaloPayloads.Sync(buf));
     }
 
     /**
@@ -117,8 +126,9 @@ public final class HaloNetwork {
         buf.writeBoolean(true); // isAttach
         buf.writeIdentifier(defId);
 
+        HaloPayloads.Update payload = new HaloPayloads.Update(buf);
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);
+            ServerPlayNetworking.send(player, payload);
         }
     }
 
@@ -143,8 +153,9 @@ public final class HaloNetwork {
         buf.writeBoolean(false); // isAttach = false → removal
         buf.writeIdentifier(defId);
 
+        HaloPayloads.Update payload = new HaloPayloads.Update(buf);
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);
+            ServerPlayNetworking.send(player, payload);
         }
     }
 
@@ -157,8 +168,7 @@ public final class HaloNetwork {
      * @param player the player to notify
      */
     public static void sendHello(ServerPlayerEntity player) {
-        var buf = PacketByteBufs.create();
-        ServerPlayNetworking.send(player, CHANNEL_HELLO, buf);
+        ServerPlayNetworking.send(player, new HaloPayloads.Hello(PacketByteBufs.create()));
     }
 
     // ------------------------------------------------------------------
@@ -168,8 +178,8 @@ public final class HaloNetwork {
     /**
      * Write a UUID as two longs (most / least significant bits).
      *
-     * <p>Minecraft 1.20.1's {@code PacketByteBuf} does not expose
-     * {@code writeUuid} — we serialise manually.</p>
+     * <p>Kept as explicit two-long serialisation to match the legacy 1.20.x
+     * wire format byte-for-byte.</p>
      */
     public static void writeUuid(net.minecraft.network.PacketByteBuf buf, UUID uuid) {
         buf.writeLong(uuid.getMostSignificantBits());

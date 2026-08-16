@@ -180,7 +180,7 @@ public final class HaloEntityData {
         }
 
         try {
-            return new Identifier(tag.getString(DEF_KEY));
+            return Identifier.of(tag.getString(DEF_KEY));
         } catch (Exception e) {
             HaloMod.LOGGER.warn("HaloEntityData: malformed Definition in NBT for entity {}",
                 entity.getUuid());

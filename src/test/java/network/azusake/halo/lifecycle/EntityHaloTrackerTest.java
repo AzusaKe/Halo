@@ -61,7 +61,7 @@ class EntityHaloTrackerTest {
         void testAttachHasReadRemove() {
             NbtCompound persistent = new NbtCompound();
             UUID entityUuid = UUID.randomUUID();
-            Identifier defId = new Identifier("halo", "ring_default");
+            Identifier defId = Identifier.of("halo", "ring_default");
 
             // --- Attach ---
             NbtCompound haloTag = new NbtCompound();
@@ -110,7 +110,7 @@ class EntityHaloTrackerTest {
 
             // Identifier constructor should throw for triple-colon format
             assertThrows(Exception.class, () -> {
-                new Identifier(persistent.getCompound("HaloInstance").getString("Definition"));
+                Identifier.of(persistent.getCompound("HaloInstance").getString("Definition"));
             }, "malformed identifier string must throw");
         }
 
@@ -130,8 +130,8 @@ class EntityHaloTrackerTest {
 
             UUID uuid1 = UUID.randomUUID();
             UUID uuid2 = UUID.randomUUID();
-            Identifier def1 = new Identifier("halo", "ring_a");
-            Identifier def2 = new Identifier("halo", "ring_b");
+            Identifier def1 = Identifier.of("halo", "ring_a");
+            Identifier def2 = Identifier.of("halo", "ring_b");
 
             // Attach to entity 1
             NbtCompound tag1 = new NbtCompound();
@@ -174,7 +174,7 @@ class EntityHaloTrackerTest {
         void testMarkTeleportSetsNeedsSnap() {
             UUID entityUuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(entityUuid,
-                new Identifier("halo", "ring_default"));
+                Identifier.of("halo", "ring_default"));
 
             // Fresh instance starts with needsSnap = true
             assertTrue(instance.isNeedsSnap(),
@@ -241,7 +241,7 @@ class EntityHaloTrackerTest {
         void testLargeMovementTriggersTeleport() {
             UUID uuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(uuid,
-                new Identifier("halo", "ring_default"));
+                Identifier.of("halo", "ring_default"));
             instance.setNeedsSnap(false);
 
             // Simulate: entity was at (0,0,0), now at (2000,0,0) — 2000 block jump
@@ -264,7 +264,7 @@ class EntityHaloTrackerTest {
         void testSmallMovementDoesNotTrigger() {
             UUID uuid = UUID.randomUUID();
             HaloInstance instance = new HaloInstance(uuid,
-                new Identifier("halo", "ring_default"));
+                Identifier.of("halo", "ring_default"));
             instance.setNeedsSnap(false);
 
             // Simulate: entity moved 50 blocks (normal fast travel)
@@ -338,7 +338,7 @@ class EntityHaloTrackerTest {
         void testDeactivatedInstance() {
             HaloInstance instance = new HaloInstance(
                 UUID.randomUUID(),
-                new Identifier("halo", "ring_default")
+                Identifier.of("halo", "ring_default")
             );
 
             assertTrue(instance.isActive(),
@@ -365,7 +365,7 @@ class EntityHaloTrackerTest {
             long before = System.currentTimeMillis();
             HaloInstance instance = new HaloInstance(
                 UUID.randomUUID(),
-                new Identifier("halo", "ring_default")
+                Identifier.of("halo", "ring_default")
             );
             long after = System.currentTimeMillis();
 
@@ -441,7 +441,7 @@ class EntityHaloTrackerTest {
         @DisplayName("HaloEntry stores and retrieves UUID and Identifier correctly")
         void testHaloEntry() {
             UUID uuid = UUID.randomUUID();
-            Identifier defId = new Identifier("halo", "ring_test");
+            Identifier defId = Identifier.of("halo", "ring_test");
 
             HaloWorldSaveData.HaloEntry entry = new HaloWorldSaveData.HaloEntry(uuid, defId);
 
@@ -453,7 +453,7 @@ class EntityHaloTrackerTest {
         @DisplayName("two HaloEntry instances with same values are equal")
         void testHaloEntryEquality() {
             UUID uuid = UUID.randomUUID();
-            Identifier defId = new Identifier("halo", "ring_test");
+            Identifier defId = Identifier.of("halo", "ring_test");
 
             HaloWorldSaveData.HaloEntry entry1 = new HaloWorldSaveData.HaloEntry(uuid, defId);
             HaloWorldSaveData.HaloEntry entry2 = new HaloWorldSaveData.HaloEntry(uuid, defId);

@@ -95,7 +95,7 @@ public final class HaloLocalManager {
                 for (var uuidEntry : uuidMap.entrySet()) {
                     try {
                         UUID uuid = UUID.fromString(uuidEntry.getKey());
-                        Identifier defId = new Identifier(uuidEntry.getValue());
+                        Identifier defId = Identifier.of(uuidEntry.getValue());
                         inner.put(uuid, defId);
                     } catch (IllegalArgumentException e) {
                         // skip malformed entries silently

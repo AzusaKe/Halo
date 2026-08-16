@@ -211,7 +211,7 @@ public final class HaloJsonLoader {
     private static class ServerListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "halo_definitions");
+            return Identifier.of(HaloMod.MOD_ID, "halo_definitions");
         }
 
         @Override
@@ -223,7 +223,7 @@ public final class HaloJsonLoader {
     private static class ClientListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "halo_definitions_client");
+            return Identifier.of(HaloMod.MOD_ID, "halo_definitions_client");
         }
 
         @Override

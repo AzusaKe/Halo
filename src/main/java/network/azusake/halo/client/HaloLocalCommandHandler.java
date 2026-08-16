@@ -177,7 +177,7 @@ public final class HaloLocalCommandHandler {
 
         Identifier defId;
         try {
-            defId = new Identifier(defStr);
+            defId = Identifier.of(defStr);
         } catch (Exception e) {
             return "§c无效的定义 ID: §f" + defStr;
         }

@@ -41,7 +41,7 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PlayerAnchorProvider.class);
 
-    private static final Identifier PLAYER_ID = new Identifier("minecraft", "player");
+    private static final Identifier PLAYER_ID = Identifier.of("minecraft", "player");
 
     private static final PlayerAnchorProvider INSTANCE = new PlayerAnchorProvider();
 

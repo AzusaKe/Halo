@@ -113,7 +113,7 @@ public class HaloModClient implements ClientModInitializer {
             .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
                 @Override
                 public Identifier getFabricId() {
-                    return new Identifier(HaloMod.MOD_ID, "defs_report_trigger");
+                    return Identifier.of(HaloMod.MOD_ID, "defs_report_trigger");
                 }
                 @Override
                 public void reload(ResourceManager manager) {

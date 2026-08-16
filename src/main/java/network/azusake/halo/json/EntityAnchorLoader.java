@@ -167,7 +167,7 @@ public final class EntityAnchorLoader {
     private static class ServerListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "entity_anchors");
+            return Identifier.of(HaloMod.MOD_ID, "entity_anchors");
         }
 
         @Override
@@ -179,7 +179,7 @@ public final class EntityAnchorLoader {
     private static class ClientListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "entity_anchors_client");
+            return Identifier.of(HaloMod.MOD_ID, "entity_anchors_client");
         }
 
         @Override

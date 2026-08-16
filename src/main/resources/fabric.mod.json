@@ -26,9 +26,9 @@
         "halo.mixins.json"
     ],
     "depends": {
-        "fabricloader": ">=0.15.0",
+        "fabricloader": ">=0.16.0",
         "fabric-api": "*",
-        "minecraft": ">=1.19.4 <=1.20.4",
-        "java": ">=17"
+        "minecraft": ">=1.21.1 <1.22",
+        "java": ">=21"
     }
 }

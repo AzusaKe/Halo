@@ -262,7 +262,7 @@ class PlayerAnchorProviderTest {
             var pose = new network.azusake.halo.data.PoseAnchor(
                 new Vec3d(0, 1.5, 0), new Vec3d(0, 0.12, 0));
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                new net.minecraft.util.Identifier("minecraft:player"),
+                net.minecraft.util.Identifier.of("minecraft:player"),
                 "standing",
                 java.util.Map.of("standing", pose)
             );
@@ -277,7 +277,7 @@ class PlayerAnchorProviderTest {
             var standingPose = new network.azusake.halo.data.PoseAnchor(
                 new Vec3d(0, 1.5, 0), new Vec3d(0, 0.12, 0));
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                new net.minecraft.util.Identifier("minecraft:player"),
+                net.minecraft.util.Identifier.of("minecraft:player"),
                 "standing",
                 java.util.Map.of("standing", standingPose)
             );
@@ -294,7 +294,7 @@ class PlayerAnchorProviderTest {
                 new Vec3d(0, 0.4, 0), new Vec3d(0, 0, 0.4));
             // defaultPose="standing" but no "standing" key exists → invalid profile
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                new net.minecraft.util.Identifier("minecraft:player"),
+                net.minecraft.util.Identifier.of("minecraft:player"),
                 "standing",
                 java.util.Map.of("swimming", swimmingPose)
             );
@@ -312,7 +312,7 @@ class PlayerAnchorProviderTest {
             var swimmingPose = new network.azusake.halo.data.PoseAnchor(
                 new Vec3d(0, 0.4, 0), new Vec3d(0, 0, 0.4));
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                new net.minecraft.util.Identifier("minecraft:player"),
+                net.minecraft.util.Identifier.of("minecraft:player"),
                 "standing",
                 java.util.Map.of("standing", standingPose, "swimming", swimmingPose)
             );

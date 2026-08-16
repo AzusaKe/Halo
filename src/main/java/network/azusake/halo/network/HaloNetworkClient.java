@@ -45,8 +45,9 @@ public final class HaloNetworkClient {
     public static void registerReceivers() {
         // ---- Full snapshot (sent on player join) ----
         ClientPlayNetworking.registerGlobalReceiver(
-            HaloNetwork.CHANNEL_SYNC,
-            (client, handler, buf, responseSender) -> {
+            HaloPayloads.Sync.ID,
+            (payload, context) -> {
+                var buf = payload.buf();
                 int count = buf.readInt();
                 Map<UUID, Identifier> incoming = new HashMap<>(count);
                 for (int i = 0; i < count; i++) {
@@ -54,7 +55,7 @@ public final class HaloNetworkClient {
                     Identifier defId = buf.readIdentifier();
                     incoming.put(uuid, defId);
                 }
-                client.execute(() -> {
+                context.client().execute(() -> {
                     HaloManager.getInstance().replaceAllClientHalos(incoming);
                     // New authoritative snapshot — drop any phase records from the
                     // previous world/connection.
@@ -65,19 +66,20 @@ public final class HaloNetworkClient {
 
         // ---- Incremental attach / remove ----
         ClientPlayNetworking.registerGlobalReceiver(
-            HaloNetwork.CHANNEL_UPDATE,
-            (client, handler, buf, responseSender) -> {
+            HaloPayloads.Update.ID,
+            (payload, context) -> {
+                var buf = payload.buf();
                 UUID uuid = HaloNetwork.readUuid(buf);
                 boolean isAttach = buf.readBoolean();
                 if (isAttach) {
                     Identifier defId = buf.readIdentifier();
-                    client.execute(() ->
+                    context.client().execute(() ->
                         HaloManager.getInstance().putClientHalo(uuid, defId, HaloTransitionState.STARTING)
                     );
                 } else {
                     Identifier defId = buf.readIdentifier();
                     boolean hasDefId = !defId.getPath().isEmpty();
-                    client.execute(() -> {
+                    context.client().execute(() -> {
                         // Set ENDING state — renderer will play shutdown animation
                         HaloInstance inst = HaloManager.getInstance().getInstance(uuid);
                         // Read the renderer-owned render state (idle phase +
@@ -122,9 +124,9 @@ public final class HaloNetworkClient {
 
         // ---- Handshake hello (server has mod → transition to MULTIPLAYER) ----
         ClientPlayNetworking.registerGlobalReceiver(
-            HaloNetwork.CHANNEL_HELLO,
-            (client, handler, buf, responseSender) -> {
-                client.execute(() ->
+            HaloPayloads.Hello.ID,
+            (payload, context) -> {
+                context.client().execute(() ->
                     HaloPhaseTracker.getInstance().transitionToMultiplayer()
                 );
             }
@@ -137,7 +139,7 @@ public final class HaloNetworkClient {
      * Safe to call at any time — silently no-ops when not connected to a world.
      */
     public static void sendDefsReport() {
-        if (!ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_DEFS_REPORT)) {
+        if (!ClientPlayNetworking.canSend(HaloPayloads.DefsReport.ID)) {
             return; // not connected to a server — silently skip
         }
         var defs = HaloJsonLoader.getDefinitions();
@@ -148,6 +150,6 @@ public final class HaloNetworkClient {
         for (Identifier id : defs.keySet()) {
             buf.writeIdentifier(id);
         }
-        ClientPlayNetworking.send(HaloNetwork.CHANNEL_DEFS_REPORT, buf);
+        ClientPlayNetworking.send(new HaloPayloads.DefsReport(buf));
     }
 }

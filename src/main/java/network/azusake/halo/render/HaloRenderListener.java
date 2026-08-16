@@ -46,14 +46,14 @@ public final class HaloRenderListener {
             // matrix) right before entities render.  Captured head
             // matrices are camera-relative, so the halo pipeline needs
             // this view matrix to recover world-space anchors.
-            RenderHeadCapture.setViewMatrix(new Matrix4f(context.matrixStack().peek().getPositionMatrix()));
+            RenderHeadCapture.setViewMatrix(new Matrix4f(context.positionMatrix()));
         });
 
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {
             HaloRenderer.getInstance().renderHalos(
                 context.matrixStack(),
                 context.camera(),
-                context.tickDelta()
+                context.tickCounter().getTickDelta(true)
             );
         });
 
