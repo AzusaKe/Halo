@@ -1126,7 +1126,9 @@ public final class HaloRenderer {
                 vertexBuffer.close();
             }
             vertexBuffer = new MappableRingBuffer(
-                () -> HaloMod.MOD_ID + " halo", GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE, vertexBufferSize);
+                () -> HaloMod.MOD_ID + " halo",
+                GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE | GpuBuffer.USAGE_COPY_DST,
+                vertexBufferSize);
         }
 
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
