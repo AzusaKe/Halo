@@ -23,6 +23,7 @@ import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
@@ -139,6 +140,8 @@ public final class HaloRenderer {
             .withVertexShader("core/position_color")
             .withFragmentShader("core/position_color")
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLES)
             .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
             .withCull(false)
@@ -152,6 +155,8 @@ public final class HaloRenderer {
             .withFragmentShader("core/position_tex_color")
             .withSampler("Sampler0")
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
             .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
             .withCull(false)
@@ -165,6 +170,8 @@ public final class HaloRenderer {
             .withFragmentShader("core/position_tex_color")
             .withSampler("Sampler0")
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
             .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
             .withCull(true)
@@ -1068,6 +1075,10 @@ public final class HaloRenderer {
     private void drawPrimitive(RenderPipeline pipeline, BufferBuilder builder, Identifier textureId) {
         MeshData built = builder.buildOrThrow();
         MeshData.DrawState drawState = built.drawState();
+
+        // Resolve/load the texture BEFORE opening the render pass — GPU texture
+        // uploads (writeToTexture) are not allowed while a pass is active.
+        AbstractTexture texture = textureId != null ? resolveTexture(textureId) : null;
         VertexFormat format = drawState.format();
 
         int vertexBufferSize = drawState.vertexCount() * format.getVertexSize();
@@ -1096,9 +1107,8 @@ public final class HaloRenderer {
             renderPass.setPipeline(pipeline);
             RenderSystem.bindDefaultUniforms(renderPass);
             renderPass.setUniform("DynamicTransforms", dynamicTransforms);
-            if (textureId != null) {
-                AbstractTexture tex = Minecraft.getInstance().getTextureManager().getTexture(textureId);
-                renderPass.bindTexture("Sampler0", tex.getTextureView(), tex.getSampler());
+            if (texture != null) {
+                renderPass.bindTexture("Sampler0", texture.getTextureView(), texture.getSampler());
             }
             renderPass.setVertexBuffer(0, vertices);
             renderPass.draw(0, drawState.vertexCount());

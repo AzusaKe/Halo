@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Hooks the 26.1 teleport entry points {@code snapTo} and {@code teleportTo} on
@@ -56,7 +57,7 @@ public abstract class EntityTeleportMixin {
     @Inject(method = "teleportTo(Lnet/minecraft/server/level/ServerLevel;DDDLjava/util/Set;FFZ)Z", at = @At("HEAD"))
     private void halo$onTeleportToLevel(net.minecraft.server.level.ServerLevel level, double x, double y, double z,
                                         java.util.Set<net.minecraft.world.entity.Relative> relatives,
-                                        float yaw, float pitch, boolean teleportCamera, CallbackInfo ci) {
+                                        float yaw, float pitch, boolean teleportCamera, CallbackInfoReturnable<Boolean> cir) {
         markIfHasHalo();
     }
 
