@@ -4,10 +4,13 @@ import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloDefinition;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +20,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Fabric resource reload listener that scans {@code halo_definitions/} in all
+ * NeoForge resource reload listener that scans {@code halo_definitions/} in all
  * datapacks (server) and resource packs (client), parses every {@code .json}
  * file into a {@link HaloDefinition}, and exposes them through a static registry.
  */
@@ -71,8 +74,11 @@ public final class HaloJsonLoader {
             return;
         }
         serverRegistered = true;
-        ResourceManagerHelper.get(PackType.SERVER_DATA)
-            .registerReloadListener(new ServerListener());
+        // AddServerReloadListenersEvent fires on every data-pack reload; the
+        // listener is re-added to each fresh reload's listener map, so the
+        // registration is safe to keep for the lifetime of the game.
+        NeoForge.EVENT_BUS.addListener(AddServerReloadListenersEvent.class, event ->
+            event.addListener(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions"), new ServerListener()));
 
         LOG.info("HaloJsonLoader registered for SERVER_DATA");
     }
@@ -85,13 +91,15 @@ public final class HaloJsonLoader {
      * packs can also contribute definitions.</p>
      * <p>Safe to call more than once — subsequent calls are no-ops.</p>
      */
-    public static void registerClientResources() {
+    public static void registerClientResources(IEventBus modEventBus) {
         if (clientRegistered) {
             return;
         }
         clientRegistered = true;
-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES)
-            .registerReloadListener(new ClientListener());
+        // AddClientReloadListenersEvent is an IModBusEvent fired once while the
+        // Minecraft instance is constructed, on the logical client.
+        modEventBus.addListener(AddClientReloadListenersEvent.class, event ->
+            event.addListener(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions_client"), new ClientListener()));
 
         LOG.info("HaloJsonLoader registered for CLIENT_RESOURCES");
     }
@@ -208,26 +216,26 @@ public final class HaloJsonLoader {
     // Listener implementations
     // ------------------------------------------------------------------
 
-    private static class ServerListener implements SimpleSynchronousResourceReloadListener {
+    private static class ServerListener extends SimplePreparableReloadListener<Void> {
         @Override
-        public Identifier getFabricId() {
-            return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions");
+        protected Void prepare(ResourceManager manager, ProfilerFiller profiler) {
+            return null;
         }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void apply(Void data, ResourceManager manager, ProfilerFiller profiler) {
             HaloJsonLoader.reload(manager, serverLoadedIds);
         }
     }
 
-    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
+    private static class ClientListener extends SimplePreparableReloadListener<Void> {
         @Override
-        public Identifier getFabricId() {
-            return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions_client");
+        protected Void prepare(ResourceManager manager, ProfilerFiller profiler) {
+            return null;
         }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void apply(Void data, ResourceManager manager, ProfilerFiller profiler) {
             HaloJsonLoader.reload(manager, clientLoadedIds);
         }
     }

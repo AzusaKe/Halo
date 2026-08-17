@@ -25,7 +25,7 @@ package network.azusake.halo.client;
  * client-command API (or Mixin-based interception).  No core logic changes
  * are required.</p>
  *
- * @see FabricHaloCommandInterceptor
+ * @see NeoForgeHaloCommandInterceptor
  */
 public interface HaloCommandInterceptor {
 

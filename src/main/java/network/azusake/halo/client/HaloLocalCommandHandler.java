@@ -2,8 +2,8 @@ package network.azusake.halo.client;
 
 import network.azusake.halo.data.HaloTransitionState;
 import network.azusake.halo.data.HaloInstance;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import network.azusake.halo.config.HaloConfig;
@@ -37,7 +37,7 @@ import java.util.UUID;
  *       holds client-local resource-pack definitions.</li>
  * </ul>
  */
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public final class HaloLocalCommandHandler {
 
     private HaloLocalCommandHandler() {

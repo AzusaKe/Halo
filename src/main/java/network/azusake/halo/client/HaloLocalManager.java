@@ -3,9 +3,9 @@ package network.azusake.halo.client;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.fml.loading.FMLPaths;
 import net.minecraft.resources.Identifier;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -30,13 +30,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>In LOCAL phase the player may only set halos on themselves ({@code @s}).
  * This is enforced by {@link HaloLocalCommandHandler}, not by this class.</p>
  */
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public final class HaloLocalManager {
 
     private static final HaloLocalManager INSTANCE = new HaloLocalManager();
 
-    private static final Path CONFIG_DIR = FabricLoader.getInstance()
-        .getConfigDir().resolve("halo-azusake");
+    private static final Path CONFIG_DIR = FMLPaths.CONFIGDIR.get().resolve("halo-azusake");
 
     private static final Path FILE = CONFIG_DIR.resolve("halo_local_halos.json");
 

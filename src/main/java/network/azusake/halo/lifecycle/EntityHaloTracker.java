@@ -4,13 +4,15 @@ import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.manager.HaloManager;
-import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -159,7 +161,7 @@ public final class EntityHaloTracker {
     }
 
     /**
-     * Register all Fabric event listeners for entity lifecycle tracking.
+     * Register all NeoForge event listeners for entity lifecycle tracking.
      *
      * <p>Idempotent — subsequent calls are no-ops.</p>
      */
@@ -170,26 +172,34 @@ public final class EntityHaloTracker {
         registered = true;
 
         // ---- Entity death → cleanup ----
-        ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
-            cleanup(entity);
+        NeoForge.EVENT_BUS.addListener(LivingDeathEvent.class, event -> {
+            cleanup(event.getEntity());
         });
 
         // ---- Player respawn → restore halo from world save ----
         // Both death-respawn (alive=false) and end-return (alive=true) are
         // restored unconditionally — the player keeps the halo they own.
-        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-            onPlayerRespawn(newPlayer);
+        // NeoForge fires PlayerRespawnEvent for both cases (endConquered is
+        // ignored, matching the Fabric handler that ignores the alive flag).
+        NeoForge.EVENT_BUS.addListener(PlayerEvent.PlayerRespawnEvent.class, event -> {
+            if (event.getEntity() instanceof ServerPlayer newPlayer) {
+                onPlayerRespawn(newPlayer);
+            }
         });
 
         // ---- Entity load → restore halo from world save ----
-        ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-            if (entity instanceof LivingEntity living) {
+        NeoForge.EVENT_BUS.addListener(EntityJoinLevelEvent.class, event -> {
+            // Only the logical server side restores; the client fires this
+            // event too and would otherwise double-process in single-player.
+            if (event.getLevel() instanceof ServerLevel
+                    && event.getEntity() instanceof LivingEntity living) {
                 restoreFromWorldSave(living);
             }
         });
 
         // ---- Server tick → expired teleport cleanup + position check ----
-        ServerTickEvents.END_SERVER_TICK.register(EntityHaloTracker::onEndTick);
+        NeoForge.EVENT_BUS.addListener(ServerTickEvent.Post.class,
+            event -> onEndTick(event.getServer()));
 
         HaloMod.LOGGER.info("EntityHaloTracker: registered lifecycle event handlers");
     }

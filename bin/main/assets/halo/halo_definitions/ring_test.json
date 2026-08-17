@@ -1,0 +1,34 @@
+{
+  "id": "halo:ring_test",
+  "orientation_mode": "locked",
+  "layers": [
+    {
+      "position": [0.0, 0.0, 0.0],
+      "rotation": [90.0, 0.0, 0.0],
+      "scale": 1.5,
+      "animation": {
+        "offset": {
+          "y": [{ "function": "sin", "A": 0.01, "omega": 0.5 }]
+        }
+      },
+      "primitive": {
+        "type": "ring",
+        "texture": "halo:textures/halo/ring_test_outer.png",
+        "inner_texture": "halo:textures/halo/ring_test_inner.png",
+        "size": [0.3, 0.1],
+        "segments": 64
+      }
+    }
+  ],
+  "animation": {},
+  "positioning": {
+    "offset": [0.0, 0.4, 0.35],
+    "scale": 1.0
+  },
+  "damping": {
+    "linearFactor": 0.45,
+    "angularFactor": 0.1,
+    "maxLinearDistance": 0.5,
+    "maxAngularDegrees": 180.0
+  }
+}

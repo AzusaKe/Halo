@@ -7,10 +7,13 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -20,14 +23,14 @@ import java.io.InputStreamReader;
 import java.util.*;
 
 /**
- * Fabric resource reload listener that scans {@code entity_anchors/} in all
+ * NeoForge resource reload listener that scans {@code entity_anchors/} in all
  * datapacks (server) and resource packs (client), parses every {@code .json}
  * file into an {@link EntityAnchorProfile}, and exposes them through a static
  * registry.
  *
  * <p>Loaded profiles are stored in a static {@link LinkedHashMap} keyed by
  * entity type {@link Identifier}.  Client-pack entries override server-pack
- * entries with the same entity key, matching the Fabric resource-loading
+ * entries with the same entity key, matching the NeoForge resource-loading
  * convention.</p>
  *
  * <p>Mirrors {@link HaloJsonLoader} in registration pattern, scan path
@@ -70,21 +73,26 @@ public final class EntityAnchorLoader {
             return;
         }
         serverRegistered = true;
-        ResourceManagerHelper.get(PackType.SERVER_DATA)
-            .registerReloadListener(new ServerListener());
+        // AddServerReloadListenersEvent fires on every data-pack reload; the
+        // listener is re-added to each fresh reload's listener map, so the
+        // registration is safe to keep for the lifetime of the game.
+        NeoForge.EVENT_BUS.addListener(AddServerReloadListenersEvent.class, event ->
+            event.addListener(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors"), new ServerListener()));
         LOG.info("EntityAnchorLoader registered for SERVER_DATA");
     }
 
     /**
      * Register the client (resource-pack) listener.  Safe to call more than once.
      */
-    public static void registerClientResources() {
+    public static void registerClientResources(IEventBus modEventBus) {
         if (clientRegistered) {
             return;
         }
         clientRegistered = true;
-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES)
-            .registerReloadListener(new ClientListener());
+        // AddClientReloadListenersEvent is an IModBusEvent fired once while the
+        // Minecraft instance is constructed, on the logical client.
+        modEventBus.addListener(AddClientReloadListenersEvent.class, event ->
+            event.addListener(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors_client"), new ClientListener()));
         LOG.info("EntityAnchorLoader registered for CLIENT_RESOURCES");
     }
 
@@ -164,26 +172,26 @@ public final class EntityAnchorLoader {
     // Resource listeners
     // ------------------------------------------------------------------
 
-    private static class ServerListener implements SimpleSynchronousResourceReloadListener {
+    private static class ServerListener extends SimplePreparableReloadListener<Void> {
         @Override
-        public Identifier getFabricId() {
-            return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors");
+        protected Void prepare(ResourceManager manager, ProfilerFiller profiler) {
+            return null;
         }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void apply(Void data, ResourceManager manager, ProfilerFiller profiler) {
             EntityAnchorLoader.reload(manager, serverLoadedIds);
         }
     }
 
-    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
+    private static class ClientListener extends SimplePreparableReloadListener<Void> {
         @Override
-        public Identifier getFabricId() {
-            return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors_client");
+        protected Void prepare(ResourceManager manager, ProfilerFiller profiler) {
+            return null;
         }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void apply(Void data, ResourceManager manager, ProfilerFiller profiler) {
             EntityAnchorLoader.reload(manager, clientLoadedIds);
         }
     }

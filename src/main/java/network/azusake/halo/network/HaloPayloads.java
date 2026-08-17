@@ -11,7 +11,7 @@ import net.minecraft.resources.Identifier;
  *
  * <p>Fabric API 1.20.5+ removed the legacy {@code Identifier}-based networking
  * API, so every channel now rides on a {@link CustomPacketPayload} registered in
- * {@link net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry}.  These
+ * {@code PayloadRegistrar}.  These
  * payloads wrap the exact byte layout of the old 1.20.x {@code PacketByteBuf}
  * channels, so the on-wire format is unchanged.</p>
  *

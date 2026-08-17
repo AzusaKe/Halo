@@ -2,7 +2,7 @@ package network.azusake.halo.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.fml.loading.FMLPaths;
 import network.azusake.halo.HaloMod;
 
 import java.io.IOException;
@@ -42,8 +42,7 @@ public final class HaloModConfigStore {
 
     /** Resolve the default config file: {@code config/halo-azusake/halo_mod_config.json}. */
     private static Path defaultFile() {
-        return FabricLoader.getInstance()
-            .getConfigDir()
+        return FMLPaths.CONFIGDIR.get()
             .resolve(CONFIG_DIR_NAME)
             .resolve(CONFIG_FILE_NAME);
     }

@@ -1,5 +1,5 @@
 plugins {
-    id 'net.fabricmc.fabric-loom' version '1.17.19'
+    id 'net.neoforged.moddev' version '2.0.144'
     id 'maven-publish'
 }
 
@@ -9,37 +9,21 @@ java {
 }
 
 base {
-    archivesName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
+    archivesName = "${project.archives_base_name}-${project.minecraft_version}-neoforge"
 }
 version = project.mod_version
 group = project.maven_group
 
 repositories {
-    // Add repositories to retrieve artifacts from in here.
-    // For LSPDFR or other non-Maven repos, add their URLs here.
+    // Test-only dependencies (JUnit / Gson) resolve from Maven Central.
+    mavenCentral()
 }
 
 dependencies {
-    // To change the versions see the gradle.properties file
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-    // Fabric API. This is technically optional, but you probably want it anyway.
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
     // Test dependencies
     testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation "com.google.code.gson:gson:2.10.1"
-}
-
-processResources {
-    inputs.property "version", project.version
-    filteringCharset "UTF-8"
-
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
-    }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -48,7 +32,6 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
-    // Loom will use this to set up access wideners and remap mods correctly
     withSourcesJar()
 }
 
@@ -65,23 +48,44 @@ test {
     }
 }
 
-// Client run configuration: 2560x1600 window, non-fullscreen
-loom {
-    accessWidenerPath = file("src/main/resources/halo.accesswidener")
+// NeoForge dev environment: 2560x1600 window, non-fullscreen
+neoForge {
+    version = project.neoforge_version
+    validateAccessTransformers = true
+    accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
+
+    mods {
+        halo {
+            sourceSet sourceSets.main
+        }
+    }
+
     runs {
         client {
-            programArgs("--width", "2560")
-            programArgs("--height", "1600")
-            programArgs("--username", "Dev1")
+            client()
+            programArgument("--width")
+            programArgument("2560")
+            programArgument("--height")
+            programArgument("1600")
+            programArgument("--username")
+            programArgument("Dev1")
         }
         // Second client for local multiplayer testing — launch with:
         //   ./gradlew runClient2
         client2 {
-            inherit client
-            programArgs("--username", "Dev2")
-            runDir = "run2"
+            client()
+            gameDirectory = file("run2")
+            programArgument("--width")
+            programArgument("2560")
+            programArgument("--height")
+            programArgument("1600")
+            programArgument("--username")
+            programArgument("Dev2")
         }
     }
+
+    // Give the plain-JUnit test source set access to Minecraft classes.
+    addModdingDependenciesTo sourceSets.test
 }
 
 // Force fullscreen:false before each runClient launch
