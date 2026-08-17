@@ -15,6 +15,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -136,8 +137,16 @@ public final class HaloNetworkClient {
      * Safe to call at any time — silently no-ops when not connected to a world.
      */
     public static void sendDefsReport() {
-        if (Minecraft.getInstance().getConnection() == null) {
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection == null) {
             return; // not connected to a server — silently skip
+        }
+        // Only report to servers that negotiated the halo channels (i.e. have
+        // the Halo mod installed).  Mirrors the Fabric build's
+        // ClientPlayNetworking.canSend guard — on servers without the mod the
+        // client stays in local mode and never sends this.
+        if (!NetworkRegistry.hasChannel(connection, HaloNetwork.CHANNEL_DEFS_REPORT)) {
+            return;
         }
         var defs = HaloJsonLoader.getDefinitions();
         if (defs.isEmpty()) return;

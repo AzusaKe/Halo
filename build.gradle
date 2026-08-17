@@ -82,6 +82,13 @@ neoForge {
             programArgument("--username")
             programArgument("Dev2")
         }
+        // Dedicated server for multiplayer testing - launch with:
+        //   ./gradlew runServer
+        server {
+            server()
+            gameDirectory = file("runServer")
+            programArgument("--nogui")
+        }
     }
 
     // Give the plain-JUnit test source set access to Minecraft classes.

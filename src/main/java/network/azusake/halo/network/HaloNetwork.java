@@ -56,7 +56,12 @@ public final class HaloNetwork {
      * integrated server can send S2C payloads and receive C2S payloads.
      */
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("1");
+        // Mark all channels optional so the client can join servers that do not
+        // have the Halo mod installed (NeoForge drops missing optional channels
+        // during negotiation instead of rejecting the connection).  The client
+        // then stays in LOCAL mode until a halo:hello arrives — same behaviour
+        // as the Fabric build.
+        PayloadRegistrar registrar = event.registrar("1").optional();
 
         // S2C — the handler methods live on the client side; the type + codec
         // must be registered on both sides so the server can send.
