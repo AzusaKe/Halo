@@ -13,7 +13,7 @@ logoFile="assets/halo/textures/halo/ring.png"
 [[dependencies.halo]]
     modId="minecraft"
     type="required"
-    versionRange="[26.1,26.2)"
+    versionRange="[26.1.2,26.2)"
     ordering="NONE"
     side="BOTH"
 
