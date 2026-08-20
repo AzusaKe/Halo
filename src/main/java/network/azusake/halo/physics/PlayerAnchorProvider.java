@@ -96,7 +96,7 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
         if (client == null || client.gameRenderer == null || entity != client.player) {
             return 0f;
         }
-        Camera camera = client.gameRenderer.getMainCamera();
+        Camera camera = client.gameRenderer.mainCamera();
         if (camera == null) {
             return 0f;
         }

@@ -11,8 +11,6 @@ import network.azusake.halo.render.IdlePhaseTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.Identifier;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
@@ -38,7 +36,6 @@ import java.util.UUID;
  * (NeoForge wraps them), and every state mutation is additionally dispatched
  * via {@code enqueueWork}.</p>
  */
-@OnlyIn(Dist.CLIENT)
 public final class HaloNetworkClient {
 
     private HaloNetworkClient() {

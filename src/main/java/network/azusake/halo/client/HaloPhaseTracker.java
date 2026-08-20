@@ -1,7 +1,5 @@
 package network.azusake.halo.client;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -20,7 +18,6 @@ import net.minecraft.client.Minecraft;
  * transition signalled from a netty I/O thread is immediately visible to the
  * main client thread that runs the Mixin injector.
  */
-@OnlyIn(Dist.CLIENT)
 public final class HaloPhaseTracker {
 
     public enum Phase {

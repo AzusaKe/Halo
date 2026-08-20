@@ -17,13 +17,13 @@ import network.azusake.halo.shape.HaloPrimitive;
 import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
 import network.azusake.halo.shape.HaloGroup;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
@@ -33,10 +33,9 @@ import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MappableRingBuffer;
+import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -50,7 +49,6 @@ import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
-import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,14 +114,11 @@ public final class HaloRenderer {
     private double smoothedDt = -1;
 
     // ------------------------------------------------------------------
-    // 26.1 GPU pipeline state
+    // 26.2 GPU pipeline state
     // ------------------------------------------------------------------
 
     /** Shared vertex-data allocator for building per-primitive meshes. */
     private static final ByteBufferBuilder BUFFER_ALLOCATOR = new ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE);
-
-    /** Ring buffer for uploading vertex data to the GPU (3 rotating slots). */
-    private MappableRingBuffer vertexBuffer;
 
     private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
     private static final Vector3f MODEL_OFFSET = new Vector3f();
@@ -140,10 +135,10 @@ public final class HaloRenderer {
             .withVertexShader("core/position_color")
             .withFragmentShader("core/position_color")
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
             .withCull(false)
             .build());
 
@@ -153,12 +148,12 @@ public final class HaloRenderer {
             .withLocation(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "pipeline/halo_tex"))
             .withVertexShader("core/position_tex_color")
             .withFragmentShader("core/position_tex_color")
-            .withSampler("Sampler0")
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
             .withCull(false)
             .build());
 
@@ -168,12 +163,12 @@ public final class HaloRenderer {
             .withLocation(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "pipeline/halo_tex_cull"))
             .withVertexShader("core/position_tex_color")
             .withFragmentShader("core/position_tex_color")
-            .withSampler("Sampler0")
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
             .withCull(true)
             .build());
 
@@ -235,7 +230,7 @@ public final class HaloRenderer {
         if (client.level == null) {
             return;
         }
-        Camera camera = client.gameRenderer.getMainCamera();
+        Camera camera = client.gameRenderer.mainCamera();
 
         idlePhaseTracker.prune(System.currentTimeMillis());
 
@@ -889,7 +884,7 @@ public final class HaloRenderer {
             // face_camera keeps the same UV layout upright (V=0 at the +up side).
             // Tint texture by the effective brightness factor (fullbright at 1.0)
             BufferBuilder builder = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
+                BUFFER_ALLOCATOR, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
             builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setUv(0.0f, 1.0f).setColor(r, g, b, alpha);
             builder.addVertex(drawMatrix, c1.x, c1.y, c1.z).setUv(1.0f, 1.0f).setColor(r, g, b, alpha);
             builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setUv(1.0f, 0.0f).setColor(r, g, b, alpha);
@@ -899,7 +894,7 @@ public final class HaloRenderer {
             drawPrimitive(PIPELINE_TEX, builder, billboard.texture());
         } else {
             BufferBuilder builder = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+                BUFFER_ALLOCATOR, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
             builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setColor(r, g, b, alpha);
             builder.addVertex(drawMatrix, c1.x, c1.y, c1.z).setColor(r, g, b, alpha);
             builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setColor(r, g, b, alpha);
@@ -1025,7 +1020,7 @@ public final class HaloRenderer {
             // CCW winding → front faces point outward.  Each segment emits two
             // triangles (6 vertices): tri A: top0, top1, bottom0; tri B: bottom0, top1, bottom1.
             BufferBuilder outer = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
+                BUFFER_ALLOCATOR, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
             for (int i = 0; i < segments; i++) {
                 int next = (i + 1) % segments;
                 float u0 = (float) i / segments;
@@ -1052,7 +1047,7 @@ public final class HaloRenderer {
             // inner texture is only visible from inside the ring).
             Identifier innerTex = ring.innerTexture() != null ? ring.innerTexture() : ring.outerTexture();
             BufferBuilder inner = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
+                BUFFER_ALLOCATOR, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
             for (int i = 0; i < segments; i++) {
                 int next = (i + 1) % segments;
                 float u0 = (float) i / segments;
@@ -1074,7 +1069,7 @@ public final class HaloRenderer {
         } else {
             // No texture fallback — solid color ring, both sides visible
             BufferBuilder builder = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+                BUFFER_ALLOCATOR, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
             for (int i = 0; i < segments; i++) {
                 int next = (i + 1) % segments;
                 float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
@@ -1101,15 +1096,15 @@ public final class HaloRenderer {
     }
 
     // ------------------------------------------------------------------
-    // GPU pipeline drawing (26.1)
+    // GPU pipeline drawing (26.2)
     // ------------------------------------------------------------------
 
     /**
      * Upload the built vertex data and execute a single draw with the given
-     * pipeline.  Follows the Fabric 26.1.2 reference render-pipeline pattern:
-     * map a rotating GPU buffer, copy the mesh into it, then set
-     * pipeline / dynamic transforms / texture and draw non-indexed (all halo
-     * primitives are emitted as triangle soup, so no index buffer is needed).
+     * pipeline.  Uploads the mesh through the encoder's transient memory,
+     * then sets pipeline / dynamic transforms / texture and draws non-indexed
+     * (all halo primitives are emitted as triangle soup, so no index buffer is
+     * needed).
      */
     private void drawPrimitive(RenderPipeline pipeline, BufferBuilder builder, Identifier textureId) {
         MeshData built = builder.buildOrThrow();
@@ -1118,43 +1113,29 @@ public final class HaloRenderer {
         // Resolve/load the texture BEFORE opening the render pass — GPU texture
         // uploads (writeToTexture) are not allowed while a pass is active.
         AbstractTexture texture = textureId != null ? resolveTexture(textureId) : null;
-        VertexFormat format = drawState.format();
-
-        int vertexBufferSize = drawState.vertexCount() * format.getVertexSize();
-        if (vertexBuffer == null || vertexBuffer.size() < vertexBufferSize) {
-            if (vertexBuffer != null) {
-                vertexBuffer.close();
-            }
-            vertexBuffer = new MappableRingBuffer(
-                () -> HaloMod.MOD_ID + " halo", GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE, vertexBufferSize);
-        }
 
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        try (GpuBuffer.MappedView mappedView = encoder.mapBuffer(
-                vertexBuffer.currentBuffer().slice(0, built.vertexBuffer().remaining()), false, true)) {
-            MemoryUtil.memCopy(built.vertexBuffer(), mappedView.data());
-        }
-        GpuBuffer vertices = vertexBuffer.currentBuffer();
+        GpuBufferSlice verticesSlice = encoder.transientMemory()
+            .uploadStaging(built.vertexBuffer(), 1L, GpuBuffer.USAGE_VERTEX);
 
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .writeTransform(RenderSystem.getModelViewMatrix(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
+            .writeTransform(RenderSystem.getModelViewMatrixCopy(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
 
         try (RenderPass renderPass = encoder.createRenderPass(
                 () -> HaloMod.MOD_ID + " halo",
-                Minecraft.getInstance().getMainRenderTarget().getColorTextureView(), OptionalInt.empty(),
-                Minecraft.getInstance().getMainRenderTarget().getDepthTextureView(), OptionalDouble.empty())) {
+                Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTextureView(), Optional.empty(),
+                Minecraft.getInstance().gameRenderer.mainRenderTarget().getDepthTextureView(), OptionalDouble.empty())) {
             renderPass.setPipeline(pipeline);
             RenderSystem.bindDefaultUniforms(renderPass);
             renderPass.setUniform("DynamicTransforms", dynamicTransforms);
             if (texture != null) {
                 renderPass.bindTexture("Sampler0", texture.getTextureView(), texture.getSampler());
             }
-            renderPass.setVertexBuffer(0, vertices);
-            renderPass.draw(0, drawState.vertexCount());
+            renderPass.setVertexBuffer(0, verticesSlice);
+            renderPass.draw(drawState.vertexCount(), 1, 0, 0);
         }
 
         built.close();
-        vertexBuffer.rotate();
     }
 
     /**

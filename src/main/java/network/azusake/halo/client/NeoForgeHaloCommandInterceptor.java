@@ -15,8 +15,6 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import network.azusake.halo.json.HaloJsonLoader;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -33,7 +31,6 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Single-threaded: all command executors run on the render thread.</p>
  */
-@OnlyIn(Dist.CLIENT)
 public final class NeoForgeHaloCommandInterceptor implements HaloCommandInterceptor {
 
     private volatile boolean registered;

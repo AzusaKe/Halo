@@ -3,8 +3,6 @@ package network.azusake.halo.client;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.fml.loading.FMLPaths;
 import net.minecraft.resources.Identifier;
 import java.io.IOException;
@@ -30,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>In LOCAL phase the player may only set halos on themselves ({@code @s}).
  * This is enforced by {@link HaloLocalCommandHandler}, not by this class.</p>
  */
-@OnlyIn(Dist.CLIENT)
 public final class HaloLocalManager {
 
     private static final HaloLocalManager INSTANCE = new HaloLocalManager();
