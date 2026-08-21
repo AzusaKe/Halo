@@ -28,6 +28,7 @@ desktop.ini
 
 # Minecraft / Fabric Loom
 run/
+runServer/
 logs/
 crash-reports/
 
@@ -62,3 +63,4 @@ serika*
 run2/
 .VSCodeCounter/
 build-in-docker.ps1
+scripts/stop-halo-server.ps1
