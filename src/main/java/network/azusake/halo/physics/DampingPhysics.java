@@ -1,7 +1,7 @@
 package network.azusake.halo.physics;
 
 import network.azusake.halo.data.HaloDampingConfig;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 /**
@@ -52,29 +52,29 @@ public final class DampingPhysics {
      * <p>Calling convention: {@code current} is the offset vector from
      * target to the halo's previous position (halo − target).
      * {@code target_param} is the desired offset from anchor (typically
-     * {@link Vec3d#ZERO}).  The returned value is the new damped offset,
+     * {@link Vec3#ZERO}).  The returned value is the new damped offset,
      * which the caller adds to the absolute target position.</p>
      *
      * @param current    the current offset from the entity anchor
      *                   (world-space halo centre minus anchor position)
-     * @param targetParam the desired target offset (typically {@link Vec3d#ZERO}
+     * @param targetParam the desired target offset (typically {@link Vec3#ZERO}
      *                   — right on the anchor)
      * @param damping   damping configuration (linear factor, max distance)
      * @param state     mutable per-instance state; updated in-place
      * @param deltaTime seconds since the last update (frame or tick)
      * @return the new damped relative position (offset from anchor)
      */
-    public static Vec3d computeDampedPosition(
-        Vec3d current,
-        Vec3d targetParam,
+    public static Vec3 computeDampedPosition(
+        Vec3 current,
+        Vec3 targetParam,
         HaloDampingConfig damping,
         HaloDampingState state,
         double deltaTime
     ) {
         if (state.needsSnap) {
             state.needsSnap = false;
-            state.prevRelativePosition = Vec3d.ZERO;
-            return Vec3d.ZERO;
+            state.prevRelativePosition = Vec3.ZERO;
+            return Vec3.ZERO;
         }
 
         // Frame-rate-independent exponential factor
@@ -107,18 +107,18 @@ public final class DampingPhysics {
 
         // H_new = H − k_f × (H − T)  ≡  current − k_f × current  ≡  current × (1 − k_f)
         // (keeping the existing calling convention where "current" = H − T)
-        Vec3d damped = current.multiply(1.0 - kF);
+        Vec3 damped = current.scale(1.0 - kF);
 
         // targetParam is typically ZERO; include it for API consistency
-        if (targetParam.lengthSquared() > 0.0) {
-            damped = damped.add(targetParam.multiply(kF));
+        if (targetParam.lengthSqr() > 0.0) {
+            damped = damped.add(targetParam.scale(kF));
         }
 
         // Hard-clamp to max distance (the remaining gap d must not exceed max_d)
         double distance = damped.length();
         double maxDist = damping.maxLinearDistance();
         if (distance > maxDist && distance > 1e-9) {
-            damped = damped.normalize().multiply(maxDist);
+            damped = damped.normalize().scale(maxDist);
         }
 
         // Persist for the next frame/tick

@@ -1,6 +1,6 @@
 package network.azusake.halo.data;
 
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
 import java.util.Optional;
@@ -18,7 +18,7 @@ import java.util.Optional;
  * @param poses       map of pose key → {@link PoseAnchor} (non-empty)
  */
 public record EntityAnchorProfile(
-    Identifier entity,
+    ResourceLocation entity,
     String defaultPose,
     Map<String, PoseAnchor> poses
 ) {

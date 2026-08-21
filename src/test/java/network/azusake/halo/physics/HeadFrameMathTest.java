@@ -1,6 +1,6 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,31 +20,31 @@ class HeadFrameMathTest {
     private static final double EPS = 1e-4;
 
     // ---- legacy (pre-6DOF) basis re-implementation ----
-    private static Vec3d legacyForward(float yawDeg, float pitchDeg) {
+    private static Vec3 legacyForward(float yawDeg, float pitchDeg) {
         float yawRad = (float) Math.toRadians(yawDeg);
         float pitchRad = (float) Math.toRadians(pitchDeg);
-        return new Vec3d(
+        return new Vec3(
             -Math.sin(yawRad) * Math.cos(pitchRad),
             -Math.sin(pitchRad),
             Math.cos(yawRad) * Math.cos(pitchRad)
         ).normalize();
     }
 
-    private static Vec3d legacyRight(float yawDeg, float pitchDeg) {
+    private static Vec3 legacyRight(float yawDeg, float pitchDeg) {
         float yawRad = (float) Math.toRadians(yawDeg);
-        Vec3d forward = legacyForward(yawDeg, pitchDeg);
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-            return new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
+        Vec3 forward = legacyForward(yawDeg, pitchDeg);
+        Vec3 worldUp = new Vec3(0, 1, 0);
+        if (Math.abs(forward.dot(worldUp)) > 0.999) {
+            return new Vec3(-Math.cos(yawRad), 0, -Math.sin(yawRad));
         }
-        return forward.crossProduct(worldUp).normalize();
+        return forward.cross(worldUp).normalize();
     }
 
-    private static Vec3d legacyHeadUp(float yawDeg, float pitchDeg) {
-        return legacyRight(yawDeg, pitchDeg).crossProduct(legacyForward(yawDeg, pitchDeg)).normalize();
+    private static Vec3 legacyHeadUp(float yawDeg, float pitchDeg) {
+        return legacyRight(yawDeg, pitchDeg).cross(legacyForward(yawDeg, pitchDeg)).normalize();
     }
 
-    private static void assertVec(Vec3d expected, Vec3d actual) {
+    private static void assertVec(Vec3 expected, Vec3 actual) {
         assertEquals(expected.x, actual.x, EPS, "x");
         assertEquals(expected.y, actual.y, EPS, "y");
         assertEquals(expected.z, actual.z, EPS, "z");
@@ -88,9 +88,9 @@ class HeadFrameMathTest {
                         assertEquals(1.0, frame.right().length(), EPS, "right length");
                         assertEquals(1.0, frame.headUp().length(), EPS, "headUp length");
                         assertEquals(1.0, frame.forward().length(), EPS, "forward length");
-                        assertEquals(0.0, frame.right().dotProduct(frame.headUp()), EPS, "right·headUp");
-                        assertEquals(0.0, frame.right().dotProduct(frame.forward()), EPS, "right·forward");
-                        assertEquals(0.0, frame.headUp().dotProduct(frame.forward()), EPS, "headUp·forward");
+                        assertEquals(0.0, frame.right().dot(frame.headUp()), EPS, "right·headUp");
+                        assertEquals(0.0, frame.right().dot(frame.forward()), EPS, "right·forward");
+                        assertEquals(0.0, frame.headUp().dot(frame.forward()), EPS, "headUp·forward");
                     }
                 }
             }
@@ -104,17 +104,17 @@ class HeadFrameMathTest {
         @Test
         void roll90AtYaw0Pitch0() {
             HeadFrameMath.HeadFrame frame = HeadFrameMath.of(0f, 0f, 90f);
-            assertVec(new Vec3d(0, -1, 0), frame.right());
-            assertVec(new Vec3d(-1, 0, 0), frame.headUp());
-            assertVec(new Vec3d(0, 0, 1), frame.forward());
+            assertVec(new Vec3(0, -1, 0), frame.right());
+            assertVec(new Vec3(-1, 0, 0), frame.headUp());
+            assertVec(new Vec3(0, 0, 1), frame.forward());
         }
 
         @Test
         void roll180FlipsRightAndHeadUp() {
             HeadFrameMath.HeadFrame frame = HeadFrameMath.of(0f, 0f, 180f);
-            assertVec(new Vec3d(1, 0, 0), frame.right());
-            assertVec(new Vec3d(0, -1, 0), frame.headUp());
-            assertVec(new Vec3d(0, 0, 1), frame.forward());
+            assertVec(new Vec3(1, 0, 0), frame.right());
+            assertVec(new Vec3(0, -1, 0), frame.headUp());
+            assertVec(new Vec3(0, 0, 1), frame.forward());
         }
 
         @Test

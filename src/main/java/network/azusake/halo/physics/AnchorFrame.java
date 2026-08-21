@@ -1,6 +1,6 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 /**
@@ -29,10 +29,10 @@ import org.joml.Quaternionf;
  * @param scale              uniform scale multiplier
  */
 public record AnchorFrame(
-    Vec3d worldPosition,
-    Vec3d cameraRelativePos,
+    Vec3 worldPosition,
+    Vec3 cameraRelativePos,
     Quaternionf worldOrientation,
-    Vec3d worldForward,
-    Vec3d toHeadDirection,
+    Vec3 worldForward,
+    Vec3 toHeadDirection,
     float scale
 ) {}

@@ -2,7 +2,7 @@ package network.azusake.halo.config;
 
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloPositioning;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Runtime halo configuration that can be tuned in-game via {@code /halo config}.
@@ -48,10 +48,10 @@ public class HaloConfig {
     private double haloScale = 1.0;
 
     /** Position offset relative to the entity head anchor. */
-    private Vec3d positionOffset = new Vec3d(0, 0.2, 0);
+    private Vec3 positionOffset = new Vec3(0, 0.2, 0);
 
     /** Euler-angle rotation offset in degrees. */
-    private Vec3d rotationOffset = new Vec3d(0, 0, 0);
+    private Vec3 rotationOffset = new Vec3(0, 0, 0);
 
     // ------------------------------------------------------------------
     // Getters
@@ -89,11 +89,11 @@ public class HaloConfig {
         return haloScale;
     }
 
-    public Vec3d getPositionOffset() {
+    public Vec3 getPositionOffset() {
         return positionOffset;
     }
 
-    public Vec3d getRotationOffset() {
+    public Vec3 getRotationOffset() {
         return rotationOffset;
     }
 
@@ -133,11 +133,11 @@ public class HaloConfig {
         this.haloScale = Math.max(0.1, value);
     }
 
-    public void setPositionOffset(Vec3d offset) {
+    public void setPositionOffset(Vec3 offset) {
         this.positionOffset = offset;
     }
 
-    public void setRotationOffset(Vec3d offset) {
+    public void setRotationOffset(Vec3 offset) {
         this.rotationOffset = offset;
     }
 

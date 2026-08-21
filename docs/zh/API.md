@@ -25,18 +25,17 @@ public interface HaloCommandInterceptor {
    - 在本地聊天栏显示返回的反馈文本。
    - **不要**将命令转发到服务器。
 3. 若为 `false`（单人游戏或 MULTIPLAYER 阶段——服务器有 mod）：
-   - 通过加载器原生的发送命令机制将原始命令字符串转发到服务器
-     （例如 `client.getNetworkHandler().sendCommand(cmd)`）。
+   - 通过 Forge/Mojmap 的 `ServerboundChatCommandPacket` 将原始命令字符串转发到服务器。
 
 ### 为什么需要此层
 
 - 核心类（`HaloPhaseTracker`、`HaloLocalCommandHandler`、`HaloLocalManager`）**零**加载器依赖。
-- 基于 Mixin 的拦截方案在不同 Yarn 映射版本间脆弱且难以移植。
-- 此接口让每个加载器（Fabric、NeoForge 等）可以接入自己的命令注册 API，核心逻辑完全不变。
+- 基于 Mixin 的拦截方案在不同映射版本间脆弱且难以移植。
+- 此接口将 Forge 命令注册与阶段追踪、本地执行逻辑隔离。
 
-### Fabric 实现
+### Forge 实现
 
-`FabricHaloCommandInterceptor`（同一包下）通过 `ClientCommandRegistrationCallback.EVENT` 注册 `/halo`。
+`ForgeHaloCommandInterceptor`（同一包下）通过 `MinecraftForge.EVENT_BUS` 上的 `RegisterClientCommandsEvent` 注册 `/halo`。
 
 ### 移植到其他加载器
 
@@ -103,7 +102,7 @@ Halo 的锚点计算已经抽象为「头部锚点 Provider」接口，其他模
 
 - `EntityAnchorProvider.resolve(LivingEntity, float tickDelta)` 由 Halo 在**渲染线程每帧**调用一次（非每 tick），传入当前渲染帧的插值进度 `tickDelta`（0~1，低帧率时可能 >1）。
 - Provider 负责在上一/当前 tick 状态之间自行插值，并返回完整的 **6 自由度** `HeadAnchor`：
-  - `Vec3d headCenter`：头部中心世界坐标（3 自由度）
+  - `Vec3 headCenter`：头部中心世界坐标（3 自由度）
   - `float yaw` / `float pitch` / `float roll`：头部朝向（3 自由度，度，MC 约定）
 - 模组只需要提供**头部**的 6 自由度；光环自身的位置阻尼、offset、旋转模式等仍由 Halo 内部计算。
 
@@ -114,27 +113,31 @@ Halo 的锚点计算已经抽象为「头部锚点 Provider」接口，其他模
 
 ### 注册方式
 
-在你的 `ClientModInitializer` 中监听 `AnchorProviderSetupEvent`。Halo 会在**所有模组客户端入口点执行完毕后（第一个客户端 tick 结束时）**触发该事件，因此无论模组加载顺序如何，你的监听器都能被收到：
+在 Forge 事件总线上订阅 `AnchorProviderSetupEvent`。Halo 会在**第一个客户端 tick 结束时**、默认 Provider 注册完成后发布该事件：
 
 ```java
 import network.azusake.halo.api.AnchorProviderSetupEvent;
 import network.azusake.halo.api.HeadAnchor;
 import network.azusake.halo.api.EntityAnchorProvider;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
-public class MyModClient implements ClientModInitializer {
-    @Override
-    public void onInitializeClient() {
-        AnchorProviderSetupEvent.EVENT.register(registry ->
-            registry.register(LivingEntity.class, new MyHeadProvider()));
+@Mod.EventBusSubscriber(modid = "mymod", value = Dist.CLIENT,
+    bus = Mod.EventBusSubscriber.Bus.FORGE)
+public final class MyModClientEvents {
+    @SubscribeEvent
+    public static void onAnchorProviderSetup(AnchorProviderSetupEvent event) {
+        event.getRegistry().register(LivingEntity.class, new MyHeadProvider());
     }
 }
 
 final class MyHeadProvider implements EntityAnchorProvider {
     @Override
     public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
-        Vec3d headCenter = ...; // 自定义头部中心（世界坐标）
+        Vec3 headCenter = ...;  // 自定义头部中心（世界坐标）
         float yaw = ...;        // 头部朝向（度）
         float pitch = ...;
         float roll = ...;       // 纯动画模组可自由提供 roll，无需摄像机
@@ -147,16 +150,16 @@ final class MyHeadProvider implements EntityAnchorProvider {
 
 | 场景 | 做法 | 说明 |
 |------|------|------|
-| 特定实体种类 | `register(ZombieEntity.class, provider)` | 精确类优先；注册父类会影响所有子类 |
+| 特定实体种类 | `register(Zombie.class, provider)` | 精确类优先；注册父类会影响所有子类 |
 | 特定个体 | `register(uuid, provider)` | UUID 命中优先于任何类型注册 |
 | 任意谓词（NBT/队伍/动态状态） | 委托模式 | 注册前抓取旧 Provider，未命中时委托 |
 
 委托模式示例（只改带特定 NBT 标记的僵尸）：
 
 ```java
-EntityAnchorProvider prev = registry.getProvider(ZombieEntity.class); // 注册前抓取，永不 null
-registry.register(ZombieEntity.class, (entity, tickDelta) ->
-    entity.getNbt().getBoolean("my:special_head")
+EntityAnchorProvider prev = registry.getProvider(Zombie.class); // 注册前抓取，永不 null
+registry.register(Zombie.class, (entity, tickDelta) ->
+    entity.getPersistentData().getBoolean("my:special_head")
         ? myAnchor(entity, tickDelta)
         : prev.resolve(entity, tickDelta));
 ```

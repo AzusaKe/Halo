@@ -4,16 +4,19 @@ import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloEntityData;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.manager.HaloManager;
-import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.TickEvent;
 
 import java.util.Map;
 import java.util.UUID;
@@ -103,7 +106,7 @@ public final class EntityHaloTracker {
     // ------------------------------------------------------------------
 
     /** Last known world-space position of each tracked entity. */
-    private static final Map<UUID, Vec3d> lastKnownPositions = new ConcurrentHashMap<>();
+    private static final Map<UUID, Vec3> lastKnownPositions = new ConcurrentHashMap<>();
 
     /**
      * Distance threshold squared (blocks²) for teleport detection via position
@@ -170,27 +173,30 @@ public final class EntityHaloTracker {
         }
         registered = true;
 
-        // ---- Entity death → cleanup ----
-        ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
-            cleanup(entity);
-        });
+        MinecraftForge.EVENT_BUS.addListener((LivingDeathEvent event) -> cleanup(event.getEntity()));
 
         // ---- Player respawn → restore halo from world save ----
         // Both death-respawn (alive=false) and end-return (alive=true) are
         // restored unconditionally — the player keeps the halo they own.
-        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-            onPlayerRespawn(newPlayer);
+        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerRespawnEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer player) onPlayerRespawn(player);
         });
 
         // ---- Entity load → restore halo from world save ----
-        ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-            if (entity instanceof LivingEntity living) {
+        MinecraftForge.EVENT_BUS.addListener((EntityJoinLevelEvent event) -> {
+            if (event.getLevel() instanceof ServerLevel && event.getEntity() instanceof LivingEntity living) {
                 restoreFromWorldSave(living);
             }
         });
+        MinecraftForge.EVENT_BUS.addListener((EntityLeaveLevelEvent event) -> {
+            if (event.getLevel() instanceof ServerLevel level)
+                HaloManager.getInstance().removeHalo(event.getEntity().getUUID(), level.getServer());
+        });
 
         // ---- Server tick → expired teleport cleanup + position check ----
-        ServerTickEvents.END_SERVER_TICK.register(EntityHaloTracker::onEndTick);
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.END) onEndTick(event.getServer());
+        });
 
         HaloMod.LOGGER.info("EntityHaloTracker: registered lifecycle event handlers");
     }
@@ -201,18 +207,18 @@ public final class EntityHaloTracker {
      * @param entity the living entity that teleported
      */
     public static void markTeleport(LivingEntity entity) {
-        UUID uuid = entity.getUuid();
+        UUID uuid = entity.getUUID();
         recentlyTeleported.put(uuid, System.currentTimeMillis());
 
         HaloInstance instance = HaloManager.getInstance().getHaloInstance(uuid);
         if (instance != null) {
             instance.markTeleported();
             if (debugMode && currentServer != null) {
-                Vec3d pos = entity.getPos();
-                var msg = Text.literal(
+                Vec3 pos = entity.position();
+                var msg = Component.literal(
                     String.format("§e[HaloDebug] §fTELEPORT §edetected | §7%s §fpos=(§7%.1f, %.1f, %.1f§f) §a-> snap",
                         entity.getName().getString(), pos.x, pos.y, pos.z));
-                currentServer.getPlayerManager().broadcast(msg, false);
+                currentServer.getPlayerList().broadcastSystemMessage(msg, false);
             }
         }
     }
@@ -246,7 +252,7 @@ public final class EntityHaloTracker {
      * @param entity the living entity to clean up
      */
     public static void cleanup(LivingEntity entity) {
-        UUID uuid = entity.getUuid();
+        UUID uuid = entity.getUUID();
         // Silent removal — no broadcast, no shutdown animation.  Ownership in the
         // world save is preserved (players) or pruned (non-players) below.
         HaloManager.getInstance().forceRemoveHalo(uuid);
@@ -254,10 +260,10 @@ public final class EntityHaloTracker {
 
         // A dead non-player will never respawn — drop its stale ownership entry.
         // A dead player keeps theirs so the halo returns on respawn.
-        if (!(entity instanceof ServerPlayerEntity)) {
+        if (!(entity instanceof ServerPlayer)) {
             var server = entity.getServer();
             if (server != null) {
-                HaloWorldSaveData.get(server.getOverworld()).remove(uuid);
+                HaloWorldSaveData.get(server.overworld()).remove(uuid);
             }
         }
 
@@ -295,10 +301,10 @@ public final class EntityHaloTracker {
                 continue;
             }
 
-            Vec3d currentPos = entity.getPos();
-            Vec3d lastPos = lastKnownPositions.get(uuid);
+            Vec3 currentPos = entity.position();
+            Vec3 lastPos = lastKnownPositions.get(uuid);
 
-            if (lastPos != null && currentPos.squaredDistanceTo(lastPos) > TELEPORT_DISTANCE_SQ) {
+            if (lastPos != null && currentPos.distanceToSqr(lastPos) > TELEPORT_DISTANCE_SQ) {
                 markTeleport(entity);
             }
 
@@ -318,8 +324,8 @@ public final class EntityHaloTracker {
      *
      * @param player the respawned player entity
      */
-    private static void onPlayerRespawn(ServerPlayerEntity player) {
-        UUID uuid = player.getUuid();
+    private static void onPlayerRespawn(ServerPlayer player) {
+        UUID uuid = player.getUUID();
 
         // Idempotency guard: if ENTITY_LOAD already restored the halo during
         // the respawn, don't broadcast a second attach.
@@ -332,7 +338,7 @@ public final class EntityHaloTracker {
             return;
         }
 
-        Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(uuid);
+        ResourceLocation defId = HaloWorldSaveData.get(server.overworld()).get(uuid);
         if (defId == null) {
             return;
         }
@@ -352,7 +358,7 @@ public final class EntityHaloTracker {
             return;
         }
 
-        Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(entity.getUuid());
+        ResourceLocation defId = HaloWorldSaveData.get(server.overworld()).get(entity.getUUID());
         if (defId == null) {
             return;
         }
@@ -362,20 +368,20 @@ public final class EntityHaloTracker {
 
         // Mark as teleported so the halo snaps to the entity immediately
         // rather than sliding in from the world origin
-        HaloInstance instance = HaloManager.getInstance().getHaloInstance(entity.getUuid());
+        HaloInstance instance = HaloManager.getInstance().getHaloInstance(entity.getUUID());
         if (instance != null) {
             instance.markTeleported();
         }
 
         HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on entity {} from world save",
-            defId, entity.getUuid());
+            defId, entity.getUUID());
     }
 
     /**
      * Find a living entity by UUID across all server worlds.
      */
     private static LivingEntity findEntity(MinecraftServer server, UUID uuid) {
-        for (var world : server.getWorlds()) {
+        for (var world : server.getAllLevels()) {
             var entity = world.getEntity(uuid);
             if (entity instanceof LivingEntity living && living.isAlive()) {
                 return living;

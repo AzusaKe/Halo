@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Unit tests for {@link HaloModConfigStore} file load/save behaviour.
  *
  * <p>Tests inject a temporary directory via the {@code Path} overloads, so no
- * loader (FabricLoader) dependency is touched.</p>
+ * loader-specific config-directory lookup is touched.</p>
  */
 class HaloModConfigStoreTest {
 

@@ -1,7 +1,6 @@
 package network.azusake.halo.api;
 
-import net.fabricmc.fabric.api.event.Event;
-import net.fabricmc.fabric.api.event.EventFactory;
+import net.minecraftforge.eventbus.api.Event;
 
 /**
  * Fired once by Halo after every client mod entrypoint has run (at the end of
@@ -9,26 +8,19 @@ import net.fabricmc.fabric.api.event.EventFactory;
  * other mods can register their own {@link EntityAnchorProvider}s via
  * {@link EntityAnchorProviderRegistry}.
  *
- * <p>Because Fabric provides no cross-mod ordering guarantee for
- * {@code ClientModInitializer} entrypoints, registering a listener during your
- * own {@code onInitializeClient} is always safe: Halo fires this event only
- * after all entrypoints have completed.</p>
+ * <p>Subscribe on the Forge event bus during client setup. Halo posts this
+ * event after all mod constructors and client setup hooks have completed.</p>
  */
-public interface AnchorProviderSetupEvent {
+public class AnchorProviderSetupEvent extends Event {
 
-    Event<AnchorProviderSetupEvent> EVENT = EventFactory.createArrayBacked(
-        AnchorProviderSetupEvent.class,
-        callbacks -> registry -> {
-            for (AnchorProviderSetupEvent callback : callbacks) {
-                callback.onSetup(registry);
-            }
-        }
-    );
+    private final EntityAnchorProviderRegistry registry;
 
-    /**
-     * Called after Halo's default providers are registered.
-     *
-     * @param registry the entity anchor provider registry
-     */
-    void onSetup(EntityAnchorProviderRegistry registry);
+    public AnchorProviderSetupEvent(EntityAnchorProviderRegistry registry) {
+        this.registry = registry;
+    }
+
+    public EntityAnchorProviderRegistry getRegistry() {
+        return registry;
+    }
+
 }

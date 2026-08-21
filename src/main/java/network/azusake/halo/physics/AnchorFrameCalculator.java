@@ -10,9 +10,9 @@ import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.data.OrientationMode;
 import network.azusake.halo.manager.HaloManager;
-import net.minecraft.client.render.Camera;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Camera;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +57,7 @@ public final class AnchorFrameCalculator {
     private static final double LOCKED_ANGULAR_K = 0.5;
 
     // ---- per-frame position state ----
-    private final Map<UUID, Vec3d> prevFramePos = new HashMap<>();
+    private final Map<UUID, Vec3> prevFramePos = new HashMap<>();
 
     // ---- last good provider anchor per entity.  A transient non-finite
     // anchor (bad provider frame) holds this anchor instead of poisoning the
@@ -126,21 +126,21 @@ public final class AnchorFrameCalculator {
         } else {
             lastGoodAnchors.put(uuid, ha);
         }
-        Vec3d headAnchor = ha.headCenter();
+        Vec3 headAnchor = ha.headCenter();
         float yaw = ha.yaw();
         float pitch = ha.pitch();
         float roll = ha.roll();
 
         // 2. Head-relative offset → world-space target position
-        Vec3d offset = getEffectiveOffset(definition);
-        Vec3d headRelOffset = computeHeadRelativeOffset(yaw, pitch, roll, offset);
-        Vec3d targetPos = headAnchor.add(headRelOffset);
+        Vec3 offset = getEffectiveOffset(definition);
+        Vec3 headRelOffset = computeHeadRelativeOffset(yaw, pitch, roll, offset);
+        Vec3 targetPos = headAnchor.add(headRelOffset);
 
         // 3. Merge damping config
         HaloDampingConfig damping = mergeDampingConfig(definition);
 
         // 4. Frame-rate-independent position damping
-        Vec3d prevPos = prevFramePos.get(uuid);
+        Vec3 prevPos = prevFramePos.get(uuid);
         boolean needsSnap = instance.isNeedsSnap();
         if (prevPos == null || needsSnap) {
             prevPos = targetPos;
@@ -158,19 +158,19 @@ public final class AnchorFrameCalculator {
 
         // dampPosition never returns NaN/∞, so a single bad frame cannot
         // poison prevFramePos.
-        Vec3d haloWorldPos = dampPosition(prevPos, targetPos, kF, damping.maxLinearDistance());
+        Vec3 haloWorldPos = dampPosition(prevPos, targetPos, kF, damping.maxLinearDistance());
 
         prevFramePos.put(uuid, haloWorldPos);
 
         // 5. toHead direction: from halo centre toward entity head
-        Vec3d toHead = headAnchor.subtract(haloWorldPos).normalize();
+        Vec3 toHead = headAnchor.subtract(haloWorldPos).normalize();
 
         // 6. Head frame vectors (world space): forward, right, headUp
         //    Same roll-aware computation as computeHeadRelativeOffset.
         HeadFrameMath.HeadFrame headFrame = HeadFrameMath.of(yaw, pitch, roll);
-        Vec3d forward = headFrame.forward();
-        Vec3d right = headFrame.right();
-        Vec3d headUp = headFrame.headUp();
+        Vec3 forward = headFrame.forward();
+        Vec3 right = headFrame.right();
+        Vec3 headUp = headFrame.headUp();
 
         // 7. Look-at orientation: shortest-arc rotation mapping definition -Y → toHead.
         //    This preserves the "up" direction as close to world-up as the
@@ -188,7 +188,7 @@ public final class AnchorFrameCalculator {
         //    around the normal axis differs.
         OrientationMode mode = definition.model().orientationMode();
         Quaternionf worldOrientation;
-        Vec3d worldForward;
+        Vec3 worldForward;
 
         switch (mode) {
             case LOCKED -> {
@@ -196,7 +196,7 @@ public final class AnchorFrameCalculator {
                 // The anchor point P = direction from head to halo target on the sphere.
                 // The "up pole" is 90° from P along the headUp great circle.
                 // The halo's +Z should point toward this pole like a compass.
-                Vec3d P = headRelOffset.normalize(); // anchor-point radial direction
+                Vec3 P = headRelOffset.normalize(); // anchor-point radial direction
                 Quaternionf Q_target = computeLockedSpin(Q_lookAt, toHead, headUp, P);
 
                 // Retrieve or initialise the damped locked-spin state
@@ -222,7 +222,7 @@ public final class AnchorFrameCalculator {
                     lockedSpinStates.put(uuid, new Quaternionf(dampedSpin));
                     worldOrientation = dampedSpin.mul(Q_lookAt, new Quaternionf());
                 }
-                worldForward = new Vec3d(0, 0, 1); // will be rotated below
+                worldForward = new Vec3(0, 0, 1); // will be rotated below
             }
             case FREE -> {
                 // Damp the spin angle around the normal independently toward identity
@@ -235,7 +235,7 @@ public final class AnchorFrameCalculator {
                 );
                 Quaternionf Q_spin = new Quaternionf(rotState.prevRelativeRotation);
                 worldOrientation = Q_spin.mul(Q_lookAt, new Quaternionf());
-                worldForward = new Vec3d(0, 0, 1);
+                worldForward = new Vec3(0, 0, 1);
             }
             case SYNC -> {
                 // Head orientation from Euler angles.  rotateY(−yaw) ×
@@ -254,7 +254,7 @@ public final class AnchorFrameCalculator {
                 // OUTSIDE — the halo rotates with the head in world space.
                 Quaternionf Q_rel = syncRelativeStates.get(uuid);
                 if (Q_rel == null || needsSnap) {
-                    Vec3d P = headRelOffset.normalize();
+                    Vec3 P = headRelOffset.normalize();
                     Quaternionf Q_lockedSpin = computeLockedSpin(Q_lookAt, toHead, headUp, P);
                     Quaternionf Q_LOCKED = Q_lockedSpin.mul(Q_lookAt, new Quaternionf());
 
@@ -268,11 +268,11 @@ public final class AnchorFrameCalculator {
 
                 // Q_halo(t) = Q_head(t) × Q_rel
                 worldOrientation = new Quaternionf(Q_head).mul(Q_rel);
-                worldForward = new Vec3d(0, 0, 1);
+                worldForward = new Vec3(0, 0, 1);
             }
             default -> {
                 worldOrientation = Q_lookAt;
-                worldForward = new Vec3d(0, 0, 1);
+                worldForward = new Vec3(0, 0, 1);
             }
         }
 
@@ -334,8 +334,8 @@ public final class AnchorFrameCalculator {
         float scale = getRuntimeScaleOverride(definition);
 
         // 11. Camera-relative position
-        Vec3d camPos = camera.getPos();
-        Vec3d camRelPos = new Vec3d(
+        Vec3 camPos = camera.getPosition();
+        Vec3 camRelPos = new Vec3(
             haloWorldPos.x - camPos.x,
             haloWorldPos.y - camPos.y,
             haloWorldPos.z - camPos.z
@@ -371,7 +371,7 @@ public final class AnchorFrameCalculator {
      * @param toHead unit vector from halo toward entity head (world space)
      * @return quaternion that rotates definition -Y to toHead
      */
-    static Quaternionf computeLookAtOrientation(Vec3d toHead) {
+    static Quaternionf computeLookAtOrientation(Vec3 toHead) {
         // Degenerate direction (NaN from a bad frame, or exactly zero when the
         // halo sits on the head centre) has no meaningful look-at — returning
         // identity avoids the zero-axis NaN quaternion that would otherwise
@@ -380,8 +380,8 @@ public final class AnchorFrameCalculator {
                 || (toHead.x == 0 && toHead.y == 0 && toHead.z == 0)) {
             return new Quaternionf();
         }
-        Vec3d from = new Vec3d(0, -1, 0); // definition -Y (billboard normal)
-        double dot = from.dotProduct(toHead);
+        Vec3 from = new Vec3(0, -1, 0); // definition -Y (billboard normal)
+        double dot = from.dot(toHead);
         if (dot > 0.9999) {
             return new Quaternionf(); // identity — already aligned
         }
@@ -389,7 +389,7 @@ public final class AnchorFrameCalculator {
             // Opposite directions — 180° around any ⟂ axis; use +X
             return new Quaternionf().rotateAxis((float) Math.PI, 1, 0, 0);
         }
-        Vec3d axis = from.crossProduct(toHead).normalize();
+        Vec3 axis = from.cross(toHead).normalize();
         float angle = (float) Math.acos(dot);
         return new Quaternionf().rotateAxis(angle, (float) axis.x, (float) axis.y, (float) axis.z);
     }
@@ -421,28 +421,28 @@ public final class AnchorFrameCalculator {
      *                 (= {@code normalize(headRelOffset)})
      * @return spin quaternion around toHead
      */
-    static Quaternionf computeLockedSpin(Quaternionf Q_lookAt, Vec3d toHead,
-                                          Vec3d headUp, Vec3d P) {
+    static Quaternionf computeLockedSpin(Quaternionf Q_lookAt, Vec3 toHead,
+                                          Vec3 headUp, Vec3 P) {
         // ---- 1. Locate the "up pole" on the sphere ----
         // The up pole is headUp projected onto the tangent plane at P (⟂ P),
         // then normalized.  It is a fixed point 90° from P on the sphere.
-        double dotUP = headUp.dotProduct(P);
-        Vec3d t_up_raw = headUp.subtract(P.multiply(dotUP));
+        double dotUP = headUp.dot(P);
+        Vec3 t_up_raw = headUp.subtract(P.scale(dotUP));
         double tLen = t_up_raw.length();
-        Vec3d Pole_up; // unit vector — the up pole position on the sphere
+        Vec3 Pole_up; // unit vector — the up pole position on the sphere
         if (tLen > 1e-9) {
             Pole_up = t_up_raw.normalize();
         } else {
             // headUp is parallel to P — fall back to world-up projected onto ⟂ P
-            Vec3d fallback = new Vec3d(0, 1, 0).subtract(P.multiply(P.y));
+            Vec3 fallback = new Vec3(0, 1, 0).subtract(P.scale(P.y));
             double fbLen = fallback.length();
             if (fbLen > 1e-9) {
                 Pole_up = fallback.normalize();
             } else {
                 // P is also world-up → use an arbitrary horizontal reference
                 Pole_up = Math.abs(P.x) < 0.9
-                    ? new Vec3d(1, 0, 0).crossProduct(P).normalize()
-                    : new Vec3d(0, 0, 1).crossProduct(P).normalize();
+                    ? new Vec3(1, 0, 0).cross(P).normalize()
+                    : new Vec3(0, 0, 1).cross(P).normalize();
             }
         }
 
@@ -450,10 +450,10 @@ public final class AnchorFrameCalculator {
         // The halo sits at radial direction R = -toHead on the sphere.
         // The great-circle direction from R toward Pole_up is Pole_up projected
         // onto the halo's tangent plane (⟂ toHead).
-        double dotPT = Pole_up.dotProduct(toHead);
-        Vec3d Z_proj = Pole_up.subtract(toHead.multiply(dotPT));
+        double dotPT = Pole_up.dot(toHead);
+        Vec3 Z_proj = Pole_up.subtract(toHead.scale(dotPT));
         double zLen = Z_proj.length();
-        Vec3d Z_target; // where definition +Z SHOULD point (world space)
+        Vec3 Z_target; // where definition +Z SHOULD point (world space)
         if (zLen > 1e-9) {
             Z_target = Z_proj.normalize();
         } else {
@@ -462,15 +462,15 @@ public final class AnchorFrameCalculator {
         }
 
         // ---- 3. Where definition +Z currently points after Q_lookAt ----
-        Vec3d Z_current = rotate(new Vec3d(0, 0, 1), Q_lookAt);
+        Vec3 Z_current = rotate(new Vec3(0, 0, 1), Q_lookAt);
 
         // ---- 4. Signed angle from Z_current to Z_target around toHead ----
-        double cosPhi = Z_current.dotProduct(Z_target);
+        double cosPhi = Z_current.dot(Z_target);
         cosPhi = Math.max(-1.0, Math.min(1.0, cosPhi));
         double phi = Math.acos(cosPhi);
 
-        Vec3d crossZF = Z_current.crossProduct(Z_target);
-        if (crossZF.dotProduct(toHead) < 0) {
+        Vec3 crossZF = Z_current.cross(Z_target);
+        if (crossZF.dot(toHead) < 0) {
             phi = -phi;
         }
 
@@ -485,21 +485,21 @@ public final class AnchorFrameCalculator {
     /**
      * Rotate a vector by a quaternion.
      */
-    private static Vec3d rotate(Vec3d v, Quaternionf q) {
+    private static Vec3 rotate(Vec3 v, Quaternionf q) {
         // q * v * q⁻¹
         Quaternionf qv = new Quaternionf((float) v.x, (float) v.y, (float) v.z, 0);
         Quaternionf qConj = new Quaternionf(q).conjugate();
         Quaternionf result = q.mul(qv, new Quaternionf()).mul(qConj);
-        return new Vec3d(result.x, result.y, result.z);
+        return new Vec3(result.x, result.y, result.z);
     }
 
     // ------------------------------------------------------------------
     // Head-relative offset
     // ------------------------------------------------------------------
 
-    private static Vec3d getEffectiveOffset(HaloDefinition definition) {
+    private static Vec3 getEffectiveOffset(HaloDefinition definition) {
         HaloConfig runtime = HaloManager.getInstance().getConfig();
-        Vec3d rtOffset = runtime.getPositionOffset();
+        Vec3 rtOffset = runtime.getPositionOffset();
         if (Math.abs(rtOffset.x) < 1e-9
             && Math.abs(rtOffset.y - 0.2) < 1e-9
             && Math.abs(rtOffset.z) < 1e-9) {
@@ -508,13 +508,13 @@ public final class AnchorFrameCalculator {
         return rtOffset;
     }
 
-    static Vec3d computeHeadRelativeOffset(float yawDeg, float pitchDeg, float rollDeg, Vec3d offset) {
+    static Vec3 computeHeadRelativeOffset(float yawDeg, float pitchDeg, float rollDeg, Vec3 offset) {
         HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yawDeg, pitchDeg, rollDeg);
-        Vec3d behind = frame.forward().multiply(-1);
+        Vec3 behind = frame.forward().scale(-1);
 
-        return frame.right().multiply(offset.x)
-            .add(frame.headUp().multiply(offset.y))
-            .add(behind.multiply(offset.z));
+        return frame.right().scale(offset.x)
+            .add(frame.headUp().scale(offset.y))
+            .add(behind.scale(offset.z));
     }
 
     /**
@@ -532,11 +532,11 @@ public final class AnchorFrameCalculator {
      * @param maxDist   maximum linear distance from the target
      * @return the next damped position, always finite
      */
-    static Vec3d dampPosition(Vec3d prevPos, Vec3d targetPos, double kF, double maxDist) {
+    static Vec3 dampPosition(Vec3 prevPos, Vec3 targetPos, double kF, double maxDist) {
         if (prevPos == null) {
             prevPos = targetPos;
         }
-        Vec3d damped = prevPos.add(targetPos.subtract(prevPos).multiply(kF));
+        Vec3 damped = prevPos.add(targetPos.subtract(prevPos).scale(kF));
 
         boolean dampedFinite = Double.isFinite(damped.x) && Double.isFinite(damped.y) && Double.isFinite(damped.z);
         boolean targetFinite = Double.isFinite(targetPos.x) && Double.isFinite(targetPos.y) && Double.isFinite(targetPos.z);
@@ -549,13 +549,13 @@ public final class AnchorFrameCalculator {
             if (prevPos != null && Double.isFinite(prevPos.x) && Double.isFinite(prevPos.y) && Double.isFinite(prevPos.z)) {
                 return prevPos;
             }
-            return new Vec3d(0, 0, 0);
+            return new Vec3(0, 0, 0);
         }
 
         double dist = damped.distanceTo(targetPos);
         if (dist > maxDist && dist > 1e-9) {
-            Vec3d toTarget = targetPos.subtract(damped).normalize();
-            return targetPos.subtract(toTarget.multiply(maxDist));
+            Vec3 toTarget = targetPos.subtract(damped).normalize();
+            return targetPos.subtract(toTarget.scale(maxDist));
         }
         return damped;
     }
@@ -569,7 +569,7 @@ public final class AnchorFrameCalculator {
         if (anchor == null) {
             return false;
         }
-        Vec3d center = anchor.headCenter();
+        Vec3 center = anchor.headCenter();
         return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
             && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
     }

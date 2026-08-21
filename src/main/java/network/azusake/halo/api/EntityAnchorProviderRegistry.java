@@ -1,6 +1,6 @@
 package network.azusake.halo.api;
 
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.world.entity.LivingEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,7 +74,7 @@ public final class EntityAnchorProviderRegistry {
      * superclass chain → fallback).
      */
     public EntityAnchorProvider getProvider(LivingEntity entity) {
-        return getProvider(entity.getUuid(), entity.getClass());
+        return getProvider(entity.getUUID(), entity.getClass());
     }
 
     /**

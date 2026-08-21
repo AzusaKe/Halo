@@ -2,7 +2,8 @@ package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.physics.RenderHeadCapture;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.common.MinecraftForge;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +28,7 @@ public final class HaloRenderListener {
     }
 
     /**
-     * Register the halo renderer with the Fabric render event bus.
+     * Register the halo renderer with the Forge render event bus.
      * Idempotent — subsequent calls are no-ops.
      */
     public static void register() {
@@ -40,23 +41,22 @@ public final class HaloRenderListener {
         // Drop last frame's head captures right before entities render so the
         // halo pass (AFTER_ENTITIES) only sees this frame's captures; entities
         // that did not render this frame fall back to their previous provider.
-        WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
-            RenderHeadCapture.clearFrame();
-            // The world-render stack is at its root (the camera view
-            // matrix) right before entities render.  Captured head
-            // matrices are camera-relative, so the halo pipeline needs
-            // this view matrix to recover world-space anchors.
-            RenderHeadCapture.setViewMatrix(new Matrix4f(context.matrixStack().peek().getPositionMatrix()));
+        MinecraftForge.EVENT_BUS.addListener((RenderLevelStageEvent event) -> {
+            if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_CUTOUT_BLOCKS) {
+                RenderHeadCapture.clearFrame();
+                // This is the last stable Forge stage before entities. Captured
+                // player-head matrices are camera-relative, so retain the root
+                // view matrix for conversion back to world space.
+                RenderHeadCapture.setViewMatrix(new Matrix4f(event.getPoseStack().last().pose()));
+            } else if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
+                HaloRenderer.getInstance().renderHalos(
+                    event.getPoseStack(),
+                    event.getCamera(),
+                    event.getPartialTick()
+                );
+            }
         });
 
-        WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            HaloRenderer.getInstance().renderHalos(
-                context.matrixStack(),
-                context.camera(),
-                context.tickDelta()
-            );
-        });
-
-        LOG.info("[HaloRenderListener] registered on WorldRenderEvents.AFTER_ENTITIES");
+        LOG.info("[HaloRenderListener] registered on RenderLevelStageEvent.AFTER_ENTITIES");
     }
 }

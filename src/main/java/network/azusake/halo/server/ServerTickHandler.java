@@ -1,18 +1,21 @@
 package network.azusake.halo.server;
 
 import network.azusake.halo.HaloMod;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.EventPriority;
 
 /**
  * Per-tick server handler invoked at the <em>end</em> of every server tick.
  *
- * <p>Registered via {@link ServerTickEvents#END_SERVER_TICK}.  This is the
+ * <p>Registered via Forge's {@link TickEvent.ServerTickEvent}.  This is the
  * hook where halo physics, animation evaluation, and per-entity updates
  * will be driven in later tasks.  For now it only emits a trace-level log
  * line so we can confirm the tick loop is wired correctly.</p>
  */
-public class ServerTickHandler implements ServerTickEvents.EndTick {
+public class ServerTickHandler {
 
     /**
      * Number of ticks that elapse between trace-log emissions.
@@ -27,11 +30,26 @@ public class ServerTickHandler implements ServerTickEvents.EndTick {
     }
 
     /**
-     * Called by Fabric API at the end of every server tick.
+     * Called at the end of every Forge server tick.
      *
      * @param server the current Minecraft server instance
      */
-    @Override
+    public static void register() {
+        register(MinecraftForge.EVENT_BUS);
+    }
+
+    static void register(IEventBus eventBus) {
+        ServerTickHandler handler = new ServerTickHandler();
+        eventBus.addListener(
+            EventPriority.NORMAL,
+            false,
+            TickEvent.ServerTickEvent.class,
+            event -> {
+                if (event.phase == TickEvent.Phase.END) handler.onEndTick(event.getServer());
+            }
+        );
+    }
+
     public void onEndTick(MinecraftServer server) {
         tickCounter++;
 
@@ -39,8 +57,8 @@ public class ServerTickHandler implements ServerTickEvents.EndTick {
             HaloMod.LOGGER.trace(
                 "ServerTickHandler: tick {} – playerCount={}, ticksRunning={}",
                 tickCounter,
-                server.getCurrentPlayerCount(),
-                server.getTicks()
+                server.getPlayerList().getPlayerCount(),
+                server.getTickCount()
             );
         }
 

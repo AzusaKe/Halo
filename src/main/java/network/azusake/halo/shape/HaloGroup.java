@@ -1,7 +1,7 @@
 package network.azusake.halo.shape;
 
 import network.azusake.halo.animation.LayerAnimation;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.Optional;
  */
 public record HaloGroup(
     Optional<String> id,
-    Vec3d position,
+    Vec3 position,
     Quaternionf rotation,
     float scale,
     List<HaloPrimitive> primitives,
@@ -44,12 +44,12 @@ public record HaloGroup(
     List<HaloGroup> children
 ) {
     /** Convenience constructor for a group with a single primitive and no children. */
-    public HaloGroup(Vec3d position, HaloPrimitive primitive) {
+    public HaloGroup(Vec3 position, HaloPrimitive primitive) {
         this(Optional.empty(), position, new Quaternionf(), 1.0f, List.of(primitive), true, true, true, Optional.empty(), List.of());
     }
 
     /** Convenience constructor with explicit rotation and a single primitive. */
-    public HaloGroup(Vec3d position, Quaternionf rotation, HaloPrimitive primitive) {
+    public HaloGroup(Vec3 position, Quaternionf rotation, HaloPrimitive primitive) {
         this(Optional.empty(), position, rotation, 1.0f, List.of(primitive), true, true, true, Optional.empty(), List.of());
     }
 

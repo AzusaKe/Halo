@@ -1,13 +1,15 @@
 package network.azusake.halo.server;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.server.MinecraftServer;
+import net.minecraftforge.eventbus.api.IEventBus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
+import java.lang.reflect.Proxy;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for {@link ServerTickHandler} and {@link HaloServerEvents}.
  *
  * <p>These tests verify that the handler is correctly structured, that it
- * implements the expected Fabric API interface, and that the event
+ * exposes the Forge callback shape, and that the event
  * registration wiring does not throw.</p>
  */
 class ServerTickHandlerTest {
@@ -29,11 +31,10 @@ class ServerTickHandlerTest {
     class TickHandlerTests {
 
         @Test
-        @DisplayName("implements ServerTickEvents.EndTick")
-        void implementsEndTick() {
-            ServerTickHandler handler = new ServerTickHandler();
-            assertInstanceOf(ServerTickEvents.EndTick.class, handler,
-                "ServerTickHandler must implement ServerTickEvents.EndTick");
+        @DisplayName("exposes a MinecraftServer end-tick callback")
+        void exposesEndTickCallback() throws Exception {
+            var method = ServerTickHandler.class.getDeclaredMethod("onEndTick", MinecraftServer.class);
+            assertEquals(void.class, method.getReturnType());
         }
 
         @Test
@@ -72,76 +73,79 @@ class ServerTickHandlerTest {
     @Nested
     @DisplayName("HaloServerEvents registration")
     class RegistrationTests {
+        private IEventBus eventBus;
+        private AtomicInteger listenerCount;
 
-        @Test
-        @DisplayName("registerTickHandler does not throw")
-        void registerTickHandlerDoesNotThrow() {
-            // The Fabric API event bus is initialised by the time a mod
-            // calls onInitialize, so registration should never throw.
-            assertDoesNotThrow(HaloServerEvents::registerTickHandler,
-                "registerTickHandler should register without exception");
+        @BeforeEach
+        void resetRegistrationState() throws Exception {
+            for (String fieldName : new String[] {
+                "registered", "tickRegistered", "entityRegistered", "connectionRegistered"
+            }) {
+                Field field = HaloServerEvents.class.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                field.setBoolean(null, false);
+            }
+
+            listenerCount = new AtomicInteger();
+            eventBus = (IEventBus) Proxy.newProxyInstance(
+                IEventBus.class.getClassLoader(),
+                new Class<?>[] {IEventBus.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("addListener")) listenerCount.incrementAndGet();
+                    if (method.getReturnType() == boolean.class) return false;
+                    return null;
+                }
+            );
         }
 
         @Test
-        @DisplayName("registerEntityEvents does not throw")
-        void registerEntityEventsDoesNotThrow() {
-            assertDoesNotThrow(HaloServerEvents::registerEntityEvents,
-                "registerEntityEvents should register without exception");
+        @DisplayName("registerTickHandler installs both END tick listeners")
+        void registerTickHandlerInstallsListeners() {
+            assertDoesNotThrow(() -> HaloServerEvents.registerTickHandler(eventBus));
+            assertEquals(2, listenerCount.get());
         }
 
         @Test
-        @DisplayName("registerConnectionEvents does not throw")
-        void registerConnectionEventsDoesNotThrow() {
-            assertDoesNotThrow(HaloServerEvents::registerConnectionEvents,
-                "registerConnectionEvents should register without exception");
+        @DisplayName("registerEntityEvents installs the entity listener")
+        void registerEntityEventsInstallsListener() {
+            assertDoesNotThrow(() -> HaloServerEvents.registerEntityEvents(eventBus));
+            assertEquals(1, listenerCount.get());
+        }
+
+        @Test
+        @DisplayName("registerConnectionEvents installs login and logout listeners")
+        void registerConnectionEventsInstallsListeners() {
+            assertDoesNotThrow(() -> HaloServerEvents.registerConnectionEvents(eventBus));
+            assertEquals(2, listenerCount.get());
         }
 
         @Test
         @DisplayName("registerAll does not throw")
         void registerAllDoesNotThrow() {
-            assertDoesNotThrow(HaloServerEvents::registerAll,
+            assertDoesNotThrow(() -> HaloServerEvents.registerAll(eventBus),
                 "registerAll should register every handler without exception");
+            assertEquals(5, listenerCount.get());
         }
 
         @Test
         @DisplayName("multiple registerTickHandler calls are idempotent (no throw)")
         void registerTickHandlerIsIdempotent() {
-            // Fabric events support multiple registrations; calling twice
-            // should not throw.
+            // Registration is explicitly idempotent.
             assertDoesNotThrow(() -> {
-                HaloServerEvents.registerTickHandler();
-                HaloServerEvents.registerTickHandler();
+                HaloServerEvents.registerTickHandler(eventBus);
+                HaloServerEvents.registerTickHandler(eventBus);
             }, "registerTickHandler should be callable multiple times");
+            assertEquals(2, listenerCount.get());
         }
 
         @Test
-        @DisplayName("registered handler is invoked by Fabric event bus")
-        void handlerIsInvokedByEventBus() throws Exception {
-            // Fabric's Event<T> stores handlers in an array-backed list.
-            // After registration, we can inspect the internal handler array
-            // to confirm our handler was added.
-
-            // Grab the internal array via reflection
-            Field handlersField = ServerTickEvents.END_SERVER_TICK.getClass()
-                .getDeclaredField("handlers");
-            handlersField.setAccessible(true);
-            Object[] handlers = (Object[]) handlersField.get(ServerTickEvents.END_SERVER_TICK);
-
-            // Our handler should be findable among the registered handlers
-            List<ServerTickEvents.EndTick> tickHandlers = new ArrayList<>();
-            for (Object h : handlers) {
-                if (h instanceof ServerTickEvents.EndTick th) {
-                    tickHandlers.add(th);
-                }
-            }
-
-            assertFalse(tickHandlers.isEmpty(),
-                "At least one EndTick handler should be registered after registerTickHandler()");
-
-            boolean found = tickHandlers.stream()
-                .anyMatch(h -> h instanceof ServerTickHandler);
-            assertTrue(found,
-                "ServerTickHandler instance should be present in END_SERVER_TICK handler list");
+        @DisplayName("multiple registerAll calls are idempotent")
+        void registerAllIsIdempotent() {
+            assertDoesNotThrow(() -> {
+                HaloServerEvents.registerAll(eventBus);
+                HaloServerEvents.registerAll(eventBus);
+            });
+            assertEquals(5, listenerCount.get());
         }
     }
 

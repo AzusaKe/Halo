@@ -4,187 +4,92 @@ import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.Connection;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.network.NetworkDirection;
+import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.simple.SimpleChannel;
+import java.util.*;
+import java.util.function.Supplier;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
-import java.util.UUID;
-
-/**
- * Server-side networking hub for halo state synchronisation.
- *
- * <p>Two S2C channels:
- * <ul>
- *   <li>{@code halo:sync} — full state snapshot sent when a player joins</li>
- *   <li>{@code halo:update} — incremental attach / remove broadcast to all players</li>
- * </ul>
- *
- * <p>For Fabric API 0.92.0+1.20.1, S2C channels do not require explicit server-side
- * registration — only the client must register a global receiver.  The
- * {@link #register()} method exists as a documentation hook and for future C2S
- * extension.</p>
- */
+/** Forge 47.4 compatible SimpleChannel network protocol. */
 public final class HaloNetwork {
-
-    /** Full-state snapshot — sent to a player on join. */
-    public static final Identifier CHANNEL_SYNC = new Identifier("halo", "sync");
-
-    /** Incremental attach / remove — broadcast to all players. */
-    public static final Identifier CHANNEL_UPDATE = new Identifier("halo", "update");
-
-    /** C2S — client reports its locally-available definition IDs. */
-    public static final Identifier CHANNEL_DEFS_REPORT = new Identifier("halo", "defs_report");
-
-    /** S2C — handshake, sent on player join to signal "server has the mod installed". */
-    public static final Identifier CHANNEL_HELLO = new Identifier("halo", "hello");
-
-    private HaloNetwork() {
-        // utility class
-    }
-
-    /**
-     * Initialise the network layer (currently a no-op for S2C-only channels).
-     */
+    private static final String PROTOCOL_VERSION = "1";
+    public static final ResourceLocation CHANNEL_SYNC = new ResourceLocation("halo", "sync");
+    public static final ResourceLocation CHANNEL_UPDATE = new ResourceLocation("halo", "update");
+    public static final ResourceLocation CHANNEL_DEFS_REPORT = new ResourceLocation("halo", "defs_report");
+    public static final ResourceLocation CHANNEL_HELLO = new ResourceLocation("halo", "hello");
+    public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
+        new ResourceLocation("halo", "main"), () -> PROTOCOL_VERSION,
+        NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION),
+        NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION));
+    private static int id;
+    private static boolean registered;
+    private HaloNetwork() {}
     public static void register() {
-        HaloMod.LOGGER.info("HaloNetwork: S2C channels registered (sync={}, update={}, defs_report={}, hello={})",
-            CHANNEL_SYNC, CHANNEL_UPDATE, CHANNEL_DEFS_REPORT, CHANNEL_HELLO);
-        registerServerReceivers();
+        if (registered) return;
+        registered = true;
+        CHANNEL.registerMessage(id++, SyncMessage.class, SyncMessage::encode, SyncMessage::decode,
+            SyncMessage::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, UpdateMessage.class, UpdateMessage::encode, UpdateMessage::decode,
+            UpdateMessage::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, HelloMessage.class, HelloMessage::encode, b -> new HelloMessage(),
+            HelloMessage::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, DefsReportMessage.class, DefsReportMessage::encode, DefsReportMessage::decode,
+            DefsReportMessage::handle, Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        HaloMod.LOGGER.info("HaloNetwork registered SimpleChannel messages");
     }
-
-    /**
-     * Register C2S packet handlers on the server side.
-     */
-    public static void registerServerReceivers() {
-        // ---- Client definition report ----
-        ServerPlayNetworking.registerGlobalReceiver(
-            CHANNEL_DEFS_REPORT,
-            (server, player, handler, buf, responseSender) -> {
-                int count = buf.readInt();
-                Set<Identifier> ids = new LinkedHashSet<>(count);
-                for (int i = 0; i < count; i++) {
-                    ids.add(buf.readIdentifier());
-                }
-                server.execute(() ->
-                    HaloJsonLoader.putClientReportedDefs(player.getUuid(), ids)
-                );
-            }
-        );
-        HaloMod.LOGGER.info("HaloNetwork: C2S receivers registered");
+    public static void registerServerReceivers() { register(); }
+    public static void sendFullSync(ServerPlayer player) {
+        if (!remote(player)) return;
+        Map<UUID, ResourceLocation> values = new LinkedHashMap<>();
+        for (HaloInstance instance : HaloManager.getInstance().getAllInstances())
+            if (instance.isActive()) values.put(instance.getEntityUuid(), instance.getDefinitionId());
+        CHANNEL.sendTo(new SyncMessage(values), player.connection.connection, NetworkDirection.PLAY_TO_CLIENT);
     }
-
-    // ------------------------------------------------------------------
-    // Sending helpers
-    // ------------------------------------------------------------------
-
-    /**
-     * Send the full active-halo snapshot to a single player (typically on join).
-     *
-     * @param player the player who just joined
-     */
-    public static void sendFullSync(ServerPlayerEntity player) {
-        var instances = HaloManager.getInstance().getAllInstances();
-        // Count only active instances
-        int count = 0;
-        for (HaloInstance inst : instances) {
-            if (inst.isActive()) count++;
-        }
-
-        var buf = PacketByteBufs.create();
-        buf.writeInt(count);
-        for (HaloInstance inst : instances) {
-            if (!inst.isActive()) continue;
-            writeUuid(buf, inst.getEntityUuid());
-            buf.writeIdentifier(inst.getDefinitionId());
-        }
-
-        ServerPlayNetworking.send(player, CHANNEL_SYNC, buf);
+    public static void sendHaloAttach(MinecraftServer server, UUID uuid, ResourceLocation def) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (remote(player)) CHANNEL.sendTo(new UpdateMessage(uuid, true, def), player.connection.connection, NetworkDirection.PLAY_TO_CLIENT);
     }
-
-    /**
-     * Broadcast a halo-attach event to every online player.
-     *
-     * @param server     the current Minecraft server
-     * @param entityUuid the entity that gained a halo
-     * @param defId      the halo definition identifier
-     */
-    public static void sendHaloAttach(MinecraftServer server, UUID entityUuid, Identifier defId) {
-        var buf = PacketByteBufs.create();
-        writeUuid(buf, entityUuid);
-        buf.writeBoolean(true); // isAttach
-        buf.writeIdentifier(defId);
-
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);
-        }
+    public static void sendHaloRemove(MinecraftServer server, UUID uuid, ResourceLocation def) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (remote(player)) CHANNEL.sendTo(new UpdateMessage(uuid, false, def), player.connection.connection, NetworkDirection.PLAY_TO_CLIENT);
     }
-
-    /**
-     * Broadcast a halo-remove event to every online player.
-     *
-     * @param server     the current Minecraft server
-     * @param entityUuid the entity whose halo was removed
-     */
-    /**
-     * Broadcast a halo removal to all online players, including the definition ID
-     * so clients can play the shutdown animation even if the instance was already
-     * removed from the shared map (integrated server mode).
-     *
-     * @param server     the current Minecraft server
-     * @param entityUuid the entity whose halo was removed
-     * @param defId      the halo definition identifier (for client-side shutdown animation)
-     */
-    public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, Identifier defId) {
-        var buf = PacketByteBufs.create();
-        writeUuid(buf, entityUuid);
-        buf.writeBoolean(false); // isAttach = false → removal
-        buf.writeIdentifier(defId);
-
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);
-        }
+    public static void sendHello(ServerPlayer player) {
+        if (remote(player)) CHANNEL.sendTo(new HelloMessage(), player.connection.connection, NetworkDirection.PLAY_TO_CLIENT);
     }
+    private static boolean remote(ServerPlayer p) { return CHANNEL.isRemotePresent(p.connection.connection); }
+    public static void writeUuid(FriendlyByteBuf buf, UUID uuid) { buf.writeUUID(uuid); }
+    public static UUID readUuid(FriendlyByteBuf buf) { return buf.readUUID(); }
 
-    /**
-     * Send the handshake hello packet to a single player, signalling that the
-     * server has the Halo mod installed.  The empty payload is intentional —
-     * the channel ID itself is the signal.  Future protocol version negotiation
-     * can extend the payload if needed.
-     *
-     * @param player the player to notify
-     */
-    public static void sendHello(ServerPlayerEntity player) {
-        var buf = PacketByteBufs.create();
-        ServerPlayNetworking.send(player, CHANNEL_HELLO, buf);
+    public static final class SyncMessage {
+        final Map<UUID, ResourceLocation> values;
+        SyncMessage(Map<UUID, ResourceLocation> values) { this.values = values; }
+        static void encode(SyncMessage m, FriendlyByteBuf b) { b.writeVarInt(m.values.size()); m.values.forEach((u,d)->{b.writeUUID(u);b.writeResourceLocation(d);}); }
+        static SyncMessage decode(FriendlyByteBuf b) { int n=b.readVarInt(); Map<UUID,ResourceLocation> m=new LinkedHashMap<>(); for(int i=0;i<n;i++)m.put(b.readUUID(),b.readResourceLocation()); return new SyncMessage(m); }
+        static void handle(SyncMessage m, Supplier<net.minecraftforge.network.NetworkEvent.Context> ctx) { ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> HaloNetworkClient.handleSync(m.values))); ctx.get().setPacketHandled(true); }
     }
-
-    // ------------------------------------------------------------------
-    // Packet format helpers
-    // ------------------------------------------------------------------
-
-    /**
-     * Write a UUID as two longs (most / least significant bits).
-     *
-     * <p>Minecraft 1.20.1's {@code PacketByteBuf} does not expose
-     * {@code writeUuid} — we serialise manually.</p>
-     */
-    public static void writeUuid(net.minecraft.network.PacketByteBuf buf, UUID uuid) {
-        buf.writeLong(uuid.getMostSignificantBits());
-        buf.writeLong(uuid.getLeastSignificantBits());
+    public static final class UpdateMessage {
+        final UUID uuid; final boolean attach; final ResourceLocation definition;
+        UpdateMessage(UUID uuid, boolean attach, ResourceLocation definition) { this.uuid=uuid;this.attach=attach;this.definition=definition; }
+        static void encode(UpdateMessage m,FriendlyByteBuf b){b.writeUUID(m.uuid);b.writeBoolean(m.attach);b.writeResourceLocation(m.definition);}
+        static UpdateMessage decode(FriendlyByteBuf b){return new UpdateMessage(b.readUUID(),b.readBoolean(),b.readResourceLocation());}
+        static void handle(UpdateMessage m,Supplier<net.minecraftforge.network.NetworkEvent.Context> ctx){ctx.get().enqueueWork(()->DistExecutor.unsafeRunWhenOn(Dist.CLIENT,()->()->HaloNetworkClient.handleUpdate(m.uuid,m.attach,m.definition)));ctx.get().setPacketHandled(true);}
     }
-
-    /**
-     * Read a UUID from two longs (most / least significant bits).
-     *
-     * <p>This is the inverse of {@link #writeUuid} and is used by the client
-     * receiver in {@link HaloNetworkClient}.</p>
-     */
-    public static UUID readUuid(net.minecraft.network.PacketByteBuf buf) {
-        long most = buf.readLong();
-        long least = buf.readLong();
-        return new UUID(most, least);
+    public static final class HelloMessage {
+        static void encode(HelloMessage m,FriendlyByteBuf b) {}
+        static void handle(HelloMessage m,Supplier<net.minecraftforge.network.NetworkEvent.Context> ctx){ctx.get().enqueueWork(()->DistExecutor.unsafeRunWhenOn(Dist.CLIENT,()->HaloNetworkClient::handleHello));ctx.get().setPacketHandled(true);}
+    }
+    public static final class DefsReportMessage {
+        final Set<ResourceLocation> ids;
+        DefsReportMessage(Set<ResourceLocation> ids){this.ids=ids;}
+        static void encode(DefsReportMessage m,FriendlyByteBuf b){b.writeVarInt(m.ids.size());m.ids.forEach(b::writeResourceLocation);}
+        static DefsReportMessage decode(FriendlyByteBuf b){int n=b.readVarInt();Set<ResourceLocation>s=new LinkedHashSet<>();for(int i=0;i<n;i++)s.add(b.readResourceLocation());return new DefsReportMessage(s);}
+        static void handle(DefsReportMessage m,Supplier<net.minecraftforge.network.NetworkEvent.Context> ctx){var c=ctx.get(); c.enqueueWork(()->{if(c.getSender()!=null)HaloJsonLoader.putClientReportedDefs(c.getSender().getUUID(),m.ids);});c.setPacketHandled(true);}
     }
 }

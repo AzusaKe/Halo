@@ -18,15 +18,20 @@ import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
 import network.azusake.halo.shape.HaloGroup;
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.*;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.LightType;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -127,9 +132,9 @@ public final class HaloRenderer {
     /**
      * Render every visible halo for the current frame.
      */
-    public void renderHalos(MatrixStack matrices, Camera camera, float tickDelta) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) {
+    public void renderHalos(PoseStack matrices, Camera camera, float tickDelta) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null) {
             return;
         }
 
@@ -244,8 +249,8 @@ public final class HaloRenderer {
         }
     }
 
-    private boolean renderSingleHalo(HaloInstance instance, MatrixStack matrices,
-                                      Camera camera, float tickDelta, MinecraftClient client,
+    private boolean renderSingleHalo(HaloInstance instance, PoseStack matrices,
+                                      Camera camera, float tickDelta, Minecraft client,
                                       double dt) {
         // ---- resolve entity ----
         LivingEntity entity = findEntityByUuid(client, instance.getEntityUuid());
@@ -266,7 +271,7 @@ public final class HaloRenderer {
             long now = System.currentTimeMillis();
             if (client.player != null && now - lastMissingDefWarningTime > 30_000) {
                 lastMissingDefWarningTime = now;
-                client.player.sendMessage(Text.literal(
+                client.player.displayClientMessage(Component.literal(
                     "§e[Halo] Missing definition: §f" + instance.getDefinitionId() +
                     "§e — install the resource pack or ask the server admin."
                 ), false);
@@ -360,7 +365,7 @@ public final class HaloRenderer {
         AnchorFrame frame = frameCalculator.calculate(instance, entity, def, camera, tickDelta, dt);
 
         // ---- camera-relative position ----
-        Vec3d crp = frame.cameraRelativePos();
+        Vec3 crp = frame.cameraRelativePos();
         if (Math.abs(crp.x) > 1000 || Math.abs(crp.y) > 1000 || Math.abs(crp.z) > 1000) {
             return false;
         }
@@ -388,9 +393,9 @@ public final class HaloRenderer {
         idlePhaseTracker.record(instance.getEntityUuid(), animTime, transitionActive);
 
         // ---- compute light at halo position for non-glowing layers ----
-        BlockPos lightPos = BlockPos.ofFloored(frame.worldPosition());
-        int blockLight = client.world.getLightingProvider().get(LightType.BLOCK).getLightLevel(lightPos);
-        int skyLight = client.world.getLightingProvider().get(LightType.SKY).getLightLevel(lightPos);
+        BlockPos lightPos = BlockPos.containing(frame.worldPosition());
+        int blockLight = client.level.getBrightness(LightLayer.BLOCK, lightPos);
+        int skyLight = client.level.getBrightness(LightLayer.SKY, lightPos);
         // Brightness multiplier: use the stronger of block/sky light, with a floor so
         // the layer never vanishes completely.  This approximates the lightmap without
         // depending on its texture unit being bound — works with both vanilla and Iris.
@@ -403,7 +408,7 @@ public final class HaloRenderer {
             return true; // empty model, nothing to draw
         }
 
-        matrices.push();
+        matrices.pushPose();
         try {
             // Step 1: Anchor frame → world
             matrices.translate(crp.x, crp.y, crp.z);
@@ -421,7 +426,7 @@ public final class HaloRenderer {
             if (defAnimOpt.isPresent()) {
                 var defAnim = defAnimOpt.get();
                 if (!defAnim.isEmpty()) {
-                    Vec3d defOffset = defAnim.evaluateOffset(animTime);
+                    Vec3 defOffset = defAnim.evaluateOffset(animTime);
                     Quaternionf defRot = defAnim.evaluateRotation(animTime);
                     float[] defScale = defAnim.evaluateScale(animTime);
                     matrices.translate(defOffset.x, defOffset.y, defOffset.z);
@@ -440,7 +445,7 @@ public final class HaloRenderer {
                     startupConfig, shutdownConfig);
             }
         } finally {
-            matrices.pop();
+            matrices.popPose();
         }
 
         // Clear any translucent shader tint left by the last transparent group
@@ -461,12 +466,12 @@ public final class HaloRenderer {
      * is evaluated and applied as additional offset, rotation, scale, and
      * alpha (rotation in YXZ order, matching the idle animation).</p>
      */
-    private void renderGroup(HaloGroup group, MatrixStack matrices, Camera camera, double animTime, float brightness,
+    private void renderGroup(HaloGroup group, PoseStack matrices, Camera camera, double animTime, float brightness,
                               float inheritedAlpha, float inheritedGlow,
                               boolean transitionActive, double transitionElapsed, boolean isStartup,
                               HaloInstance instance,
                               StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
-        matrices.push();
+        matrices.pushPose();
         try {
             // Group local transform
             matrices.translate(group.position().x, group.position().y, group.position().z);
@@ -478,7 +483,7 @@ public final class HaloRenderer {
             if (!transitionActive) {
                 group.animation().ifPresent(anim -> {
                     if (!anim.isEmpty()) {
-                        Vec3d animOff = anim.evaluateOffset(animTime);
+                        Vec3 animOff = anim.evaluateOffset(animTime);
                         Quaternionf animRot = anim.evaluateRotation(animTime);
                         float[] animScale = anim.evaluateScale(animTime);
                         matrices.translate(animOff.x, animOff.y, animOff.z);
@@ -599,7 +604,7 @@ public final class HaloRenderer {
                     startupConfig, shutdownConfig);
             }
         } finally {
-            matrices.pop();
+            matrices.popPose();
         }
     }
 
@@ -620,7 +625,7 @@ public final class HaloRenderer {
         if (idle.isEmpty()) {
             return FrozenIdleVisuals.IDENTITY;
         }
-        Vec3d off = idle.evaluateOffset(frozenAnimTime);
+        Vec3 off = idle.evaluateOffset(frozenAnimTime);
         return new FrozenIdleVisuals(
             new float[]{(float) off.x, (float) off.y, (float) off.z},
             idle.evaluateRotationDegrees(frozenAnimTime),
@@ -706,7 +711,7 @@ public final class HaloRenderer {
      * camera: the plane normal always points toward the camera and that
      * orientation cannot be overridden by any animation rotation.
      */
-    private void renderBillboard(BillboardPrimitive billboard, MatrixStack matrices, Camera camera,
+    private void renderBillboard(BillboardPrimitive billboard, PoseStack matrices, Camera camera,
                                  boolean glowing, float brightness, float animatedGlow) {
         float hw = billboard.size().x / 2.0f;  // half-width (X)
         float hd = billboard.size().y / 2.0f;  // half-depth (Z) — size.y maps to Z axis
@@ -724,8 +729,8 @@ public final class HaloRenderer {
         Vector3f c0, c1, c2, c3; // quad corners in the position-matrix space
         if (billboard.faceCamera()) {
             CameraFacing facing = computeCameraFacing(
-                matrices.peek().getPositionMatrix(), hw, hd,
-                camera.getVerticalPlane(), camera.getDiagonalPlane());
+                matrices.last().pose(), hw, hd,
+                camera.getUpVector(), camera.getLeftVector());
             // Identity matrix — the corners are already camera-relative world
             // coordinates, so every accumulated rotation is fully discarded.
             positionMatrix = new Matrix4f();
@@ -736,15 +741,15 @@ public final class HaloRenderer {
             c2 = new Vector3f(facing.center()).add(rightHalf).add(upHalf);
             c3 = new Vector3f(facing.center()).sub(rightHalf).add(upHalf);
         } else {
-            positionMatrix = matrices.peek().getPositionMatrix();
+            positionMatrix = matrices.last().pose();
             c0 = new Vector3f(-hw, 0.0f, -hd);
             c1 = new Vector3f( hw, 0.0f, -hd);
             c2 = new Vector3f( hw, 0.0f,  hd);
             c3 = new Vector3f(-hw, 0.0f,  hd);
         }
 
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder builder = tessellator.getBuffer();
+        Tesselator tessellator = Tesselator.getInstance();
+        BufferBuilder builder = tessellator.getBuilder();
 
         boolean hasTexture = bindTextureSafe(billboard.texture());
 
@@ -772,28 +777,28 @@ public final class HaloRenderer {
             // (-hw, 0, -hd)  →  (+hw, 0, -hd)  →  (+hw, 0, +hd)  →  (-hw, 0, +hd)
             // face_camera keeps the same UV layout upright (V=0 at the +up side).
             // Tint texture by the effective brightness factor (fullbright at 1.0)
-            RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-            builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-            builder.vertex(positionMatrix, c0.x, c0.y, c0.z).texture(0.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
-            builder.vertex(positionMatrix, c1.x, c1.y, c1.z).texture(1.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
-            builder.vertex(positionMatrix, c2.x, c2.y, c2.z).texture(1.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
-            builder.vertex(positionMatrix, c3.x, c3.y, c3.z).texture(0.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).next();
+            RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            builder.vertex(positionMatrix, c0.x, c0.y, c0.z).uv(0.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).endVertex();
+            builder.vertex(positionMatrix, c1.x, c1.y, c1.z).uv(1.0f, 1.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).endVertex();
+            builder.vertex(positionMatrix, c2.x, c2.y, c2.z).uv(1.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).endVertex();
+            builder.vertex(positionMatrix, c3.x, c3.y, c3.z).uv(0.0f, 0.0f).color(brightnessFactor, brightnessFactor, brightnessFactor, 1f).endVertex();
         } else {
-            RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+            RenderSystem.setShader(GameRenderer::getPositionColorShader);
             if (DEBUG_RENDERING) {
                 RenderSystem.disableBlend();
             } else {
                 RenderSystem.enableBlend();
                 RenderSystem.defaultBlendFunc();
             }
-            builder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-            builder.vertex(positionMatrix, c0.x, c0.y, c0.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
-            builder.vertex(positionMatrix, c1.x, c1.y, c1.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
-            builder.vertex(positionMatrix, c2.x, c2.y, c2.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
-            builder.vertex(positionMatrix, c3.x, c3.y, c3.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).next();
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+            builder.vertex(positionMatrix, c0.x, c0.y, c0.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).endVertex();
+            builder.vertex(positionMatrix, c1.x, c1.y, c1.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).endVertex();
+            builder.vertex(positionMatrix, c2.x, c2.y, c2.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).endVertex();
+            builder.vertex(positionMatrix, c3.x, c3.y, c3.z).color(brightnessFactor, brightnessFactor, brightnessFactor, 1.0f).endVertex();
         }
 
-        tessellator.draw();
+        tessellator.end();
 
         RenderSystem.enableCull();
 
@@ -886,7 +891,7 @@ public final class HaloRenderer {
      * sides, culling is disabled so the texture is visible from both
      * sides.</p>
      */
-    private void renderRing(RingPrimitive ring, MatrixStack matrices, boolean glowing, float brightness, float animatedGlow) {
+    private void renderRing(RingPrimitive ring, PoseStack matrices, boolean glowing, float brightness, float animatedGlow) {
         float radius = ring.size().x;
         float width  = ring.size().y;
         int segments = Math.max(3, ring.segments()); // minimum 3 for a visible shape
@@ -902,10 +907,10 @@ public final class HaloRenderer {
         // otherwise brightness follows the ambient light at the halo position.
         float brightnessFactor = glowing ? animatedGlow : brightness;
 
-        Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
+        Matrix4f positionMatrix = matrices.last().pose();
 
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder builder = tessellator.getBuffer();
+        Tesselator tessellator = Tesselator.getInstance();
+        BufferBuilder builder = tessellator.getBuilder();
 
         boolean hasOuterTexture = bindTextureSafe(ring.outerTexture());
         boolean twoTextures = hasOuterTexture && ring.innerTexture() != null;
@@ -937,8 +942,8 @@ public final class HaloRenderer {
             //   tri A: top₀, top₁, bottom₀
             //   tri B: bottom₀, top₁, bottom₁
             if (glowing) {
-                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
+                RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+                builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
@@ -950,18 +955,18 @@ public final class HaloRenderer {
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                     float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).uv(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).uv(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).uv(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).uv(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).uv(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).uv(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
                 }
-                tessellator.draw();
+                tessellator.end();
             } else {
-                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
+                RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+                builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
@@ -985,19 +990,19 @@ public final class HaloRenderer {
                         cr = cg = cb = brightness;
                     }
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).uv(u0, 0.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).uv(u1, 0.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).uv(u0, 1.0f).color(cr, cg, cb, 1f).endVertex();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).uv(u0, 1.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).uv(u1, 0.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).uv(u1, 1.0f).color(cr, cg, cb, 1f).endVertex();
                 }
-                tessellator.draw();
+                tessellator.end();
             }
 
             // ---- Inner surface ----
-            Identifier innerTex = ring.innerTexture() != null ? ring.innerTexture() : ring.outerTexture();
+            ResourceLocation innerTex = ring.innerTexture() != null ? ring.innerTexture() : ring.outerTexture();
             boolean hasInnerTexture = bindTextureSafe(innerTex);
             if (!hasInnerTexture) {
                 bindTextureSafe(ring.outerTexture()); // fallback
@@ -1014,8 +1019,8 @@ public final class HaloRenderer {
             //   tri A: bottom₀, bottom₁, top₀
             //   tri B: top₀, bottom₁, top₁
             if (glowing) {
-                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
+                RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+                builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
@@ -1027,18 +1032,18 @@ public final class HaloRenderer {
                     float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                     float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).uv(u0, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).uv(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).uv(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).uv(u0, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).uv(u1, 1.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).uv(u1, 0.0f).color(animatedGlow, animatedGlow, animatedGlow, 1f).endVertex();
                 }
-                tessellator.draw();
+                tessellator.end();
             } else {
-                RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
+                RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+                builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
                 for (int i = 0; i < segments; i++) {
                     int next = (i + 1) % segments;
                     float u0 = (float) i / segments;
@@ -1059,20 +1064,20 @@ public final class HaloRenderer {
                         cr = cg = cb = brightness;
                     }
                     // Triangle A
-                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).texture(u0, 1.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).uv(u0, 1.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).uv(u1, 1.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).uv(u0, 0.0f).color(cr, cg, cb, 1f).endVertex();
                     // Triangle B
-                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).texture(u0, 0.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).texture(u1, 1.0f).color(cr, cg, cb, 1f).next();
-                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).texture(u1, 0.0f).color(cr, cg, cb, 1f).next();
+                    builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).uv(u0, 0.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).uv(u1, 1.0f).color(cr, cg, cb, 1f).endVertex();
+                    builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).uv(u1, 0.0f).color(cr, cg, cb, 1f).endVertex();
                 }
-                tessellator.draw();
+                tessellator.end();
             }
         } else {
             // No texture fallback — solid color ring, both sides visible
             RenderSystem.disableCull();
-            RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+            RenderSystem.setShader(GameRenderer::getPositionColorShader);
             if (DEBUG_RENDERING) {
                 RenderSystem.disableBlend();
             } else {
@@ -1084,38 +1089,38 @@ public final class HaloRenderer {
             r = g = b = brightnessFactor;
 
             // Outer surface (CCW)
-            builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+            builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
             for (int i = 0; i < segments; i++) {
                 int next = (i + 1) % segments;
                 float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
                 float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
                 float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                 float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
-                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).endVertex();
             }
-            tessellator.draw();
+            tessellator.end();
 
             // Inner surface (CW)
-            builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+            builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
             for (int i = 0; i < segments; i++) {
                 int next = (i + 1) % segments;
                 float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
                 float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
                 float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                 float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
-                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).next();
-                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).next();
+                builder.vertex(positionMatrix, radius * cos0, -halfW, radius * sin0).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos0, halfW, radius * sin0).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos1, -halfW, radius * sin1).color(r, g, b, 1.0f).endVertex();
+                builder.vertex(positionMatrix, radius * cos1, halfW, radius * sin1).color(r, g, b, 1.0f).endVertex();
             }
-            tessellator.draw();
+            tessellator.end();
         }
 
         RenderSystem.enableCull();
@@ -1131,21 +1136,21 @@ public final class HaloRenderer {
     // Rotation helpers
     // ------------------------------------------------------------------
 
-    static void applyQuaternionRotation(MatrixStack matrices, Quaternionf quat) {
+    static void applyQuaternionRotation(PoseStack matrices, Quaternionf quat) {
         Matrix4f rotMatrix = new Matrix4f().rotation(quat);
-        matrices.peek().getPositionMatrix().mul(rotMatrix);
+        matrices.last().pose().mul(rotMatrix);
     }
 
     // ------------------------------------------------------------------
     // Entity helpers
     // ------------------------------------------------------------------
 
-    static LivingEntity findEntityByUuid(MinecraftClient client, UUID uuid) {
-        if (client.world == null) {
+    static LivingEntity findEntityByUuid(Minecraft client, UUID uuid) {
+        if (client.level == null) {
             return null;
         }
-        for (net.minecraft.entity.Entity e : client.world.getEntities()) {
-            if (e.getUuid().equals(uuid) && e instanceof LivingEntity living) {
+        for (net.minecraft.world.entity.Entity e : client.level.entitiesForRendering()) {
+            if (e.getUUID().equals(uuid) && e instanceof LivingEntity living) {
                 return living;
             }
         }
@@ -1156,11 +1161,11 @@ public final class HaloRenderer {
     // Texture binding
     // ------------------------------------------------------------------
 
-    private static boolean bindTextureSafe(Identifier textureId) {
+    private static boolean bindTextureSafe(ResourceLocation textureId) {
         try {
-            net.minecraft.client.texture.AbstractTexture tex =
-                MinecraftClient.getInstance().getTextureManager().getTexture(textureId);
-            RenderSystem.setShaderTexture(0, tex.getGlId());
+            net.minecraft.client.renderer.texture.AbstractTexture tex =
+                Minecraft.getInstance().getTextureManager().getTexture(textureId);
+            RenderSystem.setShaderTexture(0, tex.getId());
             return true;
         } catch (Exception e) {
             LOG.debug("[HaloRenderer] texture not found: {} ({})", textureId, e.getMessage());

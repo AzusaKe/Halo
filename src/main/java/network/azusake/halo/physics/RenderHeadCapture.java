@@ -1,9 +1,9 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.entity.model.PlayerEntityModel;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.AbstractClientPlayer;
 import org.joml.Matrix4f;
 
 import java.util.Map;
@@ -28,8 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class RenderHeadCapture {
 
-    private static final ThreadLocal<AbstractClientPlayerEntity> CURRENT_ENTITY = new ThreadLocal<>();
-    private static final ThreadLocal<PlayerEntityModel<?>> CURRENT_MODEL = new ThreadLocal<>();
+    private static final ThreadLocal<AbstractClientPlayer> CURRENT_ENTITY = new ThreadLocal<>();
+    private static final ThreadLocal<PlayerModel<?>> CURRENT_MODEL = new ThreadLocal<>();
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
@@ -42,7 +42,7 @@ public final class RenderHeadCapture {
     private RenderHeadCapture() { /* utility class */ }
 
     /** Called at the HEAD of {@code PlayerEntityRenderer.render}. */
-    public static void begin(AbstractClientPlayerEntity entity, PlayerEntityModel<?> model) {
+    public static void begin(AbstractClientPlayer entity, PlayerModel<?> model) {
         CURRENT_ENTITY.set(entity);
         CURRENT_MODEL.set(model);
     }
@@ -73,19 +73,19 @@ public final class RenderHeadCapture {
      * player is rendering.  Only the head part of the current player model is
      * snapshotted.
      */
-    public static void capture(MatrixStack matrices, ModelPart part) {
-        PlayerEntityModel<?> model = CURRENT_MODEL.get();
-        if (model == null || part != model.getHead()) {
+    public static void capture(PoseStack matrices, ModelPart part) {
+        PlayerModel<?> model = CURRENT_MODEL.get();
+        if (model == null || part != model.head) {
             return;
         }
-        AbstractClientPlayerEntity entity = CURRENT_ENTITY.get();
+        AbstractClientPlayer entity = CURRENT_ENTITY.get();
         if (entity == null) {
             return;
         }
-        CAPTURES.put(entity.getUuid(), new CapturedHead(
-            new Matrix4f(matrices.peek().getPositionMatrix()),
-            part.pivotX, part.pivotY, part.pivotZ,
-            part.pitch, part.yaw, part.roll,
+        CAPTURES.put(entity.getUUID(), new CapturedHead(
+            new Matrix4f(matrices.last().pose()),
+            part.x, part.y, part.z,
+            part.xRot, part.yRot, part.zRot,
             part.xScale, part.yScale, part.zScale
         ));
     }

@@ -3,7 +3,7 @@ package network.azusake.halo.data;
 import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.animation.StartupAnimationConfig;
 import network.azusake.halo.shape.HaloModel;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Optional;
 
@@ -23,7 +23,7 @@ import java.util.Optional;
  * @param shutdownAnimation optional shutdown transition animation config
  */
 public record HaloDefinition(
-    Identifier id,
+    ResourceLocation id,
     HaloModel model,
     Optional<LayerAnimation> animation,
     HaloPositioning positioning,

@@ -2,11 +2,11 @@ package network.azusake.halo.physics;
 
 import network.azusake.halo.api.EntityAnchorProvider;
 import network.azusake.halo.api.HeadAnchor;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.Camera;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,15 +35,15 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
 
     @Override
     public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
-        if (entity instanceof AbstractClientPlayerEntity player) {
-            RenderHeadCapture.CapturedHead captured = RenderHeadCapture.get(player.getUuid());
+        if (entity instanceof AbstractClientPlayer player) {
+            RenderHeadCapture.CapturedHead captured = RenderHeadCapture.get(player.getUUID());
             if (captured != null) {
-                MinecraftClient client = MinecraftClient.getInstance();
+                Minecraft client = Minecraft.getInstance();
                 Camera camera = client != null && client.gameRenderer != null
-                    ? client.gameRenderer.getCamera()
+                    ? client.gameRenderer.getMainCamera()
                     : null;
                 if (camera != null) {
-                    Vec3d cameraPos = camera.getPos();
+                    Vec3 cameraPos = camera.getPosition();
                     Matrix4f viewMatrix = RenderHeadCapture.getViewMatrix();
                     if (viewMatrix != null) {
                         HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, viewMatrix);
@@ -56,7 +56,7 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                         // per-frame state is dropped.  Fall back this frame.
                         LOGGER.warn("[RenderHead] captured anchor not finite for uuid={} "
                                 + "center=({}, {}, {}) yaw={} pitch={} roll={} — falling back",
-                            player.getUuid(),
+                            player.getUUID(),
                             anchor.headCenter().x, anchor.headCenter().y, anchor.headCenter().z,
                             anchor.yaw(), anchor.pitch(), anchor.roll());
                     }
@@ -70,7 +70,7 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         if (anchor == null) {
             return false;
         }
-        Vec3d center = anchor.headCenter();
+        Vec3 center = anchor.headCenter();
         return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
             && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
     }

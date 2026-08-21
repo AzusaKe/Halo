@@ -25,17 +25,17 @@ Every implementation **must** follow this flow in each command executor:
    - Display the returned feedback on the local chat HUD.
    - **Do not** forward the command to the server.
 3. If `false` (singleplayer or MULTIPLAYER phase — server with the mod):
-   - Forward the raw command string to the server (e.g. `client.getNetworkHandler().sendCommand(cmd)`).
+   - Forward the raw command string with Forge/Mojmap's `ServerboundChatCommandPacket`.
 
 ### Why This Layer Exists
 
 - The core classes (`HaloPhaseTracker`, `HaloLocalCommandHandler`, `HaloLocalManager`) contain **zero** loader-specific code.
-- Mixin-based interception proved fragile across Yarn mapping versions.
-- This interface lets each loader (Fabric, NeoForge, …) plug in its own command-registration API.
+- Mixin-based interception proved fragile across mapping versions.
+- This interface keeps Forge command registration separate from phase tracking and local execution.
 
-### Fabric Implementation
+### Forge Implementation
 
-`FabricHaloCommandInterceptor` (same package) registers `/halo` via `ClientCommandRegistrationCallback.EVENT`.
+`ForgeHaloCommandInterceptor` (same package) registers `/halo` via `RegisterClientCommandsEvent` on `MinecraftForge.EVENT_BUS`.
 
 ### Porting to Another Loader
 
@@ -111,7 +111,7 @@ to match a custom renderer / skeletal animation system.
   frame rates).
 - The provider is responsible for interpolating between the previous and
   current tick state and returns a full **6-DOF** `HeadAnchor`:
-  - `Vec3d headCenter` — head center in world coordinates (3 DOF)
+  - `Vec3 headCenter` — head center in world coordinates (3 DOF)
   - `float yaw` / `float pitch` / `float roll` — head orientation (3 DOF,
     degrees, MC convention)
 - Mods only provide the **head**'s 6 DOF; Halo still computes the halo's own
@@ -131,30 +131,33 @@ to match a custom renderer / skeletal animation system.
 
 ### Registration
 
-Listen to `AnchorProviderSetupEvent` from your own `ClientModInitializer`.
-Halo fires the event **after every client entrypoint has run (at the end of
-the first client tick)**, so your listener is always observed regardless of
-mod load order:
+Subscribe to `AnchorProviderSetupEvent` on the Forge event bus. Halo posts it
+**at the end of the first client tick**, after its default providers are
+registered:
 
 ```java
 import network.azusake.halo.api.AnchorProviderSetupEvent;
 import network.azusake.halo.api.HeadAnchor;
 import network.azusake.halo.api.EntityAnchorProvider;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
-public class MyModClient implements ClientModInitializer {
-    @Override
-    public void onInitializeClient() {
-        AnchorProviderSetupEvent.EVENT.register(registry ->
-            registry.register(LivingEntity.class, new MyHeadProvider()));
+@Mod.EventBusSubscriber(modid = "mymod", value = Dist.CLIENT,
+    bus = Mod.EventBusSubscriber.Bus.FORGE)
+public final class MyModClientEvents {
+    @SubscribeEvent
+    public static void onAnchorProviderSetup(AnchorProviderSetupEvent event) {
+        event.getRegistry().register(LivingEntity.class, new MyHeadProvider());
     }
 }
 
 final class MyHeadProvider implements EntityAnchorProvider {
     @Override
     public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
-        Vec3d headCenter = ...; // custom head center (world coordinates)
+        Vec3 headCenter = ...;  // custom head center (world coordinates)
         float yaw = ...;        // head orientation (degrees)
         float pitch = ...;
         float roll = ...;       // pure-animation mods may supply roll freely
@@ -167,16 +170,16 @@ final class MyHeadProvider implements EntityAnchorProvider {
 
 | Scenario | How | Notes |
 |----------|-----|-------|
-| Specific entity type | `register(ZombieEntity.class, provider)` | Exact class wins; registering a superclass affects all subclasses |
+| Specific entity type | `register(Zombie.class, provider)` | Exact class wins; registering a superclass affects all subclasses |
 | Specific individual | `register(uuid, provider)` | UUID hit outranks any class registration |
 | Arbitrary predicate (NBT/team/state) | Delegation pattern | Capture the old provider before registering, delegate on non-match |
 
 Delegation example (zombies carrying a specific NBT flag only):
 
 ```java
-EntityAnchorProvider prev = registry.getProvider(ZombieEntity.class); // captured before registering, never null
-registry.register(ZombieEntity.class, (entity, tickDelta) ->
-    entity.getNbt().getBoolean("my:special_head")
+EntityAnchorProvider prev = registry.getProvider(Zombie.class); // captured before registering, never null
+registry.register(Zombie.class, (entity, tickDelta) ->
+    entity.getPersistentData().getBoolean("my:special_head")
         ? myAnchor(entity, tickDelta)
         : prev.resolve(entity, tickDelta));
 ```

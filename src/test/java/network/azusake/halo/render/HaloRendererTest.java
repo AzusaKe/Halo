@@ -4,8 +4,8 @@ import network.azusake.halo.animation.AnimationTerm;
 import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.shape.HaloGroup;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -380,10 +380,10 @@ class HaloRendererTest {
         @Test
         @DisplayName("entity within render distance is NOT culled")
         void testNotCulledWhenClose() {
-            Vec3d camPos = new Vec3d(0, 64, 0);
-            Vec3d entityPos = new Vec3d(100, 64, 0); // 100 blocks away
+            Vec3 camPos = new Vec3(0, 64, 0);
+            Vec3 entityPos = new Vec3(100, 64, 0); // 100 blocks away
 
-            double distSq = entityPos.squaredDistanceTo(camPos);
+            double distSq = entityPos.distanceToSqr(camPos);
             double renderDistSq = 16.0 * 16.0 * 16.0 * 16.0; // (16 chunks * 16 blocks)^2 = 256^2
 
             assertTrue(distSq <= renderDistSq,
@@ -393,10 +393,10 @@ class HaloRendererTest {
         @Test
         @DisplayName("entity beyond render distance IS culled")
         void testCulledWhenFar() {
-            Vec3d camPos = new Vec3d(0, 64, 0);
-            Vec3d entityPos = new Vec3d(300, 64, 0); // 300 blocks away
+            Vec3 camPos = new Vec3(0, 64, 0);
+            Vec3 entityPos = new Vec3(300, 64, 0); // 300 blocks away
 
-            double distSq = entityPos.squaredDistanceTo(camPos);
+            double distSq = entityPos.distanceToSqr(camPos);
             double renderDistSq = 16.0 * 16.0 * 16.0 * 16.0; // 256^2
 
             assertTrue(distSq > renderDistSq,
@@ -406,11 +406,11 @@ class HaloRendererTest {
         @Test
         @DisplayName("entity at exactly render distance boundary is NOT culled (inclusive)")
         void testNotCulledAtBoundary() {
-            Vec3d camPos = new Vec3d(0, 64, 0);
+            Vec3 camPos = new Vec3(0, 64, 0);
             // Exactly 256 blocks away (one chunk = 16 blocks)
-            Vec3d entityPos = new Vec3d(256, 64, 0);
+            Vec3 entityPos = new Vec3(256, 64, 0);
 
-            double distSq = entityPos.squaredDistanceTo(camPos);
+            double distSq = entityPos.distanceToSqr(camPos);
             double renderDistSq = 16.0 * 16.0 * 16.0 * 16.0;
 
             assertTrue(distSq <= renderDistSq + 0.0001,
@@ -419,7 +419,7 @@ class HaloRendererTest {
     }
 
     // ------------------------------------------------------------------
-    // 5. Vec3d helper (getHeadAnchorPosition logic)
+    // 5. Vec3 helper (getHeadAnchorPosition logic)
     // ------------------------------------------------------------------
 
     @Nested
@@ -432,10 +432,10 @@ class HaloRendererTest {
             // Non-player entity of height 2.0 blocks
             double footY = 64.0;
             double height = 2.0;
-            Vec3d footPos = new Vec3d(10, footY, 10);
+            Vec3 footPos = new Vec3(10, footY, 10);
 
             // Anchor at 85% height
-            Vec3d anchor = footPos.add(0, height * 0.85, 0);
+            Vec3 anchor = footPos.add(0, height * 0.85, 0);
 
             assertEquals(10.0, anchor.x, 0.001);
             assertEquals(64.0 + 1.7, anchor.y, 0.001); // 64 + 2.0*0.85 = 65.7
@@ -446,9 +446,9 @@ class HaloRendererTest {
         @DisplayName("anchor for tall entity is proportionally higher")
         void testTallEntityAnchor() {
             // Very tall entity (e.g. enderman, height 2.9)
-            Vec3d footPos = new Vec3d(0, 32, 0);
+            Vec3 footPos = new Vec3(0, 32, 0);
             double height = 2.9;
-            Vec3d anchor = footPos.add(0, height * 0.85, 0);
+            Vec3 anchor = footPos.add(0, height * 0.85, 0);
 
             assertEquals(32.0 + 2.9 * 0.85, anchor.y, 0.001); // 32 + 2.465 = 34.465
         }
@@ -675,12 +675,12 @@ class HaloRendererTest {
         @DisplayName("frame damping: H converges toward T with k_f factor")
         void testSingleFrameDamping() {
             // T = (0, 0, 0), H = (10, 0, 0)
-            Vec3d target = Vec3d.ZERO;
-            Vec3d prev = new Vec3d(10, 0, 0);
+            Vec3 target = Vec3.ZERO;
+            Vec3 prev = new Vec3(10, 0, 0);
 
             double kF = computeKF(0.3, 0.05); // = 0.3
             // H_new = H + k_f × (T − H)
-            Vec3d halo = prev.add(target.subtract(prev).multiply(kF));
+            Vec3 halo = prev.add(target.subtract(prev).scale(kF));
 
             assertEquals(7.0, halo.x, 0.0001, "10 × (1−0.3) = 7.0");
             assertEquals(0.0, halo.y, 0.0001);
@@ -692,16 +692,16 @@ class HaloRendererTest {
         void testFrameClampExceedsMaxDist() {
             // After damping: halo at x=7, target at x=0
             // d = 7 > max_d = 5 → clamp
-            Vec3d target = Vec3d.ZERO;
-            Vec3d halo = new Vec3d(7.0, 0.0, 0.0); // after damping
+            Vec3 target = Vec3.ZERO;
+            Vec3 halo = new Vec3(7.0, 0.0, 0.0); // after damping
             double maxDist = 5.0;
 
             double dist = halo.distanceTo(target);
             assertTrue(dist > maxDist, "precondition: dist must exceed maxDist");
 
             // Clamp: H_new = T − normalize(T−H) × maxDist
-            Vec3d toTarget = target.subtract(halo).normalize();
-            Vec3d clamped = target.subtract(toTarget.multiply(maxDist));
+            Vec3 toTarget = target.subtract(halo).normalize();
+            Vec3 clamped = target.subtract(toTarget.scale(maxDist));
 
             assertEquals(5.0, clamped.distanceTo(target), 0.0001,
                 "clamped halo must be exactly maxDist from target");
@@ -717,12 +717,12 @@ class HaloRendererTest {
             // After damping: H_new' = (7, 0, 0), d = 7 > max_d = 5
             // Clamp: continue in S direction (left) until d = 5
             // H_new = (5, 0, 0) — moved further left from 7, closer to target
-            Vec3d target = Vec3d.ZERO;
-            Vec3d haloAfterDamping = new Vec3d(7.0, 0.0, 0.0);
+            Vec3 target = Vec3.ZERO;
+            Vec3 haloAfterDamping = new Vec3(7.0, 0.0, 0.0);
             double maxDist = 5.0;
 
-            Vec3d toTarget = target.subtract(haloAfterDamping).normalize();
-            Vec3d clamped = target.subtract(toTarget.multiply(maxDist));
+            Vec3 toTarget = target.subtract(haloAfterDamping).normalize();
+            Vec3 clamped = target.subtract(toTarget.scale(maxDist));
 
             assertEquals(5.0, clamped.x, 0.0001);
             assertTrue(clamped.x < haloAfterDamping.x,
@@ -736,8 +736,8 @@ class HaloRendererTest {
         void testMultiFrameClampGuarantee() {
             // Simulate 200 frames with random target movement
             // The halo must stay within maxDist of target after every frame
-            Vec3d target = Vec3d.ZERO;
-            Vec3d halo = Vec3d.ZERO;
+            Vec3 target = Vec3.ZERO;
+            Vec3 halo = Vec3.ZERO;
             double maxDist = 1.0;
             double k = 0.3;
             java.util.Random rng = new java.util.Random(12345);
@@ -751,13 +751,13 @@ class HaloRendererTest {
 
                 // Per-frame damping (simulated at ~60 FPS)
                 double kF = computeKF(k, 0.0167);
-                halo = halo.add(target.subtract(halo).multiply(kF));
+                halo = halo.add(target.subtract(halo).scale(kF));
 
                 // Clamp: ensure halo never exceeds maxDist
                 double dist = halo.distanceTo(target);
                 if (dist > maxDist) {
-                    Vec3d toTarget = target.subtract(halo).normalize();
-                    halo = target.subtract(toTarget.multiply(maxDist));
+                    Vec3 toTarget = target.subtract(halo).normalize();
+                    halo = target.subtract(toTarget.scale(maxDist));
                 }
             }
 
@@ -774,8 +774,8 @@ class HaloRendererTest {
             // k = 0.1 (very little movement per frame)
             // Entity moves 2 blocks per frame → halo lags severely
             // Clamp must prevent halo from exceeding maxDist
-            Vec3d target = new Vec3d(0, 0, 0);
-            Vec3d halo = new Vec3d(0, 0, 0);
+            Vec3 target = new Vec3(0, 0, 0);
+            Vec3 halo = new Vec3(0, 0, 0);
             double maxDist = 0.5;
 
             for (int frame = 0; frame < 60; frame++) {
@@ -784,13 +784,13 @@ class HaloRendererTest {
 
                 // Damping with very low k
                 double kF = computeKF(0.1, 0.0167);
-                halo = halo.add(target.subtract(halo).multiply(kF));
+                halo = halo.add(target.subtract(halo).scale(kF));
 
                 // Clamp
                 double dist = halo.distanceTo(target);
                 if (dist > maxDist) {
-                    Vec3d toTarget = target.subtract(halo).normalize();
-                    halo = target.subtract(toTarget.multiply(maxDist));
+                    Vec3 toTarget = target.subtract(halo).normalize();
+                    halo = target.subtract(toTarget.scale(maxDist));
                 }
 
                 double distAfter = halo.distanceTo(target);
@@ -822,7 +822,7 @@ class HaloRendererTest {
                 List.of(new AnimationTerm.Linear(0.7, 0.0)),
                 List.of());
             HaloGroup group = new HaloGroup(
-                Optional.empty(), new Vec3d(0, 0, 0), new Quaternionf(), 1.0f,
+                Optional.empty(), new Vec3(0, 0, 0), new Quaternionf(), 1.0f,
                 List.of(), true, true, true, Optional.of(anim), List.of());
 
             HaloRenderer.FrozenIdleVisuals frozen = HaloRenderer.frozenIdleVisuals(group, 2.0);
@@ -839,7 +839,7 @@ class HaloRendererTest {
         @DisplayName("identity defaults when the group has no idle animation")
         void identityWithoutAnimation() {
             HaloGroup plain = new HaloGroup(
-                Optional.empty(), new Vec3d(0, 0, 0), new Quaternionf(), 1.0f,
+                Optional.empty(), new Vec3(0, 0, 0), new Quaternionf(), 1.0f,
                 List.of(), true, true, true, Optional.empty(), List.of());
 
             HaloRenderer.FrozenIdleVisuals frozen = HaloRenderer.frozenIdleVisuals(plain, 5.0);

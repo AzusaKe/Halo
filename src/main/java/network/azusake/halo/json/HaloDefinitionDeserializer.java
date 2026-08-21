@@ -8,8 +8,8 @@ import network.azusake.halo.data.OrientationMode;
 import network.azusake.halo.data.SchemaVersion;
 import network.azusake.halo.shape.*;
 import com.google.gson.*;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector2f;
 import org.slf4j.Logger;
@@ -62,9 +62,9 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
 
     public HaloDefinitionDeserializer() {
         this.gson = new GsonBuilder()
-            .registerTypeAdapter(Vec3d.class, new Vec3dAdapter())
+            .registerTypeAdapter(Vec3.class, new Vec3Adapter())
             .registerTypeAdapter(Vector2f.class, new Vec2fAdapter())
-            .registerTypeAdapter(Identifier.class, new IdentifierAdapter())
+            .registerTypeAdapter(ResourceLocation.class, new ResourceLocationAdapter())
             .create();
     }
 
@@ -98,7 +98,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             }
         }
 
-        Identifier id = parseId(root, "id");
+        ResourceLocation id = parseId(root, "id");
         HaloModel model = parseModel(root, schemaVersion);
         Optional<LayerAnimation> animation = parseLayerAnimation(root.get("animation"));
         HaloPositioning positioning = parsePositioning(root.getAsJsonObject("positioning"));
@@ -170,9 +170,9 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
             : Optional.empty();
 
         // Position (default origin)
-        Vec3d position = obj.has("position")
-            ? gson.fromJson(obj.get("position"), Vec3d.class)
-            : Vec3d.ZERO;
+        Vec3 position = obj.has("position")
+            ? gson.fromJson(obj.get("position"), Vec3.class)
+            : Vec3.ZERO;
 
         // Rotation: Euler [yaw, pitch, roll] in degrees → Quaternionf
         Quaternionf rotation = new Quaternionf();
@@ -319,7 +319,7 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     }
 
     private BillboardPrimitive parseBillboardPrimitive(JsonObject obj) {
-        Identifier texture = Identifier.tryParse(obj.get("texture").getAsString());
+        ResourceLocation texture = ResourceLocation.tryParse(obj.get("texture").getAsString());
         Vector2f size = gson.fromJson(obj.get("size"), Vector2f.class);
         // face_camera (default false): when true the quad is drawn fully
         // facing the camera and no animation rotation can override that.
@@ -329,16 +329,16 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
 
     private RingPrimitive parseRingPrimitive(JsonObject obj) {
         // Outer texture: try "outer_texture" first, fall back to "texture"
-        Identifier outerTexture;
+        ResourceLocation outerTexture;
         if (obj.has("outer_texture")) {
-            outerTexture = Identifier.tryParse(obj.get("outer_texture").getAsString());
+            outerTexture = ResourceLocation.tryParse(obj.get("outer_texture").getAsString());
         } else {
-            outerTexture = Identifier.tryParse(obj.get("texture").getAsString());
+            outerTexture = ResourceLocation.tryParse(obj.get("texture").getAsString());
         }
 
         // Inner texture: optional, defaults to outer
-        Identifier innerTexture = obj.has("inner_texture")
-            ? Identifier.tryParse(obj.get("inner_texture").getAsString())
+        ResourceLocation innerTexture = obj.has("inner_texture")
+            ? ResourceLocation.tryParse(obj.get("inner_texture").getAsString())
             : null;
 
         // Size: [radius, width]
@@ -360,12 +360,12 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         switch (type) {
             case "billboard" -> {
                 BillboardPrimitive bp = parseBillboardPrimitive(shapeObj);
-                groups.add(new HaloGroup(Vec3d.ZERO, bp));
+                groups.add(new HaloGroup(Vec3.ZERO, bp));
             }
             case "multi_billboard" -> {
                 for (JsonElement elem : shapeObj.getAsJsonArray("layers")) {
                     BillboardPrimitive bp = parseBillboardPrimitive(elem.getAsJsonObject());
-                    groups.add(new HaloGroup(Vec3d.ZERO, bp));
+                    groups.add(new HaloGroup(Vec3.ZERO, bp));
                 }
             }
             default -> throw new JsonParseException("Unknown legacy shape type: " + type);
@@ -376,8 +376,8 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     // --- Positioning & Damping (unchanged) ---
 
     private HaloPositioning parsePositioning(JsonObject obj) {
-        if (obj == null) return new HaloPositioning(Vec3d.ZERO, 1.0);
-        Vec3d offset = gson.fromJson(obj.get("offset"), Vec3d.class);
+        if (obj == null) return new HaloPositioning(Vec3.ZERO, 1.0);
+        Vec3 offset = gson.fromJson(obj.get("offset"), Vec3.class);
         double scale = obj.has("scale") ? obj.get("scale").getAsDouble() : 1.0;
         return new HaloPositioning(offset, scale);
     }
@@ -660,24 +660,24 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
     // Sub-parsers
     // ------------------------------------------------------------------
 
-    private Identifier parseId(JsonObject root, String key) {
+    private ResourceLocation parseId(JsonObject root, String key) {
         String raw = root.get(key).getAsString();
-        return Identifier.tryParse(raw);
+        return ResourceLocation.tryParse(raw);
     }
 
     // ------------------------------------------------------------------
     // Custom type adapters
     // ------------------------------------------------------------------
 
-    private static class Vec3dAdapter implements JsonDeserializer<Vec3d>, JsonSerializer<Vec3d> {
+    private static class Vec3Adapter implements JsonDeserializer<Vec3>, JsonSerializer<Vec3> {
         @Override
-        public Vec3d deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
+        public Vec3 deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
             JsonArray arr = json.getAsJsonArray();
-            return new Vec3d(arr.get(0).getAsDouble(), arr.get(1).getAsDouble(), arr.get(2).getAsDouble());
+            return new Vec3(arr.get(0).getAsDouble(), arr.get(1).getAsDouble(), arr.get(2).getAsDouble());
         }
 
         @Override
-        public JsonElement serialize(Vec3d src, Type typeOfSrc, JsonSerializationContext context) {
+        public JsonElement serialize(Vec3 src, Type typeOfSrc, JsonSerializationContext context) {
             JsonArray arr = new JsonArray();
             arr.add(src.x);
             arr.add(src.y);
@@ -702,14 +702,14 @@ public class HaloDefinitionDeserializer implements JsonDeserializer<HaloDefiniti
         }
     }
 
-    private static class IdentifierAdapter implements JsonDeserializer<Identifier>, JsonSerializer<Identifier> {
+    private static class ResourceLocationAdapter implements JsonDeserializer<ResourceLocation>, JsonSerializer<ResourceLocation> {
         @Override
-        public Identifier deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
-            return Identifier.tryParse(json.getAsString());
+        public ResourceLocation deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
+            return ResourceLocation.tryParse(json.getAsString());
         }
 
         @Override
-        public JsonElement serialize(Identifier src, Type typeOfSrc, JsonSerializationContext context) {
+        public JsonElement serialize(ResourceLocation src, Type typeOfSrc, JsonSerializationContext context) {
             return new JsonPrimitive(src.toString());
         }
     }

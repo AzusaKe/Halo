@@ -4,8 +4,8 @@
 </h1>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC Version](https://img.shields.io/badge/Minecraft-1.19.4--1.20.4-green.svg)
-![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
+![MC Version](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
+![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Forge-orange.svg)
 
 English | [中文](README_ZH.md)
 
@@ -16,7 +16,6 @@ English | [中文](README_ZH.md)
 - [Features](#features)
 - [Planned Features](#planned-features)
 - [Installation](#installation)
-  - [NeoForge / Forge](#neoforge--forge)
 - [Usage](#usage)
   - [Commands](#commands)
   - [Custom Halo Definitions](#custom-halo-definitions)
@@ -34,9 +33,9 @@ English | [中文](README_ZH.md)
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 1.20.1 supported via [Sinytra Connector](https://modrinth.com/mod/connector)).
+This flash branch is a native **Minecraft 1.20.1 Forge** port of Halo v1.2.1. It requires Forge **47.4.0 or newer, below 48**; Forge **47.4.10** is the recommended regression target. It does not require Fabric API, Sinytra Connector, or Forgified Fabric API.
 
-> **Note on 1.19.4**: Core features (show/hide halo, multiplayer sync, persistence) work normally, but some query commands (`/halo list`, `/halo active`, `/halo dump`) produce no chat output. This is a known compatibility issue.
+Halo supports three operating modes: singleplayer; multiplayer where both the Forge server and clients install Halo; and LOCAL mode when a Halo client joins a vanilla or Forge server without Halo. A server with Halo also accepts clients that do not install it.
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
 
@@ -73,20 +72,11 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.19.4 ~ 1.20.4.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for your Minecraft version.
-3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
-4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
-5. Launch Minecraft with the Fabric profile.
+1. Install **Forge 47.4.0–47.x** for Minecraft 1.20.1. Forge 47.4.10 is recommended.
+2. Download `halo-1.20.1-forge-1.2.1.jar` from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
+3. Place the Halo JAR into the `mods` folder and launch the Forge profile.
 
-### NeoForge / Forge
-
-This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.20.1** via [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api). Shader packs are compatible.
-
-1. Install NeoForge or Forge for Minecraft 1.20.1
-2. Install [Sinytra Connector](https://modrinth.com/mod/connector)
-3. Install [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
-4. Place the Halo mod JAR into the `mods` folder
+Do not install Fabric API, Sinytra Connector, or Forgified Fabric API for this JAR. Install Halo on both server and clients for synchronized multiplayer. Installing it only on the client enables LOCAL mode on servers without Halo; installing it only on the server is also allowed, but clients without Halo will not receive or render Halo data.
 
 <a id="usage"></a>
 
@@ -271,10 +261,11 @@ Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`
 ```bash
 git clone https://github.com/AzusaKe/Halo.git
 cd Halo
+git checkout 1.20.1-forge-flash
 ./gradlew build
 ```
 
-The compiled JAR file will be at `build/libs/halo-1.0.3.jar`.
+The compiled JAR file will be at `build/libs/halo-1.20.1-forge-1.2.1.jar`.
 
 <a id="run-tests"></a>
 
@@ -303,10 +294,10 @@ The compiled JAR file will be at `build/libs/halo-1.0.3.jar`.
 ```
 src/main/
   java/network/azusake/halo/
-    HaloMod.java              — Mod initializer (server entry point)
-    HaloModClient.java         — Client initializer (client entry point)
+    HaloMod.java              — Forge @Mod entry point and common initialization
+    HaloModClient.java         — Physically client-only initialization
     animation/                 — Animation curves (Linear, Oscillate, Constant)
-    client/                    — Client-side command interceptor, phase tracker, local manager
+    client/                    — Forge client command interceptor, phase tracker, local manager
     command/                   — /halo Brigadier command tree
     config/                    — Runtime HaloConfig (damping, scale, offset)
     data/                      — HaloDefinition, HaloInstance, HaloEntityData, etc.
@@ -320,7 +311,8 @@ src/main/
     server/                    — HaloServerEvents, ServerTickHandler
     shape/                     — BillboardPrimitive, RingPrimitive, HaloGroup, HaloModel
   resources/
-    fabric.mod.json            — Mod metadata (entry points, mixins, dependencies)
+    META-INF/mods.toml         — Forge mod metadata and dependency ranges
+    pack.mcmeta                — Resource pack metadata
     halo.mixins.json            — Mixin configuration
     assets/halo/
       halo_definitions/        — JSON halo definition files (resource pack, client rendering)
@@ -333,7 +325,7 @@ src/main/
 
 Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please submit an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
 
-- **Development Environment**: Minecraft 1.20.1 + Fabric Loader 0.15+
+- **Development Environment**: Minecraft 1.20.1 + Forge 47.4.0+ (<48) + JDK 17
 - **IDE**: Recommended IntelliJ IDEA (with Minecraft Development plugin) or VS Code
 
 <a id="license"></a>

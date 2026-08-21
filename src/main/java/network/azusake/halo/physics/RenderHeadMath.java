@@ -1,7 +1,7 @@
 package network.azusake.halo.physics;
 
 import network.azusake.halo.api.HeadAnchor;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector4f;
@@ -38,9 +38,9 @@ public final class RenderHeadMath {
     }
 
     /** World-space head centre from a camera-relative head matrix. */
-    public static Vec3d headCenter(Matrix4f headWorldMatrix, Vec3d cameraPos) {
+    public static Vec3 headCenter(Matrix4f headWorldMatrix, Vec3 cameraPos) {
         Vector4f p = headWorldMatrix.transform(new Vector4f(0f, HEAD_BOX_CENTER_Y, 0f, 1f));
-        return new Vec3d(cameraPos.x + p.x, cameraPos.y + p.y, cameraPos.z + p.z);
+        return new Vec3(cameraPos.x + p.x, cameraPos.y + p.y, cameraPos.z + p.z);
     }
 
     /**
@@ -53,27 +53,27 @@ public final class RenderHeadMath {
     public static float[] toYawPitchRoll(Matrix4f headWorldMatrix) {
         Vector4f origin = headWorldMatrix.transform(new Vector4f(0f, 0f, 0f, 1f));
         Vector4f f4 = headWorldMatrix.transform(new Vector4f(0f, 0f, -1f, 1f));
-        Vec3d forward = new Vec3d(f4.x - origin.x, f4.y - origin.y, f4.z - origin.z).normalize();
+        Vec3 forward = new Vec3(f4.x - origin.x, f4.y - origin.y, f4.z - origin.z).normalize();
         Vector4f u4 = headWorldMatrix.transform(new Vector4f(0f, -1f, 0f, 1f));
-        Vec3d up = new Vec3d(u4.x - origin.x, u4.y - origin.y, u4.z - origin.z).normalize();
+        Vec3 up = new Vec3(u4.x - origin.x, u4.y - origin.y, u4.z - origin.z).normalize();
         // Gram-Schmidt against forward so a non-uniform model scale cannot
         // skew the head-up direction.
-        up = up.subtract(forward.multiply(up.dotProduct(forward))).normalize();
+        up = up.subtract(forward.scale(up.dot(forward))).normalize();
 
         float yaw = (float) Math.toDegrees(Math.atan2(-forward.x, forward.z));
         float pitch = (float) Math.toDegrees(Math.asin(clamp(-forward.y)));
 
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        Vec3d right0;
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
+        Vec3 worldUp = new Vec3(0, 1, 0);
+        Vec3 right0;
+        if (Math.abs(forward.dot(worldUp)) > 0.999) {
             // Same near-parallel fallback as HeadFrameMath.
             float yawRad = (float) Math.toRadians(yaw);
-            right0 = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
+            right0 = new Vec3(-Math.cos(yawRad), 0, -Math.sin(yawRad));
         } else {
-            right0 = forward.crossProduct(worldUp).normalize();
+            right0 = forward.cross(worldUp).normalize();
         }
-        Vec3d headUp0 = right0.crossProduct(forward).normalize();
-        float roll = (float) Math.toDegrees(Math.atan2(up.dotProduct(right0), up.dotProduct(headUp0)));
+        Vec3 headUp0 = right0.cross(forward).normalize();
+        float roll = (float) Math.toDegrees(Math.atan2(up.dot(right0), up.dot(headUp0)));
         return new float[]{yaw, pitch, roll};
     }
 
@@ -87,9 +87,9 @@ public final class RenderHeadMath {
      *                   Pass the identity matrix when the capture is already
      *                   in world space (unit tests / degenerate capture).
      */
-    public static HeadAnchor toHeadAnchor(RenderHeadCapture.CapturedHead captured, Vec3d cameraPos, Matrix4f viewMatrix) {
+    public static HeadAnchor toHeadAnchor(RenderHeadCapture.CapturedHead captured, Vec3 cameraPos, Matrix4f viewMatrix) {
         Matrix4f head = viewToWorld(composeHeadMatrix(captured), viewMatrix);
-        Vec3d center = headCenter(head, cameraPos);
+        Vec3 center = headCenter(head, cameraPos);
         float[] ypr = toYawPitchRoll(head);
         return new HeadAnchor(center, ypr[0], ypr[1], ypr[2]);
     }

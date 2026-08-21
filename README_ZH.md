@@ -4,8 +4,8 @@
 </h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-1.19.4--1.20.4-green.svg)
-![模组加载器](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
+![模组加载器](https://img.shields.io/badge/Mod%20Loader-Forge-orange.svg)
 
 中文 | [English](README.md)
 
@@ -16,7 +16,6 @@
 - [特性](#特性)
 - [未来将会添加的特性](#未来将会添加的特性)
 - [安装](#安装)
-  - [NeoForge / Forge](#neoforge--forge)
 - [使用方法](#使用方法)
   - [命令](#命令)
   - [自定义光环定义](#自定义光环定义)
@@ -34,9 +33,9 @@
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-目前支持 Minecraft 1.19.4 ~ 1.20.4 的 Fabric 环境（NeoForge / Forge 1.20.1 可通过 [Sinytra Connector](https://modrinth.com/mod/connector) 运行）。
+当前 flash 分支是基于 Halo v1.2.1 的原生 **Minecraft 1.20.1 Forge** 移植。需要 Forge **47.4.0 及以上、48 以下**；推荐使用经额外回归的 Forge **47.4.10**。不依赖 Fabric API、Sinytra Connector 或 Forgified Fabric API。
 
-> **关于 1.19.4**：核心功能（显示/隐藏光环、多人同步、持久化）正常工作，但部分查询命令（`/halo list`、`/halo active`、`/halo dump`）在聊天栏无输出。此为已知兼容性问题。
+Halo 保留三种运行模式：单人游戏；Forge 服务端和客户端都安装 Halo 的多人同步；Halo 客户端连入未安装 Halo 的原版/Forge 服务端时的 LOCAL 模式。安装 Halo 的服务端也允许未安装 Halo 的客户端连入。
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
 
@@ -73,20 +72,11 @@
 
 ## 安装
 
-1. 为 Minecraft 1.19.4 ~ 1.20.4 安装 [Fabric Loader](https://fabricmc.net/use/)。
-2. 下载对应版本的 [Fabric API](https://modrinth.com/mod/fabric-api)。
-3. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载最新的 **Halo** 模组 JAR 文件。
-4. 将两个 JAR 文件放入 Minecraft 安装目录的 `mods` 文件夹中。
-5. 使用 Fabric 配置文件启动 Minecraft。
+1. 为 Minecraft 1.20.1 安装 **Forge 47.4.0–47.x**，推荐 Forge 47.4.10。
+2. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载 `halo-1.20.1-forge-1.2.1.jar`。
+3. 将 Halo JAR 放入 `mods` 文件夹，使用 Forge 配置启动。
 
-### NeoForge / Forge
-
-本模组为 Fabric 原生模组，但可通过 [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api) 在 **NeoForge / Forge 1.20.1** 上运行，兼容光影。
-
-1. 安装 NeoForge 或 Forge（Minecraft 1.20.1）
-2. 安装 [Sinytra Connector](https://modrinth.com/mod/connector)
-3. 安装 [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
-4. 将 Halo 模组 JAR 放入 `mods` 文件夹
+请勿为此 JAR 安装 Fabric API、Sinytra Connector 或 Forgified Fabric API。需要多人同步时，服务端和客户端都安装 Halo；仅客户端安装时，连入无 Halo 服务端将使用 LOCAL 模式；仅服务端安装也可接受无 Halo 客户端，但这些客户端不会接收或渲染 Halo 数据。
 
 <a id="使用方法"></a>
 
@@ -271,10 +261,11 @@
 ```bash
 git clone https://github.com/AzusaKe/Halo.git
 cd Halo
+git checkout 1.20.1-forge-flash
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-1.0.3.jar`。
+编译好的 JAR 文件位于 `build/libs/halo-1.20.1-forge-1.2.1.jar`。
 
 <a id="运行测试"></a>
 
@@ -303,10 +294,10 @@ cd Halo
 ```
 src/main/
   java/network/azusake/halo/
-    HaloMod.java              — 模组初始化器（服务端入口）
-    HaloModClient.java         — 客户端初始化器（客户端入口）
+    HaloMod.java              — Forge @Mod 入口与通用初始化
+    HaloModClient.java         — 仅物理客户端初始化
     animation/                 — 动画曲线（Linear、Oscillate、Constant）
-    client/                    — 客户端指令拦截、阶段追踪、本地管理
+    client/                    — Forge 客户端指令拦截、阶段追踪、本地管理
     command/                   — /halo Brigadier 命令树
     config/                    — 运行时 HaloConfig（衰减、缩放、偏移）
     data/                      — HaloDefinition、HaloInstance、HaloEntityData 等
@@ -320,7 +311,8 @@ src/main/
     server/                    — HaloServerEvents、ServerTickHandler
     shape/                     — BillboardPrimitive、RingPrimitive、HaloGroup、HaloModel
   resources/
-    fabric.mod.json            — 模组元数据（入口点、Mixin、依赖）
+    META-INF/mods.toml         — Forge 模组元数据与依赖范围
+    pack.mcmeta                — 资源包元数据
     halo.mixins.json            — Mixin 配置
     assets/halo/
       halo_definitions/         — JSON 光环定义文件（资源包，客户端渲染使用）
@@ -333,7 +325,7 @@ src/main/
 
 欢迎对 Halo 进行贡献！如果你有想法、建议或想报告 Bug，请在 [GitHub 仓库](https://github.com/AzusaKe/Halo) 提交 Issue。如果你想贡献代码，请 Fork 仓库并提交 Pull Request。
 
-- **开发环境**：Minecraft 1.20.1 + Fabric Loader 0.15+
+- **开发环境**：Minecraft 1.20.1 + Forge 47.4.0+（<48）+ JDK 17
 - **IDE**：推荐 IntelliJ IDEA（配合 Minecraft Development 插件）或 VS Code
 
 <a id="许可证"></a>

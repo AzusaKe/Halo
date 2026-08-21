@@ -1,110 +1,203 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+    }
+    dependencies {
+        // MixinGradle supplies the annotation-processor/refmap wiring used by Forge userdev.
+        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
+    }
+}
+
 plugins {
-    id 'fabric-loom' version '1.5.+'
+    id 'eclipse'
+    id 'idea'
     id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+apply plugin: 'org.spongepowered.mixin'
+
+version = mod_version
+group = maven_group
+
+base {
+    archivesName = "${archives_base_name}-${minecraft_version}-forge"
 }
 
-archivesBaseName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
-version = project.mod_version
-group = project.maven_group
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+println "Java: ${System.getProperty('java.version')}, JVM: ${System.getProperty('java.vm.version')} (${System.getProperty('java.vendor')}), Arch: ${System.getProperty('os.arch')}"
+
+minecraft {
+    // Use Mojang's official 1.20.1 names; the Java sources are ported to Mojmap.
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--width', '2560', '--height', '1600'
+        }
+
+        client2 {
+            parent minecraft.runs.client
+            workingDirectory project.file('run2')
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--username', 'Dev2'
+        }
+
+        server {
+            workingDirectory project.file('runForgeServer')
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+    }
+}
+
+// Keep Dev1 out of the reusable client run configuration so client2 does not
+// inherit two --username arguments along with the Forge userdev launch target.
+tasks.matching { it.name == 'runClient' }.configureEach {
+    doFirst {
+        args '--username', 'Dev1'
+    }
+}
+
+// ForgeGradle clients use synthetic development profiles (Dev1/Dev2), so the
+// dedicated development server must not ask Mojang to validate their sessions.
+tasks.register('prepareForgeDevServer') {
+    group = 'forgegradle runs'
+    description = 'Configures runForgeServer for local ForgeGradle clients.'
+    outputs.upToDateWhen { false }
+
+    doLast {
+        def serverDirectory = file('runForgeServer')
+        def propertiesFile = new File(serverDirectory, 'server.properties')
+        def serverProperties = new Properties()
+
+        serverDirectory.mkdirs()
+        if (propertiesFile.exists()) {
+            propertiesFile.withInputStream { serverProperties.load(it) }
+        }
+
+        serverProperties.setProperty('online-mode', 'false')
+        serverProperties.setProperty('enforce-secure-profile', 'false')
+        propertiesFile.withOutputStream {
+            serverProperties.store(it, 'Local ForgeGradle development server settings')
+        }
+    }
+}
+
+tasks.matching { it.name == 'runServer' }.configureEach {
+    dependsOn tasks.named('prepareForgeDevServer')
+}
+
+mixin {
+    add sourceSets.main, 'halo.refmap.json'
+    config 'halo.mixins.json'
+}
 
 repositories {
-    // Add repositories to retrieve artifacts from in here.
-    // For LSPDFR or other non-Maven repos, add their URLs here.
+    // Keep JUnit on Maven Central instead of routing it through Forge's proxy.
+    exclusiveContent {
+        forRepository {
+            mavenCentral()
+        }
+        filter {
+            includeGroupByRegex 'org\\.junit(\\..*)?'
+            includeGroup 'org.opentest4j'
+            includeGroup 'org.apiguardian'
+        }
+    }
 }
 
 dependencies {
-    // To change the versions see the gradle.properties file
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // Fabric API. This is technically optional, but you probably want it anyway.
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    // The Forge userdev distribution supplies Mixin at runtime; this processor emits
+    // halo.refmap.json from the official 1.20.1 names during compileJava.
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    // Test dependencies
-    testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
-    testImplementation "com.google.code.gson:gson:2.10.1"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
 }
 
-processResources {
-    inputs.property "version", project.version
-    filteringCharset "UTF-8"
+tasks.named('processResources', ProcessResources).configure {
+    def replaceProperties = [
+            minecraft_version: minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version,
+            forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    filteringCharset = 'UTF-8'
 
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // Minecraft 1.20.1 (23w16a) and above require Java 17.
-    it.options.release = 17
+    options.encoding = 'UTF-8'
+    options.release = 17
 }
 
 java {
-    // Loom will use this to set up access wideners and remap mods correctly
     withSourcesJar()
 }
 
-jar {
-    from("LICENSE") {
-        rename { "${it}_${project.archivesBaseName}" }
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                'MixinConfigs'            : 'halo.mixins.json'
+        ])
     }
+    from('LICENSE') {
+        rename { "${it}_${archives_base_name}" }
+    }
+    finalizedBy 'reobfJar'
 }
 
 test {
     useJUnitPlatform()
     testLogging {
-        events "passed", "skipped", "failed"
+        events 'passed', 'skipped', 'failed'
     }
 }
 
-// Client run configuration: 2560x1600 window, non-fullscreen
-loom {
-    runs {
-        client {
-            programArgs("--width", "2560")
-            programArgs("--height", "1600")
-            programArgs("--username", "Dev1")
-        }
-        // Second client for local multiplayer testing — launch with:
-        //   ./gradlew runClient2
-        client2 {
-            inherit client
-            programArgs("--username", "Dev2")
-            runDir = "run2"
-        }
-    }
-}
-
-// Force fullscreen:false before each runClient launch
-tasks.named('runClient') {
-    doFirst {
-        def optionsFile = file('run/options.txt')
-        if (optionsFile.exists()) {
-            def lines = optionsFile.readLines()
-            def modified = lines.collect { line ->
-                line.startsWith('fullscreen:') ? 'fullscreen:false' : line
-            }
-            optionsFile.text = modified.join('\n') + '\n'
-        }
-    }
-}
-
-// configure the maven publication
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            from components.java
+            artifact jar
+            artifact sourcesJar
         }
-    }
-
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-    repositories {
-        // Add repositories to publish to here.
     }
 }

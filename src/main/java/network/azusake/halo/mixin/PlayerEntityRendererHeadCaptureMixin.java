@@ -1,50 +1,50 @@
 package network.azusake.halo.mixin;
 
 import network.azusake.halo.physics.RenderHeadCapture;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.render.entity.model.PlayerEntityModel;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.player.PlayerRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Bracket {@link PlayerEntityRenderer#render} with the head-capture context so
+ * Bracket {@link PlayerRenderer#render} with the head-capture context so
  * {@link ModelPartHeadCaptureMixin} can identify the current player model.
  */
-@Mixin(PlayerEntityRenderer.class)
+@Mixin(PlayerRenderer.class)
 public abstract class PlayerEntityRendererHeadCaptureMixin {
 
     @Inject(
-        method = "render(Lnet/minecraft/client/network/AbstractClientPlayerEntity;FFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
+        method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
         at = @At("HEAD")
     )
     private void halo$beginHeadCapture(
-        AbstractClientPlayerEntity entity,
+        AbstractClientPlayer entity,
         float yaw,
         float tickDelta,
-        MatrixStack matrices,
-        VertexConsumerProvider vertexConsumers,
+        PoseStack matrices,
+        MultiBufferSource vertexConsumers,
         int light,
         CallbackInfo ci
     ) {
-        PlayerEntityModel<?> model = (PlayerEntityModel<?>) ((PlayerEntityRenderer) (Object) this).getModel();
+        PlayerModel<?> model = (PlayerModel<?>) ((PlayerRenderer) (Object) this).getModel();
         RenderHeadCapture.begin(entity, model);
     }
 
     @Inject(
-        method = "render(Lnet/minecraft/client/network/AbstractClientPlayerEntity;FFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
+        method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
         at = @At("TAIL")
     )
     private void halo$endHeadCapture(
-        AbstractClientPlayerEntity entity,
+        AbstractClientPlayer entity,
         float yaw,
         float tickDelta,
-        MatrixStack matrices,
-        VertexConsumerProvider vertexConsumers,
+        PoseStack matrices,
+        MultiBufferSource vertexConsumers,
         int light,
         CallbackInfo ci
     ) {
