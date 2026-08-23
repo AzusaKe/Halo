@@ -44,13 +44,14 @@ class HaloRendererTest {
         void selectsRecognizedPipelineIdentity() {
             RenderType normal = HaloRenderer.selectRenderType(TEXTURE, false, false);
             RenderType glowing = HaloRenderer.selectRenderType(TEXTURE, true, false);
-            RenderType cull = HaloRenderer.selectRenderType(TEXTURE, true, true);
+            RenderType glowingCull = HaloRenderer.selectRenderType(TEXTURE, true, true);
+            RenderType normalCull = HaloRenderer.selectRenderType(TEXTURE, false, true);
 
             assertSame(RenderPipelines.ENTITY_TRANSLUCENT, normal.pipeline());
-            assertSame(RenderPipelines.ENTITY_TRANSLUCENT, glowing.pipeline());
-            assertSame(normal, glowing,
-                "Halo glow is a light/tint channel, not the depthless spider-eyes material");
-            assertSame(RenderPipelines.ENTITY_TRANSLUCENT_CULL, cull.pipeline());
+            assertSame(RenderPipelines.BREEZE_WIND, glowing.pipeline());
+            assertSame(glowing, glowingCull,
+                "all glowing geometry uses the same flat-lit material");
+            assertSame(RenderPipelines.ENTITY_TRANSLUCENT_CULL, normalCull.pipeline());
         }
 
         @Test
@@ -59,7 +60,7 @@ class HaloRendererTest {
             for (RenderType renderType : List.of(
                     HaloRenderer.selectRenderType(TEXTURE, false, false),
                     HaloRenderer.selectRenderType(TEXTURE, true, false),
-                    HaloRenderer.selectRenderType(TEXTURE, true, true))) {
+                    HaloRenderer.selectRenderType(TEXTURE, false, true))) {
                 assertSame(DefaultVertexFormat.ENTITY, renderType.format());
                 assertEquals(VertexFormat.Mode.QUADS, renderType.mode());
                 assertTrue(renderType.sortOnUpload());
@@ -84,6 +85,19 @@ class HaloRendererTest {
             assertTrue(HaloRenderer.translucentOrder(far)
                 < HaloRenderer.translucentOrder(near));
             assertEquals(0, HaloRenderer.translucentOrder(new Matrix4f()));
+        }
+
+        @Test
+        @DisplayName("CPU culling preserves the front-facing half of flat-lit two-texture rings")
+        void identifiesFrontFacingRingQuads() {
+            Matrix4f fiveBlocksAhead = new Matrix4f().translation(0.0f, 0.0f, -5.0f);
+            Vector3f p0 = new Vector3f(-1.0f, -1.0f, 0.0f);
+            Vector3f p1 = new Vector3f(1.0f, -1.0f, 0.0f);
+            Vector3f p2 = new Vector3f(1.0f, 1.0f, 0.0f);
+            Vector3f p3 = new Vector3f(-1.0f, 1.0f, 0.0f);
+
+            assertTrue(HaloRenderer.isFrontFacing(fiveBlocksAhead, p0, p1, p2, p3));
+            assertFalse(HaloRenderer.isFrontFacing(fiveBlocksAhead, p3, p2, p1, p0));
         }
     }
 

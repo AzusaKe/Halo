@@ -110,6 +110,13 @@ public final class HaloRenderer {
 
     /** RenderTypes that keep the vanilla ENTITY_TRANSLUCENT_CULL pipeline identity. */
     private static final Map<Identifier, RenderType> CULL_RENDER_TYPES = new HashMap<>();
+    /**
+     * Flat-lit RenderTypes for {@code glowing=true}. BREEZE_WIND is an
+     * Iris-recognized translucent entity pipeline with depth writes, no culling
+     * and NO_CARDINAL_LIGHTING; a zero texture offset makes it a stationary
+     * equivalent of an unlit entity material.
+     */
+    private static final Map<Identifier, RenderType> FLAT_GLOW_RENDER_TYPES = new HashMap<>();
 
     private static boolean whiteTextureRegistered;
 
@@ -892,23 +899,29 @@ public final class HaloRenderer {
                             boolean glowing, int packedLight,
                             float animatedGlow, float alpha) {
         boolean twoTextures = ring.innerTexture() != null;
+        // The flat glowing pipeline is deliberately non-culling. For a
+        // two-texture ring we reproduce the vanilla cull decision per segment
+        // on the CPU so the outward and inward textures cannot draw over each
+        // other at the same depth.
+        boolean cpuCull = glowing && twoTextures;
         Identifier outerTexture = resolveTextureId(ring.outerTexture());
         RenderType outerType = selectRenderType(outerTexture, glowing, twoTextures);
         submitNodes.submitCustomGeometry(matrices, outerType,
             (pose, consumer) -> renderRingSurface(ring, pose, consumer, false,
-                glowing, packedLight, animatedGlow, alpha));
+                cpuCull, glowing, packedLight, animatedGlow, alpha));
 
         if (twoTextures) {
             Identifier innerTexture = resolveTextureId(ring.innerTexture());
             RenderType innerType = selectRenderType(innerTexture, glowing, true);
             submitNodes.submitCustomGeometry(matrices, innerType,
                 (pose, consumer) -> renderRingSurface(ring, pose, consumer, true,
-                    glowing, packedLight, animatedGlow, alpha));
+                    cpuCull, glowing, packedLight, animatedGlow, alpha));
         }
     }
 
     private void renderRingSurface(RingPrimitive ring, PoseStack.Pose pose,
                                    VertexConsumer consumer, boolean inner,
+                                   boolean cpuCull,
                                    boolean glowing, int packedLight,
                                    float animatedGlow, float alpha) {
         Matrix4f positionMatrix = pose.pose();
@@ -936,34 +949,53 @@ public final class HaloRenderer {
 
             if (inner) {
                 // Reverse winding and normals so the inner texture faces inward.
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos0, -halfW, radius * sin0),
+                Vector3f p0 = new Vector3f(radius * cos0, -halfW, radius * sin0);
+                Vector3f p1 = new Vector3f(radius * cos1, -halfW, radius * sin1);
+                Vector3f p2 = new Vector3f(radius * cos1, halfW, radius * sin1);
+                Vector3f p3 = new Vector3f(radius * cos0, halfW, radius * sin0);
+                if (cpuCull && !isFrontFacing(positionMatrix, p0, p1, p2, p3)) {
+                    continue;
+                }
+                emitVertex(consumer, positionMatrix, pose, p0,
                     u0, 1.0f, tint, alpha, light, new Vector3f(-cos0, 0.0f, -sin0));
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos1, -halfW, radius * sin1),
+                emitVertex(consumer, positionMatrix, pose, p1,
                     u1, 1.0f, tint, alpha, light, new Vector3f(-cos1, 0.0f, -sin1));
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos1, halfW, radius * sin1),
+                emitVertex(consumer, positionMatrix, pose, p2,
                     u1, 0.0f, tint, alpha, light, new Vector3f(-cos1, 0.0f, -sin1));
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos0, halfW, radius * sin0),
+                emitVertex(consumer, positionMatrix, pose, p3,
                     u0, 0.0f, tint, alpha, light, new Vector3f(-cos0, 0.0f, -sin0));
             } else {
                 // CCW quad viewed from outside; normals follow the radial surface.
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos0, halfW, radius * sin0),
+                Vector3f p0 = new Vector3f(radius * cos0, halfW, radius * sin0);
+                Vector3f p1 = new Vector3f(radius * cos1, halfW, radius * sin1);
+                Vector3f p2 = new Vector3f(radius * cos1, -halfW, radius * sin1);
+                Vector3f p3 = new Vector3f(radius * cos0, -halfW, radius * sin0);
+                if (cpuCull && !isFrontFacing(positionMatrix, p0, p1, p2, p3)) {
+                    continue;
+                }
+                emitVertex(consumer, positionMatrix, pose, p0,
                     u0, 0.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos1, halfW, radius * sin1),
+                emitVertex(consumer, positionMatrix, pose, p1,
                     u1, 0.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos1, -halfW, radius * sin1),
+                emitVertex(consumer, positionMatrix, pose, p2,
                     u1, 1.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
-                emitVertex(consumer, positionMatrix, pose,
-                    new Vector3f(radius * cos0, -halfW, radius * sin0),
+                emitVertex(consumer, positionMatrix, pose, p3,
                     u0, 1.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
             }
         }
+    }
+
+    /** Camera-relative equivalent of GPU back-face culling for one quad. */
+    static boolean isFrontFacing(Matrix4f positionMatrix, Vector3f p0, Vector3f p1,
+                                 Vector3f p2, Vector3f p3) {
+        Vector3f w0 = positionMatrix.transformPosition(new Vector3f(p0));
+        Vector3f w1 = positionMatrix.transformPosition(new Vector3f(p1));
+        Vector3f w2 = positionMatrix.transformPosition(new Vector3f(p2));
+        Vector3f w3 = positionMatrix.transformPosition(new Vector3f(p3));
+        Vector3f normal = new Vector3f(w1).sub(w0).cross(new Vector3f(w2).sub(w0));
+        Vector3f centerToCamera = new Vector3f(w0).add(w1).add(w2).add(w3)
+            .mul(-0.25f);
+        return normal.dot(centerToCamera) > 0.0f;
     }
 
     // ------------------------------------------------------------------
@@ -972,19 +1004,20 @@ public final class HaloRenderer {
 
     enum MaterialKind {
         TRANSLUCENT,
+        FLAT_GLOW,
         TRANSLUCENT_CULL
     }
 
     static MaterialKind materialKind(boolean glowing, boolean cull) {
+        if (glowing) {
+            // A glowing Halo is self-lit. FULL_BRIGHT removes lightmap
+            // attenuation, while BREEZE_WIND's NO_CARDINAL_LIGHTING removes
+            // the remaining normal-dependent entity lighting.
+            return MaterialKind.FLAT_GLOW;
+        }
         if (cull) {
             return MaterialKind.TRANSLUCENT_CULL;
         }
-        // "glowing" is Halo's brightness channel, not a request for the
-        // vanilla spider-eyes material. ENTITY_TRANSLUCENT_EMISSIVE disables
-        // depth writes and Iris classifies it as an eyes program; using it for
-        // the whole model makes intersecting parts accumulate and lets later
-        // clouds/sky composites overwrite the Halo. Keep the regular entity
-        // material and express glow through FULL_BRIGHT + the RGB multiplier.
         return MaterialKind.TRANSLUCENT;
     }
 
@@ -1010,6 +1043,8 @@ public final class HaloRenderer {
     static RenderType selectRenderType(Identifier texture, boolean glowing, boolean cull) {
         return switch (materialKind(glowing, cull)) {
             case TRANSLUCENT -> RenderTypes.entityTranslucent(texture);
+            case FLAT_GLOW -> FLAT_GLOW_RENDER_TYPES.computeIfAbsent(texture,
+                id -> RenderTypes.breezeWind(id, 0.0f, 0.0f));
             case TRANSLUCENT_CULL -> CULL_RENDER_TYPES.computeIfAbsent(texture, id ->
                 RenderType.create("halo_entity_translucent_cull",
                     RenderSetup.builder(RenderPipelines.ENTITY_TRANSLUCENT_CULL)
