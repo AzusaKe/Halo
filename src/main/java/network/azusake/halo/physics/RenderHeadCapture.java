@@ -44,6 +44,11 @@ import org.slf4j.LoggerFactory;
 public final class RenderHeadCapture {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
+    /**
+     * Temporarily disabled after the four-view Iris validation matrix passed.
+     * Set to true when anchor capture timing/space needs to be traced again.
+     */
+    public static final boolean ANCHOR_DIAGNOSTICS_ENABLED = false;
     private static final long DIAGNOSTIC_INTERVAL_NANOS = 1_000_000_000L;
     private static final int MAX_CAPTURE_LOGS_PER_TRACE_FRAME = 8;
 
@@ -197,12 +202,12 @@ public final class RenderHeadCapture {
             cacheMainPassAnchor(entityId, entityUuid, captured, currentDiagnostic);
         }
 
-        if (shouldTraceCapture(entityUuid, ordinal)) {
+        if (ANCHOR_DIAGNOSTICS_ENABLED && shouldTraceCapture(entityUuid, ordinal)) {
             logCapture(entityId, entityUuid, captured, ordinal, afterLookup,
                 replaced, replacedDiagnostic, currentDiagnostic, model, part);
         }
 
-        if (afterLookup
+        if (ANCHOR_DIAGNOSTICS_ENABLED && afterLookup
                 && shouldLog(LAST_LATE_CAPTURE_LOG_NANOS, entityUuid)) {
             LOGGER.info("[HaloAnchorDiag] stage=capture-after-lookup frame={} entityId={} uuid={} "
                     + "ordinal={} acceptedMainPass={} registered={} beganDraw={} capturedPlayers={}",
