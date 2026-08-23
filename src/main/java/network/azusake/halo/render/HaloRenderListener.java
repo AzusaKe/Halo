@@ -38,10 +38,10 @@ public final class HaloRenderListener {
         }
         registered = true;
 
-        // Extraction phase (thread-safe, no GL): drop last frame's head
-        // captures and record the frame tick delta so the drawing phase can
-        // interpolate halo animation.  Entities that did not render this frame
-        // fall back to their previous anchor provider.
+        // End extraction before deferred draw: drop this extraction's raw
+        // capture diagnostics and record the tick delta for the upcoming draw.
+        // RenderHeadCapture retains only a trustworthy main-world anchor from
+        // the current/preceding draw frame for the next COLLECT_SUBMITS lookup.
         LevelRenderEvents.END_EXTRACTION.register(context -> {
             RenderHeadCapture.clearFrame();
             // On modern render-state versions the world-render matrix stack has an identity
@@ -52,10 +52,12 @@ public final class HaloRenderListener {
             // leaves the captures unchanged.
             RenderHeadCapture.setViewMatrix(new Matrix4f());
             lastTickDelta = context.deltaTracker().getGameTimeDeltaPartialTick(true);
+            RenderHeadCapture.setFrameTickDelta(lastTickDelta);
         });
 
-        // Submit into the native feature collector. Vanilla entity RenderTypes
-        // let Iris choose the correct shader program and scaled framebuffer.
+        // Keep 26.2's native collection point. Each primitive is submitted as
+        // ordered custom entity geometry, so Minecraft and Iris own upload,
+        // translucent ordering, reverse-Z depth, shader and framebuffer state.
         LevelRenderEvents.COLLECT_SUBMITS.register(context -> {
             Vec3 camPos = context.levelState().cameraRenderState.pos;
             HaloRenderer.getInstance().renderHalos(
