@@ -7,7 +7,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import network.azusake.halo.api.EntityAnchorProvider;
 import network.azusake.halo.api.HeadAnchor;
-import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,11 +20,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>Because the data comes from the render result itself (pose adaptation is
  * already baked in by {@code setAngles}), no per-pose configuration is needed
- * while a capture exists.  Whenever no capture is available this frame — the
- * local player in first person (vanilla does not render its body), a culled
- * entity, an empty render layer, or a mod that replaced the player renderer —
- * this provider delegates to {@link PlayerAnchorProvider}, so the
- * {@code entity_anchors/player.json} fallback path stays intact.</p>
+ * while a valid main-camera capture exists.  Minecraft 26.1 draws the base
+ * player model after Halo's submission point, so third-person rendering uses
+ * the immediately preceding frame's main-pass capture.  Iris shadow captures
+ * are rejected by {@link RenderHeadCapture}; the local first-person player
+ * always delegates to {@link PlayerAnchorProvider}, whose camera anchor is the
+ * authoritative rendered head in that view.</p>
  */
 public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
 
@@ -46,40 +46,26 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         HeadAnchor resolved = null;
         if (entity instanceof AbstractClientPlayer player) {
             diagnostic = RenderHeadCapture.noteLookup(player.getId(), player.getUUID());
-            RenderHeadCapture.CapturedHead captured = RenderHeadCapture.get(player.getUUID());
-            if (captured != null) {
-                Minecraft client = Minecraft.getInstance();
-                Camera camera = client != null && client.gameRenderer != null
-                    ? client.gameRenderer.getMainCamera()
-                    : null;
-                if (camera != null) {
-                    Vec3 cameraPos = camera.position();
-                    Matrix4f viewMatrix = RenderHeadCapture.getViewMatrix();
-                    if (viewMatrix != null) {
-                        HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, viewMatrix);
-                        if (isFinite(anchor)) {
-                            resolved = anchor;
-                            path = "render-head";
-                        } else {
-                            path = "fallback:non-finite-capture";
-                            // A single degenerate capture (e.g. during a pose
-                            // switch) must never emit NaN — a NaN anchor poisons
-                            // the halo's damping state and hides it until the
-                            // per-frame state is dropped.  Fall back this frame.
-                            LOGGER.warn("[RenderHead] captured anchor not finite for uuid={} "
-                                    + "center=({}, {}, {}) yaw={} pitch={} roll={} — falling back",
-                                player.getUUID(),
-                                anchor.headCenter().x, anchor.headCenter().y, anchor.headCenter().z,
-                                anchor.yaw(), anchor.pitch(), anchor.roll());
-                        }
-                    } else {
-                        path = "fallback:no-view-matrix";
-                    }
+            Minecraft client = Minecraft.getInstance();
+            boolean localPlayer = client != null && player == client.player;
+            boolean firstPerson = client != null && client.options.getCameraType().isFirstPerson();
+            if (shouldUseRenderCapture(localPlayer, firstPerson)) {
+                HeadAnchor anchor = RenderHeadCapture.resolveMainPassAnchor(player, tickDelta);
+                if (anchor != null && isFinite(anchor)) {
+                    resolved = anchor;
+                    path = "render-head:main-cache";
+                } else if (anchor != null) {
+                    path = "fallback:non-finite-main-cache";
+                    LOGGER.warn("[RenderHead] cached main-pass anchor not finite for uuid={} "
+                            + "center=({}, {}, {}) yaw={} pitch={} roll={} — falling back",
+                        player.getUUID(),
+                        anchor.headCenter().x, anchor.headCenter().y, anchor.headCenter().z,
+                        anchor.yaw(), anchor.pitch(), anchor.roll());
                 } else {
-                    path = "fallback:no-camera";
+                    path = "fallback:no-main-capture";
                 }
             } else {
-                path = "fallback:no-capture";
+                path = "fallback:first-person-camera";
             }
         }
         if (resolved == null) {
@@ -101,13 +87,21 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         Vec3 cameraPos = camera != null ? camera.position() : Vec3.ZERO;
         Vec3 relative = anchor.headCenter().subtract(cameraPos);
         LOGGER.info("[HaloAnchorDiag] stage=lookup frame={} path={} cameraType={} entityId={} uuid={} "
-                + "idKnown={} uuidMatch={} registered={} beganDraw={} captured={} registeredCount={} captureCount={} "
+                + "lookupOrdinal={} idKnown={} uuidMatch={} registered={} beganDraw={} captured={} "
+                + "registeredCount={} captureCount={} selectedCaptureOrdinal={} selectedCaptureTiming={} "
+                + "selectedModel={} selectedIrisShadowPass={} currentCaptureAcceptedMainPass={} "
+                + "mainCacheFrame={} mainCacheAge={} mainCacheUsable={} "
                 + "camera=({},{},{}) cameraYawPitch=({},{}) entity=({},{},{}) entityYawPitch=({},{}) "
                 + "anchor=({},{},{}) anchorYawPitchRoll=({},{},{}) anchorMinusCamera=({},{},{})",
             diagnostic.frameId(), path, client.options.getCameraType(), entity.getId(), entity.getUUID(),
+            diagnostic.lookupOrdinal(),
             diagnostic.entityIdKnown(), diagnostic.uuidMatchesEntityId(),
             diagnostic.registeredThisFrame(), diagnostic.beganDrawThisFrame(), diagnostic.capturedThisFrame(),
             diagnostic.registeredPlayers(), diagnostic.capturedPlayers(),
+            diagnostic.selectedCaptureOrdinal(), diagnostic.selectedCaptureTiming(),
+            diagnostic.selectedModelIdentity(), diagnostic.selectedShadowPass(),
+            diagnostic.currentCaptureAcceptedMainPass(),
+            diagnostic.mainCacheFrame(), diagnostic.mainCacheAge(), diagnostic.mainCacheUsable(),
             cameraPos.x, cameraPos.y, cameraPos.z,
             camera != null ? camera.yRot() : Float.NaN, camera != null ? camera.xRot() : Float.NaN,
             entity.getX(), entity.getY(), entity.getZ(), entity.yHeadRot, entity.getXRot(),
@@ -132,5 +126,9 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         Vec3 center = anchor.headCenter();
         return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
             && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
+    }
+
+    static boolean shouldUseRenderCapture(boolean localPlayer, boolean firstPerson) {
+        return !localPlayer || !firstPerson;
     }
 }

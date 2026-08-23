@@ -13,6 +13,7 @@ import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.physics.AnchorFrame;
 import network.azusake.halo.physics.AnchorFrameCalculator;
+import network.azusake.halo.physics.RenderHeadCapture;
 import network.azusake.halo.shape.HaloPrimitive;
 import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
@@ -768,9 +769,9 @@ public final class HaloRenderer {
         LAST_ANCHOR_DIAGNOSTIC_LOG_NANOS.put(entity.getUUID(), now);
         Vec3 world = frame.worldPosition();
         Vec3 relative = frame.cameraRelativePos();
-        LOG.info("[HaloAnchorDiag] stage=frame uuid={} camera=({},{},{}) world=({},{},{}) "
+        LOG.info("[HaloAnchorDiag] stage=frame frame={} uuid={} camera=({},{},{}) world=({},{},{}) "
                 + "cameraRelative=({},{},{}) worldMinusCamera=({},{},{})",
-            entity.getUUID(), cameraPos.x, cameraPos.y, cameraPos.z,
+            RenderHeadCapture.getFrameId(), entity.getUUID(), cameraPos.x, cameraPos.y, cameraPos.z,
             world.x, world.y, world.z,
             relative.x, relative.y, relative.z,
             world.x - cameraPos.x, world.y - cameraPos.y, world.z - cameraPos.z);

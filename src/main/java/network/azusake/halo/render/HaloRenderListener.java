@@ -37,10 +37,10 @@ public final class HaloRenderListener {
         }
         registered = true;
 
-        // Extraction phase (thread-safe, no GL): drop last frame's head
-        // captures and record the frame tick delta so the drawing phase can
-        // interpolate halo animation.  Entities that did not render this frame
-        // fall back to their previous anchor provider.
+        // Extraction phase (thread-safe, no GL): drop last frame's raw capture
+        // diagnostics and record the frame tick delta. RenderHeadCapture keeps
+        // only the immediately preceding valid main-pass head anchor because
+        // 26.1 draws translucent player models after Halo's submission point.
         LevelRenderEvents.END_EXTRACTION.register(context -> {
             RenderHeadCapture.clearFrame();
             // On 1.21.1+ / 26.1 the world-render matrix stack has an identity
@@ -51,14 +51,15 @@ public final class HaloRenderListener {
             // leaves the captures unchanged.
             RenderHeadCapture.setViewMatrix(new Matrix4f());
             lastTickDelta = context.deltaTracker().getGameTimeDeltaPartialTick(true);
+            RenderHeadCapture.setFrameTickDelta(lastTickDelta);
         });
 
-        // Submit after solid entity features have rendered. At this point the
-        // current frame's rendered head transform has been captured, while the
-        // vanilla translucent feature phase has not started yet. Adding Halo
-        // as custom entity geometry here lets Minecraft and Iris draw it inside
-        // that normal phase instead of flushing a BufferSource from a terrain
-        // callback with the wrong shader matrix/target context.
+        // Submit after solid entity features and before translucent features.
+        // The translucent base player body has not drawn yet, so third-person
+        // Halo placement consumes the immediately preceding main-pass capture.
+        // Adding Halo as custom entity geometry here lets Minecraft and Iris
+        // draw it inside the normal translucent phase instead of flushing a
+        // BufferSource with the wrong shader matrix/target context.
         LevelRenderEvents.AFTER_SOLID_FEATURES.register(context -> {
             Vec3 camPos = context.levelState().cameraRenderState.pos;
             HaloRenderer.getInstance().renderHalos(
