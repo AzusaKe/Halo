@@ -11,9 +11,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Registers the halo renderer with Fabric's world-render pipeline.
  *
- * <p>Halos are drawn <em>after</em> entities so they always appear on top of
- * the entity they are attached to.  The glow layer uses additive blending and
- * renders correctly against both opaque and translucent geometry.</p>
+ * <p>Halos are submitted through Fabric's feature collector with vanilla
+ * entity render types, so shader replacements keep their expected matrices
+ * and targets.</p>
  *
  * <p>Usage: call {@link #register()} once during client initialisation.</p>
  */
@@ -44,7 +44,7 @@ public final class HaloRenderListener {
         // fall back to their previous anchor provider.
         LevelRenderEvents.END_EXTRACTION.register(context -> {
             RenderHeadCapture.clearFrame();
-            // On 1.21.1+ / 26.1 the world-render matrix stack has an identity
+            // On modern render-state versions the world-render matrix stack has an identity
             // root (the camera view rotation is applied by the GPU at draw
             // time), so the head matrices captured during entity rendering are
             // already camera-relative world space.  The anchor pipeline
@@ -54,16 +54,16 @@ public final class HaloRenderListener {
             lastTickDelta = context.deltaTracker().getGameTimeDeltaPartialTick(true);
         });
 
-        // Drawing phase: halos are drawn after terrain, entities and their
-        // translucent submits so they always appear on top of the entity they
-        // are attached to.  The glow layer uses additive blending and renders
-        // correctly against both opaque and translucent geometry.
-        LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(context -> {
+        // Submit into the native feature collector. Vanilla entity RenderTypes
+        // let Iris choose the correct shader program and scaled framebuffer.
+        LevelRenderEvents.COLLECT_SUBMITS.register(context -> {
             Vec3 camPos = context.levelState().cameraRenderState.pos;
-            HaloRenderer.getInstance().renderHalos(context.poseStack(), camPos, lastTickDelta);
+            HaloRenderer.getInstance().renderHalos(
+                context.poseStack(), context.submitNodeCollector(), camPos, lastTickDelta);
         });
 
-        LOG.info("[HaloRenderListener] registered on LevelRenderEvents.END_EXTRACTION / AFTER_TRANSLUCENT_TERRAIN");
+        LOG.info("[HaloRenderListener] registered on LevelRenderEvents.END_EXTRACTION / COLLECT_SUBMITS");
+        LOG.debug("[HaloRenderListener] backend=vanilla_entity_submit_nodes (Iris-compatible)");
     }
 
     /** Frame tick delta captured during extraction, consumed by the draw pass. */
