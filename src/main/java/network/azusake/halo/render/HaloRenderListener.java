@@ -11,9 +11,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Registers the halo renderer with Fabric's world-render pipeline.
  *
- * <p>Halos are drawn <em>after</em> entities so they always appear on top of
- * the entity they are attached to.  The glow layer uses additive blending and
- * renders correctly against both opaque and translucent geometry.</p>
+ * <p>Halos are drawn <em>after</em> entities and use vanilla entity render
+ * types so shader replacements keep their expected matrices and targets.</p>
  *
  * <p>Usage: call {@link #register()} once during client initialisation.</p>
  */
@@ -55,15 +54,16 @@ public final class HaloRenderListener {
         });
 
         // Drawing phase: halos are drawn after terrain, entities and their
-        // translucent submits so they always appear on top of the entity they
-        // are attached to.  The glow layer uses additive blending and renders
-        // correctly against both opaque and translucent geometry.
+        // translucent submits. Vanilla entity RenderTypes let Iris choose the
+        // correct shader program and scaled framebuffer for this stage.
         LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(context -> {
             Vec3 camPos = context.levelState().cameraRenderState.pos;
-            HaloRenderer.getInstance().renderHalos(context.poseStack(), camPos, lastTickDelta);
+            HaloRenderer.getInstance().renderHalos(
+                context.poseStack(), context.bufferSource(), camPos, lastTickDelta);
         });
 
         LOG.info("[HaloRenderListener] registered on LevelRenderEvents.END_EXTRACTION / AFTER_TRANSLUCENT_TERRAIN");
+        LOG.debug("[HaloRenderListener] backend=vanilla_entity_render_types (Iris-compatible)");
     }
 
     /** Frame tick delta captured during extraction, consumed by the draw pass. */

@@ -4,7 +4,12 @@ import network.azusake.halo.animation.AnimationTerm;
 import network.azusake.halo.animation.LayerAnimation;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.shape.HaloGroup;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -26,6 +31,48 @@ import static org.junit.jupiter.api.Assertions.*;
  * instance is required.</p>
  */
 class HaloRendererTest {
+
+    @Nested
+    @DisplayName("Vanilla entity rendering backend")
+    class VanillaEntityBackend {
+
+        private static final Identifier TEXTURE =
+            Identifier.fromNamespaceAndPath("halo", "textures/halo/ring.png");
+
+        @Test
+        @DisplayName("material resolver retains Iris-recognized vanilla pipeline identities")
+        void selectsRecognizedPipelineIdentity() {
+            RenderType normal = HaloRenderer.selectRenderType(TEXTURE, false, false);
+            RenderType emissive = HaloRenderer.selectRenderType(TEXTURE, true, false);
+            RenderType cull = HaloRenderer.selectRenderType(TEXTURE, true, true);
+
+            assertSame(RenderPipelines.ENTITY_TRANSLUCENT, normal.pipeline());
+            assertSame(RenderPipelines.ENTITY_TRANSLUCENT_EMISSIVE, emissive.pipeline());
+            assertSame(RenderPipelines.ENTITY_TRANSLUCENT_CULL, cull.pipeline());
+        }
+
+        @Test
+        @DisplayName("all halo materials use complete ENTITY quads")
+        void usesEntityQuadVertexContract() {
+            for (RenderType renderType : List.of(
+                    HaloRenderer.selectRenderType(TEXTURE, false, false),
+                    HaloRenderer.selectRenderType(TEXTURE, true, false),
+                    HaloRenderer.selectRenderType(TEXTURE, true, true))) {
+                assertSame(DefaultVertexFormat.ENTITY, renderType.format());
+                assertEquals(VertexFormat.Mode.QUADS, renderType.mode());
+                assertTrue(renderType.sortOnUpload());
+            }
+        }
+
+        @Test
+        @DisplayName("emissive materials are fullbright while normal materials keep packed light")
+        void selectsPackedLight() {
+            int environment = LightCoordsUtil.pack(3, 11);
+            assertEquals(environment, HaloRenderer.selectPackedLight(false, environment));
+            assertEquals(LightCoordsUtil.FULL_BRIGHT,
+                HaloRenderer.selectPackedLight(true, environment));
+        }
+    }
 
     // ------------------------------------------------------------------
     // 1. Quaternion → Matrix
