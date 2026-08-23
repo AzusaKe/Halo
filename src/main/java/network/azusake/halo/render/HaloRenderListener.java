@@ -40,10 +40,10 @@ public final class HaloRenderListener {
         }
         registered = true;
 
-        // Extraction phase (thread-safe, no GL): drop last frame's head
-        // captures and record the frame tick delta so the drawing phase can
-        // interpolate halo animation.  Entities that did not render this frame
-        // fall back to their previous anchor provider.
+        // Extraction phase (thread-safe, no GL): drop raw capture diagnostics
+        // and record the tick delta for deferred drawing. RenderHeadCapture
+        // retains only a trustworthy current/preceding main-world anchor for
+        // the next custom-geometry lookup.
         NeoForge.EVENT_BUS.addListener(ExtractLevelRenderStateEvent.class, event -> {
             RenderHeadCapture.clearFrame();
             // On modern render-state versions the world-render matrix stack has an identity
@@ -54,11 +54,12 @@ public final class HaloRenderListener {
             // leaves the captures unchanged.
             RenderHeadCapture.setViewMatrix(new Matrix4f());
             lastTickDelta = event.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+            RenderHeadCapture.setFrameTickDelta(lastTickDelta);
         });
 
-        // Submit through NeoForge's native custom-geometry collector. The
-        // collector later executes the selected vanilla ENTITY RenderTypes,
-        // allowing Iris to retain its normal shader and framebuffer routing.
+        // Keep NeoForge's native collection point. Each primitive is submitted
+        // as ordered custom entity geometry, so Minecraft and Iris own upload,
+        // translucent ordering, reverse-Z depth, shader and framebuffer state.
         NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class, event -> {
             Vec3 camPos = event.getLevelRenderState().cameraRenderState.pos;
             HaloRenderer.getInstance().renderHalos(

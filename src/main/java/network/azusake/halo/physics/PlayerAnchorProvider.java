@@ -60,7 +60,21 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
 
         float yaw = getInterpolatedHeadYaw(entity, tickDelta);
         float pitch = entity.xRotO + (entity.getXRot() - entity.xRotO) * tickDelta;
+        Camera firstPersonCamera = getLocalFirstPersonCamera(entity);
+        if (firstPersonCamera != null) {
+            // Vanilla does not render the local player's body in first person,
+            // so RenderHeadAnchorProvider necessarily reaches this fallback.
+            // The camera is the rendered head in that view. Entity position and
+            // head interpolation can lag, clamp, or omit camera bob independently
+            // and make the Halo orbit around the player as the view turns.
+            yaw = firstPersonCamera.yRot();
+            pitch = firstPersonCamera.xRot();
+        }
         float roll = getHeadRoll(entity);
+
+        if (firstPersonCamera != null) {
+            return new HeadAnchor(firstPersonCamera.position(), yaw, pitch, roll);
+        }
 
         // 2. Pose key → PoseAnchor
         String poseKey = resolvePoseKey(entity);
@@ -106,6 +120,17 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
                 roll, camera.yRot(), camera.xRot());
         }
         return roll;
+    }
+
+    /** Local first-person camera when it is actually attached to this entity. */
+    private static Camera getLocalFirstPersonCamera(LivingEntity entity) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.gameRenderer == null || entity != client.player
+                || !client.options.getCameraType().isFirstPerson()) {
+            return null;
+        }
+        Camera camera = client.gameRenderer.mainCamera();
+        return camera != null && camera.entity() == entity ? camera : null;
     }
 
     // ------------------------------------------------------------------
