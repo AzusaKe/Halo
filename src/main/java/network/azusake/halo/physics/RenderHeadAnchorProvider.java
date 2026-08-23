@@ -45,7 +45,9 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         String path = "fallback:not-client-player";
         HeadAnchor resolved = null;
         if (entity instanceof AbstractClientPlayer player) {
-            diagnostic = RenderHeadCapture.noteLookup(player.getId(), player.getUUID());
+            diagnostic = RenderHeadCapture.ANCHOR_DIAGNOSTICS_ENABLED
+                ? RenderHeadCapture.noteLookup(player.getId(), player.getUUID())
+                : null;
             Minecraft client = Minecraft.getInstance();
             boolean localPlayer = client != null && player == client.player;
             boolean firstPerson = client != null && client.options.getCameraType().isFirstPerson();
@@ -71,7 +73,9 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         if (resolved == null) {
             resolved = fallback.resolve(entity, tickDelta);
         }
-        logDiagnostic(entity, diagnostic, resolved, path);
+        if (RenderHeadCapture.ANCHOR_DIAGNOSTICS_ENABLED) {
+            logDiagnostic(entity, diagnostic, resolved, path);
+        }
         return resolved;
     }
 
