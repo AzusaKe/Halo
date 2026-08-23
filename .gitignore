@@ -65,3 +65,6 @@ run2/
 build-in-docker.ps1
 scripts/stop-halo-server.ps1
 bin/
+
+runForgeServer/
+
