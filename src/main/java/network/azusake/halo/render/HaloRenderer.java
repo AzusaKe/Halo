@@ -401,7 +401,9 @@ public final class HaloRenderer {
 
         // ---- camera-relative position ----
         Vec3 crp = frame.cameraRelativePos();
-        logAnchorFrameDiagnostic(client, entity, frame, cameraPos);
+        if (RenderHeadCapture.ANCHOR_DIAGNOSTICS_ENABLED) {
+            logAnchorFrameDiagnostic(client, entity, frame, cameraPos);
+        }
         if (Math.abs(crp.x) > 1000 || Math.abs(crp.y) > 1000 || Math.abs(crp.z) > 1000) {
             return false;
         }
