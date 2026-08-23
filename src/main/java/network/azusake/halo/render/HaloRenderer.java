@@ -17,40 +17,28 @@ import network.azusake.halo.shape.HaloPrimitive;
 import network.azusake.halo.shape.RingPrimitive;
 import network.azusake.halo.shape.BillboardPrimitive;
 import network.azusake.halo.shape.HaloGroup;
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.RenderPass;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MappableRingBuffer;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
-import org.joml.Vector4f;
-import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,67 +103,14 @@ public final class HaloRenderer {
     /** EMA-smoothed frame delta-time, to suppress nanoTime jitter. */
     private double smoothedDt = -1;
 
-    // ------------------------------------------------------------------
-    // 26.1 GPU pipeline state
-    // ------------------------------------------------------------------
+    /** Runtime-generated opaque white texture used by texture-less primitives. */
+    private static final Identifier WHITE_TEXTURE =
+        Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "dynamic/white");
 
-    /** Shared vertex-data allocator for building per-primitive meshes. */
-    private static final ByteBufferBuilder BUFFER_ALLOCATOR = new ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE);
+    /** RenderTypes that keep the vanilla ENTITY_TRANSLUCENT_CULL pipeline identity. */
+    private static final Map<Identifier, RenderType> CULL_RENDER_TYPES = new HashMap<>();
 
-    /** Ring buffer for uploading vertex data to the GPU (3 rotating slots). */
-    private MappableRingBuffer vertexBuffer;
-
-    private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
-    private static final Vector3f MODEL_OFFSET = new Vector3f();
-    private static final Matrix4f TEXTURE_MATRIX = new Matrix4f();
-
-    private static RenderPipeline register(RenderPipeline pipeline) {
-        return RenderPipelines.register(pipeline);
-    }
-
-    /** Solid-colour halo pipeline: POSITION_COLOR triangles, translucent, no cull. */
-    private static final RenderPipeline PIPELINE_COLOR = register(
-        RenderPipeline.builder(new RenderPipeline.Snippet[0])
-            .withLocation(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "pipeline/halo_color"))
-            .withVertexShader("core/position_color")
-            .withFragmentShader("core/position_color")
-            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
-            .withCull(false)
-            .build());
-
-    /** Textured halo pipeline: POSITION_TEX_COLOR triangles, translucent, no cull. */
-    private static final RenderPipeline PIPELINE_TEX = register(
-        RenderPipeline.builder(new RenderPipeline.Snippet[0])
-            .withLocation(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "pipeline/halo_tex"))
-            .withVertexShader("core/position_tex_color")
-            .withFragmentShader("core/position_tex_color")
-            .withSampler("Sampler0")
-            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
-            .withCull(false)
-            .build());
-
-    /** Textured ring pipeline with face culling for separate inner/outer textures. */
-    private static final RenderPipeline PIPELINE_TEX_CULL = register(
-        RenderPipeline.builder(new RenderPipeline.Snippet[0])
-            .withLocation(Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "pipeline/halo_tex_cull"))
-            .withVertexShader("core/position_tex_color")
-            .withFragmentShader("core/position_tex_color")
-            .withSampler("Sampler0")
-            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
-            .withCull(true)
-            .build());
+    private static boolean whiteTextureRegistered;
 
     private HaloRenderer() { /* singleton */ }
 
@@ -202,27 +137,6 @@ public final class HaloRenderer {
         idlePhaseTracker.clear();
     }
 
-    /**
-     * A deferred halo primitive draw with its squared camera distance.
-     * Draws are collected during scene-graph traversal and executed after
-     * sorting far→near so translucent alpha blending matches depth order.
-     */
-    private record SortedDraw(double distanceSquared, Runnable draw) {
-    }
-
-    /**
-     * Squared distance of a camera-relative position matrix translation from
-     * the camera.  The pose stack is rooted at the camera ({@code renderHalos}
-     * applies the {@code -cameraPos} translate), so the matrix translation is
-     * already camera-relative world space.
-     */
-    private static double centerDistanceSquared(Matrix4f positionMatrix) {
-        float x = positionMatrix.m30();
-        float y = positionMatrix.m31();
-        float z = positionMatrix.m32();
-        return (double) x * x + (double) y * y + (double) z * z;
-    }
-
     // ------------------------------------------------------------------
     // Public entry point
     // ------------------------------------------------------------------
@@ -230,7 +144,8 @@ public final class HaloRenderer {
     /**
      * Render every visible halo for the current frame.
      */
-    public void renderHalos(PoseStack matrices, Vec3 cameraPos, float tickDelta) {
+    public void renderHalos(PoseStack matrices, MultiBufferSource.BufferSource buffers,
+                            Vec3 cameraPos, float tickDelta) {
         Minecraft client = Minecraft.getInstance();
         if (client.level == null) {
             return;
@@ -273,25 +188,15 @@ public final class HaloRenderer {
         // (the camera view rotation is applied by the GPU at draw time).
         matrices.pushPose();
         matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
-        List<SortedDraw> draws = new ArrayList<>();
+        Set<RenderType> usedRenderTypes = new LinkedHashSet<>();
         try {
             for (HaloInstance instance : visible) {
                 try {
-                    renderSingleHalo(instance, matrices, camera, cameraPos, tickDelta, client, dt, draws);
+                    renderSingleHalo(instance, matrices, buffers, usedRenderTypes,
+                        camera, cameraPos, tickDelta, client, dt);
                 } catch (Exception e) {
                     LOG.warn("[HaloRenderer] error rendering halo for entity {}: {}", instance.getEntityUuid(), e.getMessage(), e);
                 }
-            }
-
-            // Execute every collected halo primitive far→near so translucent
-            // alpha blending matches camera depth order (near geometry blends
-            // over far geometry instead of declaration order).  Each primitive
-            // also writes the main depth target, so the nearest halo fragment
-            // depth ends up in the main depth buffer — this lets the vanilla
-            // transparency composite depth-sort clouds/weather against halos.
-            draws.sort(Comparator.comparingDouble(SortedDraw::distanceSquared).reversed());
-            for (SortedDraw sortedDraw : draws) {
-                sortedDraw.draw().run();
             }
 
             // Maintain non-active instances (NULL / deactivated):
@@ -345,6 +250,12 @@ public final class HaloRenderer {
                 prevInvisHidden.remove(uuid);
             }
         } finally {
+            // Flush only the entity RenderTypes used by Halo.  Minecraft owns
+            // their sorting, target selection and shader state; Iris can
+            // therefore substitute the matching gbuffer programs safely.
+            for (RenderType renderType : usedRenderTypes) {
+                buffers.endBatch(renderType);
+            }
             matrices.popPose();
         }
     }
@@ -370,8 +281,10 @@ public final class HaloRenderer {
     }
 
     private boolean renderSingleHalo(HaloInstance instance, PoseStack matrices,
+                                      MultiBufferSource.BufferSource buffers,
+                                      Set<RenderType> usedRenderTypes,
                                       Camera camera, Vec3 cameraPos, float tickDelta,
-                                      Minecraft client, double dt, List<SortedDraw> draws) {
+                                      Minecraft client, double dt) {
         // ---- resolve entity ----
         LivingEntity entity = findEntityByUuid(client, instance.getEntityUuid());
         if (entity == null || !entity.isAlive()) {
@@ -512,15 +425,11 @@ public final class HaloRenderer {
         }
         idlePhaseTracker.record(instance.getEntityUuid(), animTime, transitionActive);
 
-        // ---- compute light at halo position for non-glowing layers ----
+        // ---- compute the vanilla entity lightmap value at the halo position ----
         BlockPos lightPos = BlockPos.containing(frame.worldPosition());
         int blockLight = client.level.getLightEngine().getLayerListener(LightLayer.BLOCK).getLightValue(lightPos);
         int skyLight = client.level.getLightEngine().getLayerListener(LightLayer.SKY).getLightValue(lightPos);
-        // Brightness multiplier: use the stronger of block/sky light, with a floor so
-        // the layer never vanishes completely.  This approximates the lightmap without
-        // depending on its texture unit being bound — works with both vanilla and Iris.
-        float brightness = Math.max(blockLight, skyLight) / 15.0f;
-        brightness = Math.max(brightness, 0.04f);
+        int packedLight = LightCoordsUtil.pack(blockLight, skyLight);
 
         // ---- render model groups ----
         var model = def.model();
@@ -563,9 +472,10 @@ public final class HaloRenderer {
             // Step 3: Recursive group rendering
             for (HaloGroup group : model.groups()) {
                 // Root groups inherit the definition root's alpha/glow
-                renderGroup(group, matrices, camera, cameraPos, animTime, brightness, defAlpha, defGlow,
+                renderGroup(group, matrices, buffers, usedRenderTypes, camera, cameraPos,
+                    animTime, packedLight, defAlpha, defGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
-                    startupConfig, shutdownConfig, draws);
+                    startupConfig, shutdownConfig);
             }
         } finally {
             matrices.popPose();
@@ -586,13 +496,15 @@ public final class HaloRenderer {
      * is evaluated and applied as additional offset, rotation, scale, and
      * alpha (rotation in YXZ order, matching the idle animation).</p>
      */
-    private void renderGroup(HaloGroup group, PoseStack matrices, Camera camera, Vec3 cameraPos,
-                              double animTime, float brightness,
+    private void renderGroup(HaloGroup group, PoseStack matrices,
+                              MultiBufferSource.BufferSource buffers,
+                              Set<RenderType> usedRenderTypes,
+                              Camera camera, Vec3 cameraPos,
+                              double animTime, int packedLight,
                               float inheritedAlpha, float inheritedGlow,
                               boolean transitionActive, double transitionElapsed, boolean isStartup,
                               HaloInstance instance,
-                              StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig,
-                              List<SortedDraw> draws) {
+                              StartupAnimationConfig startupConfig, StartupAnimationConfig shutdownConfig) {
         matrices.pushPose();
         try {
             // Group local transform
@@ -694,19 +606,15 @@ public final class HaloRenderer {
                 : inheritedAlpha * layerAlpha;
             float effectiveGlow = inheritedGlow * animatedGlow;
 
-            // Collect all primitives in this group as deferred draws, sorted
-            // later by camera distance.  The accumulated position matrix is
-            // snapshotted here because the matrix stack unwinds before the
-            // sorted draws execute.
-            Matrix4f positionMatrix = new Matrix4f(matrices.last().pose());
-            double distSq = centerDistanceSquared(positionMatrix);
+            // Emit complete ENTITY-format vertices into Minecraft's buffer
+            // source.  Its RenderTypes own translucent sorting and submission.
             for (HaloPrimitive primitive : group.primitives()) {
                 if (primitive instanceof BillboardPrimitive bp) {
-                    draws.add(new SortedDraw(distSq,
-                        () -> renderBillboard(bp, positionMatrix, camera, group.glowing(), brightness, effectiveGlow, finalAlpha)));
+                    renderBillboard(bp, matrices.last(), buffers, usedRenderTypes,
+                        camera, group.glowing(), packedLight, effectiveGlow, finalAlpha);
                 } else if (primitive instanceof RingPrimitive rp) {
-                    draws.add(new SortedDraw(distSq,
-                        () -> renderRing(rp, positionMatrix, group.glowing(), brightness, effectiveGlow, finalAlpha)));
+                    renderRing(rp, matrices.last(), buffers, usedRenderTypes,
+                        group.glowing(), packedLight, effectiveGlow, finalAlpha);
                 }
             }
 
@@ -717,9 +625,10 @@ public final class HaloRenderer {
             float childAlpha = group.inheritAlpha() ? finalAlpha : 1.0f;
             float childGlow = group.inheritGlow() ? effectiveGlow : 1.0f;
             for (HaloGroup child : group.children()) {
-                renderGroup(child, matrices, camera, cameraPos, animTime, brightness, childAlpha, childGlow,
+                renderGroup(child, matrices, buffers, usedRenderTypes, camera, cameraPos,
+                    animTime, packedLight, childAlpha, childGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
-                    startupConfig, shutdownConfig, draws);
+                    startupConfig, shutdownConfig);
             }
         } finally {
             matrices.popPose();
@@ -829,8 +738,12 @@ public final class HaloRenderer {
      * camera: the plane normal always points toward the camera and that
      * orientation cannot be overridden by any animation rotation.
      */
-    private void renderBillboard(BillboardPrimitive billboard, Matrix4f positionMatrix, Camera camera,
-                                 boolean glowing, float brightness, float animatedGlow, float alpha) {
+    private void renderBillboard(BillboardPrimitive billboard, PoseStack.Pose pose,
+                                 MultiBufferSource.BufferSource buffers,
+                                 Set<RenderType> usedRenderTypes,
+                                 Camera camera, boolean glowing, int packedLight,
+                                 float animatedGlow, float alpha) {
+        Matrix4f positionMatrix = pose.pose();
         float hw = billboard.size().x / 2.0f;  // half-width (X)
         float hd = billboard.size().y / 2.0f;  // half-depth (Z) — size.y maps to Z axis
 
@@ -843,8 +756,10 @@ public final class HaloRenderer {
         // the matrix's position + scale (rotation discarded), so no animation
         // rotation can override the facing.  Other quads keep using the
         // accumulated matrix-stack transform.
-        Vector3f c0, c1, c2, c3; // quad corners in the position-matrix space
+        Vector3f c0, c1, c2, c3;
         Matrix4f drawMatrix;
+        PoseStack.Pose normalPose;
+        Vector3f normal;
         if (billboard.faceCamera()) {
             // The matrix-stack position matrix is camera-relative world space
             // (the GPU applies the view rotation at draw time), and the
@@ -863,51 +778,30 @@ public final class HaloRenderer {
             c1 = new Vector3f(facing.center()).add(rightHalf).sub(upHalf);
             c2 = new Vector3f(facing.center()).add(rightHalf).add(upHalf);
             c3 = new Vector3f(facing.center()).sub(rightHalf).add(upHalf);
+            normalPose = null;
+            normal = new Vector3f(facing.right()).cross(facing.up()).normalize();
         } else {
             drawMatrix = positionMatrix;
             c0 = new Vector3f(-hw, 0.0f, -hd);
             c1 = new Vector3f( hw, 0.0f, -hd);
             c2 = new Vector3f( hw, 0.0f,  hd);
             c3 = new Vector3f(-hw, 0.0f,  hd);
+            normalPose = pose;
+            normal = new Vector3f(0.0f, -1.0f, 0.0f);
         }
 
-        // Self-illuminating primitives are lit by the animation.glow channel;
-        // otherwise brightness follows the ambient light at the halo position.
-        float brightnessFactor = glowing ? animatedGlow : brightness;
-        float r = brightnessFactor;
-        float g = brightnessFactor;
-        float b = brightnessFactor;
+        Identifier texture = resolveTextureId(billboard.texture());
+        RenderType renderType = selectRenderType(texture, glowing, false);
+        VertexConsumer consumer = buffers.getBuffer(renderType);
+        usedRenderTypes.add(renderType);
+        float tint = glowing ? animatedGlow : 1.0f;
+        int light = selectPackedLight(glowing, packedLight);
 
-        // 26.1 GPU pipeline: billboards are emitted as triangle soup (two
-        // triangles per quad) into the shared allocator and drawn non-indexed.
-        AbstractTexture texture = resolveTexture(billboard.texture());
-        if (texture != null) {
-            // Default: XZ plane at Y=0, normal = -Y (faces downward toward the
-            // entity head).
-            // Vertex winding from BELOW (-Y) is CCW → front face faces -Y:
-            // (-hw, 0, -hd)  →  (+hw, 0, -hd)  →  (+hw, 0, +hd)  →  (-hw, 0, +hd)
-            // face_camera keeps the same UV layout upright (V=0 at the +up side).
-            // Tint texture by the effective brightness factor (fullbright at 1.0)
-            BufferBuilder builder = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
-            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setUv(0.0f, 1.0f).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c1.x, c1.y, c1.z).setUv(1.0f, 1.0f).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setUv(1.0f, 0.0f).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setUv(0.0f, 1.0f).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setUv(1.0f, 0.0f).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c3.x, c3.y, c3.z).setUv(0.0f, 0.0f).setColor(r, g, b, alpha);
-            drawPrimitive(PIPELINE_TEX, builder, billboard.texture());
-        } else {
-            BufferBuilder builder = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c1.x, c1.y, c1.z).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c0.x, c0.y, c0.z).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c2.x, c2.y, c2.z).setColor(r, g, b, alpha);
-            builder.addVertex(drawMatrix, c3.x, c3.y, c3.z).setColor(r, g, b, alpha);
-            drawPrimitive(PIPELINE_COLOR, builder, null);
-        }
+        // ENTITY pipelines use QUADS and require UV0, overlay, lightmap and normal.
+        emitVertex(consumer, drawMatrix, normalPose, c0, 0.0f, 1.0f, tint, alpha, light, normal);
+        emitVertex(consumer, drawMatrix, normalPose, c1, 1.0f, 1.0f, tint, alpha, light, normal);
+        emitVertex(consumer, drawMatrix, normalPose, c2, 1.0f, 0.0f, tint, alpha, light, normal);
+        emitVertex(consumer, drawMatrix, normalPose, c3, 0.0f, 0.0f, tint, alpha, light, normal);
     }
 
     /**
@@ -980,11 +874,9 @@ public final class HaloRenderer {
      * <p>UV mapping: U = i/segments (circumference, seam at +X),
      * V = 0 at top (+width/2), V = 1 at bottom (-width/2).</p>
      *
-     * <p>Uses GL_TRIANGLES (6 vertices per segment) rather than
-     * TRIANGLE_STRIP so that every triangle has a consistent,
-     * independently controlled winding order.  This is required because
-     * TRIANGLE_STRIP automatically flips the winding of alternating
-     * triangles, which breaks face culling on a closed cylinder surface.</p>
+     * <p>Uses one ENTITY-format quad per segment.  Each quad has an
+     * independently controlled winding order and radial normal, which keeps
+     * the inner/outer culling contract stable under Iris shader replacement.</p>
      *
      * <p>Culling behaviour: when separate inner/outer textures are
      * provided, face culling is enabled so each texture is only visible
@@ -992,8 +884,12 @@ public final class HaloRenderer {
      * sides, culling is disabled so the texture is visible from both
      * sides.</p>
      */
-    private void renderRing(RingPrimitive ring, Matrix4f positionMatrix, boolean glowing, float brightness,
+    private void renderRing(RingPrimitive ring, PoseStack.Pose pose,
+                            MultiBufferSource.BufferSource buffers,
+                            Set<RenderType> usedRenderTypes,
+                            boolean glowing, int packedLight,
                             float animatedGlow, float alpha) {
+        Matrix4f positionMatrix = pose.pose();
         float radius = ring.size().x;
         float width  = ring.size().y;
         int segments = Math.max(3, ring.segments()); // minimum 3 for a visible shape
@@ -1005,54 +901,44 @@ public final class HaloRenderer {
 
         float halfW = width / 2.0f;
 
-        // Self-illuminating primitives are lit by the animation.glow channel;
-        // otherwise brightness follows the ambient light at the halo position.
-        float brightnessFactor = glowing ? animatedGlow : brightness;
-        float r = brightnessFactor;
-        float g = brightnessFactor;
-        float b = brightnessFactor;
+        boolean twoTextures = ring.innerTexture() != null;
+        Identifier outerTexture = resolveTextureId(ring.outerTexture());
+        Identifier innerTexture = resolveTextureId(ring.innerTexture());
+        float tint = glowing ? animatedGlow : 1.0f;
+        int light = selectPackedLight(glowing, packedLight);
 
-        AbstractTexture outerTexture = resolveTexture(ring.outerTexture());
-        boolean twoTextures = outerTexture != null && ring.innerTexture() != null;
+        RenderType outerType = selectRenderType(outerTexture, glowing, twoTextures);
+        VertexConsumer outer = buffers.getBuffer(outerType);
+        usedRenderTypes.add(outerType);
 
-        if (outerTexture != null) {
-            // Face culling: two textures → cull back faces (outer visible
-            // only from outside); single texture → no culling (visible
-            // from both sides).
-            RenderPipeline pipeline = twoTextures ? PIPELINE_TEX_CULL : PIPELINE_TEX;
+        for (int i = 0; i < segments; i++) {
+            int next = (i + 1) % segments;
+            float u0 = (float) i / segments;
+            float u1 = (i == segments - 1) ? 1.0f : (float) next / segments;
+            float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
+            float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
+            float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
+            float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
 
-            // ---- Outer surface ----
-            // CCW winding → front faces point outward.  Each segment emits two
-            // triangles (6 vertices): tri A: top0, top1, bottom0; tri B: bottom0, top1, bottom1.
-            BufferBuilder outer = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
-            for (int i = 0; i < segments; i++) {
-                int next = (i + 1) % segments;
-                float u0 = (float) i / segments;
-                // Seam fix: last segment uses U=1.0 instead of 0.0 so
-                // GPU interpolation doesn't stretch the entire texture.
-                float u1 = (i == segments - 1) ? 1.0f : (float) next / segments;
-                float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
-                float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
-                float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
-                float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
-                // Triangle A
-                outer.addVertex(positionMatrix, radius * cos0, halfW, radius * sin0).setUv(u0, 0.0f).setColor(r, g, b, alpha);
-                outer.addVertex(positionMatrix, radius * cos1, halfW, radius * sin1).setUv(u1, 0.0f).setColor(r, g, b, alpha);
-                outer.addVertex(positionMatrix, radius * cos0, -halfW, radius * sin0).setUv(u0, 1.0f).setColor(r, g, b, alpha);
-                // Triangle B
-                outer.addVertex(positionMatrix, radius * cos0, -halfW, radius * sin0).setUv(u0, 1.0f).setColor(r, g, b, alpha);
-                outer.addVertex(positionMatrix, radius * cos1, halfW, radius * sin1).setUv(u1, 0.0f).setColor(r, g, b, alpha);
-                outer.addVertex(positionMatrix, radius * cos1, -halfW, radius * sin1).setUv(u1, 1.0f).setColor(r, g, b, alpha);
-            }
-            drawPrimitive(pipeline, outer, ring.outerTexture());
+            // CCW quad viewed from outside; normals follow the radial surface.
+            emitVertex(outer, positionMatrix, pose,
+                new Vector3f(radius * cos0, halfW, radius * sin0),
+                u0, 0.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
+            emitVertex(outer, positionMatrix, pose,
+                new Vector3f(radius * cos1, halfW, radius * sin1),
+                u1, 0.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
+            emitVertex(outer, positionMatrix, pose,
+                new Vector3f(radius * cos1, -halfW, radius * sin1),
+                u1, 1.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
+            emitVertex(outer, positionMatrix, pose,
+                new Vector3f(radius * cos0, -halfW, radius * sin0),
+                u0, 1.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
+        }
 
-            // ---- Inner surface ----
-            // CW winding → front faces point inward (with cull enabled the
-            // inner texture is only visible from inside the ring).
-            Identifier innerTex = ring.innerTexture() != null ? ring.innerTexture() : ring.outerTexture();
-            BufferBuilder inner = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
+        if (twoTextures) {
+            RenderType innerType = selectRenderType(innerTexture, glowing, true);
+            VertexConsumer inner = buffers.getBuffer(innerType);
+            usedRenderTypes.add(innerType);
             for (int i = 0; i < segments; i++) {
                 int next = (i + 1) % segments;
                 float u0 = (float) i / segments;
@@ -1061,119 +947,103 @@ public final class HaloRenderer {
                 float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
                 float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
                 float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
-                // Triangle A
-                inner.addVertex(positionMatrix, radius * cos0, -halfW, radius * sin0).setUv(u0, 1.0f).setColor(r, g, b, alpha);
-                inner.addVertex(positionMatrix, radius * cos1, -halfW, radius * sin1).setUv(u1, 1.0f).setColor(r, g, b, alpha);
-                inner.addVertex(positionMatrix, radius * cos0, halfW, radius * sin0).setUv(u0, 0.0f).setColor(r, g, b, alpha);
-                // Triangle B
-                inner.addVertex(positionMatrix, radius * cos0, halfW, radius * sin0).setUv(u0, 0.0f).setColor(r, g, b, alpha);
-                inner.addVertex(positionMatrix, radius * cos1, -halfW, radius * sin1).setUv(u1, 1.0f).setColor(r, g, b, alpha);
-                inner.addVertex(positionMatrix, radius * cos1, halfW, radius * sin1).setUv(u1, 0.0f).setColor(r, g, b, alpha);
+
+                // Reverse winding and normals so the inner texture faces inward.
+                emitVertex(inner, positionMatrix, pose,
+                    new Vector3f(radius * cos0, -halfW, radius * sin0),
+                    u0, 1.0f, tint, alpha, light, new Vector3f(-cos0, 0.0f, -sin0));
+                emitVertex(inner, positionMatrix, pose,
+                    new Vector3f(radius * cos1, -halfW, radius * sin1),
+                    u1, 1.0f, tint, alpha, light, new Vector3f(-cos1, 0.0f, -sin1));
+                emitVertex(inner, positionMatrix, pose,
+                    new Vector3f(radius * cos1, halfW, radius * sin1),
+                    u1, 0.0f, tint, alpha, light, new Vector3f(-cos1, 0.0f, -sin1));
+                emitVertex(inner, positionMatrix, pose,
+                    new Vector3f(radius * cos0, halfW, radius * sin0),
+                    u0, 0.0f, tint, alpha, light, new Vector3f(-cos0, 0.0f, -sin0));
             }
-            drawPrimitive(pipeline, inner, innerTex);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Vanilla entity RenderType backend
+    // ------------------------------------------------------------------
+
+    enum MaterialKind {
+        TRANSLUCENT,
+        EMISSIVE,
+        TRANSLUCENT_CULL
+    }
+
+    static MaterialKind materialKind(boolean glowing, boolean cull) {
+        if (cull) {
+            return MaterialKind.TRANSLUCENT_CULL;
+        }
+        return glowing ? MaterialKind.EMISSIVE : MaterialKind.TRANSLUCENT;
+    }
+
+    static int selectPackedLight(boolean glowing, int packedLight) {
+        return glowing ? LightCoordsUtil.FULL_BRIGHT : packedLight;
+    }
+
+    static RenderType selectRenderType(Identifier texture, boolean glowing, boolean cull) {
+        return switch (materialKind(glowing, cull)) {
+            case TRANSLUCENT -> RenderTypes.entityTranslucent(texture);
+            case EMISSIVE -> RenderTypes.entityTranslucentEmissive(texture);
+            case TRANSLUCENT_CULL -> CULL_RENDER_TYPES.computeIfAbsent(texture, id ->
+                RenderType.create("halo_entity_translucent_cull",
+                    RenderSetup.builder(RenderPipelines.ENTITY_TRANSLUCENT_CULL)
+                        .withTexture("Sampler0", id)
+                        .useLightmap()
+                        .useOverlay()
+                        .sortOnUpload()
+                        .createRenderSetup()));
+        };
+    }
+
+    private static void emitVertex(VertexConsumer consumer, Matrix4f positionMatrix,
+                                   PoseStack.Pose normalPose, Vector3f position,
+                                   float u, float v, float tint, float alpha,
+                                   int packedLight, Vector3f normal) {
+        VertexConsumer vertex = consumer.addVertex(positionMatrix, position.x, position.y, position.z)
+            .setColor(tint, tint, tint, alpha)
+            .setUv(u, v)
+            .setOverlay(OverlayTexture.NO_OVERLAY)
+            .setLight(packedLight);
+        if (normalPose != null) {
+            vertex.setNormal(normalPose, normal.x, normal.y, normal.z);
         } else {
-            // No texture fallback — solid color ring, both sides visible
-            BufferBuilder builder = new BufferBuilder(
-                BUFFER_ALLOCATOR, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-            for (int i = 0; i < segments; i++) {
-                int next = (i + 1) % segments;
-                float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
-                float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
-                float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
-                float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
-                // Outer surface (CCW)
-                builder.addVertex(positionMatrix, radius * cos0, halfW, radius * sin0).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos1, halfW, radius * sin1).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos0, -halfW, radius * sin0).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos0, -halfW, radius * sin0).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos1, halfW, radius * sin1).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos1, -halfW, radius * sin1).setColor(r, g, b, alpha);
-                // Inner surface (CW)
-                builder.addVertex(positionMatrix, radius * cos0, -halfW, radius * sin0).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos1, -halfW, radius * sin1).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos0, halfW, radius * sin0).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos0, halfW, radius * sin0).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos1, -halfW, radius * sin1).setColor(r, g, b, alpha);
-                builder.addVertex(positionMatrix, radius * cos1, halfW, radius * sin1).setColor(r, g, b, alpha);
-            }
-            drawPrimitive(PIPELINE_COLOR, builder, null);
+            vertex.setNormal(normal.x, normal.y, normal.z);
         }
     }
 
-    // ------------------------------------------------------------------
-    // GPU pipeline drawing (26.1)
-    // ------------------------------------------------------------------
-
-    /**
-     * Upload the built vertex data and execute a single draw with the given
-     * pipeline.  Follows the Fabric 26.1.2 reference render-pipeline pattern:
-     * map a rotating GPU buffer, copy the mesh into it, then set
-     * pipeline / dynamic transforms / texture and draw non-indexed (all halo
-     * primitives are emitted as triangle soup, so no index buffer is needed).
-     */
-    private void drawPrimitive(RenderPipeline pipeline, BufferBuilder builder, Identifier textureId) {
-        MeshData built = builder.buildOrThrow();
-        MeshData.DrawState drawState = built.drawState();
-
-        // Resolve/load the texture BEFORE opening the render pass — GPU texture
-        // uploads (writeToTexture) are not allowed while a pass is active.
-        AbstractTexture texture = textureId != null ? resolveTexture(textureId) : null;
-        VertexFormat format = drawState.format();
-
-        int vertexBufferSize = drawState.vertexCount() * format.getVertexSize();
-        if (vertexBuffer == null || vertexBuffer.size() < vertexBufferSize) {
-            if (vertexBuffer != null) {
-                vertexBuffer.close();
+    private static Identifier resolveTextureId(Identifier textureId) {
+        if (textureId != null) {
+            try {
+                if (Minecraft.getInstance().getResourceManager().getResource(textureId).isPresent()) {
+                    return textureId;
+                }
+            } catch (Exception e) {
+                LOG.debug("[HaloRenderer] unable to resolve texture {} ({})", textureId, e.getMessage());
             }
-            vertexBuffer = new MappableRingBuffer(
-                () -> HaloMod.MOD_ID + " halo", GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE, vertexBufferSize);
+            LOG.debug("[HaloRenderer] texture not found, using white fallback: {}", textureId);
         }
-
-        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        try (GpuBuffer.MappedView mappedView = encoder.mapBuffer(
-                vertexBuffer.currentBuffer().slice(0, built.vertexBuffer().remaining()), false, true)) {
-            MemoryUtil.memCopy(built.vertexBuffer(), mappedView.data());
-        }
-        GpuBuffer vertices = vertexBuffer.currentBuffer();
-
-        GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .writeTransform(RenderSystem.getModelViewMatrix(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
-
-        try (RenderPass renderPass = encoder.createRenderPass(
-                () -> HaloMod.MOD_ID + " halo",
-                Minecraft.getInstance().getMainRenderTarget().getColorTextureView(), OptionalInt.empty(),
-                Minecraft.getInstance().getMainRenderTarget().getDepthTextureView(), OptionalDouble.empty())) {
-            renderPass.setPipeline(pipeline);
-            RenderSystem.bindDefaultUniforms(renderPass);
-            renderPass.setUniform("DynamicTransforms", dynamicTransforms);
-            if (texture != null) {
-                renderPass.bindTexture("Sampler0", texture.getTextureView(), texture.getSampler());
-            }
-            renderPass.setVertexBuffer(0, vertices);
-            renderPass.draw(0, drawState.vertexCount());
-        }
-
-        built.close();
-        vertexBuffer.rotate();
+        ensureWhiteTextureRegistered();
+        return WHITE_TEXTURE;
     }
 
-    /**
-     * Resolve a texture identifier to a loaded {@link AbstractTexture}, or
-     * {@code null} when the texture is missing (the caller then falls back to
-     * a solid-colour quad).
-     */
-    private static AbstractTexture resolveTexture(Identifier textureId) {
-        if (textureId == null) {
-            return null;
+    private static void ensureWhiteTextureRegistered() {
+        if (whiteTextureRegistered) {
+            return;
         }
         try {
-            AbstractTexture tex = Minecraft.getInstance().getTextureManager().getTexture(textureId);
-            tex.getTextureView();
-            tex.getSampler();
-            return tex;
+            NativeImage image = new NativeImage(1, 1, false);
+            image.setPixel(0, 0, 0xFFFFFFFF);
+            DynamicTexture texture = new DynamicTexture(() -> "Halo opaque white fallback", image);
+            Minecraft.getInstance().getTextureManager().register(WHITE_TEXTURE, texture);
+            whiteTextureRegistered = true;
         } catch (Exception e) {
-            LOG.debug("[HaloRenderer] texture not found: {} ({})", textureId, e.getMessage());
-            return null;
+            LOG.warn("[HaloRenderer] failed to create white fallback texture", e);
         }
     }
 

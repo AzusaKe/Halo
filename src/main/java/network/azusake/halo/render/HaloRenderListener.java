@@ -3,6 +3,7 @@ package network.azusake.halo.render;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -13,9 +14,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Registers the halo renderer with NeoForge's world-render pipeline.
  *
- * <p>Halos are drawn <em>after</em> entities so they always appear on top of
- * the entity they are attached to.  The glow layer uses additive blending and
- * renders correctly against both opaque and translucent geometry.</p>
+ * <p>Halos are drawn <em>after</em> entities and use vanilla entity render
+ * types so shader replacements keep their expected matrices and targets.</p>
  *
  * <p>Usage: call {@link #register()} once during client initialisation.</p>
  */
@@ -29,10 +29,7 @@ public final class HaloRenderListener {
         // utility class
     }
 
-    /**
-     * Register the halo renderer with the NeoForge render event bus.
-     * Idempotent — subsequent calls are no-ops.
-     */
+    /** Register the halo renderer with NeoForge's render event bus. */
     public static void register() {
         if (registered) {
             LOG.warn("[HaloRenderListener] already registered — skipping");
@@ -58,14 +55,17 @@ public final class HaloRenderListener {
 
         // Drawing phase: halos are drawn after terrain, entities and their
         // translucent submits so they always appear on top of the entity they
-        // are attached to.  The glow layer uses additive blending and renders
-        // correctly against both opaque and translucent geometry.
+        // are attached to. Vanilla entity RenderTypes let Iris choose the
+        // correct shader program and scaled framebuffer for this stage.
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentBlocks.class, event -> {
             Vec3 camPos = event.getLevelRenderState().cameraRenderState.pos;
-            HaloRenderer.getInstance().renderHalos(event.getPoseStack(), camPos, lastTickDelta);
+            HaloRenderer.getInstance().renderHalos(
+                event.getPoseStack(), Minecraft.getInstance().renderBuffers().bufferSource(),
+                camPos, lastTickDelta);
         });
 
         LOG.info("[HaloRenderListener] registered on ExtractLevelRenderStateEvent / RenderLevelStageEvent.AfterTranslucentBlocks");
+        LOG.debug("[HaloRenderListener] backend=vanilla_entity_render_types (Iris-compatible)");
     }
 
     /** Frame tick delta captured during extraction, consumed by the draw pass. */
