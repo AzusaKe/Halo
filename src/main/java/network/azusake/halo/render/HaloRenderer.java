@@ -22,8 +22,9 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.OrderedSubmitNodeCollector;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -144,7 +145,7 @@ public final class HaloRenderer {
     /**
      * Render every visible halo for the current frame.
      */
-    public void renderHalos(PoseStack matrices, MultiBufferSource.BufferSource buffers,
+    public void renderHalos(PoseStack matrices, SubmitNodeCollector submitNodes,
                             Vec3 cameraPos, float tickDelta) {
         Minecraft client = Minecraft.getInstance();
         if (client.level == null) {
@@ -188,11 +189,10 @@ public final class HaloRenderer {
         // (the camera view rotation is applied by the GPU at draw time).
         matrices.pushPose();
         matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
-        Set<RenderType> usedRenderTypes = new LinkedHashSet<>();
         try {
             for (HaloInstance instance : visible) {
                 try {
-                    renderSingleHalo(instance, matrices, buffers, usedRenderTypes,
+                    renderSingleHalo(instance, matrices, submitNodes,
                         camera, cameraPos, tickDelta, client, dt);
                 } catch (Exception e) {
                     LOG.warn("[HaloRenderer] error rendering halo for entity {}: {}", instance.getEntityUuid(), e.getMessage(), e);
@@ -250,12 +250,6 @@ public final class HaloRenderer {
                 prevInvisHidden.remove(uuid);
             }
         } finally {
-            // Flush only the entity RenderTypes used by Halo.  Minecraft owns
-            // their sorting, target selection and shader state; Iris can
-            // therefore substitute the matching gbuffer programs safely.
-            for (RenderType renderType : usedRenderTypes) {
-                buffers.endBatch(renderType);
-            }
             matrices.popPose();
         }
     }
@@ -281,8 +275,7 @@ public final class HaloRenderer {
     }
 
     private boolean renderSingleHalo(HaloInstance instance, PoseStack matrices,
-                                      MultiBufferSource.BufferSource buffers,
-                                      Set<RenderType> usedRenderTypes,
+                                      SubmitNodeCollector submitNodes,
                                       Camera camera, Vec3 cameraPos, float tickDelta,
                                       Minecraft client, double dt) {
         // ---- resolve entity ----
@@ -472,7 +465,7 @@ public final class HaloRenderer {
             // Step 3: Recursive group rendering
             for (HaloGroup group : model.groups()) {
                 // Root groups inherit the definition root's alpha/glow
-                renderGroup(group, matrices, buffers, usedRenderTypes, camera, cameraPos,
+                renderGroup(group, matrices, submitNodes, camera, cameraPos,
                     animTime, packedLight, defAlpha, defGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
                     startupConfig, shutdownConfig);
@@ -497,8 +490,7 @@ public final class HaloRenderer {
      * alpha (rotation in YXZ order, matching the idle animation).</p>
      */
     private void renderGroup(HaloGroup group, PoseStack matrices,
-                              MultiBufferSource.BufferSource buffers,
-                              Set<RenderType> usedRenderTypes,
+                              SubmitNodeCollector submitNodes,
                               Camera camera, Vec3 cameraPos,
                               double animTime, int packedLight,
                               float inheritedAlpha, float inheritedGlow,
@@ -606,14 +598,19 @@ public final class HaloRenderer {
                 : inheritedAlpha * layerAlpha;
             float effectiveGlow = inheritedGlow * animatedGlow;
 
-            // Emit complete ENTITY-format vertices into Minecraft's buffer
-            // source.  Its RenderTypes own translucent sorting and submission.
+            // Submit complete ENTITY-format geometry into Minecraft's feature
+            // renderer.  The renderer snapshots this pose and later draws the
+            // translucent nodes in its normal entity phase, so Iris supplies
+            // the same matrices, framebuffer and program state as vanilla
+            // entity geometry.
             for (HaloPrimitive primitive : group.primitives()) {
+                OrderedSubmitNodeCollector orderedNodes = submitNodes.order(
+                    translucentOrder(matrices.last().pose()));
                 if (primitive instanceof BillboardPrimitive bp) {
-                    renderBillboard(bp, matrices.last(), buffers, usedRenderTypes,
+                    submitBillboard(bp, matrices, orderedNodes,
                         camera, group.glowing(), packedLight, effectiveGlow, finalAlpha);
                 } else if (primitive instanceof RingPrimitive rp) {
-                    renderRing(rp, matrices.last(), buffers, usedRenderTypes,
+                    submitRing(rp, matrices, orderedNodes,
                         group.glowing(), packedLight, effectiveGlow, finalAlpha);
                 }
             }
@@ -625,7 +622,7 @@ public final class HaloRenderer {
             float childAlpha = group.inheritAlpha() ? finalAlpha : 1.0f;
             float childGlow = group.inheritGlow() ? effectiveGlow : 1.0f;
             for (HaloGroup child : group.children()) {
-                renderGroup(child, matrices, buffers, usedRenderTypes, camera, cameraPos,
+                renderGroup(child, matrices, submitNodes, camera, cameraPos,
                     animTime, packedLight, childAlpha, childGlow,
                     transitionActive, transitionElapsed, isStartup, instance,
                     startupConfig, shutdownConfig);
@@ -738,9 +735,19 @@ public final class HaloRenderer {
      * camera: the plane normal always points toward the camera and that
      * orientation cannot be overridden by any animation rotation.
      */
+    private void submitBillboard(BillboardPrimitive billboard, PoseStack matrices,
+                                 OrderedSubmitNodeCollector submitNodes,
+                                 Camera camera, boolean glowing, int packedLight,
+                                 float animatedGlow, float alpha) {
+        Identifier texture = resolveTextureId(billboard.texture());
+        RenderType renderType = selectRenderType(texture, glowing, false);
+        submitNodes.submitCustomGeometry(matrices, renderType,
+            (pose, consumer) -> renderBillboard(billboard, pose, consumer,
+                camera, glowing, packedLight, animatedGlow, alpha));
+    }
+
     private void renderBillboard(BillboardPrimitive billboard, PoseStack.Pose pose,
-                                 MultiBufferSource.BufferSource buffers,
-                                 Set<RenderType> usedRenderTypes,
+                                 VertexConsumer consumer,
                                  Camera camera, boolean glowing, int packedLight,
                                  float animatedGlow, float alpha) {
         Matrix4f positionMatrix = pose.pose();
@@ -790,10 +797,6 @@ public final class HaloRenderer {
             normal = new Vector3f(0.0f, -1.0f, 0.0f);
         }
 
-        Identifier texture = resolveTextureId(billboard.texture());
-        RenderType renderType = selectRenderType(texture, glowing, false);
-        VertexConsumer consumer = buffers.getBuffer(renderType);
-        usedRenderTypes.add(renderType);
         float tint = glowing ? animatedGlow : 1.0f;
         int light = selectPackedLight(glowing, packedLight);
 
@@ -884,11 +887,30 @@ public final class HaloRenderer {
      * sides, culling is disabled so the texture is visible from both
      * sides.</p>
      */
-    private void renderRing(RingPrimitive ring, PoseStack.Pose pose,
-                            MultiBufferSource.BufferSource buffers,
-                            Set<RenderType> usedRenderTypes,
+    private void submitRing(RingPrimitive ring, PoseStack matrices,
+                            OrderedSubmitNodeCollector submitNodes,
                             boolean glowing, int packedLight,
                             float animatedGlow, float alpha) {
+        boolean twoTextures = ring.innerTexture() != null;
+        Identifier outerTexture = resolveTextureId(ring.outerTexture());
+        RenderType outerType = selectRenderType(outerTexture, glowing, twoTextures);
+        submitNodes.submitCustomGeometry(matrices, outerType,
+            (pose, consumer) -> renderRingSurface(ring, pose, consumer, false,
+                glowing, packedLight, animatedGlow, alpha));
+
+        if (twoTextures) {
+            Identifier innerTexture = resolveTextureId(ring.innerTexture());
+            RenderType innerType = selectRenderType(innerTexture, glowing, true);
+            submitNodes.submitCustomGeometry(matrices, innerType,
+                (pose, consumer) -> renderRingSurface(ring, pose, consumer, true,
+                    glowing, packedLight, animatedGlow, alpha));
+        }
+    }
+
+    private void renderRingSurface(RingPrimitive ring, PoseStack.Pose pose,
+                                   VertexConsumer consumer, boolean inner,
+                                   boolean glowing, int packedLight,
+                                   float animatedGlow, float alpha) {
         Matrix4f positionMatrix = pose.pose();
         float radius = ring.size().x;
         float width  = ring.size().y;
@@ -900,16 +922,8 @@ public final class HaloRenderer {
         }
 
         float halfW = width / 2.0f;
-
-        boolean twoTextures = ring.innerTexture() != null;
-        Identifier outerTexture = resolveTextureId(ring.outerTexture());
-        Identifier innerTexture = resolveTextureId(ring.innerTexture());
         float tint = glowing ? animatedGlow : 1.0f;
         int light = selectPackedLight(glowing, packedLight);
-
-        RenderType outerType = selectRenderType(outerTexture, glowing, twoTextures);
-        VertexConsumer outer = buffers.getBuffer(outerType);
-        usedRenderTypes.add(outerType);
 
         for (int i = 0; i < segments; i++) {
             int next = (i + 1) % segments;
@@ -920,47 +934,34 @@ public final class HaloRenderer {
             float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
             float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
 
-            // CCW quad viewed from outside; normals follow the radial surface.
-            emitVertex(outer, positionMatrix, pose,
-                new Vector3f(radius * cos0, halfW, radius * sin0),
-                u0, 0.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
-            emitVertex(outer, positionMatrix, pose,
-                new Vector3f(radius * cos1, halfW, radius * sin1),
-                u1, 0.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
-            emitVertex(outer, positionMatrix, pose,
-                new Vector3f(radius * cos1, -halfW, radius * sin1),
-                u1, 1.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
-            emitVertex(outer, positionMatrix, pose,
-                new Vector3f(radius * cos0, -halfW, radius * sin0),
-                u0, 1.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
-        }
-
-        if (twoTextures) {
-            RenderType innerType = selectRenderType(innerTexture, glowing, true);
-            VertexConsumer inner = buffers.getBuffer(innerType);
-            usedRenderTypes.add(innerType);
-            for (int i = 0; i < segments; i++) {
-                int next = (i + 1) % segments;
-                float u0 = (float) i / segments;
-                float u1 = (i == segments - 1) ? 1.0f : (float) next / segments;
-                float cos0 = (float) Math.cos(2.0 * Math.PI * i / segments);
-                float sin0 = (float) Math.sin(2.0 * Math.PI * i / segments);
-                float cos1 = (float) Math.cos(2.0 * Math.PI * next / segments);
-                float sin1 = (float) Math.sin(2.0 * Math.PI * next / segments);
-
+            if (inner) {
                 // Reverse winding and normals so the inner texture faces inward.
-                emitVertex(inner, positionMatrix, pose,
+                emitVertex(consumer, positionMatrix, pose,
                     new Vector3f(radius * cos0, -halfW, radius * sin0),
                     u0, 1.0f, tint, alpha, light, new Vector3f(-cos0, 0.0f, -sin0));
-                emitVertex(inner, positionMatrix, pose,
+                emitVertex(consumer, positionMatrix, pose,
                     new Vector3f(radius * cos1, -halfW, radius * sin1),
                     u1, 1.0f, tint, alpha, light, new Vector3f(-cos1, 0.0f, -sin1));
-                emitVertex(inner, positionMatrix, pose,
+                emitVertex(consumer, positionMatrix, pose,
                     new Vector3f(radius * cos1, halfW, radius * sin1),
                     u1, 0.0f, tint, alpha, light, new Vector3f(-cos1, 0.0f, -sin1));
-                emitVertex(inner, positionMatrix, pose,
+                emitVertex(consumer, positionMatrix, pose,
                     new Vector3f(radius * cos0, halfW, radius * sin0),
                     u0, 0.0f, tint, alpha, light, new Vector3f(-cos0, 0.0f, -sin0));
+            } else {
+                // CCW quad viewed from outside; normals follow the radial surface.
+                emitVertex(consumer, positionMatrix, pose,
+                    new Vector3f(radius * cos0, halfW, radius * sin0),
+                    u0, 0.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
+                emitVertex(consumer, positionMatrix, pose,
+                    new Vector3f(radius * cos1, halfW, radius * sin1),
+                    u1, 0.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
+                emitVertex(consumer, positionMatrix, pose,
+                    new Vector3f(radius * cos1, -halfW, radius * sin1),
+                    u1, 1.0f, tint, alpha, light, new Vector3f(cos1, 0.0f, sin1));
+                emitVertex(consumer, positionMatrix, pose,
+                    new Vector3f(radius * cos0, -halfW, radius * sin0),
+                    u0, 1.0f, tint, alpha, light, new Vector3f(cos0, 0.0f, sin0));
             }
         }
     }
@@ -971,7 +972,6 @@ public final class HaloRenderer {
 
     enum MaterialKind {
         TRANSLUCENT,
-        EMISSIVE,
         TRANSLUCENT_CULL
     }
 
@@ -979,17 +979,37 @@ public final class HaloRenderer {
         if (cull) {
             return MaterialKind.TRANSLUCENT_CULL;
         }
-        return glowing ? MaterialKind.EMISSIVE : MaterialKind.TRANSLUCENT;
+        // "glowing" is Halo's brightness channel, not a request for the
+        // vanilla spider-eyes material. ENTITY_TRANSLUCENT_EMISSIVE disables
+        // depth writes and Iris classifies it as an eyes program; using it for
+        // the whole model makes intersecting parts accumulate and lets later
+        // clouds/sky composites overwrite the Halo. Keep the regular entity
+        // material and express glow through FULL_BRIGHT + the RGB multiplier.
+        return MaterialKind.TRANSLUCENT;
     }
 
     static int selectPackedLight(boolean glowing, int packedLight) {
         return glowing ? LightCoordsUtil.FULL_BRIGHT : packedLight;
     }
 
+    /**
+     * Minecraft batches custom translucent geometry by RenderType, so quads
+     * using different textures are otherwise visited in HashMap order. Put
+     * farther primitive centres in lower ordered-submit buckets; the vanilla
+     * AVL order then visits them far-to-near even across texture RenderTypes.
+     */
+    static int translucentOrder(Matrix4f positionMatrix) {
+        Vector3f center = positionMatrix.getTranslation(new Vector3f());
+        double distanceSquared = (double) center.x * center.x
+            + (double) center.y * center.y
+            + (double) center.z * center.z;
+        long quantized = Math.round(distanceSquared * 4096.0);
+        return (int) -Math.min(Integer.MAX_VALUE, Math.max(0L, quantized));
+    }
+
     static RenderType selectRenderType(Identifier texture, boolean glowing, boolean cull) {
         return switch (materialKind(glowing, cull)) {
             case TRANSLUCENT -> RenderTypes.entityTranslucent(texture);
-            case EMISSIVE -> RenderTypes.entityTranslucentEmissive(texture);
             case TRANSLUCENT_CULL -> CULL_RENDER_TYPES.computeIfAbsent(texture, id ->
                 RenderType.create("halo_entity_translucent_cull",
                     RenderSetup.builder(RenderPipelines.ENTITY_TRANSLUCENT_CULL)

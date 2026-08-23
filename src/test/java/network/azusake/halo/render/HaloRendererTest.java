@@ -43,11 +43,13 @@ class HaloRendererTest {
         @DisplayName("material resolver retains Iris-recognized vanilla pipeline identities")
         void selectsRecognizedPipelineIdentity() {
             RenderType normal = HaloRenderer.selectRenderType(TEXTURE, false, false);
-            RenderType emissive = HaloRenderer.selectRenderType(TEXTURE, true, false);
+            RenderType glowing = HaloRenderer.selectRenderType(TEXTURE, true, false);
             RenderType cull = HaloRenderer.selectRenderType(TEXTURE, true, true);
 
             assertSame(RenderPipelines.ENTITY_TRANSLUCENT, normal.pipeline());
-            assertSame(RenderPipelines.ENTITY_TRANSLUCENT_EMISSIVE, emissive.pipeline());
+            assertSame(RenderPipelines.ENTITY_TRANSLUCENT, glowing.pipeline());
+            assertSame(normal, glowing,
+                "Halo glow is a light/tint channel, not the depthless spider-eyes material");
             assertSame(RenderPipelines.ENTITY_TRANSLUCENT_CULL, cull.pipeline());
         }
 
@@ -65,12 +67,23 @@ class HaloRendererTest {
         }
 
         @Test
-        @DisplayName("emissive materials are fullbright while normal materials keep packed light")
+        @DisplayName("glowing geometry is fullbright while normal geometry keeps packed light")
         void selectsPackedLight() {
             int environment = LightCoordsUtil.pack(3, 11);
             assertEquals(environment, HaloRenderer.selectPackedLight(false, environment));
             assertEquals(LightCoordsUtil.FULL_BRIGHT,
                 HaloRenderer.selectPackedLight(true, environment));
+        }
+
+        @Test
+        @DisplayName("cross-texture translucent submits are ordered far to near")
+        void ordersCrossTextureGeometryFarToNear() {
+            Matrix4f near = new Matrix4f().translation(0.0f, 0.0f, 2.0f);
+            Matrix4f far = new Matrix4f().translation(0.0f, 0.0f, 8.0f);
+
+            assertTrue(HaloRenderer.translucentOrder(far)
+                < HaloRenderer.translucentOrder(near));
+            assertEquals(0, HaloRenderer.translucentOrder(new Matrix4f()));
         }
     }
 

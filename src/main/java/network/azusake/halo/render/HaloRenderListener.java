@@ -53,17 +53,20 @@ public final class HaloRenderListener {
             lastTickDelta = context.deltaTracker().getGameTimeDeltaPartialTick(true);
         });
 
-        // Drawing phase: halos are drawn after terrain, entities and their
-        // translucent submits. Vanilla entity RenderTypes let Iris choose the
-        // correct shader program and scaled framebuffer for this stage.
-        LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(context -> {
+        // Submit after solid entity features have rendered. At this point the
+        // current frame's rendered head transform has been captured, while the
+        // vanilla translucent feature phase has not started yet. Adding Halo
+        // as custom entity geometry here lets Minecraft and Iris draw it inside
+        // that normal phase instead of flushing a BufferSource from a terrain
+        // callback with the wrong shader matrix/target context.
+        LevelRenderEvents.AFTER_SOLID_FEATURES.register(context -> {
             Vec3 camPos = context.levelState().cameraRenderState.pos;
             HaloRenderer.getInstance().renderHalos(
-                context.poseStack(), context.bufferSource(), camPos, lastTickDelta);
+                context.poseStack(), context.submitNodeCollector(), camPos, lastTickDelta);
         });
 
-        LOG.info("[HaloRenderListener] registered on LevelRenderEvents.END_EXTRACTION / AFTER_TRANSLUCENT_TERRAIN");
-        LOG.debug("[HaloRenderListener] backend=vanilla_entity_render_types (Iris-compatible)");
+        LOG.info("[HaloRenderListener] registered on LevelRenderEvents.END_EXTRACTION / AFTER_SOLID_FEATURES");
+        LOG.debug("[HaloRenderListener] backend=vanilla_entity_submit_nodes (Iris-compatible)");
     }
 
     /** Frame tick delta captured during extraction, consumed by the draw pass. */
