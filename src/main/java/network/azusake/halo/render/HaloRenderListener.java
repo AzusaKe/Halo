@@ -3,9 +3,8 @@ package network.azusake.halo.render;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -14,8 +13,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Registers the halo renderer with NeoForge's world-render pipeline.
  *
- * <p>Halos are drawn <em>after</em> entities and use vanilla entity render
- * types so shader replacements keep their expected matrices and targets.</p>
+ * <p>Halos are submitted through NeoForge's native custom-geometry collector,
+ * which places them in the entity feature pipeline and lets the selected
+ * vanilla entity RenderType control blending and shader integration.</p>
  *
  * <p>Usage: call {@link #register()} once during client initialisation.</p>
  */
@@ -37,10 +37,10 @@ public final class HaloRenderListener {
         }
         registered = true;
 
-        // Extraction phase (thread-safe, no GL): drop last frame's head
-        // captures and record the frame tick delta so the drawing phase can
-        // interpolate halo animation.  Entities that did not render this frame
-        // fall back to their previous anchor provider.
+        // Extraction phase (thread-safe, no GL): drop last frame's raw capture
+        // diagnostics and record the frame tick delta. RenderHeadCapture keeps
+        // only the immediately preceding valid main-pass head anchor because
+        // custom geometry is submitted before deferred player models draw.
         NeoForge.EVENT_BUS.addListener(ExtractLevelRenderStateEvent.class, event -> {
             RenderHeadCapture.clearFrame();
             // On 1.21.1+ / 26.1 the world-render matrix stack has an identity
@@ -51,21 +51,21 @@ public final class HaloRenderListener {
             // leaves the captures unchanged.
             RenderHeadCapture.setViewMatrix(new Matrix4f());
             lastTickDelta = event.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+            RenderHeadCapture.setFrameTickDelta(lastTickDelta);
         });
 
-        // Drawing phase: halos are drawn after terrain, entities and their
-        // translucent submits so they always appear on top of the entity they
-        // are attached to. Vanilla entity RenderTypes let Iris choose the
-        // correct shader program and scaled framebuffer for this stage.
-        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentBlocks.class, event -> {
+        // Submit through NeoForge's native custom-geometry collector. The
+        // collector later executes the selected vanilla ENTITY RenderTypes,
+        // allowing Iris to retain its normal shader and framebuffer routing.
+        NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class, event -> {
             Vec3 camPos = event.getLevelRenderState().cameraRenderState.pos;
             HaloRenderer.getInstance().renderHalos(
-                event.getPoseStack(), Minecraft.getInstance().renderBuffers().bufferSource(),
+                event.getPoseStack(), event.getSubmitNodeCollector(),
                 camPos, lastTickDelta);
         });
 
-        LOG.info("[HaloRenderListener] registered on ExtractLevelRenderStateEvent / RenderLevelStageEvent.AfterTranslucentBlocks");
-        LOG.debug("[HaloRenderListener] backend=vanilla_entity_render_types (Iris-compatible)");
+        LOG.info("[HaloRenderListener] registered on ExtractLevelRenderStateEvent / SubmitCustomGeometryEvent");
+        LOG.debug("[HaloRenderListener] backend=vanilla_entity_submit_nodes (Iris-compatible)");
     }
 
     /** Frame tick delta captured during extraction, consumed by the draw pass. */
