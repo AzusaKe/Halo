@@ -117,6 +117,7 @@ public final class HaloRenderer {
      * equivalent of an unlit entity material.
      */
     private static final Map<Identifier, RenderType> FLAT_GLOW_RENDER_TYPES = new HashMap<>();
+    private static final Map<UUID, Long> LAST_ANCHOR_DIAGNOSTIC_LOG_NANOS = new HashMap<>();
 
     private static boolean whiteTextureRegistered;
 
@@ -399,6 +400,7 @@ public final class HaloRenderer {
 
         // ---- camera-relative position ----
         Vec3 crp = frame.cameraRelativePos();
+        logAnchorFrameDiagnostic(client, entity, frame, cameraPos);
         if (Math.abs(crp.x) > 1000 || Math.abs(crp.y) > 1000 || Math.abs(crp.z) > 1000) {
             return false;
         }
@@ -751,6 +753,27 @@ public final class HaloRenderer {
         submitNodes.submitCustomGeometry(matrices, renderType,
             (pose, consumer) -> renderBillboard(billboard, pose, consumer,
                 camera, glowing, packedLight, animatedGlow, alpha));
+    }
+
+    private static void logAnchorFrameDiagnostic(Minecraft client, LivingEntity entity,
+                                                 AnchorFrame frame, Vec3 cameraPos) {
+        if (entity != client.player) {
+            return;
+        }
+        long now = System.nanoTime();
+        Long previous = LAST_ANCHOR_DIAGNOSTIC_LOG_NANOS.get(entity.getUUID());
+        if (previous != null && now - previous < 1_000_000_000L) {
+            return;
+        }
+        LAST_ANCHOR_DIAGNOSTIC_LOG_NANOS.put(entity.getUUID(), now);
+        Vec3 world = frame.worldPosition();
+        Vec3 relative = frame.cameraRelativePos();
+        LOG.info("[HaloAnchorDiag] stage=frame uuid={} camera=({},{},{}) world=({},{},{}) "
+                + "cameraRelative=({},{},{}) worldMinusCamera=({},{},{})",
+            entity.getUUID(), cameraPos.x, cameraPos.y, cameraPos.z,
+            world.x, world.y, world.z,
+            relative.x, relative.y, relative.z,
+            world.x - cameraPos.x, world.y - cameraPos.y, world.z - cameraPos.z);
     }
 
     private void renderBillboard(BillboardPrimitive billboard, PoseStack.Pose pose,
