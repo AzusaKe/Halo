@@ -7,12 +7,15 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,14 +23,14 @@ import java.io.InputStreamReader;
 import java.util.*;
 
 /**
- * Fabric resource reload listener that scans {@code entity_anchors/} in all
+ * NeoForge resource reload listener that scans {@code entity_anchors/} in all
  * datapacks (server) and resource packs (client), parses every {@code .json}
  * file into an {@link EntityAnchorProfile}, and exposes them through a static
  * registry.
  *
  * <p>Loaded profiles are stored in a static {@link LinkedHashMap} keyed by
- * entity type {@link Identifier}.  Client-pack entries override server-pack
- * entries with the same entity key, matching the Fabric resource-loading
+ * entity type {@link ResourceLocation}.  Client-pack entries override server-pack
+ * entries with the same entity key, matching the NeoForge resource-loading
  * convention.</p>
  *
  * <p>Mirrors {@link HaloJsonLoader} in registration pattern, scan path
@@ -39,21 +42,21 @@ public final class EntityAnchorLoader {
     private static final Logger LOG = LoggerFactory.getLogger(HaloMod.MOD_ID);
     private static final String PROFILES_PATH = "entity_anchors";
 
-    private static final Map<Identifier, EntityAnchorProfile> PROFILES = new LinkedHashMap<>();
+    private static final Map<ResourceLocation, EntityAnchorProfile> PROFILES = new LinkedHashMap<>();
 
     /** IDs loaded by the server listener. */
-    private static final Set<Identifier> serverLoadedIds = new LinkedHashSet<>();
+    private static final Set<ResourceLocation> serverLoadedIds = new LinkedHashSet<>();
 
     /** IDs loaded by the client listener. */
-    private static final Set<Identifier> clientLoadedIds = new LinkedHashSet<>();
+    private static final Set<ResourceLocation> clientLoadedIds = new LinkedHashSet<>();
 
     private static volatile boolean serverRegistered;
     private static volatile boolean clientRegistered;
 
     // Gson: reuse HaloDefinitionDeserializer's Vec3dAdapter approach
     private static final Gson GSON = new GsonBuilder()
-        .registerTypeAdapter(Vec3d.class, new Vec3dAdapter())
-        .registerTypeAdapter(Identifier.class, new IdentifierAdapter())
+        .registerTypeAdapter(Vec3.class, new Vec3dAdapter())
+        .registerTypeAdapter(ResourceLocation.class, new ResourceLocationAdapter())
         .create();
 
     private EntityAnchorLoader() { /* utility */ }
@@ -70,21 +73,26 @@ public final class EntityAnchorLoader {
             return;
         }
         serverRegistered = true;
-        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
-            .registerReloadListener(new ServerListener());
+        // AddReloadListenerEvent fires on every data-pack reload; the
+        // listener is re-added to each fresh reload's listener map, so the
+        // registration is safe to keep for the lifetime of the game.
+        NeoForge.EVENT_BUS.addListener(AddReloadListenerEvent.class, event ->
+            event.addListener(new ServerListener()));
         LOG.info("EntityAnchorLoader registered for SERVER_DATA");
     }
 
     /**
      * Register the client (resource-pack) listener.  Safe to call more than once.
      */
-    public static void registerClientResources() {
+    public static void registerClientResources(IEventBus modEventBus) {
         if (clientRegistered) {
             return;
         }
         clientRegistered = true;
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
-            .registerReloadListener(new ClientListener());
+        // RegisterClientReloadListenersEvent is an IModBusEvent fired once while the
+        // Minecraft instance is constructed, on the logical client.
+        modEventBus.addListener(RegisterClientReloadListenersEvent.class, event ->
+            event.registerReloadListener(new ClientListener()));
         LOG.info("EntityAnchorLoader registered for CLIENT_RESOURCES");
     }
 
@@ -95,7 +103,7 @@ public final class EntityAnchorLoader {
     /**
      * Look up a single profile by entity type identifier.
      */
-    public static Optional<EntityAnchorProfile> getProfile(Identifier entityId) {
+    public static Optional<EntityAnchorProfile> getProfile(ResourceLocation entityId) {
         return Optional.ofNullable(PROFILES.get(entityId));
     }
 
@@ -103,23 +111,23 @@ public final class EntityAnchorLoader {
     // Reload logic
     // ------------------------------------------------------------------
 
-    private static void reload(ResourceManager manager, Set<Identifier> sourceSet) {
+    private static void reload(ResourceManager manager, Set<ResourceLocation> sourceSet) {
         // Remove only entries previously loaded by this source
-        for (Identifier id : sourceSet) {
+        for (ResourceLocation id : sourceSet) {
             PROFILES.remove(id);
         }
         sourceSet.clear();
 
-        Map<Identifier, net.minecraft.resource.Resource> resources = manager.findResources(
+        Map<ResourceLocation, net.minecraft.server.packs.resources.Resource> resources = manager.listResources(
             PROFILES_PATH,
             id -> id.getPath().endsWith(".json")
         );
 
         LOG.info("Found {} entity anchor profile(s) to load", resources.size());
 
-        for (Map.Entry<Identifier, net.minecraft.resource.Resource> entry : resources.entrySet()) {
-            Identifier fileId = entry.getKey();
-            try (InputStreamReader reader = new InputStreamReader(entry.getValue().getInputStream())) {
+        for (Map.Entry<ResourceLocation, net.minecraft.server.packs.resources.Resource> entry : resources.entrySet()) {
+            ResourceLocation fileId = entry.getKey();
+            try (InputStreamReader reader = new InputStreamReader(entry.getValue().open())) {
                 JsonElement root = JsonParser.parseReader(reader);
                 EntityAnchorProfile profile = deserialize(root);
 
@@ -142,7 +150,7 @@ public final class EntityAnchorLoader {
     static EntityAnchorProfile deserialize(JsonElement json) {
         var root = json.getAsJsonObject();
 
-        Identifier entity = Identifier.tryParse(root.get("entity").getAsString());
+        ResourceLocation entity = ResourceLocation.tryParse(root.get("entity").getAsString());
         String defaultPose = root.get("default_pose").getAsString();
 
         Map<String, PoseAnchor> poses = new LinkedHashMap<>();
@@ -151,8 +159,8 @@ public final class EntityAnchorLoader {
             String poseKey = poseEntry.getKey();
             var poseObj = poseEntry.getValue().getAsJsonObject();
 
-            Vec3d pivot = GSON.fromJson(poseObj.get("pivot"), Vec3d.class);
-            Vec3d headCenterVec = GSON.fromJson(poseObj.get("head_center_vector"), Vec3d.class);
+            Vec3 pivot = GSON.fromJson(poseObj.get("pivot"), Vec3.class);
+            Vec3 headCenterVec = GSON.fromJson(poseObj.get("head_center_vector"), Vec3.class);
 
             poses.put(poseKey, new PoseAnchor(pivot, headCenterVec));
         }
@@ -164,26 +172,26 @@ public final class EntityAnchorLoader {
     // Resource listeners
     // ------------------------------------------------------------------
 
-    private static class ServerListener implements SimpleSynchronousResourceReloadListener {
+    private static class ServerListener extends SimplePreparableReloadListener<Void> {
         @Override
-        public Identifier getFabricId() {
-            return Identifier.of(HaloMod.MOD_ID, "entity_anchors");
+        protected Void prepare(ResourceManager manager, ProfilerFiller profiler) {
+            return null;
         }
 
         @Override
-        public void reload(ResourceManager manager) {
+        protected void apply(Void data, ResourceManager manager, ProfilerFiller profiler) {
             EntityAnchorLoader.reload(manager, serverLoadedIds);
         }
     }
 
-    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
+    private static class ClientListener extends SimplePreparableReloadListener<Void> {
         @Override
-        public Identifier getFabricId() {
-            return Identifier.of(HaloMod.MOD_ID, "entity_anchors_client");
+        protected Void prepare(ResourceManager manager, ProfilerFiller profiler) {
+            return null;
         }
 
         @Override
-        public void reload(ResourceManager manager) {
+        protected void apply(Void data, ResourceManager manager, ProfilerFiller profiler) {
             EntityAnchorLoader.reload(manager, clientLoadedIds);
         }
     }
@@ -192,20 +200,20 @@ public final class EntityAnchorLoader {
     // Reusable type adapters (mirrored from HaloDefinitionDeserializer)
     // ------------------------------------------------------------------
 
-    static class Vec3dAdapter implements com.google.gson.JsonDeserializer<Vec3d> {
+    static class Vec3dAdapter implements com.google.gson.JsonDeserializer<Vec3> {
         @Override
-        public Vec3d deserialize(JsonElement json, java.lang.reflect.Type typeOfT,
+        public Vec3 deserialize(JsonElement json, java.lang.reflect.Type typeOfT,
                                   com.google.gson.JsonDeserializationContext context) {
             var arr = json.getAsJsonArray();
-            return new Vec3d(arr.get(0).getAsDouble(), arr.get(1).getAsDouble(), arr.get(2).getAsDouble());
+            return new Vec3(arr.get(0).getAsDouble(), arr.get(1).getAsDouble(), arr.get(2).getAsDouble());
         }
     }
 
-    static class IdentifierAdapter implements com.google.gson.JsonDeserializer<Identifier> {
+    static class ResourceLocationAdapter implements com.google.gson.JsonDeserializer<ResourceLocation> {
         @Override
-        public Identifier deserialize(JsonElement json, java.lang.reflect.Type typeOfT,
+        public ResourceLocation deserialize(JsonElement json, java.lang.reflect.Type typeOfT,
                                        com.google.gson.JsonDeserializationContext context) {
-            return Identifier.tryParse(json.getAsString());
+            return ResourceLocation.tryParse(json.getAsString());
         }
     }
 }

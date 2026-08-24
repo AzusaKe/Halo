@@ -1,11 +1,11 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.entity.model.PlayerEntityModel;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.model.PlayerModel;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import org.joml.Matrix4f;
 
 import java.util.Map;
@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Per-frame capture of the player head's rendered transform.
  *
- * <p>Hooks installed by the client mixins bracket {@code PlayerEntityRenderer.render}
+ * <p>Hooks installed by the client mixins bracket {@code PlayerRenderer.render}
  * with {@link #begin}/{@link #end} (ThreadLocal context) and snapshot the model
  * root matrix plus the head {@link ModelPart}'s final pose when the head part is
  * actually rendered.  Captures are keyed by entity UUID and cleared once per
@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * frame" — consumers should fall back to their previous provider.</p>
  *
  * <p>This is the default player-anchor capture path: hooks bracket
- * {@code PlayerEntityRenderer.render} with {@link #begin}/{@link #end} and
+ * {@code PlayerRenderer.render} with {@link #begin}/{@link #end} and
  * snapshot the head {@link ModelPart}'s rendered transform, then the anchor
  * pipeline converts the camera-relative matrix back to world space via the
  * per-frame view matrix recorded by {@link #setViewMatrix}.</p>
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class RenderHeadCapture {
 
     private static final ThreadLocal<LivingEntity> CURRENT_ENTITY = new ThreadLocal<>();
-    private static final ThreadLocal<PlayerEntityModel<?>> CURRENT_MODEL = new ThreadLocal<>();
+    private static final ThreadLocal<PlayerModel<?>> CURRENT_MODEL = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> AUXILIARY_YSM_PASS =
         ThreadLocal.withInitial(() -> false);
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
@@ -48,8 +48,8 @@ public final class RenderHeadCapture {
 
     private RenderHeadCapture() { /* utility class */ }
 
-    /** Called at the HEAD of {@code PlayerEntityRenderer.render}. */
-    public static void begin(AbstractClientPlayerEntity entity, PlayerEntityModel<?> model) {
+    /** Called at the HEAD of {@code PlayerRenderer.render}. */
+    public static void begin(AbstractClientPlayer entity, PlayerModel<?> model) {
         CURRENT_ENTITY.set(entity);
         CURRENT_MODEL.set(model);
     }
@@ -58,9 +58,9 @@ public final class RenderHeadCapture {
      * Bracket an entity-dispatcher render so optional renderer integrations can
      * associate their model pass with any living entity, not only players.
      */
-    public static void beginYsmEntity(Entity entity, MatrixStack matrices) {
+    public static void beginYsmEntity(Entity entity, PoseStack matrices) {
         CURRENT_MODEL.remove();
-        Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
+        Matrix4f root = matrices == null ? null : matrices.last().pose();
         if (entity instanceof LivingEntity living && matchesMainView(root)) {
             CURRENT_ENTITY.set(living);
             AUXILIARY_YSM_PASS.set(false);
@@ -93,7 +93,7 @@ public final class RenderHeadCapture {
     }
 
     /**
-     * Called on normal returns from {@code PlayerEntityRenderer.render};
+     * Called on normal returns from {@code PlayerRenderer.render};
      * renderer-replacement compatibility hooks may also release early after
      * taking their own capture.
      */
@@ -133,19 +133,19 @@ public final class RenderHeadCapture {
      * player is rendering.  Only the head part of the current player model is
      * snapshotted.
      */
-    public static void capture(MatrixStack matrices, ModelPart part) {
-        PlayerEntityModel<?> model = CURRENT_MODEL.get();
-        if (model == null || part != model.getHead()) {
+    public static void capture(PoseStack matrices, ModelPart part) {
+        PlayerModel<?> model = CURRENT_MODEL.get();
+        if (model == null || part != model.head) {
             return;
         }
         LivingEntity entity = CURRENT_ENTITY.get();
         if (entity == null) {
             return;
         }
-        CAPTURES.put(entity.getUuid(), new CapturedHead(
-            new Matrix4f(matrices.peek().getPositionMatrix()),
-            part.pivotX, part.pivotY, part.pivotZ,
-            part.pitch, part.yaw, part.roll,
+        CAPTURES.put(entity.getUUID(), new CapturedHead(
+            new Matrix4f(matrices.last().pose()),
+            part.x, part.y, part.z,
+            part.xRot, part.yRot, part.zRot,
             part.xScale, part.yScale, part.zScale
         ));
     }

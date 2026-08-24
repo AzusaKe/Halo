@@ -1,10 +1,10 @@
 package network.azusake.halo.compat.ysm.mixin;
 
 import network.azusake.halo.physics.RenderHeadCapture;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.entity.EntityRenderDispatcher;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class YsmEntityRenderContextMixin {
 
     @Inject(
-        method = "render(Lnet/minecraft/entity/Entity;DDDFFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
+        method = "render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
         at = @At("HEAD")
     )
     private void halo$beginYsmEntityRender(
@@ -25,8 +25,8 @@ public abstract class YsmEntityRenderContextMixin {
         double z,
         float yaw,
         float tickDelta,
-        MatrixStack matrices,
-        VertexConsumerProvider vertexConsumers,
+        PoseStack matrices,
+        MultiBufferSource vertexConsumers,
         int light,
         CallbackInfo ci
     ) {
@@ -34,7 +34,7 @@ public abstract class YsmEntityRenderContextMixin {
     }
 
     @Inject(
-        method = "render(Lnet/minecraft/entity/Entity;DDDFFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
+        method = "render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
         at = @At("RETURN")
     )
     private void halo$endYsmEntityRender(
@@ -44,8 +44,8 @@ public abstract class YsmEntityRenderContextMixin {
         double z,
         float yaw,
         float tickDelta,
-        MatrixStack matrices,
-        VertexConsumerProvider vertexConsumers,
+        PoseStack matrices,
+        MultiBufferSource vertexConsumers,
         int light,
         CallbackInfo ci
     ) {

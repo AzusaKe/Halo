@@ -1,13 +1,11 @@
 package network.azusake.halo.server;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.server.MinecraftServer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for {@link ServerTickHandler} and {@link HaloServerEvents}.
  *
  * <p>These tests verify that the handler is correctly structured, that it
- * implements the expected Fabric API interface, and that the event
+ * exposes the expected NeoForge callback shape, and that the event
  * registration wiring does not throw.</p>
  */
 class ServerTickHandlerTest {
@@ -29,11 +27,10 @@ class ServerTickHandlerTest {
     class TickHandlerTests {
 
         @Test
-        @DisplayName("implements ServerTickEvents.EndTick")
-        void implementsEndTick() {
-            ServerTickHandler handler = new ServerTickHandler();
-            assertInstanceOf(ServerTickEvents.EndTick.class, handler,
-                "ServerTickHandler must implement ServerTickEvents.EndTick");
+        @DisplayName("exposes the NeoForge server-tick callback")
+        void exposesServerTickCallback() throws Exception {
+            var method = ServerTickHandler.class.getMethod("onEndTick", MinecraftServer.class);
+            assertEquals(void.class, method.getReturnType());
         }
 
         @Test
@@ -76,7 +73,7 @@ class ServerTickHandlerTest {
         @Test
         @DisplayName("registerTickHandler does not throw")
         void registerTickHandlerDoesNotThrow() {
-            // The Fabric API event bus is initialised by the time a mod
+            // The NeoForge event bus is initialised by the time a mod
             // calls onInitialize, so registration should never throw.
             assertDoesNotThrow(HaloServerEvents::registerTickHandler,
                 "registerTickHandler should register without exception");
@@ -106,7 +103,7 @@ class ServerTickHandlerTest {
         @Test
         @DisplayName("multiple registerTickHandler calls are idempotent (no throw)")
         void registerTickHandlerIsIdempotent() {
-            // Fabric events support multiple registrations; calling twice
+            // Registration is explicitly idempotent; calling twice
             // should not throw.
             assertDoesNotThrow(() -> {
                 HaloServerEvents.registerTickHandler();
@@ -115,33 +112,12 @@ class ServerTickHandlerTest {
         }
 
         @Test
-        @DisplayName("registered handler is invoked by Fabric event bus")
-        void handlerIsInvokedByEventBus() throws Exception {
-            // Fabric's Event<T> stores handlers in an array-backed list.
-            // After registration, we can inspect the internal handler array
-            // to confirm our handler was added.
-
-            // Grab the internal array via reflection
-            Field handlersField = ServerTickEvents.END_SERVER_TICK.getClass()
-                .getDeclaredField("handlers");
-            handlersField.setAccessible(true);
-            Object[] handlers = (Object[]) handlersField.get(ServerTickEvents.END_SERVER_TICK);
-
-            // Our handler should be findable among the registered handlers
-            List<ServerTickEvents.EndTick> tickHandlers = new ArrayList<>();
-            for (Object h : handlers) {
-                if (h instanceof ServerTickEvents.EndTick th) {
-                    tickHandlers.add(th);
-                }
-            }
-
-            assertFalse(tickHandlers.isEmpty(),
-                "At least one EndTick handler should be registered after registerTickHandler()");
-
-            boolean found = tickHandlers.stream()
-                .anyMatch(h -> h instanceof ServerTickHandler);
-            assertTrue(found,
-                "ServerTickHandler instance should be present in END_SERVER_TICK handler list");
+        @DisplayName("registered NeoForge callback retains one handler instance")
+        void handlerIsRetainedAfterRegistration() throws Exception {
+            HaloServerEvents.registerTickHandler();
+            Field handlerField = HaloServerEvents.class.getDeclaredField("tickHandler");
+            handlerField.setAccessible(true);
+            assertInstanceOf(ServerTickHandler.class, handlerField.get(null));
         }
     }
 

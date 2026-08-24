@@ -2,13 +2,14 @@ package network.azusake.halo.physics;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.manager.HaloManager;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
  * Per-tick server handler for halo lifecycle maintenance.
  *
- * <p>Registered as a {@link ServerTickEvents.EndTick} listener.  Delegates
+ * <p>Registered as a {@link ServerTickEvent.Post} listener.  Delegates
  * to {@link HaloManager#tickAll} which performs periodic entity cleanup
  * (removing halos whose attached entity has died or despawned).</p>
  *
@@ -16,7 +17,7 @@ import net.minecraft.server.MinecraftServer;
  * {@link AnchorFrameCalculator} on the render thread — this handler
  * no longer performs any physics work.</p>
  */
-public class HaloTickHandler implements ServerTickEvents.EndTick {
+public class HaloTickHandler {
 
     private static final HaloTickHandler INSTANCE = new HaloTickHandler();
 
@@ -25,14 +26,14 @@ public class HaloTickHandler implements ServerTickEvents.EndTick {
     }
 
     /**
-     * Register this handler on the Fabric tick event bus.
+     * Register this handler on the NeoForge server tick event bus.
      */
     public static void register() {
-        ServerTickEvents.END_SERVER_TICK.register(INSTANCE);
-        HaloMod.LOGGER.debug("HaloTickHandler: registered on END_SERVER_TICK");
+        NeoForge.EVENT_BUS.addListener(ServerTickEvent.Post.class,
+            event -> INSTANCE.onEndTick(event.getServer()));
+        HaloMod.LOGGER.debug("HaloTickHandler: registered on ServerTickEvent.Post");
     }
 
-    @Override
     public void onEndTick(MinecraftServer server) {
         // Refresh the server reference so debug chat messages work
         network.azusake.halo.lifecycle.EntityHaloTracker.setCurrentServer(server);

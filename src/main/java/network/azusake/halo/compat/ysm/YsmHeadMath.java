@@ -1,7 +1,7 @@
 package network.azusake.halo.compat.ysm;
 
 import network.azusake.halo.api.HeadAnchor;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 
@@ -12,7 +12,7 @@ public final class YsmHeadMath {
     }
 
     /** Convert using the exact camera frame that produced this capture. */
-    public static HeadAnchor toHeadAnchor(YsmHeadCapture.CapturedHead captured, Vec3d localOffset) {
+    public static HeadAnchor toHeadAnchor(YsmHeadCapture.CapturedHead captured, Vec3 localOffset) {
         if (captured == null) {
             return null;
         }
@@ -26,8 +26,8 @@ public final class YsmHeadMath {
 
     public static HeadAnchor toHeadAnchor(
         Matrix4f viewSpace,
-        Vec3d localOffset,
-        Vec3d cameraPos,
+        Vec3 localOffset,
+        Vec3 cameraPos,
         Matrix4f viewMatrix
     ) {
         if (!YsmV265Adapter.isFinite(viewSpace)
@@ -47,22 +47,22 @@ public final class YsmHeadMath {
             (float) localOffset.z,
             1f
         ));
-        Vec3d center = new Vec3d(
+        Vec3 center = new Vec3(
             cameraPos.x + point.x,
             cameraPos.y + point.y,
             cameraPos.z + point.z
         );
 
         // YSM/Bedrock geometry is Y-up; its model front is local -Z.
-        Vec3d forward = direction(world, 0f, 0f, -1f);
-        Vec3d up = direction(world, 0f, 1f, 0f);
+        Vec3 forward = direction(world, 0f, 0f, -1f);
+        Vec3 up = direction(world, 0f, 1f, 0f);
         if (!isFinite(forward) || !isFinite(up)
-            || forward.lengthSquared() < 1.0e-12 || up.lengthSquared() < 1.0e-12) {
+            || forward.lengthSqr() < 1.0e-12 || up.lengthSqr() < 1.0e-12) {
             return null;
         }
         forward = forward.normalize();
-        up = up.subtract(forward.multiply(up.dotProduct(forward)));
-        if (!isFinite(up) || up.lengthSquared() < 1.0e-12) {
+        up = up.subtract(forward.scale(up.dot(forward)));
+        if (!isFinite(up) || up.lengthSqr() < 1.0e-12) {
             return null;
         }
         up = up.normalize();
@@ -70,18 +70,18 @@ public final class YsmHeadMath {
         float yaw = (float) Math.toDegrees(Math.atan2(-forward.x, forward.z));
         float pitch = (float) Math.toDegrees(Math.asin(clamp(-forward.y)));
 
-        Vec3d worldUp = new Vec3d(0, 1, 0);
-        Vec3d right0;
-        if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
+        Vec3 worldUp = new Vec3(0, 1, 0);
+        Vec3 right0;
+        if (Math.abs(forward.dot(worldUp)) > 0.999) {
             float yawRad = (float) Math.toRadians(yaw);
-            right0 = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
+            right0 = new Vec3(-Math.cos(yawRad), 0, -Math.sin(yawRad));
         } else {
-            right0 = forward.crossProduct(worldUp).normalize();
+            right0 = forward.cross(worldUp).normalize();
         }
-        Vec3d headUp0 = right0.crossProduct(forward).normalize();
+        Vec3 headUp0 = right0.cross(forward).normalize();
         float roll = (float) Math.toDegrees(Math.atan2(
-            up.dotProduct(right0),
-            up.dotProduct(headUp0)
+            up.dot(right0),
+            up.dot(headUp0)
         ));
 
         HeadAnchor anchor = new HeadAnchor(center, yaw, pitch, roll);
@@ -99,13 +99,13 @@ public final class YsmHeadMath {
         return inverse.mul(viewSpace, new Matrix4f());
     }
 
-    private static Vec3d direction(Matrix4f matrix, float x, float y, float z) {
+    private static Vec3 direction(Matrix4f matrix, float x, float y, float z) {
         Vector4f origin = matrix.transform(new Vector4f(0f, 0f, 0f, 1f));
         Vector4f endpoint = matrix.transform(new Vector4f(x, y, z, 1f));
-        return new Vec3d(endpoint.x - origin.x, endpoint.y - origin.y, endpoint.z - origin.z);
+        return new Vec3(endpoint.x - origin.x, endpoint.y - origin.y, endpoint.z - origin.z);
     }
 
-    private static boolean isFinite(Vec3d value) {
+    private static boolean isFinite(Vec3 value) {
         return Double.isFinite(value.x) && Double.isFinite(value.y) && Double.isFinite(value.z);
     }
 

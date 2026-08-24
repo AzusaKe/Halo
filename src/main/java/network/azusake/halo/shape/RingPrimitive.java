@@ -1,6 +1,6 @@
 package network.azusake.halo.shape;
 
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import org.joml.Vector2f;
 
 /**
@@ -21,8 +21,8 @@ import org.joml.Vector2f;
  * @param segments      polygon segment count (default 32)
  */
 public record RingPrimitive(
-    Identifier outerTexture,
-    Identifier innerTexture,
+    ResourceLocation outerTexture,
+    ResourceLocation innerTexture,
     Vector2f size,
     int segments
 ) implements HaloPrimitive {

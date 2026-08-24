@@ -3,8 +3,8 @@ package network.azusake.halo.compat.ysm;
 import network.azusake.halo.api.EntityAnchorProvider;
 import network.azusake.halo.api.HeadAnchor;
 import network.azusake.halo.config.HaloModConfigStore;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 /** Optional YSM render-anchor wrapper for every living entity class. */
 public final class YsmEntityAnchorProvider implements EntityAnchorProvider {
@@ -21,17 +21,17 @@ public final class YsmEntityAnchorProvider implements EntityAnchorProvider {
             return fallback.resolve(entity, tickDelta);
         }
         if (!YsmHeadCapture.isVisibleToMainCamera(entity)) {
-            YsmHeadCapture.discard(entity.getUuid());
+            YsmHeadCapture.discard(entity.getUUID());
             return fallback.resolve(entity, tickDelta);
         }
 
-        HeadAnchor current = resolveCapture(YsmHeadCapture.getCurrent(entity.getUuid()));
+        HeadAnchor current = resolveCapture(YsmHeadCapture.getCurrent(entity.getUUID()));
         if (isFinite(current)) {
             YsmHeadCapture.markAnchorConsumed(false);
             return current;
         }
 
-        HeadAnchor previous = resolveCapture(YsmHeadCapture.getPrevious(entity.getUuid()));
+        HeadAnchor previous = resolveCapture(YsmHeadCapture.getPrevious(entity.getUUID()));
         if (isFinite(previous)) {
             YsmHeadCapture.markAnchorConsumed(true);
             return previous;
@@ -46,7 +46,7 @@ public final class YsmEntityAnchorProvider implements EntityAnchorProvider {
         double[] rawOffset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
         HeadAnchor anchor = YsmHeadMath.toHeadAnchor(
             captured,
-            new Vec3d(rawOffset[0], rawOffset[1], rawOffset[2]));
+            new Vec3(rawOffset[0], rawOffset[1], rawOffset[2]));
         if (!isFinite(anchor)) {
             YsmHeadCapture.markAnchorConversionFailed();
             return null;
@@ -58,7 +58,7 @@ public final class YsmEntityAnchorProvider implements EntityAnchorProvider {
         if (anchor == null) {
             return false;
         }
-        Vec3d center = anchor.headCenter();
+        Vec3 center = anchor.headCenter();
         return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
             && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
     }

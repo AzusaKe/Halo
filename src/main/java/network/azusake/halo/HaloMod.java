@@ -4,19 +4,24 @@ import network.azusake.halo.command.HaloConfigCommand;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.EntityHaloTracker;
+import network.azusake.halo.network.HaloNetwork;
 import network.azusake.halo.server.HaloServerEvents;
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HaloMod implements ModInitializer {
+@Mod(HaloMod.MOD_ID)
+public class HaloMod {
 
     public static final String MOD_ID = "halo";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    @Override
-    public void onInitialize() {
+    public HaloMod(IEventBus modEventBus) {
         LOGGER.info("Halo mod initializing...");
 
         // Register resource reload listeners for JSON halo definitions
@@ -39,12 +44,16 @@ public class HaloMod implements ModInitializer {
         HaloModConfigStore.load();
 
         // Register /halo command tree (dump, reload, list, show, hide, config)
-        CommandRegistrationCallback.EVENT.register(
-            (dispatcher, registryAccess, environment) -> HaloConfigCommand.register(dispatcher)
-        );
+        NeoForge.EVENT_BUS.addListener(RegisterCommandsEvent.class,
+            event -> HaloConfigCommand.register(event.getDispatcher()));
 
         // Register networking channels for multiplayer halo synchronisation
-        network.azusake.halo.network.HaloNetwork.register();
+        modEventBus.addListener(RegisterPayloadHandlersEvent.class, HaloNetwork::register);
+
+        // Client-side initialisation (physical client only)
+        if (FMLEnvironment.dist.isClient()) {
+            HaloModClient.init(modEventBus);
+        }
 
         LOGGER.info("Halo mod initialized");
     }

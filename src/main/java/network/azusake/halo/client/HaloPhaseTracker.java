@@ -1,8 +1,6 @@
 package network.azusake.halo.client;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 /**
  * Tracks whether the client is in {@link Phase#LOCAL} or {@link Phase#MULTIPLAYER} phase.
@@ -20,7 +18,6 @@ import net.minecraft.client.MinecraftClient;
  * transition signalled from a netty I/O thread is immediately visible to the
  * main client thread that runs the Mixin injector.
  */
-@Environment(EnvType.CLIENT)
 public final class HaloPhaseTracker {
 
     public enum Phase {
@@ -72,7 +69,7 @@ public final class HaloPhaseTracker {
      * LAN host) — commands flow to the integrated Brigadier dispatcher as normal.
      */
     public boolean shouldIntercept() {
-        if (MinecraftClient.getInstance().isIntegratedServerRunning()) {
+        if (Minecraft.getInstance().hasSingleplayerServer()) {
             return false;
         }
         return phase == Phase.LOCAL;

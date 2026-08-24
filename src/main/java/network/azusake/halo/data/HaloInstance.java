@@ -2,7 +2,7 @@ package network.azusake.halo.data;
 
 import network.azusake.halo.animation.StartupAnimationConfig;
 import network.azusake.halo.animation.TransitionAnimationResult;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
 import java.util.UUID;
@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class HaloInstance {
 
     private final UUID entityUuid;
-    private final Identifier definitionId;
+    private final ResourceLocation definitionId;
 
     /** When true the next pose calculation snaps instantly (ignores damping). */
     private boolean needsSnap;
@@ -82,7 +82,7 @@ public class HaloInstance {
      */
     private boolean hiddenByState = false;
 
-    public HaloInstance(UUID entityUuid, Identifier definitionId) {
+    public HaloInstance(UUID entityUuid, ResourceLocation definitionId) {
         this.entityUuid = entityUuid;
         this.definitionId = definitionId;
         this.needsSnap = true;
@@ -98,7 +98,7 @@ public class HaloInstance {
         return entityUuid;
     }
 
-    public Identifier getDefinitionId() {
+    public ResourceLocation getDefinitionId() {
         return definitionId;
     }
 

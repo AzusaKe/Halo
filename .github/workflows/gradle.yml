@@ -9,10 +9,10 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash"]
+    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash", "1.21.1-neoforge-flash"]
     tags: ["v*"]
   pull_request:
-    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash"]
+    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash", "1.21.1-neoforge-flash"]
   workflow_dispatch:
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Build with Gradle Wrapper
-        run: ./gradlew build
+        run: ./gradlew test build
 
       # Upload JAR as workflow artifact (always available for download)
       - name: Upload JAR artifact

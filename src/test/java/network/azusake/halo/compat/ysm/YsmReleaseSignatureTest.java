@@ -10,9 +10,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -23,21 +26,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class YsmReleaseSignatureTest {
 
     @Test
-    @DisplayName("official YSM 2.6.5 jar retains every pinned adapter signature")
+    @DisplayName("official YSM 2.6.5 NeoForge jar retains every pinned adapter signature")
     void officialJarSignatures() throws Exception {
         String configured = System.getenv("HALO_YSM_TEST_JAR");
         Assumptions.assumeTrue(configured != null && !configured.isBlank(),
             "set HALO_YSM_TEST_JAR to run release signature verification");
         Path jar = Path.of(configured);
         assertTrue(Files.isRegularFile(jar), "YSM test jar does not exist: " + jar);
+        assertEquals(YsmV265Symbols.EXPECTED_SHA1, sha1(jar), "official YSM fixture SHA-1 changed");
 
         try (ZipFile zip = new ZipFile(jar.toFile())) {
-            String metadata = text(zip, "fabric.mod.json");
-            assertTrue(metadata.contains("\"version\": \"" + YsmV265Symbols.SUPPORTED_VERSION + "\""));
+            String metadata = text(zip, "META-INF/neoforge.mods.toml");
+            assertTrue(metadata.contains("modId=\"" + YsmV265Symbols.MOD_ID + "\""));
+            assertTrue(metadata.contains("version=\"" + YsmV265Symbols.SUPPORTED_VERSION + "\""));
 
             ClassNode renderer = classNode(zip, YsmV265Symbols.GEO_RENDERER);
             assertTrue(hasMethod(renderer, YsmV265Symbols.RENDER_METHOD,
-                YsmV265Symbols.RENDER_DESCRIPTOR_INTERMEDIARY),
+                YsmV265Symbols.RENDER_DESCRIPTOR_NEOFORGE),
                 "missing pinned YSM render method");
 
             ClassNode model = classNode(zip, YsmV265Symbols.ANIMATED_GEO_MODEL);
@@ -56,6 +61,17 @@ class YsmReleaseSignatureTest {
                     "missing pinned bone getter " + getter);
             }
         }
+    }
+
+    private static String sha1(Path jar) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-1");
+        try (var input = Files.newInputStream(jar)) {
+            byte[] buffer = new byte[64 * 1024];
+            for (int read; (read = input.read(buffer)) >= 0;) {
+                if (read > 0) digest.update(buffer, 0, read);
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
     }
 
     private static ClassNode classNode(ZipFile zip, String binaryName) throws IOException {

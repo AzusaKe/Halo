@@ -4,12 +4,11 @@ import network.azusake.halo.client.HaloLocalManager;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.manager.HaloManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,8 +54,8 @@ public final class HaloClientManager {
      * distance of the camera.  Called once per frame from the render thread.
      */
     public Collection<HaloInstance> getVisibleHalos(Camera camera) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null) {
             return Collections.emptyList();
         }
 
@@ -101,7 +100,7 @@ public final class HaloClientManager {
             lastCacheRebuild = now;
         }
 
-        Vec3d camPos = camera.getPos();
+        Vec3 camPos = camera.getPosition();
         List<HaloInstance> visible = new ArrayList<>();
 
         for (HaloInstance instance : allInstances) {
@@ -121,12 +120,12 @@ public final class HaloClientManager {
             }
 
             // Verify the cached entity is still valid
-            if (!entity.isAlive() || !entity.getUuid().equals(instance.getEntityUuid())) {
+            if (!entity.isAlive() || !entity.getUUID().equals(instance.getEntityUuid())) {
                 entityCache.remove(instance.getEntityUuid());
                 continue;
             }
 
-            if (entity.getPos().squaredDistanceTo(camPos) <= RENDER_DIST_SQ) {
+            if (entity.position().distanceToSqr(camPos) <= RENDER_DIST_SQ) {
                 visible.add(instance);
             }
         }
@@ -138,21 +137,21 @@ public final class HaloClientManager {
     // Entity cache
     // ------------------------------------------------------------------
 
-    private void rebuildEntityCache(MinecraftClient client) {
+    private void rebuildEntityCache(Minecraft client) {
         entityCache.clear();
-        if (client.world == null) return;
+        if (client.level == null) return;
 
-        for (Entity e : client.world.getEntities()) {
+        for (Entity e : client.level.entitiesForRendering()) {
             if (e instanceof LivingEntity living) {
-                entityCache.put(e.getUuid(), living);
+                entityCache.put(e.getUUID(), living);
             }
         }
     }
 
-    private static LivingEntity findEntityInWorld(MinecraftClient client, UUID uuid) {
-        if (client.world == null) return null;
-        for (Entity e : client.world.getEntities()) {
-            if (e.getUuid().equals(uuid) && e instanceof LivingEntity living) {
+    private static LivingEntity findEntityInWorld(Minecraft client, UUID uuid) {
+        if (client.level == null) return null;
+        for (Entity e : client.level.entitiesForRendering()) {
+            if (e.getUUID().equals(uuid) && e instanceof LivingEntity living) {
                 return living;
             }
         }
@@ -184,8 +183,8 @@ public final class HaloClientManager {
      * entity every frame.
      */
     public void updateEntityStateCache() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) return;
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null) return;
 
         for (HaloInstance instance : HaloManager.getInstance().getAllInstances()) {
             if (!instance.isActive()) continue;
@@ -210,10 +209,10 @@ public final class HaloClientManager {
      *
      * @return {@code "host:port"} or {@code null} if not connected
      */
-    private static String getCurrentServerKey(MinecraftClient client) {
-        if (client.getNetworkHandler() != null && client.getNetworkHandler().getConnection() != null) {
+    private static String getCurrentServerKey(Minecraft client) {
+        if (client.getConnection() != null && client.getConnection().getConnection() != null) {
             return HaloLocalManager.serverKeyFromAddress(
-                client.getNetworkHandler().getConnection().getAddress());
+                client.getConnection().getConnection().getRemoteAddress());
         }
         return null;
     }

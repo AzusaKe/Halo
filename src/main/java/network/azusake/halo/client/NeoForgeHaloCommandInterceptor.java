@@ -8,31 +8,33 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import network.azusake.halo.json.HaloJsonLoader;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+import net.neoforged.neoforge.common.NeoForge;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Fabric implementation of {@link HaloCommandInterceptor}.
+ * NeoForge implementation of {@link HaloCommandInterceptor}.
  *
  * <p>Registers a client-side {@code /halo} command tree via
- * {@link ClientCommandRegistrationCallback}.  The executor checks the current
+ * {@link RegisterClientCommandsEvent}.  The executor checks the current
  * phase and either handles the command locally (LOCAL phase) or forwards it
  * to the server (MULTIPLAYER phase / singleplayer).</p>
  *
  * <p>Single-threaded: all command executors run on the render thread.</p>
  */
-@Environment(EnvType.CLIENT)
-public final class FabricHaloCommandInterceptor implements HaloCommandInterceptor {
+@OnlyIn(Dist.CLIENT)
+public final class NeoForgeHaloCommandInterceptor implements HaloCommandInterceptor {
 
     private volatile boolean registered;
 
@@ -41,7 +43,8 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
         if (registered) return;
         registered = true;
 
-        ClientCommandRegistrationCallback.EVENT.register(this::registerCommands);
+        NeoForge.EVENT_BUS.addListener(RegisterClientCommandsEvent.class,
+            event -> registerCommands(event.getDispatcher(), event.getBuildContext()));
     }
 
     @Override
@@ -54,10 +57,10 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
     // ------------------------------------------------------------------
 
     /** Suggests known halo definition IDs from the local resource pack. */
-    private static final SuggestionProvider<FabricClientCommandSource> DEFINITION_SUGGESTIONS =
+    private static final SuggestionProvider<CommandSourceStack> DEFINITION_SUGGESTIONS =
         (ctx, builder) -> {
             String remaining = builder.getRemaining().toLowerCase();
-            for (Identifier id : HaloJsonLoader.getDefinitions().keySet()) {
+            for (ResourceLocation id : HaloJsonLoader.getDefinitions().keySet()) {
                 String idStr = id.toString();
                 if (idStr.toLowerCase().startsWith(remaining)) {
                     builder.suggest(idStr);
@@ -102,22 +105,22 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
         }
     };
 
-    private void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher,
-                                  net.minecraft.command.CommandRegistryAccess registryAccess) {
+    private void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher,
+                                  net.minecraft.commands.CommandBuildContext registryAccess) {
 
-        var haloNode = ClientCommandManager.literal("halo")
+        var haloNode = Commands.literal("halo")
             .executes(ctx -> executeLocal("halo"))
-            .then(ClientCommandManager.literal("list")
+            .then(Commands.literal("list")
                 .executes(ctx -> executeLocal("halo list"))
             )
-            .then(ClientCommandManager.literal("dump")
+            .then(Commands.literal("dump")
                 .executes(ctx -> executeLocal("halo dump"))
             )
-            .then(ClientCommandManager.literal("show")
+            .then(Commands.literal("show")
                 .executes(ctx -> executeLocal("halo show"))
-                .then(ClientCommandManager.argument("target", TARGET_ARGUMENT)
+                .then(Commands.argument("target", TARGET_ARGUMENT)
                     .executes(ctx -> executeLocal("halo show"))
-                    .then(ClientCommandManager.argument("definition", net.minecraft.command.argument.IdentifierArgumentType.identifier())
+                    .then(Commands.argument("definition", net.minecraft.commands.arguments.ResourceLocationArgument.id())
                         .suggests(DEFINITION_SUGGESTIONS)
                         .executes(ctx -> {
                             String target = ctx.getInput().split(" ")[2];
@@ -127,75 +130,75 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
                     )
                 )
             )
-            .then(ClientCommandManager.literal("hide")
+            .then(Commands.literal("hide")
                 .executes(ctx -> executeLocal("halo hide"))
-                .then(ClientCommandManager.argument("target", TARGET_ARGUMENT)
+                .then(Commands.argument("target", TARGET_ARGUMENT)
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo hide " + target);
                     })
                 )
             )
-            .then(ClientCommandManager.literal("config")
+            .then(Commands.literal("config")
                 .executes(ctx -> executeLocal("halo config"))
-                .then(ClientCommandManager.literal("linear-damping")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
+                .then(Commands.literal("linear-damping")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config linear-damping " + v);
                         })
                     )
                 )
-                .then(ClientCommandManager.literal("angular-damping")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
+                .then(Commands.literal("angular-damping")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config angular-damping " + v);
                         })
                     )
                 )
-                .then(ClientCommandManager.literal("max-linear-distance")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.01))
+                .then(Commands.literal("max-linear-distance")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.01))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config max-linear-distance " + v);
                         })
                     )
                 )
-                .then(ClientCommandManager.literal("max-angular-degrees")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
+                .then(Commands.literal("max-angular-degrees")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config max-angular-degrees " + v);
                         })
                     )
                 )
-                .then(ClientCommandManager.literal("scale")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.1))
+                .then(Commands.literal("scale")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.1))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config scale " + v);
                         })
                     )
                 )
-                .then(ClientCommandManager.literal("allow-angular-momentum")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
+                .then(Commands.literal("allow-angular-momentum")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
                         .executes(ctx -> {
                             boolean v = com.mojang.brigadier.arguments.BoolArgumentType.getBool(ctx, "value");
                             return executeLocal("halo config allow-angular-momentum " + v);
                         })
                     )
                 )
-                .then(ClientCommandManager.literal("angular-momentum-factor")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
+                .then(Commands.literal("angular-momentum-factor")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config angular-momentum-factor " + v);
                         })
                     )
                 )
-                .then(ClientCommandManager.literal("max-angular-momentum-degrees")
-                    .then(ClientCommandManager.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
+                .then(Commands.literal("max-angular-momentum-degrees")
+                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config max-angular-momentum-degrees " + v);
@@ -203,25 +206,25 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
                     )
                 )
             )
-            .then(ClientCommandManager.literal("reload")
+            .then(Commands.literal("reload")
                 .executes(ctx -> executeLocal("halo reload"))
             )
-            .then(ClientCommandManager.literal("active")
+            .then(Commands.literal("active")
                 .executes(ctx -> executeLocal("halo active"))
             )
-            .then(ClientCommandManager.literal("inspect")
+            .then(Commands.literal("inspect")
                 .executes(ctx -> executeLocal("halo inspect"))
-                .then(ClientCommandManager.argument("target", TARGET_ARGUMENT)
+                .then(Commands.argument("target", TARGET_ARGUMENT)
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo inspect " + target);
                     })
                 )
             )
-            .then(ClientCommandManager.literal("save")
+            .then(Commands.literal("save")
                 .executes(ctx -> executeLocal("halo save"))
             )
-            .then(ClientCommandManager.literal("debug")
+            .then(Commands.literal("debug")
                 .executes(ctx -> executeLocal("halo debug"))
             );
 
@@ -241,22 +244,22 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
      * @return {@code 0}
      */
     private static int executeLocal(String command) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
 
         if (HaloPhaseTracker.getInstance().shouldIntercept()) {
             // LOCAL phase: handle on the client
             String result = HaloLocalCommandHandler.handle(command);
             if (result != null && client.player != null) {
-                client.player.sendMessage(Text.literal(result), false);
+                client.player.sendSystemMessage(Component.literal(result));
             }
             return 0;
         }
 
         // MULTIPLAYER or singleplayer (integrated server):
         // forward the command directly to the Netty pipeline via
-        // CommandExecutionC2SPacket, bypassing Fabric's ClientCommandInternals
+        // CommandExecutionC2SPacket, bypassing the client-command dispatcher
         // hook to avoid re-entering our own client-command executor.
-        if (client.getNetworkHandler() != null) {
+        if (client.getConnection() != null) {
             sendCommandRaw(command);
         }
         return 0;
@@ -264,17 +267,17 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
 
     /**
      * Send a command to the server as a raw {@code CommandExecutionC2SPacket},
-     * bypassing Fabric's {@code ClientCommandInternals} hook so we don't
+     * bypassing the client-command dispatcher so we do not
      * re-enter our own client-command executor.
      */
     private static void sendCommandRaw(String command) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.getNetworkHandler() == null) return;
+        Minecraft client = Minecraft.getInstance();
+        if (client.getConnection() == null) return;
 
         // In 1.21.1 the packet only carries the command string; sending it
-        // directly avoids Fabric's client-command interception entirely.
-        var packet = new net.minecraft.network.packet.c2s.play.CommandExecutionC2SPacket(command);
+        // directly avoids client-command interception entirely.
+        var packet = new net.minecraft.network.protocol.game.ServerboundChatCommandPacket(command);
 
-        client.getNetworkHandler().getConnection().send(packet);
+        client.getConnection().getConnection().send(packet);
     }
 }

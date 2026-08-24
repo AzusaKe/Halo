@@ -1,6 +1,6 @@
 package network.azusake.halo.api;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Resolved world-space head anchor for one entity frame.
@@ -18,7 +18,7 @@ import net.minecraft.util.math.Vec3d;
  *                    head roll (0); the local player may inherit the camera roll
  */
 public record HeadAnchor(
-    Vec3d headCenter,
+    Vec3 headCenter,
     float yaw,
     float pitch,
     float roll

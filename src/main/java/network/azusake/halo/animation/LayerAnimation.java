@@ -1,6 +1,6 @@
 package network.azusake.halo.animation;
 
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 import java.util.Collections;
@@ -85,8 +85,8 @@ public record LayerAnimation(
      * @param t wall-clock time in seconds
      * @return offset vector in blocks (local space)
      */
-    public Vec3d evaluateOffset(double t) {
-        return new Vec3d(
+    public Vec3 evaluateOffset(double t) {
+        return new Vec3(
             sumTerms(offsetX, t),
             sumTerms(offsetY, t),
             sumTerms(offsetZ, t));

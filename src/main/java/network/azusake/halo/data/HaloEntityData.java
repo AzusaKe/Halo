@@ -1,11 +1,11 @@
 package network.azusake.halo.data;
 
 import network.azusake.halo.HaloMod;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.util.Identifier;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
 import java.util.UUID;
@@ -38,7 +38,7 @@ public final class HaloEntityData {
     private static final String OFFSET_KEY = "Offset";
 
     /** Per-entity halo NBT.  Written at attach / remove time; read from the mixin on entity load. */
-    private static final Map<UUID, NbtCompound> DATA = new ConcurrentHashMap<>();
+    private static final Map<UUID, CompoundTag> DATA = new ConcurrentHashMap<>();
 
     private HaloEntityData() {
         // utility class — no instances
@@ -58,19 +58,19 @@ public final class HaloEntityData {
      * @param offsetY      Y offset from entity anchor
      * @param offsetZ      Z offset from entity anchor
      */
-    public static void attachHalo(LivingEntity entity, Identifier definitionId,
+    public static void attachHalo(LivingEntity entity, ResourceLocation definitionId,
                                   double scale, double offsetX, double offsetY, double offsetZ) {
-        NbtCompound haloTag = new NbtCompound();
+        CompoundTag haloTag = new CompoundTag();
         haloTag.putString(DEF_KEY, definitionId.toString());
         haloTag.putDouble(SCALE_KEY, scale);
 
-        NbtList offsetList = new NbtList();
-        offsetList.add(net.minecraft.nbt.NbtDouble.of(offsetX));
-        offsetList.add(net.minecraft.nbt.NbtDouble.of(offsetY));
-        offsetList.add(net.minecraft.nbt.NbtDouble.of(offsetZ));
+        ListTag offsetList = new ListTag();
+        offsetList.add(net.minecraft.nbt.DoubleTag.valueOf(offsetX));
+        offsetList.add(net.minecraft.nbt.DoubleTag.valueOf(offsetY));
+        offsetList.add(net.minecraft.nbt.DoubleTag.valueOf(offsetZ));
         haloTag.put(OFFSET_KEY, offsetList);
 
-        DATA.put(entity.getUuid(), haloTag);
+        DATA.put(entity.getUUID(), haloTag);
     }
 
     /**
@@ -80,7 +80,7 @@ public final class HaloEntityData {
      * @param entity       the target living entity
      * @param definitionId the halo definition identifier
      */
-    public static void attachHalo(LivingEntity entity, Identifier definitionId) {
+    public static void attachHalo(LivingEntity entity, ResourceLocation definitionId) {
         attachHalo(entity, definitionId, 1.0, 0.0, 0.3, 0.0);
     }
 
@@ -90,7 +90,7 @@ public final class HaloEntityData {
      * @param entity the target living entity
      */
     public static void removeHalo(LivingEntity entity) {
-        DATA.remove(entity.getUuid());
+        DATA.remove(entity.getUUID());
     }
 
     // -----------------------------------------------------------------------
@@ -105,19 +105,19 @@ public final class HaloEntityData {
      * @param entity the living entity being serialised
      * @return a copy of the halo NBT tag (never {@code null})
      */
-    public static NbtCompound getOrCreateTag(LivingEntity entity) {
-        NbtCompound tag = DATA.get(entity.getUuid());
+    public static CompoundTag getOrCreateTag(LivingEntity entity) {
+        CompoundTag tag = DATA.get(entity.getUUID());
         if (tag == null) {
-            return new NbtCompound();
+            return new CompoundTag();
         }
         // Return a copy so the mixin can mutate it without affecting the stored version
-        NbtCompound copy = new NbtCompound();
+        CompoundTag copy = new CompoundTag();
         copy.putString(DEF_KEY, tag.getString(DEF_KEY));
         if (tag.contains(SCALE_KEY)) {
             copy.putDouble(SCALE_KEY, tag.getDouble(SCALE_KEY));
         }
         if (tag.contains(OFFSET_KEY)) {
-            copy.put(OFFSET_KEY, tag.getList(OFFSET_KEY, NbtElement.DOUBLE_TYPE));
+            copy.put(OFFSET_KEY, tag.getList(OFFSET_KEY, Tag.TAG_DOUBLE));
         }
         return copy;
     }
@@ -129,8 +129,8 @@ public final class HaloEntityData {
      * @param entity the living entity being deserialised
      * @param tag    the halo NBT compound read from disk
      */
-    public static void loadFromTag(LivingEntity entity, NbtCompound tag) {
-        NbtCompound stored = new NbtCompound();
+    public static void loadFromTag(LivingEntity entity, CompoundTag tag) {
+        CompoundTag stored = new CompoundTag();
         if (tag.contains(DEF_KEY)) {
             stored.putString(DEF_KEY, tag.getString(DEF_KEY));
         }
@@ -138,9 +138,9 @@ public final class HaloEntityData {
             stored.putDouble(SCALE_KEY, tag.getDouble(SCALE_KEY));
         }
         if (tag.contains(OFFSET_KEY)) {
-            stored.put(OFFSET_KEY, tag.getList(OFFSET_KEY, NbtElement.DOUBLE_TYPE));
+            stored.put(OFFSET_KEY, tag.getList(OFFSET_KEY, Tag.TAG_DOUBLE));
         }
-        DATA.put(entity.getUuid(), stored);
+        DATA.put(entity.getUUID(), stored);
     }
 
     // -----------------------------------------------------------------------
@@ -154,7 +154,7 @@ public final class HaloEntityData {
      * @return {@code true} if halo NBT data is present in the store
      */
     public static boolean hasHalo(LivingEntity entity) {
-        return DATA.containsKey(entity.getUuid());
+        return DATA.containsKey(entity.getUUID());
     }
 
     /**
@@ -171,19 +171,19 @@ public final class HaloEntityData {
      * Read the halo definition identifier from the store.
      *
      * @param entity the target living entity
-     * @return the definition {@link Identifier}, or {@code null} if absent or malformed
+     * @return the definition {@link ResourceLocation}, or {@code null} if absent or malformed
      */
-    public static Identifier getHaloDefinition(LivingEntity entity) {
-        NbtCompound tag = DATA.get(entity.getUuid());
+    public static ResourceLocation getHaloDefinition(LivingEntity entity) {
+        CompoundTag tag = DATA.get(entity.getUUID());
         if (tag == null || !tag.contains(DEF_KEY)) {
             return null;
         }
 
         try {
-            return Identifier.of(tag.getString(DEF_KEY));
+            return ResourceLocation.parse(tag.getString(DEF_KEY));
         } catch (Exception e) {
             HaloMod.LOGGER.warn("HaloEntityData: malformed Definition in NBT for entity {}",
-                entity.getUuid());
+                entity.getUUID());
             return null;
         }
     }
@@ -195,7 +195,7 @@ public final class HaloEntityData {
      * @return the scale value, or 1.0 if absent
      */
     public static double getScale(LivingEntity entity) {
-        NbtCompound tag = DATA.get(entity.getUuid());
+        CompoundTag tag = DATA.get(entity.getUUID());
         if (tag == null || !tag.contains(SCALE_KEY)) {
             return 1.0;
         }
@@ -209,12 +209,12 @@ public final class HaloEntityData {
      * @return a {@code double[3]} array of [x, y, z], or {@code null} if absent
      */
     public static double[] getOffset(LivingEntity entity) {
-        NbtCompound tag = DATA.get(entity.getUuid());
+        CompoundTag tag = DATA.get(entity.getUUID());
         if (tag == null || !tag.contains(OFFSET_KEY)) {
             return null;
         }
 
-        NbtList list = tag.getList(OFFSET_KEY, NbtElement.DOUBLE_TYPE);
+        ListTag list = tag.getList(OFFSET_KEY, Tag.TAG_DOUBLE);
         if (list.size() < 3) {
             return null;
         }

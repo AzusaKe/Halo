@@ -1,7 +1,7 @@
 package network.azusake.halo.api;
 
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Fallback {@link EntityAnchorProvider} for entities without a dedicated
@@ -26,22 +26,22 @@ public final class FallbackAnchorProvider implements EntityAnchorProvider {
     @Override
     public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
         // Interpolated foot position
-        double x = entity.prevX + (entity.getX() - entity.prevX) * tickDelta;
-        double y = entity.prevY + (entity.getY() - entity.prevY) * tickDelta;
-        double z = entity.prevZ + (entity.getZ() - entity.prevZ) * tickDelta;
+        double x = entity.xo + (entity.getX() - entity.xo) * tickDelta;
+        double y = entity.yo + (entity.getY() - entity.yo) * tickDelta;
+        double z = entity.zo + (entity.getZ() - entity.zo) * tickDelta;
 
         // height * 0.85 approximation (original behaviour)
-        Vec3d headCenter = new Vec3d(x, y + entity.getHeight() * 0.85, z);
+        Vec3 headCenter = new Vec3(x, y + entity.getBbHeight() * 0.85, z);
 
         // Head yaw/pitch: same interpolation as original getInterpolatedHeadYaw
-        float prevYaw = entity.prevHeadYaw;
-        float currYaw = entity.headYaw;
+        float prevYaw = entity.yHeadRotO;
+        float currYaw = entity.yHeadRot;
         float diffYaw = currYaw - prevYaw;
         if (diffYaw > 180f) diffYaw -= 360f;
         if (diffYaw < -180f) diffYaw += 360f;
         float yaw = prevYaw + diffYaw * tickDelta;
 
-        float pitch = entity.prevPitch + (entity.getPitch() - entity.prevPitch) * tickDelta;
+        float pitch = entity.xRotO + (entity.getXRot() - entity.xRotO) * tickDelta;
 
         return new HeadAnchor(headCenter, yaw, pitch, 0f);
     }

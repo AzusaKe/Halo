@@ -1,25 +1,26 @@
 package network.azusake.halo.compat.ysm;
 
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
+import net.neoforged.fml.loading.LoadingModList;
 
 import java.util.Optional;
 
-/** Version gate shared by the optional Mixin plugin and diagnostics. */
+/** Exact release gate shared by the optional Mixin plugin and diagnostics. */
 public final class YsmVersionGate {
-
-    private YsmVersionGate() {
-    }
+    private YsmVersionGate() {}
 
     public static boolean isSupportedVersion(String version) {
         return YsmV265Symbols.SUPPORTED_VERSION.equals(version);
     }
 
     public static Optional<String> installedVersion() {
-        return FabricLoader.getInstance()
-            .getModContainer(YsmV265Symbols.MOD_ID)
-            .map(ModContainer::getMetadata)
-            .map(metadata -> metadata.getVersion().getFriendlyString());
+        LoadingModList loadingMods = LoadingModList.get();
+        if (loadingMods == null) return Optional.empty();
+        var modFile = loadingMods.getModFileById(YsmV265Symbols.MOD_ID);
+        if (modFile == null) return Optional.empty();
+        return modFile.getMods().stream()
+            .filter(mod -> YsmV265Symbols.MOD_ID.equals(mod.getModId()))
+            .map(mod -> mod.getVersion().toString())
+            .findFirst();
     }
 
     public static boolean isSupportedInstalledVersion() {

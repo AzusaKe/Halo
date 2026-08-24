@@ -2,10 +2,10 @@ package network.azusake.halo.compat.ysm;
 
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.physics.RenderHeadCapture;
-import net.minecraft.client.render.Frustum;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.renderer.culling.Frustum;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +36,7 @@ public final class YsmHeadCapture {
      * material passes do not need the context once the UUID-keyed matrix has
      * been stored.
      */
-    public static void captureAndReleaseEntity(Object animatedModel, MatrixStack matrices) {
+    public static void captureAndReleaseEntity(Object animatedModel, PoseStack matrices) {
         try {
             capture(animatedModel, matrices);
         } finally {
@@ -45,7 +45,7 @@ public final class YsmHeadCapture {
     }
 
     /** Called by the optional YSM Mixin at the base model render pass. */
-    public static void capture(Object animatedModel, MatrixStack matrices) {
+    public static void capture(Object animatedModel, PoseStack matrices) {
         if (!HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()) {
             infoOnce("feature-disabled",
                 "[YSM Compat] YSM render hook is active, but experimentalYsmAnchorEnabled=false; "
@@ -81,7 +81,7 @@ public final class YsmHeadCapture {
             return;
         }
 
-        UUID uuid = entity.getUuid();
+        UUID uuid = entity.getUUID();
         if (CURRENT.containsKey(uuid)) {
             return;
         }
@@ -89,7 +89,7 @@ public final class YsmHeadCapture {
         try {
             Matrix4f headMatrix = YsmV265Adapter.captureHeadMatrix(
                 animatedModel,
-                new Matrix4f(matrices.peek().getPositionMatrix())
+                new Matrix4f(matrices.last().pose())
             );
             if (headMatrix == null) {
                 warnOnce("unusable-head",
@@ -117,7 +117,7 @@ public final class YsmHeadCapture {
      * by every capture. Previous-frame matrices must be restored with the
      * camera transform from the frame that produced them, not the current one.
      */
-    public static void beginFrame(Matrix4f viewMatrix, Vec3d cameraPos, Frustum frustum) {
+    public static void beginFrame(Matrix4f viewMatrix, Vec3 cameraPos, Frustum frustum) {
         PREVIOUS.clear();
         PREVIOUS.putAll(CURRENT);
         CURRENT.clear();
@@ -169,14 +169,14 @@ public final class YsmHeadCapture {
     }
 
     static void recordForTests(UUID uuid, Matrix4f matrix) {
-        CURRENT.put(uuid, new CapturedHead(new Matrix4f(matrix), new Matrix4f(), Vec3d.ZERO));
+        CURRENT.put(uuid, new CapturedHead(new Matrix4f(matrix), new Matrix4f(), Vec3.ZERO));
     }
 
     static void recordForTests(
         UUID uuid,
         Matrix4f matrix,
         Matrix4f viewMatrix,
-        Vec3d cameraPos
+        Vec3 cameraPos
     ) {
         CURRENT.put(uuid, new CapturedHead(
             new Matrix4f(matrix), new Matrix4f(viewMatrix), cameraPos));
@@ -190,7 +190,7 @@ public final class YsmHeadCapture {
 
     private static boolean isVisible(CaptureFrame frame, LivingEntity entity) {
         try {
-            return frame.frustum.isVisible(entity.getVisibilityBoundingBox());
+            return frame.frustum.isVisible(entity.getBoundingBox());
         } catch (Throwable error) {
             warnOnce("frustum-check-failure",
                 "[YSM Compat] main-camera frustum check failed; rejecting auxiliary capture: "
@@ -211,9 +211,9 @@ public final class YsmHeadCapture {
         }
     }
 
-    public record CapturedHead(Matrix4f headMatrix, Matrix4f viewMatrix, Vec3d cameraPos) {
+    public record CapturedHead(Matrix4f headMatrix, Matrix4f viewMatrix, Vec3 cameraPos) {
     }
 
-    private record CaptureFrame(Matrix4f viewMatrix, Vec3d cameraPos, Frustum frustum) {
+    private record CaptureFrame(Matrix4f viewMatrix, Vec3 cameraPos, Frustum frustum) {
     }
 }

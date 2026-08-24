@@ -17,24 +17,19 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
     private boolean apply;
-    private boolean namedRuntime;
-    private String runtimeNamespace = "unknown";
 
     @Override
     public void onLoad(String mixinPackage) {
         try {
             var installed = YsmVersionGate.installedVersion();
             apply = installed.map(YsmVersionGate::isSupportedVersion).orElse(false);
-            runtimeNamespace = net.fabricmc.loader.api.FabricLoader.getInstance()
-                .getMappingResolver().getCurrentRuntimeNamespace();
-            namedRuntime = "named".equals(runtimeNamespace);
             if (installed.isPresent() && !apply) {
                 LOGGER.warn(
                     "[YSM Compat] installed YSM version {} is unsupported; expected {}; experimental capture disabled",
                     installed.get(), YsmV265Symbols.SUPPORTED_VERSION);
             } else if (apply) {
-                LOGGER.info("[YSM Compat] verified YSM {} detected; optional capture hook enabled for {} namespace",
-                    YsmV265Symbols.SUPPORTED_VERSION, runtimeNamespace);
+                LOGGER.info("[YSM Compat] verified YSM {} detected; optional NeoForge capture hook enabled",
+                    YsmV265Symbols.SUPPORTED_VERSION);
             }
         } catch (Throwable error) {
             apply = false;
@@ -56,13 +51,7 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith("YsmEntityRenderContextMixin")) {
             return true;
         }
-        if (mixinClassName.endsWith("YsmGeoRendererNamedMixin")) {
-            return namedRuntime;
-        }
-        if (mixinClassName.endsWith("YsmGeoRendererIntermediaryMixin")) {
-            return !namedRuntime;
-        }
-        return false;
+        return mixinClassName.endsWith("YsmGeoRendererNamedMixin");
     }
 
     @Override
@@ -88,8 +77,7 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
         search:
         for (var method : targetClass.methods) {
             if (!YsmV265Symbols.RENDER_METHOD.equals(method.name)
-                || !(YsmV265Symbols.RENDER_DESCRIPTOR_INTERMEDIARY.equals(method.desc)
-                    || YsmV265Symbols.RENDER_DESCRIPTOR_NAMED.equals(method.desc))) {
+                || !YsmV265Symbols.RENDER_DESCRIPTOR_NEOFORGE.equals(method.desc)) {
                 continue;
             }
             for (var instruction : method.instructions) {

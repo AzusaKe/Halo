@@ -1,7 +1,7 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.entity.EntityPose;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -30,36 +30,36 @@ class PlayerAnchorProviderTest {
          * Re-implementation of the head-center math from {@link PlayerAnchorProvider#resolve}
          * for use in pure unit tests, without Minecraft entity dependencies.
          */
-        private static Vec3d computeHeadCenter(
-            Vec3d footPos, Vec3d pivotLocal, Vec3d hcv,
+        private static Vec3 computeHeadCenter(
+            Vec3 footPos, Vec3 pivotLocal, Vec3 hcv,
             float yawDeg, float pitchDeg
         ) {
             float yawRad = (float) Math.toRadians(yawDeg);
             float pitchRad = (float) Math.toRadians(pitchDeg);
 
             // World pivot
-            Vec3d pivotWorld = footPos.add(pivotLocal);
+            Vec3 pivotWorld = footPos.add(pivotLocal);
 
             // Forward basis (matching AnchorFrameCalculator / computeHeadRelativeOffset)
-            Vec3d forward = new Vec3d(
+            Vec3 forward = new Vec3(
                 -Math.sin(yawRad) * Math.cos(pitchRad),
                 -Math.sin(pitchRad),
                 Math.cos(yawRad) * Math.cos(pitchRad)
             ).normalize();
 
-            Vec3d worldUp = new Vec3d(0, 1, 0);
-            Vec3d right;
-            if (Math.abs(forward.dotProduct(worldUp)) > 0.999) {
-                right = new Vec3d(-Math.cos(yawRad), 0, -Math.sin(yawRad));
+            Vec3 worldUp = new Vec3(0, 1, 0);
+            Vec3 right;
+            if (Math.abs(forward.dot(worldUp)) > 0.999) {
+                right = new Vec3(-Math.cos(yawRad), 0, -Math.sin(yawRad));
             } else {
-                right = forward.crossProduct(worldUp).normalize();
+                right = forward.cross(worldUp).normalize();
             }
-            Vec3d headUp = right.crossProduct(forward).normalize();
+            Vec3 headUp = right.cross(forward).normalize();
 
             // Project head_center_vector through basis
-            Vec3d offset = right.multiply(hcv.x)
-                .add(headUp.multiply(hcv.y))
-                .add(forward.multiply(hcv.z));
+            Vec3 offset = right.scale(hcv.x)
+                .add(headUp.scale(hcv.y))
+                .add(forward.scale(hcv.z));
 
             return pivotWorld.add(offset);
         }
@@ -68,11 +68,11 @@ class PlayerAnchorProviderTest {
         @DisplayName("standing: yaw=0 pitch=0, head center is pivot + hcv.y upward")
         void testStandingDefault() {
             // Standing player at origin, looking south (yaw=0, pitch=0)
-            Vec3d footPos = new Vec3d(10, 64, 10);
-            Vec3d pivot = new Vec3d(0, 1.50, 0);      // standing neck pivot
-            Vec3d hcv = new Vec3d(0, 0.12, 0);        // head center above pivot
+            Vec3 footPos = new Vec3(10, 64, 10);
+            Vec3 pivot = new Vec3(0, 1.50, 0);      // standing neck pivot
+            Vec3 hcv = new Vec3(0, 0.12, 0);        // head center above pivot
 
-            Vec3d headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, 0f);
+            Vec3 headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, 0f);
 
             // At yaw=0 pitch=0: forward = (0, 0, 1), right = (1, 0, 0), headUp = (0, 1, 0)
             // headCenter = footPos + pivot + (0, 0.12, 0) = (10, 65.62, 10)
@@ -84,11 +84,11 @@ class PlayerAnchorProviderTest {
         @Test
         @DisplayName("standing: yaw=0 pitch=0 head center one unit above standing eye height")
         void testPivotToHeadCenterUpward() {
-            Vec3d footPos = new Vec3d(0, 70, 0);
-            Vec3d pivot = new Vec3d(0, 1.50, 0);
-            Vec3d hcv = new Vec3d(0, 0.12, 0);
+            Vec3 footPos = new Vec3(0, 70, 0);
+            Vec3 pivot = new Vec3(0, 1.50, 0);
+            Vec3 hcv = new Vec3(0, 0.12, 0);
 
-            Vec3d headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, 0f);
+            Vec3 headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, 0f);
 
             assertEquals(71.62, headCenter.y, 0.001);
         }
@@ -96,12 +96,12 @@ class PlayerAnchorProviderTest {
         @Test
         @DisplayName("standing: yaw=90° facing east, head center Y unchanged")
         void testYaw90PreservesHeight() {
-            Vec3d footPos = new Vec3d(0, 64, 0);
-            Vec3d pivot = new Vec3d(0, 1.50, 0);
-            Vec3d hcv = new Vec3d(0, 0.12, 0);
+            Vec3 footPos = new Vec3(0, 64, 0);
+            Vec3 pivot = new Vec3(0, 1.50, 0);
+            Vec3 hcv = new Vec3(0, 0.12, 0);
 
             // yaw=90: forward = (-1, 0, 0), right = (0, 0, -1), headUp = (0, 1, 0)
-            Vec3d headCenter = computeHeadCenter(footPos, pivot, hcv, 90f, 0f);
+            Vec3 headCenter = computeHeadCenter(footPos, pivot, hcv, 90f, 0f);
 
             assertEquals(65.62, headCenter.y, 0.001, "pitch=0 should not affect Y");
             // headCenter vector is (0, 0.12, 0), only Y component → only headUp gets it
@@ -112,11 +112,11 @@ class PlayerAnchorProviderTest {
         @DisplayName("swimming: head_center_vector [0,0,0.4] projects forward with yaw=0")
         void testSwimmingForward() {
             // Swimming player: pivot at Y=0.4, head is 0.4 blocks forward
-            Vec3d footPos = new Vec3d(0, 60, 0);
-            Vec3d pivot = new Vec3d(0, 0.40, 0);
-            Vec3d hcv = new Vec3d(0, 0, 0.40);   // head is forward from pivot
+            Vec3 footPos = new Vec3(0, 60, 0);
+            Vec3 pivot = new Vec3(0, 0.40, 0);
+            Vec3 hcv = new Vec3(0, 0, 0.40);   // head is forward from pivot
 
-            Vec3d headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, 0f);
+            Vec3 headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, 0f);
 
             // yaw=0: forward = (0, 0, 1), headUp = (0, 1, 0)
             // pivotWorld = (0, 60.4, 0)
@@ -129,11 +129,11 @@ class PlayerAnchorProviderTest {
         @Test
         @DisplayName("swimming: yaw=90° direction, head goes sideways")
         void testSwimmingYaw90() {
-            Vec3d footPos = new Vec3d(0, 60, 0);
-            Vec3d pivot = new Vec3d(0, 0.40, 0);
-            Vec3d hcv = new Vec3d(0, 0, 0.40);
+            Vec3 footPos = new Vec3(0, 60, 0);
+            Vec3 pivot = new Vec3(0, 0.40, 0);
+            Vec3 hcv = new Vec3(0, 0, 0.40);
 
-            Vec3d headCenter = computeHeadCenter(footPos, pivot, hcv, 90f, 0f);
+            Vec3 headCenter = computeHeadCenter(footPos, pivot, hcv, 90f, 0f);
 
             // yaw=90: forward = (-1, 0, 0)
             // headCenter = pivotWorld + 0.4·forward = (0, 60.4, 0) + (-0.4, 0, 0) = (-0.4, 60.4, 0)
@@ -146,11 +146,11 @@ class PlayerAnchorProviderTest {
         @DisplayName("pitch up: head center moves backward (forward points up)")
         void testPitchAffectsForward() {
             // Pitch=-45° (looking up), yaw=0
-            Vec3d footPos = new Vec3d(0, 64, 0);
-            Vec3d pivot = new Vec3d(0, 1.50, 0);
-            Vec3d hcv = new Vec3d(0, 0.12, 0.5); // has Z component
+            Vec3 footPos = new Vec3(0, 64, 0);
+            Vec3 pivot = new Vec3(0, 1.50, 0);
+            Vec3 hcv = new Vec3(0, 0.12, 0.5); // has Z component
 
-            Vec3d headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, -45f);
+            Vec3 headCenter = computeHeadCenter(footPos, pivot, hcv, 0f, -45f);
 
             // pitch=-45: forward = (0, sin(45°), cos(45°)) = (0, 0.707, 0.707)
             // headCenter = (0, 65.5, 0) + 0.12*headUp + 0.5*forward
@@ -162,13 +162,13 @@ class PlayerAnchorProviderTest {
         @Test
         @DisplayName("snake: sneaking pivot is lower than standing")
         void testSneakingLower() {
-            Vec3d footPos = new Vec3d(0, 64, 0);
-            Vec3d pivotStanding = new Vec3d(0, 1.50, 0);
-            Vec3d pivotSneaking = new Vec3d(0, 1.15, 0);
-            Vec3d hcv = new Vec3d(0, 0.12, 0);
+            Vec3 footPos = new Vec3(0, 64, 0);
+            Vec3 pivotStanding = new Vec3(0, 1.50, 0);
+            Vec3 pivotSneaking = new Vec3(0, 1.15, 0);
+            Vec3 hcv = new Vec3(0, 0.12, 0);
 
-            Vec3d standHead = computeHeadCenter(footPos, pivotStanding, hcv, 0f, 0f);
-            Vec3d sneakHead = computeHeadCenter(footPos, pivotSneaking, hcv, 0f, 0f);
+            Vec3 standHead = computeHeadCenter(footPos, pivotStanding, hcv, 0f, 0f);
+            Vec3 sneakHead = computeHeadCenter(footPos, pivotSneaking, hcv, 0f, 0f);
 
             assertEquals(65.62, standHead.y, 0.001);
             assertEquals(65.27, sneakHead.y, 0.001);
@@ -191,7 +191,7 @@ class PlayerAnchorProviderTest {
             // For a entity of height 2.0, head centre = feet + (0, 1.7, 0)
             double footY = 32.0;
             double height = 2.0;
-            Vec3d expectedHead = new Vec3d(0, footY + height * 0.85, 0);
+            Vec3 expectedHead = new Vec3(0, footY + height * 0.85, 0);
 
             assertEquals(32.0 + 1.7, expectedHead.y, 0.001);
             assertEquals(33.7, expectedHead.y, 0.001);
@@ -203,7 +203,7 @@ class PlayerAnchorProviderTest {
             // Enderman height ≈ 2.9
             double footY = 32.0;
             double height = 2.9;
-            Vec3d headCenter = new Vec3d(0, footY + height * 0.85, 0);
+            Vec3 headCenter = new Vec3(0, footY + height * 0.85, 0);
 
             assertEquals(32.0 + 2.465, headCenter.y, 0.001);
             assertEquals(34.465, headCenter.y, 0.001);
@@ -215,7 +215,7 @@ class PlayerAnchorProviderTest {
             // Chicken height ≈ 0.7
             double footY = 64.0;
             double height = 0.7;
-            Vec3d headCenter = new Vec3d(0, footY + height * 0.85, 0);
+            Vec3 headCenter = new Vec3(0, footY + height * 0.85, 0);
 
             assertEquals(64.595, headCenter.y, 0.001);
         }
@@ -238,11 +238,11 @@ class PlayerAnchorProviderTest {
             // This means headCenter = footPos + pivot + 0 = footPos + (0, 1.62, 0)
             // which is exactly the old getStandingEyeHeight() behaviour.
 
-            Vec3d footPos = new Vec3d(0, 64, 0);
-            Vec3d pivot = new Vec3d(0, 1.62, 0);
-            Vec3d hcv = new Vec3d(0, 0, 0);
+            Vec3 footPos = new Vec3(0, 64, 0);
+            Vec3 pivot = new Vec3(0, 1.62, 0);
+            Vec3 hcv = new Vec3(0, 0, 0);
 
-            Vec3d headCenter = footPos.add(pivot).add(hcv);
+            Vec3 headCenter = footPos.add(pivot).add(hcv);
             assertEquals(64 + 1.62, headCenter.y, 0.001);
             assertEquals(65.62, headCenter.y, 0.001);
         }
@@ -260,9 +260,9 @@ class PlayerAnchorProviderTest {
         @DisplayName("resolve returns direct match when key is present")
         void testDirectMatch() {
             var pose = new network.azusake.halo.data.PoseAnchor(
-                new Vec3d(0, 1.5, 0), new Vec3d(0, 0.12, 0));
+                new Vec3(0, 1.5, 0), new Vec3(0, 0.12, 0));
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                net.minecraft.util.Identifier.of("minecraft:player"),
+                net.minecraft.resources.ResourceLocation.parse("minecraft:player"),
                 "standing",
                 java.util.Map.of("standing", pose)
             );
@@ -275,9 +275,9 @@ class PlayerAnchorProviderTest {
         @DisplayName("resolve falls back to defaultPose when key absent")
         void testFallbackToDefault() {
             var standingPose = new network.azusake.halo.data.PoseAnchor(
-                new Vec3d(0, 1.5, 0), new Vec3d(0, 0.12, 0));
+                new Vec3(0, 1.5, 0), new Vec3(0, 0.12, 0));
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                net.minecraft.util.Identifier.of("minecraft:player"),
+                net.minecraft.resources.ResourceLocation.parse("minecraft:player"),
                 "standing",
                 java.util.Map.of("standing", standingPose)
             );
@@ -291,10 +291,10 @@ class PlayerAnchorProviderTest {
         @DisplayName("resolve returns empty when defaultPose itself is missing")
         void testEmptyWhenDefaultMissing() {
             var swimmingPose = new network.azusake.halo.data.PoseAnchor(
-                new Vec3d(0, 0.4, 0), new Vec3d(0, 0, 0.4));
+                new Vec3(0, 0.4, 0), new Vec3(0, 0, 0.4));
             // defaultPose="standing" but no "standing" key exists → invalid profile
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                net.minecraft.util.Identifier.of("minecraft:player"),
+                net.minecraft.resources.ResourceLocation.parse("minecraft:player"),
                 "standing",
                 java.util.Map.of("swimming", swimmingPose)
             );
@@ -308,11 +308,11 @@ class PlayerAnchorProviderTest {
         @DisplayName("isValid returns true when at least defaultPose exists")
         void testValidProfile() {
             var standingPose = new network.azusake.halo.data.PoseAnchor(
-                new Vec3d(0, 1.5, 0), new Vec3d(0, 0.12, 0));
+                new Vec3(0, 1.5, 0), new Vec3(0, 0.12, 0));
             var swimmingPose = new network.azusake.halo.data.PoseAnchor(
-                new Vec3d(0, 0.4, 0), new Vec3d(0, 0, 0.4));
+                new Vec3(0, 0.4, 0), new Vec3(0, 0, 0.4));
             var profile = new network.azusake.halo.data.EntityAnchorProfile(
-                net.minecraft.util.Identifier.of("minecraft:player"),
+                net.minecraft.resources.ResourceLocation.parse("minecraft:player"),
                 "standing",
                 java.util.Map.of("standing", standingPose, "swimming", swimmingPose)
             );
@@ -350,7 +350,7 @@ class PlayerAnchorProviderTest {
     class PoseResolution {
 
         private static String resolve(boolean sleeping, boolean fallFlying, boolean swimming,
-                                      EntityPose pose, boolean sneaking, boolean onGround) {
+                                      Pose pose, boolean sneaking, boolean onGround) {
             return PlayerAnchorProvider.resolvePoseKey(sleeping, fallFlying, swimming, pose, sneaking, onGround);
         }
 
@@ -358,36 +358,36 @@ class PlayerAnchorProviderTest {
         @DisplayName("airborne + shift → standing (regression: halo must not crouch in air)")
         void testAirborneSneakingStaysStanding() {
             // Ordinary falling: pose is STANDING while shift is held
-            assertEquals("standing", resolve(false, false, false, EntityPose.STANDING, true, false));
+            assertEquals("standing", resolve(false, false, false, Pose.STANDING, true, false));
             // 1.20.1 edge: pose already CROUCHING midair — still standing anchor
-            assertEquals("standing", resolve(false, false, false, EntityPose.CROUCHING, true, false));
+            assertEquals("standing", resolve(false, false, false, Pose.CROUCHING, true, false));
         }
 
         @Test
         @DisplayName("ground + shift → sneaking")
         void testGroundSneaking() {
-            assertEquals("sneaking", resolve(false, false, false, EntityPose.CROUCHING, true, true));
+            assertEquals("sneaking", resolve(false, false, false, Pose.CROUCHING, true, true));
         }
 
         @Test
         @DisplayName("ground + crouch pose without shift (forced crouch under ceiling) → sneaking")
         void testForcedCrouchOnGround() {
-            assertEquals("sneaking", resolve(false, false, false, EntityPose.CROUCHING, false, true));
+            assertEquals("sneaking", resolve(false, false, false, Pose.CROUCHING, false, true));
         }
 
         @Test
         @DisplayName("higher-priority poses still win over sneaking")
         void testPriorityOrder() {
-            assertEquals("sleeping", resolve(true, false, false, EntityPose.CROUCHING, true, true));
-            assertEquals("fall_flying", resolve(false, true, false, EntityPose.CROUCHING, true, true));
-            assertEquals("swimming", resolve(false, false, true, EntityPose.SWIMMING, true, true));
-            assertEquals("crawling", resolve(false, false, false, EntityPose.SWIMMING, true, true));
+            assertEquals("sleeping", resolve(true, false, false, Pose.CROUCHING, true, true));
+            assertEquals("fall_flying", resolve(false, true, false, Pose.CROUCHING, true, true));
+            assertEquals("swimming", resolve(false, false, true, Pose.SWIMMING, true, true));
+            assertEquals("crawling", resolve(false, false, false, Pose.SWIMMING, true, true));
         }
 
         @Test
         @DisplayName("no modifiers → standing")
         void testDefaultStanding() {
-            assertEquals("standing", resolve(false, false, false, EntityPose.STANDING, false, true));
+            assertEquals("standing", resolve(false, false, false, Pose.STANDING, false, true));
         }
     }
 }
