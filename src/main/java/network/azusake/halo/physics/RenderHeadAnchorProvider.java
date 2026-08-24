@@ -49,28 +49,33 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                 YsmHeadCapture.discard(player.getUuid());
                 return fallback.resolve(entity, tickDelta);
             }
+            if (HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()
+                && !YsmHeadCapture.isVisibleToMainCamera(player)) {
+                YsmHeadCapture.discard(player.getUuid());
+                return fallback.resolve(entity, tickDelta);
+            }
 
             FrameContext frame = frameContext();
-            if (frame != null) {
-                // Prefer the renderer that actually produced this frame.  If
-                // YSM deactivates its model and vanilla renders instead, the
-                // current vanilla capture correctly wins over stale YSM data.
-                HeadAnchor ysmCurrent = resolveYsm(YsmHeadCapture.getCurrent(player.getUuid()), frame);
-                if (isFinite(ysmCurrent)) {
-                    YsmHeadCapture.markAnchorConsumed(false);
-                    return ysmCurrent;
-                }
+            // Prefer the renderer that actually produced this frame.  If YSM
+            // deactivates its model and vanilla renders instead, the current
+            // vanilla capture correctly wins over stale YSM data.
+            HeadAnchor ysmCurrent = resolveYsm(YsmHeadCapture.getCurrent(player.getUuid()));
+            if (isFinite(ysmCurrent)) {
+                YsmHeadCapture.markAnchorConsumed(false);
+                return ysmCurrent;
+            }
 
+            if (frame != null) {
                 HeadAnchor vanilla = resolveVanilla(RenderHeadCapture.get(player.getUuid()), frame, player);
                 if (isFinite(vanilla)) {
                     return vanilla;
                 }
+            }
 
-                HeadAnchor ysmPrevious = resolveYsm(YsmHeadCapture.getPrevious(player.getUuid()), frame);
-                if (isFinite(ysmPrevious)) {
-                    YsmHeadCapture.markAnchorConsumed(true);
-                    return ysmPrevious;
-                }
+            HeadAnchor ysmPrevious = resolveYsm(YsmHeadCapture.getPrevious(player.getUuid()));
+            if (isFinite(ysmPrevious)) {
+                YsmHeadCapture.markAnchorConsumed(true);
+                return ysmPrevious;
             }
         }
         return fallback.resolve(entity, tickDelta);
@@ -87,18 +92,13 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
             : null;
     }
 
-    private static HeadAnchor resolveYsm(YsmHeadCapture.CapturedHead captured, FrameContext frame) {
+    private static HeadAnchor resolveYsm(YsmHeadCapture.CapturedHead captured) {
         if (captured == null) {
             return null;
         }
         double[] rawOffset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
         Vec3d localOffset = new Vec3d(rawOffset[0], rawOffset[1], rawOffset[2]);
-        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(
-            captured.headMatrix(),
-            localOffset,
-            frame.cameraPos,
-            frame.viewMatrix
-        );
+        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(captured, localOffset);
         if (!isFinite(anchor)) {
             YsmHeadCapture.markAnchorConversionFailed();
             return null;

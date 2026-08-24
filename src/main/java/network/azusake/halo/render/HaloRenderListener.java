@@ -42,7 +42,6 @@ public final class HaloRenderListener {
         // halo pass (AFTER_ENTITIES) only sees this frame's captures; entities
         // that did not render this frame fall back to their previous provider.
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
-            YsmHeadCapture.advanceFrame();
             RenderHeadCapture.clearFrame();
             // On 1.21.1+ the world-render matrix stack has an identity root
             // (the camera view rotation is applied by the GPU at draw time),
@@ -50,7 +49,13 @@ public final class HaloRenderListener {
             // already camera-relative world space.  The anchor pipeline
             // therefore must NOT un-rotate them — an identity "view matrix"
             // leaves the captures unchanged.
-            RenderHeadCapture.setViewMatrix(new Matrix4f());
+            Matrix4f viewMatrix = new Matrix4f();
+            RenderHeadCapture.setViewMatrix(viewMatrix);
+            YsmHeadCapture.beginFrame(
+                viewMatrix,
+                context.camera().getPos(),
+                context.frustum()
+            );
         });
 
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {

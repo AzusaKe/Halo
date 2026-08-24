@@ -2,8 +2,10 @@ package network.azusake.halo.compat.ysm;
 
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.physics.RenderHeadCapture;
+import net.minecraft.client.render.Frustum;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +25,7 @@ public final class YsmHeadCapture {
     private static final Set<String> EMITTED_DIAGNOSTICS = ConcurrentHashMap.newKeySet();
 
     private static volatile boolean adapterBroken;
+    private static volatile CaptureFrame captureFrame;
 
     private YsmHeadCapture() {
     }
@@ -55,8 +58,21 @@ public final class YsmHeadCapture {
 
         LivingEntity entity = RenderHeadCapture.getCurrentEntity();
         if (entity == null) {
-            infoOnce("non-living-render",
-                "[YSM Compat] ignored a YSM preview or non-living render; waiting for a bracketed living entity");
+            if (RenderHeadCapture.isAuxiliaryYsmPass()) {
+                infoOnce("auxiliary-view-rejected",
+                    "[YSM Compat] rejected a YSM shadow/auxiliary render whose root matrix did not match "
+                        + "the main world entity pass");
+            } else {
+                infoOnce("non-living-render",
+                    "[YSM Compat] ignored a YSM preview or non-living render; "
+                        + "waiting for a bracketed living entity");
+            }
+            return;
+        }
+        CaptureFrame frame = captureFrame;
+        if (frame == null || !isVisible(frame, entity)) {
+            infoOnce("outside-main-frustum",
+                "[YSM Compat] ignored a YSM auxiliary-pass render outside the main camera frustum");
             return;
         }
         if (animatedModel == null || matrices == null) {
@@ -80,7 +96,11 @@ public final class YsmHeadCapture {
                     "[YSM Compat] rendered YSM model has no finite, non-degenerate Head locator; using Halo fallback");
                 return;
             }
-            if (CURRENT.putIfAbsent(uuid, new CapturedHead(new Matrix4f(headMatrix))) == null) {
+            if (CURRENT.putIfAbsent(uuid, new CapturedHead(
+                new Matrix4f(headMatrix),
+                new Matrix4f(frame.viewMatrix),
+                frame.cameraPos
+            )) == null) {
                 infoOnce("head-captured",
                     "[YSM Compat] Head matrix captured from a bracketed YSM living-entity render");
             }
@@ -92,11 +112,24 @@ public final class YsmHeadCapture {
         }
     }
 
-    /** Advance exactly once at BEFORE_ENTITIES; previous data lives one frame. */
-    public static void advanceFrame() {
+    /**
+     * Advance once at BEFORE_ENTITIES and snapshot the main-camera frame used
+     * by every capture. Previous-frame matrices must be restored with the
+     * camera transform from the frame that produced them, not the current one.
+     */
+    public static void beginFrame(Matrix4f viewMatrix, Vec3d cameraPos, Frustum frustum) {
         PREVIOUS.clear();
         PREVIOUS.putAll(CURRENT);
         CURRENT.clear();
+        captureFrame = viewMatrix == null || cameraPos == null || frustum == null
+            ? null
+            : new CaptureFrame(new Matrix4f(viewMatrix), cameraPos, new Frustum(frustum));
+    }
+
+    /** Main-camera visibility gate used before consuming cached YSM matrices. */
+    public static boolean isVisibleToMainCamera(LivingEntity entity) {
+        CaptureFrame frame = captureFrame;
+        return frame != null && entity != null && isVisible(frame, entity);
     }
 
     public static CapturedHead getCurrent(UUID uuid) {
@@ -132,10 +165,38 @@ public final class YsmHeadCapture {
         PREVIOUS.clear();
         EMITTED_DIAGNOSTICS.clear();
         adapterBroken = false;
+        captureFrame = null;
     }
 
     static void recordForTests(UUID uuid, Matrix4f matrix) {
-        CURRENT.put(uuid, new CapturedHead(new Matrix4f(matrix)));
+        CURRENT.put(uuid, new CapturedHead(new Matrix4f(matrix), new Matrix4f(), Vec3d.ZERO));
+    }
+
+    static void recordForTests(
+        UUID uuid,
+        Matrix4f matrix,
+        Matrix4f viewMatrix,
+        Vec3d cameraPos
+    ) {
+        CURRENT.put(uuid, new CapturedHead(
+            new Matrix4f(matrix), new Matrix4f(viewMatrix), cameraPos));
+    }
+
+    static void advanceFrameForTests() {
+        PREVIOUS.clear();
+        PREVIOUS.putAll(CURRENT);
+        CURRENT.clear();
+    }
+
+    private static boolean isVisible(CaptureFrame frame, LivingEntity entity) {
+        try {
+            return frame.frustum.isVisible(entity.getVisibilityBoundingBox());
+        } catch (Throwable error) {
+            warnOnce("frustum-check-failure",
+                "[YSM Compat] main-camera frustum check failed; rejecting auxiliary capture: "
+                    + error.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private static void warnOnce(String key, String message) {
@@ -150,6 +211,9 @@ public final class YsmHeadCapture {
         }
     }
 
-    public record CapturedHead(Matrix4f headMatrix) {
+    public record CapturedHead(Matrix4f headMatrix, Matrix4f viewMatrix, Vec3d cameraPos) {
+    }
+
+    private record CaptureFrame(Matrix4f viewMatrix, Vec3d cameraPos, Frustum frustum) {
     }
 }

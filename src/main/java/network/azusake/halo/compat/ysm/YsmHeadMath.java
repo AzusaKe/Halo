@@ -11,6 +11,19 @@ public final class YsmHeadMath {
     private YsmHeadMath() {
     }
 
+    /** Convert using the exact camera frame that produced this capture. */
+    public static HeadAnchor toHeadAnchor(YsmHeadCapture.CapturedHead captured, Vec3d localOffset) {
+        if (captured == null) {
+            return null;
+        }
+        return toHeadAnchor(
+            captured.headMatrix(),
+            localOffset,
+            captured.cameraPos(),
+            captured.viewMatrix()
+        );
+    }
+
     public static HeadAnchor toHeadAnchor(
         Matrix4f viewSpace,
         Vec3d localOffset,
