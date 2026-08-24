@@ -4,6 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for the {@link HaloModConfig} command-system configuration.
@@ -35,5 +38,40 @@ class HaloModConfigTest {
 
         config.setCommandPermissionLevel(4);
         assertEquals(4, config.getCommandPermissionLevel());
+    }
+
+    @Test
+    @DisplayName("experimental YSM anchor defaults off at the Head pivot")
+    void experimentalYsmDefaults() {
+        HaloModConfig config = new HaloModConfig();
+
+        assertFalse(config.isExperimentalYsmAnchorEnabled());
+        assertArrayEquals(new double[]{0.0, 0.0, 0.0}, config.getExperimentalYsmHeadLocalOffset());
+    }
+
+    @Test
+    @DisplayName("experimental YSM settings are mutable and defensively copied")
+    void experimentalYsmSettings() {
+        HaloModConfig config = new HaloModConfig();
+        double[] input = {0.1, -0.2, 0.3};
+
+        config.setExperimentalYsmAnchorEnabled(true);
+        config.setExperimentalYsmHeadLocalOffset(input);
+        input[0] = 99.0;
+
+        assertTrue(config.isExperimentalYsmAnchorEnabled());
+        assertArrayEquals(new double[]{0.1, -0.2, 0.3}, config.getExperimentalYsmHeadLocalOffset());
+    }
+
+    @Test
+    @DisplayName("invalid experimental YSM offsets normalize to zero")
+    void invalidExperimentalYsmOffset() {
+        HaloModConfig config = new HaloModConfig();
+
+        config.setExperimentalYsmHeadLocalOffset(new double[]{1.0, 2.0});
+        assertArrayEquals(new double[]{0.0, 0.0, 0.0}, config.getExperimentalYsmHeadLocalOffset());
+
+        config.setExperimentalYsmHeadLocalOffset(new double[]{0.0, Double.NaN, 0.0});
+        assertArrayEquals(new double[]{0.0, 0.0, 0.0}, config.getExperimentalYsmHeadLocalOffset());
     }
 }

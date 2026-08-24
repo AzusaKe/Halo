@@ -2,12 +2,17 @@ package network.azusake.halo.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.minecraftforge.fml.loading.FMLPaths;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import network.azusake.halo.HaloMod;
+import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Loads and saves the file-backed {@link HaloModConfig} from
@@ -21,10 +26,10 @@ import java.nio.file.Path;
  * <p>Load rules:</p>
  * <ul>
  *   <li>File missing or blank → defaults are written to disk.</li>
- *   <li>{@code {}} or missing fields → defaults.</li>
+ *   <li>{@code {}} or missing fields → defaults are merged back into the file.</li>
  *   <li>Out-of-range values → clamped to {@code [0, 4]} with a warning.</li>
  *   <li>Corrupt JSON → warning + defaults (never crashes the game).</li>
- *   <li>Unknown keys → ignored (backwards compatible).</li>
+ *   <li>Unknown keys → preserved during migration (backwards compatible).</li>
  * </ul>
  */
 public final class HaloModConfigStore {
@@ -118,18 +123,60 @@ public final class HaloModConfigStore {
                 return defaults;
             }
 
-            HaloModConfig parsed = GSON.fromJson(raw, HaloModConfig.class);
+            JsonElement root = JsonParser.parseString(raw);
+            if (!root.isJsonObject()) {
+                HaloMod.LOGGER.warn("Halo mod config {} is not a JSON object; using defaults", file);
+                return new HaloModConfig();
+            }
+
+            JsonObject document = root.getAsJsonObject();
+            HaloModConfig parsed = GSON.fromJson(document, HaloModConfig.class);
             if (parsed == null) {
                 HaloMod.LOGGER.warn("Halo mod config {} contains no data; using defaults", file);
                 return new HaloModConfig();
             }
 
+            List<String> migratedFields = new ArrayList<>();
             int level = parsed.getCommandPermissionLevel();
             if (level < 0 || level > 4) {
                 HaloMod.LOGGER.warn(
                     "Halo mod config {} has out-of-range commandPermissionLevel={}; clamping to [0, 4]",
                     file, level);
                 parsed.setCommandPermissionLevel(level); // clamps
+                document.addProperty("commandPermissionLevel", parsed.getCommandPermissionLevel());
+                migratedFields.add("commandPermissionLevel (normalized)");
+            } else if (!document.has("commandPermissionLevel")
+                || document.get("commandPermissionLevel").isJsonNull()) {
+                document.addProperty("commandPermissionLevel", parsed.getCommandPermissionLevel());
+                migratedFields.add("commandPermissionLevel");
+            }
+
+            if (!document.has("experimentalYsmAnchorEnabled")
+                || document.get("experimentalYsmAnchorEnabled").isJsonNull()) {
+                document.addProperty(
+                    "experimentalYsmAnchorEnabled",
+                    parsed.isExperimentalYsmAnchorEnabled());
+                migratedFields.add("experimentalYsmAnchorEnabled");
+            }
+
+            if (!parsed.validateExperimentalYsmHeadLocalOffset()) {
+                HaloMod.LOGGER.warn(
+                    "Halo mod config {} has invalid experimentalYsmHeadLocalOffset; using [0.0, 0.0, 0.0]",
+                    file);
+                document.add(
+                    "experimentalYsmHeadLocalOffset",
+                    GSON.toJsonTree(parsed.getExperimentalYsmHeadLocalOffset()));
+                migratedFields.add("experimentalYsmHeadLocalOffset (normalized)");
+            } else if (!document.has("experimentalYsmHeadLocalOffset")
+                || document.get("experimentalYsmHeadLocalOffset").isJsonNull()) {
+                document.add(
+                    "experimentalYsmHeadLocalOffset",
+                    GSON.toJsonTree(parsed.getExperimentalYsmHeadLocalOffset()));
+                migratedFields.add("experimentalYsmHeadLocalOffset");
+            }
+
+            if (!migratedFields.isEmpty()) {
+                saveMigratedDocument(document, file, migratedFields);
             }
             return parsed;
         } catch (IOException e) {
@@ -138,6 +185,24 @@ public final class HaloModConfigStore {
         } catch (Exception e) {
             HaloMod.LOGGER.warn("Failed to parse Halo mod config {}: {}; using defaults", file, e.getMessage());
             return new HaloModConfig();
+        }
+    }
+
+    private static void saveMigratedDocument(JsonObject document, Path file, List<String> migratedFields) {
+        try {
+            if (file.getParent() != null) {
+                Files.createDirectories(file.getParent());
+            }
+            Files.writeString(file, GSON.toJson(document));
+            HaloMod.LOGGER.info(
+                "Migrated Halo mod config {} with missing or normalized field(s): {}",
+                file, String.join(", ", migratedFields));
+        } catch (IOException e) {
+            // The already parsed in-memory configuration is still usable even
+            // when the self-documenting migration cannot be persisted.
+            HaloMod.LOGGER.warn(
+                "Failed to persist migrated Halo mod config {}: {}",
+                file, e.getMessage());
         }
     }
 }

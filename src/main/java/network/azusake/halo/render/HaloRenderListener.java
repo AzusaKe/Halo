@@ -1,6 +1,7 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
+import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -9,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Registers the halo renderer with Fabric's world-render pipeline.
+ * Registers the halo renderer with Forge's world-render pipeline.
  *
  * <p>Halos are drawn <em>after</em> entities so they always appear on top of
  * the entity they are attached to.  The glow layer uses additive blending and
@@ -47,7 +48,13 @@ public final class HaloRenderListener {
                 // This is the last stable Forge stage before entities. Captured
                 // player-head matrices are camera-relative, so retain the root
                 // view matrix for conversion back to world space.
-                RenderHeadCapture.setViewMatrix(new Matrix4f(event.getPoseStack().last().pose()));
+                Matrix4f viewMatrix = new Matrix4f(event.getPoseStack().last().pose());
+                RenderHeadCapture.setViewMatrix(viewMatrix);
+                YsmHeadCapture.beginFrame(
+                    viewMatrix,
+                    event.getCamera().getPosition(),
+                    event.getFrustum()
+                );
             } else if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
                 HaloRenderer.getInstance().renderHalos(
                     event.getPoseStack(),

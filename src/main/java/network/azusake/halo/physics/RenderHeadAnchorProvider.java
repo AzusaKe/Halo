@@ -1,7 +1,10 @@
 package network.azusake.halo.physics;
 
+import network.azusake.halo.compat.ysm.YsmHeadCapture;
+import network.azusake.halo.compat.ysm.YsmHeadMath;
 import network.azusake.halo.api.EntityAnchorProvider;
 import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.config.HaloModConfigStore;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -36,34 +39,94 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
     @Override
     public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
         if (entity instanceof AbstractClientPlayer player) {
-            RenderHeadCapture.CapturedHead captured = RenderHeadCapture.get(player.getUUID());
-            if (captured != null) {
-                Minecraft client = Minecraft.getInstance();
-                Camera camera = client != null && client.gameRenderer != null
-                    ? client.gameRenderer.getMainCamera()
-                    : null;
-                if (camera != null) {
-                    Vec3 cameraPos = camera.getPosition();
-                    Matrix4f viewMatrix = RenderHeadCapture.getViewMatrix();
-                    if (viewMatrix != null) {
-                        HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, viewMatrix);
-                        if (isFinite(anchor)) {
-                            return anchor;
-                        }
-                        // A single degenerate capture (e.g. during a pose
-                        // switch) must never emit NaN — a NaN anchor poisons
-                        // the halo's damping state and hides it until the
-                        // per-frame state is dropped.  Fall back this frame.
-                        LOGGER.warn("[RenderHead] captured anchor not finite for uuid={} "
-                                + "center=({}, {}, {}) yaw={} pitch={} roll={} — falling back",
-                            player.getUUID(),
-                            anchor.headCenter().x, anchor.headCenter().y, anchor.headCenter().z,
-                            anchor.yaw(), anchor.pitch(), anchor.roll());
-                    }
+            boolean ysmEnabled = HaloModConfigStore.get().isExperimentalYsmAnchorEnabled();
+            if (ysmEnabled) {
+                YsmHeadCapture.markProviderInvoked(true);
+            }
+            Minecraft client = Minecraft.getInstance();
+            boolean localPlayer = client != null && player == client.player;
+            boolean firstPerson = client != null && client.options.getCameraType().isFirstPerson();
+            if (!shouldUseRenderCapture(localPlayer, firstPerson)) {
+                // Iris may render the local player's YSM body in shadow or
+                // auxiliary passes even though first-person is not a stable
+                // main-camera body render.  The camera is authoritative here.
+                YsmHeadCapture.discard(player.getUUID());
+                return fallback.resolve(entity, tickDelta);
+            }
+            if (ysmEnabled && !YsmHeadCapture.isVisibleToMainCamera(player)) {
+                YsmHeadCapture.markProviderOutsideFrustum(true);
+                YsmHeadCapture.discard(player.getUUID());
+                if (ysmEnabled) {
+                    YsmHeadCapture.markLocalFirstPersonFallback();
                 }
+                return fallback.resolve(entity, tickDelta);
+            }
+
+            FrameContext frame = frameContext();
+            HeadAnchor ysmCurrent = resolveYsm(YsmHeadCapture.getCurrent(player.getUUID()));
+            if (isFinite(ysmCurrent)) {
+                YsmHeadCapture.markAnchorConsumed(false);
+                return ysmCurrent;
+            }
+
+            if (frame != null) {
+                HeadAnchor vanilla = resolveVanilla(RenderHeadCapture.get(player.getUUID()), frame, player);
+                if (isFinite(vanilla)) {
+                    return vanilla;
+                }
+            }
+
+            HeadAnchor ysmPrevious = resolveYsm(YsmHeadCapture.getPrevious(player.getUUID()));
+            if (isFinite(ysmPrevious)) {
+                YsmHeadCapture.markAnchorConsumed(true);
+                return ysmPrevious;
+            }
+            if (ysmEnabled) {
+                YsmHeadCapture.markProviderMiss(true);
             }
         }
         return fallback.resolve(entity, tickDelta);
+    }
+
+    private static FrameContext frameContext() {
+        Minecraft client = Minecraft.getInstance();
+        Camera camera = client != null && client.gameRenderer != null
+            ? client.gameRenderer.getMainCamera()
+            : null;
+        Matrix4f viewMatrix = RenderHeadCapture.getViewMatrix();
+        return camera != null && viewMatrix != null
+            ? new FrameContext(camera.getPosition(), viewMatrix)
+            : null;
+    }
+
+    private static HeadAnchor resolveYsm(YsmHeadCapture.CapturedHead captured) {
+        if (captured == null) {
+            return null;
+        }
+        double[] rawOffset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
+        Vec3 localOffset = new Vec3(rawOffset[0], rawOffset[1], rawOffset[2]);
+        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(captured, localOffset);
+        if (!isFinite(anchor)) {
+            YsmHeadCapture.markAnchorConversionFailed();
+            return null;
+        }
+        return anchor;
+    }
+
+    private static HeadAnchor resolveVanilla(
+        RenderHeadCapture.CapturedHead captured,
+        FrameContext frame,
+        AbstractClientPlayer player
+    ) {
+        if (captured == null) {
+            return null;
+        }
+        HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, frame.cameraPos, frame.viewMatrix);
+        if (!isFinite(anchor)) {
+            LOGGER.warn("[RenderHead] captured anchor not finite for uuid={} — falling back", player.getUUID());
+            return null;
+        }
+        return anchor;
     }
 
     private static boolean isFinite(HeadAnchor anchor) {
@@ -73,5 +136,12 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         Vec3 center = anchor.headCenter();
         return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
             && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
+    }
+
+    static boolean shouldUseRenderCapture(boolean localPlayer, boolean firstPerson) {
+        return !localPlayer || !firstPerson;
+    }
+
+    private record FrameContext(Vec3 cameraPos, Matrix4f viewMatrix) {
     }
 }

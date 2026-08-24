@@ -109,7 +109,11 @@ tasks.matching { it.name == 'runServer' }.configureEach {
 mixin {
     add sourceSets.main, 'halo.refmap.json'
     config 'halo.mixins.json'
+    config 'halo-ysm.mixins.json'
 }
+
+def ysmDevJarPath = System.getenv('HALO_YSM_DEV_JAR')
+def ysmDevFixtureEnabled = ysmDevJarPath != null && !ysmDevJarPath.isBlank()
 
 repositories {
     // Keep JUnit on Maven Central instead of routing it through Forge's proxy.
@@ -123,6 +127,14 @@ repositories {
             includeGroup 'org.apiguardian'
         }
     }
+
+    // flatDir gives ForgeGradle module coordinates it can reobfuscate for
+    // Mojmap userdev. A raw files(...) dependency bypasses that transform.
+    if (ysmDevFixtureEnabled) {
+        flatDir {
+            dirs file(ysmDevJarPath).parentFile
+        }
+    }
 }
 
 dependencies {
@@ -131,6 +143,13 @@ dependencies {
     // The Forge userdev distribution supplies Mixin at runtime; this processor emits
     // halo.refmap.json from the official 1.20.1 names during compileJava.
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    // Optional local fixture for runClient. ForgeGradle must deobfuscate an
+    // official release jar before it can run in the Mojmap userdev runtime.
+    // The dependency is absent from normal builds and is never bundled.
+    if (ysmDevFixtureEnabled) {
+        runtimeOnly fg.deobf('halo.fixture:ysm:2.6.5-forge+mc1.20.1-release')
+    }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
     testImplementation 'com.google.code.gson:gson:2.10.1'
@@ -177,7 +196,7 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Version'  : project.jar.archiveVersion,
                 'Implementation-Vendor'   : mod_authors,
                 'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-                'MixinConfigs'            : 'halo.mixins.json'
+                'MixinConfigs'            : 'halo.mixins.json,halo-ysm.mixins.json'
         ])
     }
     from('LICENSE') {
