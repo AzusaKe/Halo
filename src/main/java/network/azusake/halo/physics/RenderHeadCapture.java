@@ -4,6 +4,8 @@ import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
 import org.joml.Matrix4f;
 
 import java.util.Map;
@@ -28,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class RenderHeadCapture {
 
-    private static final ThreadLocal<AbstractClientPlayerEntity> CURRENT_ENTITY = new ThreadLocal<>();
+    private static final ThreadLocal<LivingEntity> CURRENT_ENTITY = new ThreadLocal<>();
     private static final ThreadLocal<PlayerEntityModel<?>> CURRENT_MODEL = new ThreadLocal<>();
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
@@ -50,7 +52,24 @@ public final class RenderHeadCapture {
         CURRENT_MODEL.set(model);
     }
 
-    /** Called at the TAIL of {@code PlayerEntityRenderer.render}. */
+    /**
+     * Bracket an entity-dispatcher render so optional renderer integrations can
+     * associate their model pass with any living entity, not only players.
+     */
+    public static void beginYsmEntity(Entity entity) {
+        CURRENT_MODEL.remove();
+        if (entity instanceof LivingEntity living) {
+            CURRENT_ENTITY.set(living);
+        } else {
+            CURRENT_ENTITY.remove();
+        }
+    }
+
+    /**
+     * Called on normal returns from {@code PlayerEntityRenderer.render};
+     * renderer-replacement compatibility hooks may also release early after
+     * taking their own capture.
+     */
     public static void end() {
         CURRENT_ENTITY.remove();
         CURRENT_MODEL.remove();
@@ -71,6 +90,11 @@ public final class RenderHeadCapture {
         return viewMatrix;
     }
 
+    /** Current bracketed living entity, exposed to isolated renderer compat hooks. */
+    public static LivingEntity getCurrentEntity() {
+        return CURRENT_ENTITY.get();
+    }
+
     /**
      * Called at the HEAD of {@link ModelPart#render} for every part while a
      * player is rendering.  Only the head part of the current player model is
@@ -81,7 +105,7 @@ public final class RenderHeadCapture {
         if (model == null || part != model.getHead()) {
             return;
         }
-        AbstractClientPlayerEntity entity = CURRENT_ENTITY.get();
+        LivingEntity entity = CURRENT_ENTITY.get();
         if (entity == null) {
             return;
         }

@@ -2,6 +2,7 @@ package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.physics.RenderHeadCapture;
+import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -41,6 +42,7 @@ public final class HaloRenderListener {
         // halo pass (AFTER_ENTITIES) only sees this frame's captures; entities
         // that did not render this frame fall back to their previous provider.
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
+            YsmHeadCapture.advanceFrame();
             RenderHeadCapture.clearFrame();
             // On 1.21.1+ the world-render matrix stack has an identity root
             // (the camera view rotation is applied by the GPU at draw time),

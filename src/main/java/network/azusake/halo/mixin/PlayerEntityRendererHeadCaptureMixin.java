@@ -37,7 +37,7 @@ public abstract class PlayerEntityRendererHeadCaptureMixin {
 
     @Inject(
         method = "render(Lnet/minecraft/client/network/AbstractClientPlayerEntity;FFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
-        at = @At("TAIL")
+        at = @At("RETURN")
     )
     private void halo$endHeadCapture(
         AbstractClientPlayerEntity entity,
