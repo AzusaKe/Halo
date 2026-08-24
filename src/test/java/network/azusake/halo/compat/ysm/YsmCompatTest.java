@@ -124,13 +124,38 @@ class YsmCompatTest {
         assertNotNull(YsmHeadCapture.getCurrent(uuid));
         assertNull(YsmHeadCapture.getPrevious(uuid));
 
-        YsmHeadCapture.advanceFrame();
+        YsmHeadCapture.advanceFrameForTests();
         assertNull(YsmHeadCapture.getCurrent(uuid));
         assertNotNull(YsmHeadCapture.getPrevious(uuid));
 
-        YsmHeadCapture.advanceFrame();
+        YsmHeadCapture.advanceFrameForTests();
         assertNull(YsmHeadCapture.getCurrent(uuid));
         assertNull(YsmHeadCapture.getPrevious(uuid));
+    }
+
+    @Test
+    @DisplayName("previous-frame capture is restored with its producing camera transform")
+    void previousCaptureKeepsCameraFrame() {
+        UUID uuid = UUID.randomUUID();
+        Vec3d expectedWorld = new Vec3d(13, 4, -8);
+        Vec3d captureCamera = new Vec3d(10, 2, -5);
+        Matrix4f captureView = new Matrix4f().rotateY(0.65f).rotateX(-0.2f);
+        Matrix4f cameraRelativeWorld = new Matrix4f().translate(
+            (float) (expectedWorld.x - captureCamera.x),
+            (float) (expectedWorld.y - captureCamera.y),
+            (float) (expectedWorld.z - captureCamera.z));
+        Matrix4f capturedHead = new Matrix4f(captureView).mul(cameraRelativeWorld);
+
+        YsmHeadCapture.recordForTests(
+            uuid, capturedHead, captureView, captureCamera);
+        YsmHeadCapture.advanceFrameForTests();
+
+        YsmHeadCapture.CapturedHead previous = YsmHeadCapture.getPrevious(uuid);
+        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(previous, Vec3d.ZERO);
+        assertNotNull(anchor);
+        assertEquals(expectedWorld.x, anchor.headCenter().x, EPS);
+        assertEquals(expectedWorld.y, anchor.headCenter().y, EPS);
+        assertEquals(expectedWorld.z, anchor.headCenter().z, EPS);
     }
 
     @Test
@@ -138,7 +163,7 @@ class YsmCompatTest {
     void captureDiscard() {
         UUID uuid = UUID.randomUUID();
         YsmHeadCapture.recordForTests(uuid, new Matrix4f());
-        YsmHeadCapture.advanceFrame();
+        YsmHeadCapture.advanceFrameForTests();
 
         YsmHeadCapture.discard(uuid);
 

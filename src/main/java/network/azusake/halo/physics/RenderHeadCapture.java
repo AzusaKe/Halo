@@ -32,6 +32,8 @@ public final class RenderHeadCapture {
 
     private static final ThreadLocal<LivingEntity> CURRENT_ENTITY = new ThreadLocal<>();
     private static final ThreadLocal<PlayerEntityModel<?>> CURRENT_MODEL = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> AUXILIARY_YSM_PASS =
+        ThreadLocal.withInitial(() -> false);
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
@@ -53,13 +55,38 @@ public final class RenderHeadCapture {
      * Bracket an entity-dispatcher render so optional renderer integrations can
      * associate their model pass with any living entity, not only players.
      */
-    public static void beginYsmEntity(Entity entity) {
+    public static void beginYsmEntity(Entity entity, MatrixStack matrices) {
         CURRENT_MODEL.remove();
-        if (entity instanceof LivingEntity living) {
+        Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
+        if (entity instanceof LivingEntity living && matchesMainView(root)) {
             CURRENT_ENTITY.set(living);
+            AUXILIARY_YSM_PASS.set(false);
         } else {
             CURRENT_ENTITY.remove();
+            AUXILIARY_YSM_PASS.set(entity instanceof LivingEntity);
         }
+    }
+
+    /**
+     * Auxiliary shader passes use a different root transform. They must never
+     * be paired with the main camera metadata used to restore world space.
+     */
+    static boolean matchesMainView(Matrix4f candidate) {
+        Matrix4f expected = viewMatrix;
+        if (candidate == null || expected == null) {
+            return false;
+        }
+        float[] actualValues = new float[16];
+        float[] expectedValues = new float[16];
+        candidate.get(actualValues);
+        expected.get(expectedValues);
+        for (int i = 0; i < actualValues.length; i++) {
+            if (!Float.isFinite(actualValues[i])
+                || Math.abs(actualValues[i] - expectedValues[i]) > 1.0e-4f) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -70,6 +97,7 @@ public final class RenderHeadCapture {
     public static void end() {
         CURRENT_ENTITY.remove();
         CURRENT_MODEL.remove();
+        AUXILIARY_YSM_PASS.remove();
     }
 
     /** Drop all captures from the previous frame; call before entity rendering. */
@@ -90,6 +118,11 @@ public final class RenderHeadCapture {
     /** Current bracketed living entity, exposed to isolated renderer compat hooks. */
     public static LivingEntity getCurrentEntity() {
         return CURRENT_ENTITY.get();
+    }
+
+    /** Whether the current YSM render was rejected for using a non-main root matrix. */
+    public static boolean isAuxiliaryYsmPass() {
+        return AUXILIARY_YSM_PASS.get();
     }
 
     /**

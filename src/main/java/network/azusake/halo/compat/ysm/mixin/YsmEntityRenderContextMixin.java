@@ -30,7 +30,7 @@ public abstract class YsmEntityRenderContextMixin {
         int light,
         CallbackInfo ci
     ) {
-        RenderHeadCapture.beginYsmEntity(entity);
+        RenderHeadCapture.beginYsmEntity(entity, matrices);
     }
 
     @Inject(
