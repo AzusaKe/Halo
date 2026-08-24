@@ -19,6 +19,7 @@ English | [中文](README_ZH.md)
   - [NeoForge](#neoforge)
 - [Usage](#usage)
   - [Commands](#commands)
+  - [YSM Compatibility](#ysm-compatibility)
   - [Custom Halo Definitions](#custom-halo-definitions)
 - [Building from Source](#building-from-source)
   - [Prerequisites](#prerequisites)
@@ -135,6 +136,36 @@ All commands require permission level 2 (operator) by default. The required leve
 # Render the halo larger
 /halo config scale 1.5
 ```
+
+<a id="ysm-compatibility"></a>
+
+### YSM Compatibility
+
+Halo's Yes Steve Model (YSM) integration is optional and version-pinned. This branch supports exactly **YSM `2.6.5-neoforge+mc1.21.1`**. If YSM is missing, disabled, or a different version is installed, Halo safely uses its standard entity anchor instead. YSM is only needed on clients that render YSM models; the server does not need YSM for Halo synchronization.
+
+To enable YSM head-locator anchoring:
+
+1. Install the supported YSM version and launch the game once so Halo creates `config/halo-azusake/halo_mod_config.json`.
+2. Close the game and keep any existing keys in that file.
+3. Set the following fields, then restart the game:
+
+```json
+{
+  "commandPermissionLevel": 2,
+  "experimentalYsmAnchorEnabled": true,
+  "experimentalYsmHeadLocalOffset": [0.0, 0.0, 0.0]
+}
+```
+
+In multiplayer, **each rendering client** must enable this option in its own config; the setting is not synchronized by the server.
+
+`experimentalYsmHeadLocalOffset` fine-tunes the captured Head locator in head-local coordinates, in blocks, using `[right, up, back]`:
+
+- First value: positive moves right, negative moves left.
+- Second value: positive moves up, negative moves down.
+- Third value: positive moves backward, negative moves forward.
+
+Start at `[0.0, 0.0, 0.0]` and adjust in small `0.01`–`0.05` steps. For example, use `[0.0, 0.05, 0.0]` when the anchor is too low, or `[0.0, 0.0, 0.03]` when it is too far forward. This is a global YSM locator correction; per-halo placement should still be adjusted in the halo definition. Config changes require a game restart and are not applied by `/reload`.
 
 <a id="custom-halo-definitions"></a>
 
