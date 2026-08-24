@@ -27,6 +27,9 @@ logoFile="assets/halo/textures/halo/ring.png"
 [[mixins]]
     config="halo.mixins.json"
 
+[[mixins]]
+    config="halo-ysm.mixins.json"
+
 [[accessTransformers]]
     file="META-INF/accesstransformer.cfg"
 

@@ -2,10 +2,13 @@ package network.azusake.halo;
 
 import network.azusake.halo.api.AnchorProviderSetupEvent;
 import network.azusake.halo.api.EntityAnchorProviderRegistry;
+import network.azusake.halo.api.FallbackAnchorProvider;
 import network.azusake.halo.client.NeoForgeHaloCommandInterceptor;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.compat.ysm.YsmEntityAnchorProvider;
+import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.network.HaloNetworkClient;
 import network.azusake.halo.physics.PlayerAnchorProvider;
 import network.azusake.halo.physics.RenderHeadAnchorProvider;
@@ -16,6 +19,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
@@ -71,6 +75,8 @@ public final class HaloModClient {
         // that every other mod's client setup has run by then.
         EntityAnchorProviderRegistry anchorRegistry = EntityAnchorProviderRegistry.getInstance();
         anchorRegistry.register(Player.class, PlayerAnchorProvider.getInstance());
+        anchorRegistry.register(LivingEntity.class,
+            new YsmEntityAnchorProvider(FallbackAnchorProvider.getInstance()));
         // Default player provider: the render-head capture provider anchors
         // the halo to the actually rendered head.  It keeps PlayerAnchorProvider
         // (backed by entity_anchors/player.json) as its no-capture fallback for
@@ -86,6 +92,9 @@ public final class HaloModClient {
             if (ANCHOR_SETUP_FIRED.compareAndSet(false, true)) {
                 AnchorProviderSetupEvent.EVENT.invoker().onSetup(anchorRegistry);
                 LOGGER.info("Default anchor providers registered; AnchorProviderSetupEvent fired (first client tick)");
+                if (HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()) {
+                    LOGGER.info("[YSM Compat] experimental anchor provider enabled; external setup listeners retain last-wins priority");
+                }
             }
         });
 

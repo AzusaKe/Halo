@@ -4,6 +4,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Unit tests for the {@link HaloModConfig} command-system configuration.
@@ -13,7 +15,10 @@ class HaloModConfigTest {
     @Test
     @DisplayName("default commandPermissionLevel is 2")
     void defaultPermissionLevel() {
-        assertEquals(2, new HaloModConfig().getCommandPermissionLevel());
+        HaloModConfig config = new HaloModConfig();
+        assertEquals(2, config.getCommandPermissionLevel());
+        assertFalse(config.isExperimentalYsmAnchorEnabled());
+        assertArrayEquals(new double[]{0, 0, 0}, config.getExperimentalYsmHeadLocalOffset());
     }
 
     @Test

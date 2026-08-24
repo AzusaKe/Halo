@@ -7,6 +7,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import network.azusake.halo.api.EntityAnchorProvider;
 import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.compat.ysm.YsmHeadCapture;
+import network.azusake.halo.config.HaloModConfigStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,21 +54,43 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
             boolean localPlayer = client != null && player == client.player;
             boolean firstPerson = client != null && client.options.getCameraType().isFirstPerson();
             if (shouldUseRenderCapture(localPlayer, firstPerson)) {
-                HeadAnchor anchor = RenderHeadCapture.resolveMainPassAnchor(player, tickDelta);
-                if (anchor != null && isFinite(anchor)) {
-                    resolved = anchor;
-                    path = "render-head:main-cache";
-                } else if (anchor != null) {
-                    path = "fallback:non-finite-main-cache";
-                    LOGGER.warn("[RenderHead] cached main-pass anchor not finite for uuid={} "
-                            + "center=({}, {}, {}) yaw={} pitch={} roll={} — falling back",
-                        player.getUUID(),
-                        anchor.headCenter().x, anchor.headCenter().y, anchor.headCenter().z,
-                        anchor.yaw(), anchor.pitch(), anchor.roll());
-                } else {
-                    path = "fallback:no-main-capture";
+                boolean ysmEnabled = HaloModConfigStore.get().isExperimentalYsmAnchorEnabled();
+                if (ysmEnabled && !YsmHeadCapture.isVisibleToMainCamera(player)) {
+                    YsmHeadCapture.discard(player.getUUID());
+                } else if (ysmEnabled) {
+                    HeadAnchor ysmCurrent = YsmHeadCapture.resolveCurrent(player, tickDelta);
+                    if (isFinite(ysmCurrent)) {
+                        resolved = ysmCurrent;
+                        path = "ysm-head:current";
+                    }
+                }
+
+                if (resolved == null) {
+                    HeadAnchor anchor = RenderHeadCapture.resolveMainPassAnchor(player, tickDelta);
+                    if (anchor != null && isFinite(anchor)) {
+                        resolved = anchor;
+                        path = "render-head:main-cache";
+                    } else if (anchor != null) {
+                        path = "fallback:non-finite-main-cache";
+                        LOGGER.warn("[RenderHead] cached main-pass anchor not finite for uuid={} "
+                                + "center=({}, {}, {}) yaw={} pitch={} roll={} — falling back",
+                            player.getUUID(),
+                            anchor.headCenter().x, anchor.headCenter().y, anchor.headCenter().z,
+                            anchor.yaw(), anchor.pitch(), anchor.roll());
+                    } else {
+                        path = "fallback:no-main-capture";
+                    }
+                }
+
+                if (resolved == null && ysmEnabled) {
+                    HeadAnchor ysmPrevious = YsmHeadCapture.resolvePrevious(player, tickDelta);
+                    if (isFinite(ysmPrevious)) {
+                        resolved = ysmPrevious;
+                        path = "ysm-head:previous";
+                    }
                 }
             } else {
+                YsmHeadCapture.discard(player.getUUID());
                 path = "fallback:first-person-camera";
             }
         }

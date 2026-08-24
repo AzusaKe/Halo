@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -31,10 +33,14 @@ class HaloModConfigStoreTest {
         HaloModConfig config = HaloModConfigStore.load(configFile());
 
         assertEquals(2, config.getCommandPermissionLevel());
+        assertFalse(config.isExperimentalYsmAnchorEnabled());
+        assertArrayEquals(new double[]{0, 0, 0}, config.getExperimentalYsmHeadLocalOffset());
         assertTrue(Files.exists(configFile()));
 
         String content = Files.readString(configFile());
         assertTrue(content.contains("commandPermissionLevel"));
+        assertTrue(content.contains("experimentalYsmAnchorEnabled"));
+        assertTrue(content.contains("experimentalYsmHeadLocalOffset"));
         assertTrue(content.contains("2"));
     }
 
@@ -47,6 +53,9 @@ class HaloModConfigStoreTest {
         HaloModConfig config = HaloModConfigStore.load(configFile());
 
         assertEquals(2, config.getCommandPermissionLevel());
+        String persisted = Files.readString(configFile());
+        assertTrue(persisted.contains("experimentalYsmAnchorEnabled"));
+        assertTrue(persisted.contains("experimentalYsmHeadLocalOffset"));
         assertTrue(Files.readString(configFile()).contains("2"));
     }
 
@@ -111,10 +120,30 @@ class HaloModConfigStoreTest {
     void saveWritesAndReloads() throws Exception {
         HaloModConfig config = new HaloModConfig();
         config.setCommandPermissionLevel(4);
+        config.setExperimentalYsmAnchorEnabled(true);
+        config.setExperimentalYsmHeadLocalOffset(new double[]{0.125, 0.25, -0.5});
 
         HaloModConfigStore.save(config, configFile());
 
         assertTrue(Files.exists(configFile()));
-        assertEquals(4, HaloModConfigStore.load(configFile()).getCommandPermissionLevel());
+        HaloModConfig loaded = HaloModConfigStore.load(configFile());
+        assertEquals(4, loaded.getCommandPermissionLevel());
+        assertTrue(loaded.isExperimentalYsmAnchorEnabled());
+        assertArrayEquals(new double[]{0.125, 0.25, -0.5},
+            loaded.getExperimentalYsmHeadLocalOffset());
+    }
+
+    @Test
+    @DisplayName("invalid YSM offset is normalized and persisted")
+    void invalidYsmOffsetIsNormalized() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        Files.writeString(configFile(), "{\"experimentalYsmAnchorEnabled\":true,"
+            + "\"experimentalYsmHeadLocalOffset\":[1.0,2.0]}");
+
+        HaloModConfig loaded = HaloModConfigStore.load(configFile());
+
+        assertTrue(loaded.isExperimentalYsmAnchorEnabled());
+        assertArrayEquals(new double[]{0, 0, 0}, loaded.getExperimentalYsmHeadLocalOffset());
+        assertTrue(Files.readString(configFile()).contains("0.0"));
     }
 }

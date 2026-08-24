@@ -325,6 +325,11 @@ public final class RenderHeadCapture {
         return iris.shadowPass() == OptionalIrisDiagnostics.Status.FALSE;
     }
 
+    /** Shared main-world pass gate for optional renderer compatibility hooks. */
+    public static boolean isCurrentMainPass() {
+        return isMainPass(OptionalIrisDiagnostics.snapshot());
+    }
+
     /**
      * Reject captures produced by screen-space/UI player renders.  A genuine
      * world player head stays close to the entity's interpolated position;

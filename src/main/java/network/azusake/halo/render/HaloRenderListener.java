@@ -2,6 +2,7 @@ package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.physics.RenderHeadCapture;
+import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
 import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
@@ -52,6 +53,8 @@ public final class HaloRenderListener {
             RenderHeadCapture.setViewMatrix(new Matrix4f());
             lastTickDelta = event.getDeltaTracker().getGameTimeDeltaPartialTick(true);
             RenderHeadCapture.setFrameTickDelta(lastTickDelta);
+            YsmHeadCapture.beginFrame(
+                new Matrix4f(), event.getCamera().position(), event.getFrustum(), lastTickDelta);
         });
 
         // Submit through NeoForge's native custom-geometry collector. The
