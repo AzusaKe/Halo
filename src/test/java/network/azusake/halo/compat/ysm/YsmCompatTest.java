@@ -31,9 +31,10 @@ class YsmCompatTest {
     @Test
     @DisplayName("version gate accepts only the verified YSM release")
     void exactVersionGate() {
-        assertTrue(YsmVersionGate.isSupportedVersion("2.6.5-fabric+mc1.20.1"));
+        assertTrue(YsmVersionGate.isSupportedVersion("2.6.5-fabric+mc1.21.1"));
         assertFalse(YsmVersionGate.isSupportedVersion("2.6.5"));
-        assertFalse(YsmVersionGate.isSupportedVersion("2.6.6-fabric+mc1.20.1"));
+        assertFalse(YsmVersionGate.isSupportedVersion("2.6.6-fabric+mc1.21.1"));
+        assertFalse(YsmVersionGate.isSupportedVersion("2.6.5-fabric+mc1.20.1"));
         assertFalse(YsmVersionGate.isSupportedVersion(null));
     }
 

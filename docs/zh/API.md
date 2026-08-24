@@ -97,7 +97,7 @@ static String handle(String command)
 
 ### YSM 2.6.5 实验性兼容
 
-仅支持 Fabric 1.20.1 的 `2.6.5-fabric+mc1.20.1` 发布包。旧配置会在下次启动时自动加入
+仅支持 Fabric 1.21.1 的 `2.6.5-fabric+mc1.21.1` 发布包。旧配置会在下次启动时自动加入
 以下两个实验字段；开关仍默认为 `false`。编辑配置后需要重启：
 
 ```json

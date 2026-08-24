@@ -98,8 +98,8 @@ with a warning.
 
 ### Experimental YSM 2.6.5 compatibility
 
-This integration supports only the Fabric 1.20.1 release
-`2.6.5-fabric+mc1.20.1`. Existing configs receive the two experimental fields
+This integration supports only the Fabric 1.21.1 release
+`2.6.5-fabric+mc1.21.1`. Existing configs receive the two experimental fields
 automatically on the next startup; the switch still defaults to `false`.
 Restart the game after editing the config:
 

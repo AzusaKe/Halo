@@ -2,7 +2,7 @@
   "required": false,
   "minVersion": "0.8",
   "package": "network.azusake.halo.compat.ysm.mixin",
-  "compatibilityLevel": "JAVA_17",
+  "compatibilityLevel": "JAVA_21",
   "plugin": "network.azusake.halo.compat.ysm.mixin.YsmMixinPlugin",
   "client": [
     "YsmEntityRenderContextMixin",
