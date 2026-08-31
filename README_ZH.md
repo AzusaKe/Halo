@@ -18,7 +18,6 @@
 - [安装](#安装)
 - [使用方法](#使用方法)
   - [命令](#命令)
-  - [YSM 兼容](#ysm-兼容)
   - [自定义光环定义](#自定义光环定义)
 - [从源码构建](#从源码构建)
   - [前置条件](#前置条件)
@@ -34,7 +33,7 @@
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-当前 flash 分支是基于 Halo v1.2.1 的原生 **Minecraft 1.20.1 Forge** 移植。需要 Forge **47.4.0 及以上、48 以下**；推荐使用经额外回归的 Forge **47.4.10**。不依赖 Fabric API、Sinytra Connector 或 Forgified Fabric API。
+当前 flash 分支是基于 Halo v1.2.1 的原生 **Minecraft 1.20.1 Forge** 移植。需要 Forge **47.3.0 及以上、48 以下**；网易版目标为 Forge **47.3.0**。不依赖 Fabric API、Sinytra Connector、Forgified Fabric API 或 YSM。
 
 Halo 保留三种运行模式：单人游戏；Forge 服务端和客户端都安装 Halo 的多人同步；Halo 客户端连入未安装 Halo 的原版/Forge 服务端时的 LOCAL 模式。安装 Halo 的服务端也允许未安装 Halo 的客户端连入。
 
@@ -73,7 +72,7 @@ Halo 保留三种运行模式：单人游戏；Forge 服务端和客户端都安
 
 ## 安装
 
-1. 为 Minecraft 1.20.1 安装 **Forge 47.4.0–47.x**，推荐 Forge 47.4.10。
+1. 为 Minecraft 1.20.1 安装 **Forge 47.3.0–47.x**；网易版目标为 Forge 47.3.0。
 2. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载 `halo-1.20.1-forge-1.2.1.jar`。
 3. 将 Halo JAR 放入 `mods` 文件夹，使用 Forge 配置启动。
 
@@ -128,36 +127,6 @@ Halo 保留三种运行模式：单人游戏；Forge 服务端和客户端都安
 # 让光环渲染得更大
 /halo config scale 1.5
 ```
-
-<a id="ysm-兼容"></a>
-
-### YSM 兼容
-
-Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的。本分支仅支持 **YSM `2.6.5-forge+mc1.20.1`**。未安装 YSM、关闭功能或安装其他版本时，Halo 会安全回退到标准实体锚点。只有负责渲染 YSM 模型的客户端需要安装 YSM；Halo 的服务端同步不要求安装 YSM。
-
-开启 YSM 头部 locator 锚点的方法：
-
-1. 安装受支持的 YSM 版本，并启动一次游戏，让 Halo 创建 `config/halo-azusake/halo_mod_config.json`。
-2. 关闭游戏，保留配置文件中已有的其他字段。
-3. 设置以下字段，然后重新启动游戏：
-
-```json
-{
-  "commandPermissionLevel": 2,
-  "experimentalYsmAnchorEnabled": true,
-  "experimentalYsmHeadLocalOffset": [0.0, 0.0, 0.0]
-}
-```
-
-多人游戏中，**每个负责渲染的客户端**都必须在自己的配置文件中开启该选项；此设置不会由服务器同步。
-
-`experimentalYsmHeadLocalOffset` 用于微调捕获到的 Head locator。它采用头部局部坐标、单位为方块，数组顺序是 `[右, 上, 后]`：
-
-- 第一个值：正数向右，负数向左。
-- 第二个值：正数向上，负数向下。
-- 第三个值：正数向后，负数向前。
-
-建议从 `[0.0, 0.0, 0.0]` 开始，以 `0.01`–`0.05` 的小步长调整。例如锚点偏低时可尝试 `[0.0, 0.05, 0.0]`，锚点偏前时可尝试 `[0.0, 0.0, 0.03]`。该字段是对所有 YSM 模型生效的全局 locator 修正；单个光环的位置仍应在光环定义中调整。修改配置后必须重启游戏，执行 `/reload` 不会应用此设置。
 
 <a id="自定义光环定义"></a>
 

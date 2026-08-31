@@ -5,8 +5,6 @@ import network.azusake.halo.api.EntityAnchorProviderRegistry;
 import network.azusake.halo.api.FallbackAnchorProvider;
 import network.azusake.halo.client.ForgeHaloCommandInterceptor;
 import network.azusake.halo.client.HaloPhaseTracker;
-import network.azusake.halo.compat.ysm.YsmEntityAnchorProvider;
-import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.json.EntityAnchorLoader;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
@@ -46,9 +44,7 @@ public final class HaloModClient {
 
         EntityAnchorProviderRegistry registry = EntityAnchorProviderRegistry.getInstance();
         registry.register(Player.class, PlayerAnchorProvider.getInstance());
-        registry.register(
-            LivingEntity.class,
-            new YsmEntityAnchorProvider(FallbackAnchorProvider.getInstance()));
+        registry.register(LivingEntity.class, FallbackAnchorProvider.getInstance());
         registry.register(Player.class, new RenderHeadAnchorProvider(PlayerAnchorProvider.getInstance()));
 
         MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
@@ -59,7 +55,6 @@ public final class HaloModClient {
                 MinecraftForge.EVENT_BUS.post(new AnchorProviderSetupEvent(registry));
                 HaloMod.LOGGER.info(
                     "Default anchor providers registered; AnchorProviderSetupEvent fired (first client tick)");
-                logYsmProviderOverrides(registry);
             }
             HaloClientManager.getInstance().updateEntityStateCache();
         });
@@ -94,23 +89,4 @@ public final class HaloModClient {
         });
     }
 
-    private static void logYsmProviderOverrides(EntityAnchorProviderRegistry registry) {
-        if (!HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()) {
-            return;
-        }
-
-        var playerProvider = registry.getProvider(Player.class);
-        if (!(playerProvider instanceof RenderHeadAnchorProvider)) {
-            HaloMod.LOGGER.warn(
-                "[YSM Compat] player anchor provider was overridden by {}; that provider controls YSM anchors",
-                playerProvider.getClass().getName());
-        }
-        var livingProvider = registry.getProvider(LivingEntity.class);
-        if (!(livingProvider instanceof YsmEntityAnchorProvider)) {
-            HaloMod.LOGGER.warn(
-                "[YSM Compat] generic living-entity anchor provider was overridden by {}; "
-                    + "that provider controls non-player YSM anchors",
-                livingProvider.getClass().getName());
-        }
-    }
 }

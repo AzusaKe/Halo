@@ -151,30 +151,6 @@ public final class HaloModConfigStore {
                 migratedFields.add("commandPermissionLevel");
             }
 
-            if (!document.has("experimentalYsmAnchorEnabled")
-                || document.get("experimentalYsmAnchorEnabled").isJsonNull()) {
-                document.addProperty(
-                    "experimentalYsmAnchorEnabled",
-                    parsed.isExperimentalYsmAnchorEnabled());
-                migratedFields.add("experimentalYsmAnchorEnabled");
-            }
-
-            if (!parsed.validateExperimentalYsmHeadLocalOffset()) {
-                HaloMod.LOGGER.warn(
-                    "Halo mod config {} has invalid experimentalYsmHeadLocalOffset; using [0.0, 0.0, 0.0]",
-                    file);
-                document.add(
-                    "experimentalYsmHeadLocalOffset",
-                    GSON.toJsonTree(parsed.getExperimentalYsmHeadLocalOffset()));
-                migratedFields.add("experimentalYsmHeadLocalOffset (normalized)");
-            } else if (!document.has("experimentalYsmHeadLocalOffset")
-                || document.get("experimentalYsmHeadLocalOffset").isJsonNull()) {
-                document.add(
-                    "experimentalYsmHeadLocalOffset",
-                    GSON.toJsonTree(parsed.getExperimentalYsmHeadLocalOffset()));
-                migratedFields.add("experimentalYsmHeadLocalOffset");
-            }
-
             if (!migratedFields.isEmpty()) {
                 saveMigratedDocument(document, file, migratedFields);
             }

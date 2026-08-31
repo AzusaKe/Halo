@@ -1,7 +1,6 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
-import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -50,11 +49,6 @@ public final class HaloRenderListener {
                 // view matrix for conversion back to world space.
                 Matrix4f viewMatrix = new Matrix4f(event.getPoseStack().last().pose());
                 RenderHeadCapture.setViewMatrix(viewMatrix);
-                YsmHeadCapture.beginFrame(
-                    viewMatrix,
-                    event.getCamera().getPosition(),
-                    event.getFrustum()
-                );
             } else if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
                 HaloRenderer.getInstance().renderHalos(
                     event.getPoseStack(),

@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import org.joml.Matrix4f;
 
@@ -32,8 +31,6 @@ public final class RenderHeadCapture {
 
     private static final ThreadLocal<LivingEntity> CURRENT_ENTITY = new ThreadLocal<>();
     private static final ThreadLocal<PlayerModel<?>> CURRENT_MODEL = new ThreadLocal<>();
-    private static final ThreadLocal<Boolean> AUXILIARY_YSM_PASS =
-        ThreadLocal.withInitial(() -> false);
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
@@ -52,48 +49,11 @@ public final class RenderHeadCapture {
     }
 
     /**
-     * Bracket an entity-dispatcher render so optional renderer integrations can
-     * associate their model pass with any living entity, not only players.
-     */
-    public static void beginYsmEntity(Entity entity, PoseStack matrices) {
-        CURRENT_MODEL.remove();
-        Matrix4f root = matrices == null ? null : matrices.last().pose();
-        if (entity instanceof LivingEntity living && matchesMainView(root)) {
-            CURRENT_ENTITY.set(living);
-            AUXILIARY_YSM_PASS.set(false);
-        } else {
-            CURRENT_ENTITY.remove();
-            AUXILIARY_YSM_PASS.set(entity instanceof LivingEntity);
-        }
-    }
-
-    static boolean matchesMainView(Matrix4f candidate) {
-        Matrix4f expected = viewMatrix;
-        if (candidate == null || expected == null) {
-            return false;
-        }
-        float[] actualValues = new float[16];
-        float[] expectedValues = new float[16];
-        candidate.get(actualValues);
-        expected.get(expectedValues);
-        for (int i = 0; i < actualValues.length; i++) {
-            if (!Float.isFinite(actualValues[i])
-                || Math.abs(actualValues[i] - expectedValues[i]) > 1.0e-4f) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Called on normal returns from {@code PlayerEntityRenderer.render};
-     * renderer-replacement compatibility hooks may also release early after
-     * taking their own capture.
+     * Called on normal returns from {@code PlayerEntityRenderer.render}.
      */
     public static void end() {
         CURRENT_ENTITY.remove();
         CURRENT_MODEL.remove();
-        AUXILIARY_YSM_PASS.remove();
     }
 
     /** Drop all captures from the previous frame; call before entity rendering. */
@@ -109,15 +69,6 @@ public final class RenderHeadCapture {
     /** The frame's view matrix, or {@code null} before the first frame. */
     public static Matrix4f getViewMatrix() {
         return viewMatrix;
-    }
-
-    /** Current bracketed living entity, exposed to isolated renderer compat hooks. */
-    public static LivingEntity getCurrentEntity() {
-        return CURRENT_ENTITY.get();
-    }
-
-    public static boolean isAuxiliaryYsmPass() {
-        return AUXILIARY_YSM_PASS.get();
     }
 
     /**

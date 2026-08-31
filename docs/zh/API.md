@@ -80,7 +80,7 @@ static String handle(String command)
 
 ### `HaloModConfig` / `HaloModConfigStore`
 
-模组级配置文件 `config/halo-azusake/halo_mod_config.json`，承载命令权限及实验性兼容开关，
+模组级配置文件 `config/halo-azusake/halo_mod_config.json`，承载命令权限，
 与 `/halo config` 运行时调参（`HaloConfig`）完全
 分离。文件缺失或空白时启动自动写入默认值；已有旧配置缺少字段时会自动补齐并保留
 未知键；越界值钳制到 0-4；损坏 JSON 回退默认并警告。
@@ -91,27 +91,6 @@ static String handle(String command)
 | `HaloModConfigStore.getPermissionLevel()` | `/halo` 命令树所需权限等级（默认 2，范围 0-4） |
 | `HaloModConfig.getCommandPermissionLevel()` | 当前权限等级 |
 | `HaloModConfig.setCommandPermissionLevel(int)` | 设置权限等级（钳制到 0-4） |
-| `HaloModConfig.isExperimentalYsmAnchorEnabled()` | YSM 2.6.5 实验性 Head 锚点是否启用（默认 `false`） |
-| `HaloModConfig.getExperimentalYsmHeadLocalOffset()` | Head 局部偏移 `[右, 上, 后]`，单位格，默认全零 |
-
-### YSM 2.6.5 实验性兼容
-
-仅支持 Forge 1.20.1 的 `2.6.5-forge+mc1.20.1` 发布包。旧配置会在下次启动时自动加入
-以下两个实验字段；开关仍默认为 `false`。编辑配置后需要重启：
-
-```json
-{
-  "commandPermissionLevel": 2,
-  "experimentalYsmAnchorEnabled": true,
-  "experimentalYsmHeadLocalOffset": [0.0, 0.0, 0.0]
-}
-```
-
-偏移在 YSM `Head` 骨骼的最终局部坐标系中应用；零向量直接使用模型作者定义的 Head
-枢轴。捕获适用于由 YSM 接管渲染的玩家及其他生物；非生物实体会忽略。开启光影时，
-本地第一人称玩家固定使用摄像机锚点，避免 Iris 阴影/辅助渲染 pass 的矩阵污染；第三人称
-及其他生物继续使用 YSM Head 捕获。YSM 缺失、版本不匹配、模型没有可用 Head 骨骼或
-矩阵退化时，Halo 会安全回退到原有实体锚点计算。YSM 不是 Halo 的必需依赖。
 
 ---
 

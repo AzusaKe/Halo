@@ -18,7 +18,6 @@ English | [中文](README_ZH.md)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Commands](#commands)
-  - [YSM Compatibility](#ysm-compatibility)
   - [Custom Halo Definitions](#custom-halo-definitions)
 - [Building from Source](#building-from-source)
   - [Prerequisites](#prerequisites)
@@ -34,7 +33,7 @@ English | [中文](README_ZH.md)
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-This flash branch is a native **Minecraft 1.20.1 Forge** port of Halo v1.2.1. It requires Forge **47.4.0 or newer, below 48**; Forge **47.4.10** is the recommended regression target. It does not require Fabric API, Sinytra Connector, or Forgified Fabric API.
+This flash branch is a native **Minecraft 1.20.1 Forge** port of Halo v1.2.1. It requires Forge **47.3.0 or newer, below 48**; Forge **47.3.0** is the NetEase target. It does not require Fabric API, Sinytra Connector, Forgified Fabric API, or YSM.
 
 Halo supports three operating modes: singleplayer; multiplayer where both the Forge server and clients install Halo; and LOCAL mode when a Halo client joins a vanilla or Forge server without Halo. A server with Halo also accepts clients that do not install it.
 
@@ -73,7 +72,7 @@ Halo supports three operating modes: singleplayer; multiplayer where both the Fo
 
 ## Installation
 
-1. Install **Forge 47.4.0–47.x** for Minecraft 1.20.1. Forge 47.4.10 is recommended.
+1. Install **Forge 47.3.0–47.x** for Minecraft 1.20.1; Forge 47.3.0 is the NetEase target.
 2. Download `halo-1.20.1-forge-1.2.1.jar` from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
 3. Place the Halo JAR into the `mods` folder and launch the Forge profile.
 
@@ -128,36 +127,6 @@ All commands require permission level 2 (operator) by default. The required leve
 # Render the halo larger
 /halo config scale 1.5
 ```
-
-<a id="ysm-compatibility"></a>
-
-### YSM Compatibility
-
-Halo's Yes Steve Model (YSM) integration is optional and version-pinned. This branch supports exactly **YSM `2.6.5-forge+mc1.20.1`**. If YSM is missing, disabled, or a different version is installed, Halo safely uses its standard entity anchor instead. YSM is only needed on clients that render YSM models; the server does not need YSM for Halo synchronization.
-
-To enable YSM head-locator anchoring:
-
-1. Install the supported YSM version and launch the game once so Halo creates `config/halo-azusake/halo_mod_config.json`.
-2. Close the game and keep any existing keys in that file.
-3. Set the following fields, then restart the game:
-
-```json
-{
-  "commandPermissionLevel": 2,
-  "experimentalYsmAnchorEnabled": true,
-  "experimentalYsmHeadLocalOffset": [0.0, 0.0, 0.0]
-}
-```
-
-In multiplayer, **each rendering client** must enable this option in its own config; the setting is not synchronized by the server.
-
-`experimentalYsmHeadLocalOffset` fine-tunes the captured Head locator in head-local coordinates, in blocks, using `[right, up, back]`:
-
-- First value: positive moves right, negative moves left.
-- Second value: positive moves up, negative moves down.
-- Third value: positive moves backward, negative moves forward.
-
-Start at `[0.0, 0.0, 0.0]` and adjust in small `0.01`–`0.05` steps. For example, use `[0.0, 0.05, 0.0]` when the anchor is too low, or `[0.0, 0.0, 0.03]` when it is too far forward. This is a global YSM locator correction; per-halo placement should still be adjusted in the halo definition. Config changes require a game restart and are not applied by `/reload`.
 
 <a id="custom-halo-definitions"></a>
 
