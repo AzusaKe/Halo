@@ -1,5 +1,7 @@
 package network.azusake.halo.physics;
 
+import network.azusake.halo.compat.emf.EmfHeadCapture;
+import network.azusake.halo.compat.emf.EmfHeadMath;
 import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import network.azusake.halo.compat.ysm.YsmHeadMath;
 import network.azusake.halo.api.EntityAnchorProvider;
@@ -47,11 +49,13 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                 // auxiliary passes even though first-person is not a stable
                 // main-camera body render.  The camera is authoritative here.
                 YsmHeadCapture.discard(player.getUuid());
+                EmfHeadCapture.discard(player.getUuid());
                 return fallback.resolve(entity, tickDelta);
             }
             if (HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()
                 && !YsmHeadCapture.isVisibleToMainCamera(player)) {
                 YsmHeadCapture.discard(player.getUuid());
+                EmfHeadCapture.discard(player.getUuid());
                 return fallback.resolve(entity, tickDelta);
             }
 
@@ -65,6 +69,11 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                 return ysmCurrent;
             }
 
+            HeadAnchor emfCurrent = resolveEmf(EmfHeadCapture.getCurrent(player.getUuid()), player);
+            if (isFinite(emfCurrent)) {
+                return emfCurrent;
+            }
+
             if (frame != null) {
                 HeadAnchor vanilla = resolveVanilla(RenderHeadCapture.get(player.getUuid()), frame, player);
                 if (isFinite(vanilla)) {
@@ -76,6 +85,11 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
             if (isFinite(ysmPrevious)) {
                 YsmHeadCapture.markAnchorConsumed(true);
                 return ysmPrevious;
+            }
+
+            HeadAnchor emfPrevious = resolveEmf(EmfHeadCapture.getPrevious(player.getUuid()), player);
+            if (isFinite(emfPrevious)) {
+                return emfPrevious;
             }
         }
         return fallback.resolve(entity, tickDelta);
@@ -117,6 +131,21 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
         HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, frame.cameraPos, frame.viewMatrix);
         if (!isFinite(anchor)) {
             LOGGER.warn("[RenderHead] captured anchor not finite for uuid={} — falling back", player.getUuid());
+            return null;
+        }
+        return anchor;
+    }
+
+    private static HeadAnchor resolveEmf(
+        EmfHeadCapture.CapturedHead captured,
+        AbstractClientPlayerEntity player
+    ) {
+        if (captured == null) {
+            return null;
+        }
+        HeadAnchor anchor = EmfHeadMath.toHeadAnchor(captured);
+        if (!isFinite(anchor)) {
+            LOGGER.warn("[EMF Compat] captured anchor not finite for uuid={} — falling back", player.getUuid());
             return null;
         }
         return anchor;

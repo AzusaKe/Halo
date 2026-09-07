@@ -1,8 +1,9 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
-import network.azusake.halo.physics.RenderHeadCapture;
+import network.azusake.halo.compat.emf.EmfHeadCapture;
 import network.azusake.halo.compat.ysm.YsmHeadCapture;
+import network.azusake.halo.physics.RenderHeadCapture;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -49,6 +50,7 @@ public final class HaloRenderListener {
             // this view matrix to recover world-space anchors.
             Matrix4f viewMatrix = new Matrix4f(context.matrixStack().peek().getPositionMatrix());
             RenderHeadCapture.setViewMatrix(viewMatrix);
+            EmfHeadCapture.beginFrame(viewMatrix, context.camera().getPos());
             YsmHeadCapture.beginFrame(
                 viewMatrix,
                 context.camera().getPos(),

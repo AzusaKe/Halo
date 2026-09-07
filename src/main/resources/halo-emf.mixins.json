@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "network.azusake.halo.compat.emf.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "plugin": "network.azusake.halo.compat.emf.mixin.EmfMixinPlugin",
+  "client": [
+    "EmfModelPartVanillaNameMixin",
+    "EmfModelPartIntermediaryMixin",
+    "EmfModelPartNamedMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
