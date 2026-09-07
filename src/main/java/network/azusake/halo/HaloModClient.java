@@ -5,6 +5,7 @@ import network.azusake.halo.api.EntityAnchorProviderRegistry;
 import network.azusake.halo.api.FallbackAnchorProvider;
 import network.azusake.halo.client.NeoForgeHaloCommandInterceptor;
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.compat.ysm.YsmEntityAnchorProvider;
@@ -56,6 +57,7 @@ public final class HaloModClient {
      */
     public static void init(IEventBus modEventBus) {
         LOGGER.info("Halo client initializing...");
+        EmfCompatChatNotifier.register();
 
         // Force initialisation of the phase tracker singleton.  The client
         // starts in LOCAL phase and transitions to MULTIPLAYER when

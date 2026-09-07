@@ -16,6 +16,9 @@ config="halo.mixins.json"
 [[mixins]]
 config="halo-ysm.mixins.json"
 
+[[mixins]]
+config="halo-emf.mixins.json"
+
 [[dependencies.halo]]
 modId="neoforge"
 type="required"
@@ -34,5 +37,12 @@ side="BOTH"
 modId="yes_steve_model"
 type="optional"
 versionRange="[2.6.5,2.6.6)"
+ordering="AFTER"
+side="CLIENT"
+
+[[dependencies.halo]]
+modId="entity_model_features"
+type="optional"
+versionRange="[3.1.1,)"
 ordering="AFTER"
 side="CLIENT"

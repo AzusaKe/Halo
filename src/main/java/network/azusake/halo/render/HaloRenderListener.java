@@ -1,6 +1,7 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
+import network.azusake.halo.compat.emf.EmfHeadCapture;
 import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -27,6 +28,7 @@ public final class HaloRenderListener {
             RenderHeadCapture.clearFrame();
             Matrix4f viewMatrix = new Matrix4f();
             RenderHeadCapture.setViewMatrix(viewMatrix);
+            EmfHeadCapture.beginFrame(viewMatrix, event.getCamera().getPosition());
             YsmHeadCapture.beginFrame(viewMatrix, event.getCamera().getPosition(), event.getFrustum());
         } else if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
             HaloRenderer.getInstance().renderHalos(event.getPoseStack(), event.getCamera(),
