@@ -5,6 +5,7 @@ import network.azusake.halo.client.HaloLocalManager;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.api.AnchorProviderSetupEvent;
 import network.azusake.halo.api.EntityAnchorProviderRegistry;
+import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
 import network.azusake.halo.physics.PlayerAnchorProvider;
@@ -35,6 +36,11 @@ public class HaloModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
+
+        // EMF compatibility is enabled by default.  The optional Mixin
+        // plugin decides whether the loaded EMF version/ABI is usable; this
+        // notifier only surfaces its actionable failure message in-game.
+        EmfCompatChatNotifier.register();
 
         // Force initialisation of the phase tracker singleton.  The client
         // starts in LOCAL phase and transitions to MULTIPLAYER when

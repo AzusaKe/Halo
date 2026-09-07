@@ -23,7 +23,8 @@
         ]
     },
     "mixins": [
-        "halo.mixins.json"
+        "halo.mixins.json",
+        "halo-emf.mixins.json"
     ],
     "accessWidener": "halo.accesswidener",
     "depends": {

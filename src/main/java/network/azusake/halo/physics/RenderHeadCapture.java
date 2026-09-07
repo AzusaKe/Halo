@@ -171,6 +171,21 @@ public final class RenderHeadCapture {
      * snapshotted.
      */
     public static void capture(PoseStack matrices, ModelPart part) {
+        captureHead(matrices, part);
+    }
+
+    /**
+     * Called by the optional EMF hook at the same logical point as the vanilla
+     * ModelPart hook.  EMFModelPart overrides ModelPart.render, so the vanilla
+     * mixin is not guaranteed to run for an EMF-rendered head.  Keeping the
+     * deferred-submit bookkeeping here makes both paths produce the same
+     * entity-relative main-pass cache entry.
+     */
+    public static void captureEmf(PoseStack matrices, ModelPart part) {
+        captureHead(matrices, part);
+    }
+
+    private static void captureHead(PoseStack matrices, ModelPart part) {
         PlayerModel model = CURRENT_MODEL.get();
         if (model == null || part != model.getHead()) {
             return;
