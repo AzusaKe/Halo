@@ -1,5 +1,7 @@
 package network.azusake.halo.physics;
 
+import network.azusake.halo.compat.emf.EmfHeadCapture;
+import network.azusake.halo.compat.emf.EmfHeadMath;
 import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import network.azusake.halo.compat.ysm.YsmHeadMath;
 import network.azusake.halo.api.EntityAnchorProvider;
@@ -51,11 +53,13 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                 // auxiliary passes even though first-person is not a stable
                 // main-camera body render.  The camera is authoritative here.
                 YsmHeadCapture.discard(player.getUUID());
+                EmfHeadCapture.discard(player.getUUID());
                 return fallback.resolve(entity, tickDelta);
             }
             if (ysmEnabled && !YsmHeadCapture.isVisibleToMainCamera(player)) {
                 YsmHeadCapture.markProviderOutsideFrustum(true);
                 YsmHeadCapture.discard(player.getUUID());
+                EmfHeadCapture.discard(player.getUUID());
                 if (ysmEnabled) {
                     YsmHeadCapture.markLocalFirstPersonFallback();
                 }
@@ -67,6 +71,11 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
             if (isFinite(ysmCurrent)) {
                 YsmHeadCapture.markAnchorConsumed(false);
                 return ysmCurrent;
+            }
+
+            HeadAnchor emfCurrent = resolveEmf(EmfHeadCapture.getCurrent(player.getUUID()), player);
+            if (isFinite(emfCurrent)) {
+                return emfCurrent;
             }
 
             if (frame != null) {
@@ -81,11 +90,31 @@ public final class RenderHeadAnchorProvider implements EntityAnchorProvider {
                 YsmHeadCapture.markAnchorConsumed(true);
                 return ysmPrevious;
             }
+
+            HeadAnchor emfPrevious = resolveEmf(EmfHeadCapture.getPrevious(player.getUUID()), player);
+            if (isFinite(emfPrevious)) {
+                return emfPrevious;
+            }
             if (ysmEnabled) {
                 YsmHeadCapture.markProviderMiss(true);
             }
         }
         return fallback.resolve(entity, tickDelta);
+    }
+
+    private static HeadAnchor resolveEmf(
+        EmfHeadCapture.CapturedHead captured,
+        AbstractClientPlayer player
+    ) {
+        if (captured == null) {
+            return null;
+        }
+        HeadAnchor anchor = EmfHeadMath.toHeadAnchor(captured);
+        if (!isFinite(anchor)) {
+            LOGGER.warn("[EMF Compat] captured anchor not finite for uuid={} — falling back", player.getUUID());
+            return null;
+        }
+        return anchor;
     }
 
     private static FrameContext frameContext() {

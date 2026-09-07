@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "network.azusake.halo.compat.emf.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "halo.refmap.json",
+  "plugin": "network.azusake.halo.compat.emf.mixin.EmfMixinPlugin",
+  "client": [
+    "EmfModelPartVanillaNameMixin",
+    "EmfModelPartNamedMixin",
+    "EmfModelPartForgeMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

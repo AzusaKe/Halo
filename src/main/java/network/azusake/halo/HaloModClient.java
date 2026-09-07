@@ -5,6 +5,7 @@ import network.azusake.halo.api.EntityAnchorProviderRegistry;
 import network.azusake.halo.api.FallbackAnchorProvider;
 import network.azusake.halo.client.ForgeHaloCommandInterceptor;
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
 import network.azusake.halo.compat.ysm.YsmEntityAnchorProvider;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.json.EntityAnchorLoader;
@@ -40,6 +41,7 @@ public final class HaloModClient {
 
     public static void init() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        EmfCompatChatNotifier.register();
         HaloPhaseTracker.getInstance();
         HaloJsonLoader.registerClientResources(modBus);
         EntityAnchorLoader.registerClientResources(modBus);
