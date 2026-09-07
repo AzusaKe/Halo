@@ -3,6 +3,7 @@ package network.azusake.halo;
 import network.azusake.halo.client.FabricHaloCommandInterceptor;
 import network.azusake.halo.client.HaloLocalManager;
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
 import network.azusake.halo.compat.ysm.YsmEntityAnchorProvider;
 import network.azusake.halo.api.AnchorProviderSetupEvent;
 import network.azusake.halo.api.EntityAnchorProviderRegistry;
@@ -39,6 +40,7 @@ public class HaloModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
+        EmfCompatChatNotifier.register();
 
         // Force initialisation of the phase tracker singleton.  The client
         // starts in LOCAL phase and transitions to MULTIPLAYER when

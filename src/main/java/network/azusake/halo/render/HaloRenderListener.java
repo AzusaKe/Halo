@@ -1,6 +1,7 @@
 package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
+import network.azusake.halo.compat.emf.EmfHeadCapture;
 import network.azusake.halo.physics.RenderHeadCapture;
 import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -51,6 +52,7 @@ public final class HaloRenderListener {
             // leaves the captures unchanged.
             Matrix4f viewMatrix = new Matrix4f();
             RenderHeadCapture.setViewMatrix(viewMatrix);
+            EmfHeadCapture.beginFrame(viewMatrix, context.camera().getPos());
             YsmHeadCapture.beginFrame(
                 viewMatrix,
                 context.camera().getPos(),
