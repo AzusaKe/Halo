@@ -30,6 +30,9 @@ logoFile="assets/halo/textures/halo/ring.png"
 [[mixins]]
     config="halo-ysm.mixins.json"
 
+[[mixins]]
+    config="halo-emf.mixins.json"
+
 [[accessTransformers]]
     file="META-INF/accesstransformer.cfg"
 
