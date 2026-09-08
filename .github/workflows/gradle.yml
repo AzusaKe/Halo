@@ -37,7 +37,33 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Build with Gradle Wrapper
-        run: ./gradlew build
+        shell: bash
+        run: |
+          set -o pipefail
+          max_attempts=3
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            log_file="build-attempt-${attempt}.log"
+            echo "Gradle build attempt ${attempt}/${max_attempts}"
+
+            if ./gradlew build 2>&1 | tee "$log_file"; then
+              exit 0
+            fi
+
+            if ! grep -Eq 'Could not (GET|HEAD|resolve)|Received status code (429|500|502|503|504)|Connection (reset|timed out)|Temporary failure in name resolution' "$log_file"; then
+              echo "Build failed for a non-transient reason; aborting without retry."
+              exit 1
+            fi
+
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              delay=$((attempt * 30))
+              echo "Transient dependency or network failure detected; retrying in ${delay}s."
+              sleep "$delay"
+            fi
+          done
+
+          echo "Gradle build failed after ${max_attempts} attempts."
+          exit 1
 
       # Upload JAR as workflow artifact (always available for download)
       - name: Upload JAR artifact
