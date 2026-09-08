@@ -117,31 +117,29 @@ static String handle(String command)
 
 ## 自定义头部锚点（Custom Head Anchor）
 
-Halo 的锚点计算已经抽象为「头部锚点 Provider」接口，其他模组可以在客户端初始化时注册自己的 Provider，接管（或覆盖）任意实体的头部锚点计算，从而配合自定义渲染/骨骼/动画系统。
+Halo 提供一个按实体类型/UUID查找头部锚点的注册表。下文描述的是当前分支的真实接口。
+
+> 重要：8个分支的语义和注册流程保持一致，但它们不是跨 Minecraft 版本的同一个二进制 API。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
 
 ### 数据流与调用契约
 
-- `EntityAnchorProvider.resolve(LivingEntity, float tickDelta)` 由 Halo 在**渲染线程每帧**调用一次（非每 tick），传入当前渲染帧的插值进度 `tickDelta`（0~1，低帧率时可能 >1）。
-- Provider 负责在上一/当前 tick 状态之间自行插值，并返回完整的 **6 自由度** `HeadAnchor`：
-  - `Vec3 headCenter`：头部中心世界坐标（3 自由度）
-  - `float yaw` / `float pitch` / `float roll`：头部朝向（3 自由度，度，MC 约定）
-- 模组只需要提供**头部**的 6 自由度；光环自身的位置阻尼、offset、旋转模式等仍由 Halo 内部计算。
+`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上按帧调用。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
 
-### 帧内时序与空值契约
+本分支实体参数类型：`net.minecraft.world.entity.LivingEntity`。
 
-- **帧内时序**：Halo 可能在当前帧的摄像机/头部朝向被 provider 的动画或摄像机系统计算出来**之前**就调用 `resolve`。provider 必须**缓存上一帧的 `HeadAnchor`**，并在当前帧输入未就绪时返回缓存值，而不是返回不完整或默认的数据。
-- **禁止返回 `null`**：provider 不得返回 `null`，所有分量必须为有限数值（不得含 NaN）。Halo（resolver）把 `null` 视为 provider 的 bug：记录 error 日志并回退到 `FallbackAnchorProvider`，避免渲染管线崩溃。
+本分支 `HeadAnchor.headCenter` 类型：`net.minecraft.world.phys.Vec3`；yaw、pitch、roll 使用角度（度，Minecraft 约定）。
+
+注册表的解析顺序为：UUID 精确匹配 → 实体类精确匹配 → 父类链匹配 → fallback。相同键重复注册时，后注册的 provider 覆盖先注册的 provider。
+
+`getProvider(Class<?>)` 在没有专用 provider 时也会返回可用的 fallback provider，不应把返回值当作 nullable API。
 
 ### 注册方式
 
-在 Forge 事件总线上订阅 `AnchorProviderSetupEvent`。Halo 会在**第一个客户端 tick 结束时**、默认 Provider 注册完成后发布该事件：
+1.20.1 Forge 分支的事件是 Forge 原生事件，使用 Forge 总线订阅：
 
 ```java
-import network.azusake.halo.api.AnchorProviderSetupEvent;
-import network.azusake.halo.api.HeadAnchor;
-import network.azusake.halo.api.EntityAnchorProvider;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.Vec3;
+import network.azusake.halo.api.AnchorProviderSetupEvent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -154,50 +152,28 @@ public final class MyModClientEvents {
         event.getRegistry().register(LivingEntity.class, new MyHeadProvider());
     }
 }
-
-final class MyHeadProvider implements EntityAnchorProvider {
-    @Override
-    public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
-        Vec3 headCenter = ...;  // 自定义头部中心（世界坐标）
-        float yaw = ...;        // 头部朝向（度）
-        float pitch = ...;
-        float roll = ...;       // 纯动画模组可自由提供 roll，无需摄像机
-        return new HeadAnchor(headCenter, yaw, pitch, roll);
-    }
-}
 ```
 
-### 注册表语义（`EntityAnchorProviderRegistry`）
+这里使用的是 Forge 的 `@SubscribeEvent` 与 `event.getRegistry()`，不是 Fabric 的 `EVENT.register(...)`。
 
-| 场景 | 做法 | 说明 |
-|------|------|------|
-| 特定实体种类 | `register(Zombie.class, provider)` | 精确类优先；注册父类会影响所有子类 |
-| 特定个体 | `register(uuid, provider)` | UUID 命中优先于任何类型注册 |
-| 任意谓词（NBT/队伍/动态状态） | 委托模式 | 注册前抓取旧 Provider，未命中时委托 |
+### 默认优先级与兼容行为
 
-委托模式示例（只改带特定 NBT 标记的僵尸）：
+- 外部 provider 只负责提供锚点；注册表的 UUID、精确类、父类链和 fallback 解析规则不因加载器改变。
+- 玩家优先使用 Halo 的玩家锚点 provider；EMF 捕获到的玩家头部数据可覆盖该帧锚点，捕获不可用时回退到玩家 provider。
+- 当前 EMF 兼容代码只接管玩家。非玩家实体不使用 EMF 捕获，继续走本分支已有的 YSM、Vanilla 或 fallback 路径；这是有意保留的保守策略。
+- YSM 兼容是否存在及其配置方式取决于具体分支，和 EMF 兼容相互独立；请以当前分支的 YSM 章节和配置为准。
 
-```java
-EntityAnchorProvider prev = registry.getProvider(Zombie.class); // 注册前抓取，永不 null
-registry.register(Zombie.class, (entity, tickDelta) ->
-    entity.getPersistentData().getBoolean("my:special_head")
-        ? myAnchor(entity, tickDelta)
-        : prev.resolve(entity, tickDelta));
-```
+### EMF/ETF 兼容
 
-查找顺序：`UUID → 精确类 → 继承链向上 → FallbackAnchorProvider`。类/UUID 各自「最后注册胜出」。
+EMF 兼容默认开启，不增加 Halo 配置开关；支持版本下界为 EMF 3.1.1，不人为设置上界，并在运行时检测实际 ABI。ETF 不增加独立捕获代码，只进行与 EMF/ETF 共存验证。
 
-### 默认行为
+若检测到当前 EMF ABI 不兼容，会在日志及聊天栏提示：
 
-- 玩家使用 `PlayerAnchorProvider`（基于 `data/halo/entity_anchors/player.json`）；其他实体使用 `FallbackAnchorProvider`（高度 × 0.85 启发式）。
-- 香草实体头部没有 roll；本地玩家的头部跟随摄像机，因此其 roll 继承真实摄像机的 roll（1.20.1 无 `Camera.getRoll()`，由 `Camera.getRotation()` 剥离 yaw/pitch 后恢复），光环头部坐标系随摄像机 roll 刚体倾斜。
+> 当前Halo模组的EMF兼容代码无法再适用于加载版本的emf模组，请前往源码库汇报
 
-### 6 自由度旋转约定
+### 注册建议
 
-- 角度单位均为度，roll 符号遵循 MC 摄像机 roll 约定（等价于 `rotationYXZ(-yaw, pitch, roll)`，即 MC 摄像机四元数的 Z 分量）。
-- `roll=0` 时行为与旧版 5DOF 完全一致。
-
----
+外部模组通常应注册自己的具体实体类，而不是无条件覆盖 `LivingEntity.class`；如需包装已有 provider，应先保存已有 provider，再在自定义 provider 中委托并只调整头部锚点。不要在渲染回调之外缓存跨实体的临时状态，也不要假设所有实体都有相同的模型部件结构。
 
 ## 网络通道
 
