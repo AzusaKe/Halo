@@ -220,6 +220,15 @@ public final class RenderHeadCapture {
     }
 
     /**
+     * Called by the optional EMF hook at the same logical point as the vanilla
+     * ModelPart hook.  EMFModelPart overrides ModelPart.render, so the vanilla
+     * mixin is not guaranteed to run for an EMF-rendered head.
+     */
+    public static void captureEmf(PoseStack matrices, ModelPart part) {
+        capture(matrices, part);
+    }
+
+    /**
      * Resolve the most recent valid main-camera head capture against the
      * entity's current interpolated position.
      *

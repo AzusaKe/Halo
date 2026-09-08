@@ -29,6 +29,7 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     // Minecraft 26.1 and above require Java 25.
     it.options.release = 25
+    it.options.encoding = 'UTF-8'
 }
 
 java {
