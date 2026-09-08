@@ -62,3 +62,4 @@ serika*
 run2/
 .VSCodeCounter/
 build-in-docker.ps1
+bin/
