@@ -104,7 +104,7 @@ Halo exposes a registry that resolves head-anchor providers by entity type or UU
 
 ### Data flow & call contract
 
-`EntityAnchorProvider.resolve(entity, tickDelta)` is called once per render frame on the client render thread. The provider should return a non-null `HeadAnchor` whose components are finite; when current-frame data is not ready, it should retain the previous valid frame or use an appropriate Vanilla/fallback anchor.
+`EntityAnchorProvider.resolve(entity, tickDelta)` is called when a halo's anchor is calculated on the client render thread. An entity with multiple halos may invoke the provider multiple times in one render frame. The provider should return a non-null `HeadAnchor` whose components are finite; when current-frame data is not ready, it should retain the previous valid frame or use an appropriate Vanilla/fallback anchor.
 
 The entity parameter type in this branch is `net.minecraft.world.entity.LivingEntity`.
 
@@ -156,8 +156,8 @@ final class MyHeadProvider implements EntityAnchorProvider {
 
 - External providers only supply an anchor. The UUID, exact-class, superclass-chain and fallback rules do not change with the loader.
 - Players use Halo's player anchor provider; an available EMF player capture may override the anchor for that frame, and unavailable capture falls back to the player provider.
-- The current EMF compatibility code captures players only. Non-player entities do not use EMF capture and continue through the branch's existing YSM, Vanilla or fallback path. This is an intentional conservative policy.
-- YSM compatibility and configuration are branch-specific and independent of EMF; consult the YSM section and configuration for the target branch.
+- The current EMF compatibility code captures players only. Non-player entities do not use EMF capture or a YSM provider in this branch and continue through the branch's Vanilla or fallback path. This is an intentional conservative policy.
+- This branch does not include a YSM runtime provider; YSM compatibility is not available here.
 
 ### EMF/ETF compatibility
 
