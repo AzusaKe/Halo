@@ -98,8 +98,8 @@ with a warning.
 
 ### Experimental YSM 2.6.5 compatibility
 
-This integration supports only the Fabric 1.21.1 release
-`2.6.5-fabric+mc1.21.1`. Existing configs receive the two experimental fields
+This integration supports only the NeoForge 1.21.1 release
+`2.6.5-neoforge+mc1.21.1`. Existing configs receive the two experimental fields
 automatically on the next startup; the switch still defaults to `false`.
 Restart the game after editing the config:
 
@@ -131,7 +131,7 @@ Halo exposes a registry that resolves head-anchor providers by entity type or UU
 
 ### Data flow & call contract
 
-`EntityAnchorProvider.resolve(entity, tickDelta)` is called once per render frame on the client render thread. The provider should return a non-null `HeadAnchor` whose components are finite; when current-frame data is not ready, it should retain the previous valid frame or use an appropriate Vanilla/fallback anchor.
+`EntityAnchorProvider.resolve(entity, tickDelta)` is called when a halo's anchor is calculated on the client render thread. An entity with multiple halos may invoke the provider multiple times in one render frame. The provider should return a non-null `HeadAnchor` whose components are finite; when current-frame data is not ready, it should retain the previous valid frame or use an appropriate Vanilla/fallback anchor.
 
 The entity parameter type in this branch is `net.minecraft.world.entity.LivingEntity`.
 
@@ -157,7 +157,7 @@ public final class MyModClient {
 }
 ```
 
-The 1.21.1 NeoForge branch also posts an event object to the native NeoForge bus; `EVENT.register(...)` is the loader-neutral Halo registration form.
+Call `registerHaloProviders()` exactly once from the mod's client-initialisation entry point; defining the method alone does not register the provider. The 1.21.1 NeoForge branch also posts an event object to the native NeoForge bus. Choose one registration path for a provider; do not register the same provider through both paths.
 
 The provider implementation has the following shape:
 
