@@ -169,27 +169,46 @@ EMF 兼容默认开启，不增加 Halo 配置开关；支持版本下界为 EMF
 
 > 当前Halo模组的EMF兼容代码无法再适用于加载版本的emf模组，请前往源码库汇报
 
-### API v2 规划（尚未实现）
+### API v2 规划（尚待讨论，尚未实现）
 
-当前公开接口是 API v1。下面记录的是仍在讨论中的 API v2 方向，不是当前可用的接口，也不应据此添加依赖或编写实际调用代码。
+当前公开接口是 API v1。以下内容是 API v2 的阶段性结论草案，不是当前可用的接口，也不应据此添加依赖或编写实际调用代码。类型名称、方法签名和具体基准仍可能调整。
 
-- 目标是提供不依赖 Minecraft 映射和加载器类型的 Java API；各分支通过自己的 adapter 接入，同时保留 v1 和现有 EMF/YSM 兼容层。
-- 暂定放在 `network.azusake.halo.api.v2`；是否拆分为独立的 `halo-anchor-api-v2` artifact 尚未决定。
-- 暂定以稳定的实体标识（例如 `typeId`、UUID 或 selector）替代 v1 的 `Class<?>`，并使用独立的 `AnchorVec3` 表示世界坐标；角度仍以度为单位。
-- 请求上下文可能包含实体的插值位置、朝向、身高、`tickDelta` 和渲染帧信息，但字段和时间语义尚未确定。
-- 结果倾向使用显式的 `AnchorResult.resolved(...)` 与 `AnchorResult.unavailable()`，禁止用 `null` 表示正常不可用；异常、有限值校验和 fallback 规则需要在基准确定后固定。
-- 注册应返回可注销的句柄，并定义 provider 优先级、冲突处理和客户端会话生命周期；Vanilla、YSM、EMF 的内置适配器不应成为外部 API 的依赖。
+- **交付方式**：建立独立的 Java 17 `network.azusake:halo-anchor-api` artifact；Halo mod 在运行时提供相同的 API classes，外部 mod 仅以 compile-only/provided 方式使用该 artifact，不另行安装重复的 API jar。artifact 坐标仍属于暂定值。
+- **包与版本**：公共包暂定为 `network.azusake.halo.api.v2`，API 使用独立语义版本；在合同冻结前建议使用 `0.1.x`，达到稳定标准后再发布 `1.0.0`。
+- **平台边界**：独立 artifact 不依赖 Minecraft、Fabric、Forge、NeoForge 或 JOML；各分支通过 loader-specific adapter 接入，YSM、EMF 和 Vanilla 捕获逻辑继续留在分支内部。
+- **姿态与坐标**：使用世界坐标 `AnchorVec3` 和四元数 `AnchorRotation`，四元数为唯一规范表示，分量顺序暂定为 `(x, y, z, w)`。坐标固定遵循 Minecraft 世界轴：`+X` 东、`+Y` 上、`+Z` 南；姿态表示锚点局部轴到世界轴的旋转。
+- **请求上下文**：provider 接收实体快照和渲染帧上下文，不直接接收 Minecraft entity。核心帧上下文只要求 `frameId` 与 `tickDelta`，不把相机信息作为必选 API；第三方头部捕获由各分支 adapter 转换为承诺的头部信息。
+- **实体标识**：使用校验型 `EntityTypeId` 或 UUID selector，替代 v1 的 `Class<?>`；不把 loader-specific 类型泄漏到公共合同。
+- **解析规则**：UUID selector 的具体性高于 type selector；同一具体性内按有序整数 priority 排序，priority 相同时按注册顺序决定结果。provider 返回 `unavailable()` 时继续尝试下一个匹配项，全部不可用时再进入 v1 fallback。
+- **生命周期**：注册返回可 `close()` 的句柄，句柄默认持续到客户端生命周期结束或显式关闭；世界切换只清理帧缓存，不强制移除客户端级注册。
+- **失败语义**：使用显式的 `AnchorResult.resolved(...)` 与 `AnchorResult.unavailable()`，禁止用 `null` 表示正常不可用。adapter 负责有限值校验、隔离运行时异常并记录诊断，单个 provider 不应破坏当前 halo 渲染。
+- **兼容顺序**：v2 provider 先解析；v2 没有返回可用姿态时调用现有 v1 registry。现有 `EntityAnchorProvider`、YSM/EMF 行为和外部 v1 mod 保持不变。
 
-示意形式如下，名称和签名均未定稿，不能作为可编译 API：
+以下是非编译性的类型草案，仅用于讨论合同形状：
 
 ```java
-AnchorApiV2.register(
-    EntitySelector.type("mymod:my_entity"),
-    request -> AnchorResult.resolved(
-        new HeadAnchor(new AnchorVec3(...), yaw, pitch, roll)));
+interface AnchorProvider {
+    AnchorResult resolve(AnchorRequest request);
+}
+
+record AnchorRequest(EntitySnapshot entity, FrameContext frame) {}
+
+record EntitySnapshot(
+    UUID uuid,
+    EntityTypeId typeId,
+    AnchorVec3 interpolatedPosition,
+    AnchorRotation headRotation,
+    double height
+) {}
+
+record FrameContext(long frameId, double tickDelta) {}
+
+record AnchorPose(AnchorVec3 position, AnchorRotation rotation) {}
 ```
 
-独立 artifact 或包名、支持的基准版本、selector 模型、坐标与帧语义、优先级及注销规则，留待后续规划后再冻结。
+实施顺序暂定为：先冻结 RFC 和固定向量测试，再建立纯 Java API 子项目；随后在八个分支分别实现 adapter，在 `AnchorFrameCalculator` 接入 v2-first/v1-fallback；最后迁移或包装 Vanilla、YSM、EMF provider，并执行八分支编译、合同测试和迁移验证。
+
+公共类型的最终命名、`frameId` 在辅助渲染 pass 中的规则、内置 provider 的 priority 保留区间、`unavailable` 是否携带公开 reason，以及支持基准版本，均尚待后续讨论后冻结。
 
 ### 注册建议
 
