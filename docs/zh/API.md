@@ -119,11 +119,11 @@ static String handle(String command)
 
 Halo 提供一个按实体类型/UUID查找头部锚点的注册表。下文描述的是当前分支的真实接口。
 
-> 重要：8个分支的语义和注册流程保持一致，但它们不是跨 Minecraft 版本的同一个二进制 API。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
+> 重要：8个分支共享相同的核心解析语义，但不是跨 Minecraft 版本的同一个二进制 API；注册入口也会随 Fabric、Forge、NeoForge 和具体版本变化。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
 
 ### 数据流与调用契约
 
-`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上按帧调用。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
+`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上计算某个光环的锚点时调用。同一实体拥有多个光环时，一个渲染帧内可能调用多次。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
 
 本分支实体参数类型：`net.minecraft.world.entity.LivingEntity`。
 
