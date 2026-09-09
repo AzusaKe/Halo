@@ -120,11 +120,11 @@ static String handle(String command)
 
 Halo 提供一个按实体类型/UUID查找头部锚点的注册表。下文描述的是当前分支的真实接口。
 
-> 重要：8个分支的语义和注册流程保持一致，但它们不是跨 Minecraft 版本的同一个二进制 API。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
+> 重要：8个分支共享相同的核心解析语义，但不是跨 Minecraft 版本的同一个二进制 API；注册入口也会随 Fabric、Forge、NeoForge 和具体版本变化。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
 
 ### 数据流与调用契约
 
-`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上按帧调用。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
+`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上计算某个光环的锚点时调用。同一实体拥有多个光环时，一个渲染帧内可能调用多次。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
 
 本分支实体参数类型：`net.minecraft.entity.LivingEntity`。
 
@@ -168,6 +168,28 @@ EMF 兼容默认开启，不增加 Halo 配置开关；支持版本下界为 EMF
 若检测到当前 EMF ABI 不兼容，会在日志及聊天栏提示：
 
 > 当前Halo模组的EMF兼容代码无法再适用于加载版本的emf模组，请前往源码库汇报
+
+### API v2 规划（尚未实现）
+
+当前公开接口是 API v1。下面记录的是仍在讨论中的 API v2 方向，不是当前可用的接口，也不应据此添加依赖或编写实际调用代码。
+
+- 目标是提供不依赖 Minecraft 映射和加载器类型的 Java API；各分支通过自己的 adapter 接入，同时保留 v1 和现有 EMF/YSM 兼容层。
+- 暂定放在 `network.azusake.halo.api.v2`；是否拆分为独立的 `halo-anchor-api-v2` artifact 尚未决定。
+- 暂定以稳定的实体标识（例如 `typeId`、UUID 或 selector）替代 v1 的 `Class<?>`，并使用独立的 `AnchorVec3` 表示世界坐标；角度仍以度为单位。
+- 请求上下文可能包含实体的插值位置、朝向、身高、`tickDelta` 和渲染帧信息，但字段和时间语义尚未确定。
+- 结果倾向使用显式的 `AnchorResult.resolved(...)` 与 `AnchorResult.unavailable()`，禁止用 `null` 表示正常不可用；异常、有限值校验和 fallback 规则需要在基准确定后固定。
+- 注册应返回可注销的句柄，并定义 provider 优先级、冲突处理和客户端会话生命周期；Vanilla、YSM、EMF 的内置适配器不应成为外部 API 的依赖。
+
+示意形式如下，名称和签名均未定稿，不能作为可编译 API：
+
+```java
+AnchorApiV2.register(
+    EntitySelector.type("mymod:my_entity"),
+    request -> AnchorResult.resolved(
+        new HeadAnchor(new AnchorVec3(...), yaw, pitch, roll)));
+```
+
+独立 artifact 或包名、支持的基准版本、selector 模型、坐标与帧语义、优先级及注销规则，留待后续规划后再冻结。
 
 ### 注册建议
 
