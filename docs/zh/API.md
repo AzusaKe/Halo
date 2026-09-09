@@ -99,11 +99,11 @@ static String handle(String command)
 
 Halo 提供一个按实体类型/UUID查找头部锚点的注册表。下文描述的是当前分支的真实接口。
 
-> 重要：8个分支的语义和注册流程保持一致，但它们不是跨 Minecraft 版本的同一个二进制 API。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
+> 重要：8个分支共享相同的核心解析语义，但不是跨 Minecraft 版本的同一个二进制 API；注册入口也会随 Fabric、Forge、NeoForge 和具体版本变化。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
 
 ### 数据流与调用契约
 
-`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上按帧调用。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
+`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上计算某个光环的锚点时调用。同一实体拥有多个光环时，一个渲染帧内可能调用多次。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
 
 本分支实体参数类型：`net.minecraft.world.entity.LivingEntity`。
 
@@ -129,6 +129,8 @@ public final class MyModClient {
 }
 ```
 
+请从模组的客户端初始化入口恰好调用一次 `registerHaloProviders()`；仅定义方法不会完成注册。
+
 26.x NeoForge 的稳定外部入口就是 Halo 的 `EVENT.register(...)`；不要依赖不存在于本分支的原生事件对象或 `getRegistry()` 方法。
 
 ### 默认优先级与兼容行为
@@ -136,7 +138,7 @@ public final class MyModClient {
 - 外部 provider 只负责提供锚点；注册表的 UUID、精确类、父类链和 fallback 解析规则不因加载器改变。
 - 玩家优先使用 Halo 的玩家锚点 provider；EMF 捕获到的玩家头部数据可覆盖该帧锚点，捕获不可用时回退到玩家 provider。
 - 当前 EMF 兼容代码只接管玩家。非玩家实体不使用 EMF 捕获，继续走本分支已有的 YSM、Vanilla 或 fallback 路径；这是有意保留的保守策略。
-- YSM 兼容是否存在及其配置方式取决于具体分支，和 EMF 兼容相互独立；请以当前分支的 YSM 章节和配置为准。
+- 本分支包含可选的 YSM 兼容，仅精确支持 `2.6.5-neoforge+mc26.1`。未安装、关闭或版本不支持时，Halo 使用原有实体锚点路径。
 
 ### EMF/ETF 兼容
 
