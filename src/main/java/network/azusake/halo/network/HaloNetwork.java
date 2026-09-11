@@ -4,6 +4,8 @@ import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.item.HaloScepterService;
+import net.minecraft.entity.LivingEntity;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -43,6 +45,21 @@ public final class HaloNetwork {
     /** S2C — handshake, sent on player join to signal "server has the mod installed". */
     public static final Identifier CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
 
+    /** S2C — open the selector for a server-locked target. */
+    public static final Identifier CHANNEL_SCEPTER_OPEN = HaloPayloads.ScepterOpen.ID.id();
+
+    /** S2C — close a selector whose server session became invalid. */
+    public static final Identifier CHANNEL_SCEPTER_CLOSE_SCREEN = HaloPayloads.ScepterCloseScreen.ID.id();
+
+    /** C2S — apply a definition to the current locked target. */
+    public static final Identifier CHANNEL_SCEPTER_SELECT = HaloPayloads.ScepterSelect.ID.id();
+
+    /** C2S — release the current target lock. */
+    public static final Identifier CHANNEL_SCEPTER_CLOSE = HaloPayloads.ScepterClose.ID.id();
+
+    /** C2S — crouching left-click on air/block removes the player's own halo. */
+    public static final Identifier CHANNEL_SCEPTER_REMOVE_SELF = HaloPayloads.ScepterRemoveSelf.ID.id();
+
     private HaloNetwork() {
         // utility class
     }
@@ -56,7 +73,12 @@ public final class HaloNetwork {
         PayloadTypeRegistry.playS2C().register(HaloPayloads.Sync.ID, HaloPayloads.Sync.CODEC);
         PayloadTypeRegistry.playS2C().register(HaloPayloads.Update.ID, HaloPayloads.Update.CODEC);
         PayloadTypeRegistry.playS2C().register(HaloPayloads.Hello.ID, HaloPayloads.Hello.CODEC);
+        PayloadTypeRegistry.playS2C().register(HaloPayloads.ScepterOpen.ID, HaloPayloads.ScepterOpen.CODEC);
+        PayloadTypeRegistry.playS2C().register(HaloPayloads.ScepterCloseScreen.ID, HaloPayloads.ScepterCloseScreen.CODEC);
         PayloadTypeRegistry.playC2S().register(HaloPayloads.DefsReport.ID, HaloPayloads.DefsReport.CODEC);
+        PayloadTypeRegistry.playC2S().register(HaloPayloads.ScepterSelect.ID, HaloPayloads.ScepterSelect.CODEC);
+        PayloadTypeRegistry.playC2S().register(HaloPayloads.ScepterClose.ID, HaloPayloads.ScepterClose.CODEC);
+        PayloadTypeRegistry.playC2S().register(HaloPayloads.ScepterRemoveSelf.ID, HaloPayloads.ScepterRemoveSelf.CODEC);
 
         HaloMod.LOGGER.info("HaloNetwork: S2C channels registered (sync={}, update={}, defs_report={}, hello={})",
             CHANNEL_SYNC, CHANNEL_UPDATE, CHANNEL_DEFS_REPORT, CHANNEL_HELLO);
@@ -81,6 +103,27 @@ public final class HaloNetwork {
                     HaloJsonLoader.putClientReportedDefs(context.player().getUuid(), ids)
                 );
             }
+        );
+
+        ServerPlayNetworking.registerGlobalReceiver(
+            HaloPayloads.ScepterSelect.ID,
+            (payload, context) -> {
+                var buf = payload.buf();
+                Identifier definitionId = buf.readIdentifier();
+                context.server().execute(() -> HaloScepterService.select(context.player(), definitionId));
+            }
+        );
+
+        ServerPlayNetworking.registerGlobalReceiver(
+            HaloPayloads.ScepterClose.ID,
+            (payload, context) ->
+                context.server().execute(() -> HaloScepterService.close(context.player().getUuid()))
+        );
+
+        ServerPlayNetworking.registerGlobalReceiver(
+            HaloPayloads.ScepterRemoveSelf.ID,
+            (payload, context) ->
+                context.server().execute(() -> HaloScepterService.remove(context.player(), context.player(), true))
         );
         HaloMod.LOGGER.info("HaloNetwork: C2S receivers registered");
     }
@@ -169,6 +212,20 @@ public final class HaloNetwork {
      */
     public static void sendHello(ServerPlayerEntity player) {
         ServerPlayNetworking.send(player, new HaloPayloads.Hello(PacketByteBufs.create()));
+    }
+
+    /** Open the halo-scepter client screen for the locked target. */
+    public static void sendScepterOpen(ServerPlayerEntity player, LivingEntity target) {
+        var buf = PacketByteBufs.create();
+        buf.writeInt(target.getId());
+        writeUuid(buf, target.getUuid());
+        buf.writeString(target.getDisplayName().getString(), 128);
+        ServerPlayNetworking.send(player, new HaloPayloads.ScepterOpen(buf));
+    }
+
+    /** Close an open halo-scepter screen after invalidating its session. */
+    public static void sendScepterClose(ServerPlayerEntity player) {
+        ServerPlayNetworking.send(player, new HaloPayloads.ScepterCloseScreen(PacketByteBufs.create()));
     }
 
     // ------------------------------------------------------------------

@@ -17,6 +17,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import network.azusake.halo.json.HaloJsonLoader;
+import network.azusake.halo.util.HaloIdMatcher;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -58,12 +59,8 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
         (ctx, builder) -> {
             String remaining = builder.getRemaining().toLowerCase();
             for (Identifier id : HaloJsonLoader.getDefinitions().keySet()) {
-                String idStr = id.toString();
-                if (idStr.toLowerCase().startsWith(remaining)) {
-                    builder.suggest(idStr);
-                } else if (!remaining.contains(":")
-                    && id.getPath().toLowerCase().startsWith(remaining)) {
-                    builder.suggest(idStr);
+                if (HaloIdMatcher.matches(id, remaining)) {
+                    builder.suggest(id.toString());
                 }
             }
             return builder.buildFuture();

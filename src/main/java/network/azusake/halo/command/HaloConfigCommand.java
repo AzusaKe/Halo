@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import network.azusake.halo.util.HaloIdMatcher;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -362,11 +363,8 @@ public final class HaloConfigCommand {
     }
 
     private static void suggestIfMatch(SuggestionsBuilder builder, Identifier id, String remaining) {
-        String idStr = id.toString();
-        if (idStr.toLowerCase().startsWith(remaining)) {
-            builder.suggest(idStr);
-        } else if (!remaining.contains(":") && id.getPath().toLowerCase().startsWith(remaining)) {
-            builder.suggest(idStr);
+        if (HaloIdMatcher.matches(id, remaining)) {
+            builder.suggest(id.toString());
         }
     }
 
