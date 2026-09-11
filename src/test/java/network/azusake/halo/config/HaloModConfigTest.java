@@ -41,11 +41,11 @@ class HaloModConfigTest {
     }
 
     @Test
-    @DisplayName("experimental YSM anchor defaults off at the Head pivot")
+    @DisplayName("experimental YSM anchor defaults on at the Head pivot")
     void experimentalYsmDefaults() {
         HaloModConfig config = new HaloModConfig();
 
-        assertFalse(config.isExperimentalYsmAnchorEnabled());
+        assertTrue(config.isExperimentalYsmAnchorEnabled());
         assertArrayEquals(new double[]{0.0, 0.0, 0.0}, config.getExperimentalYsmHeadLocalOffset());
     }
 
@@ -61,6 +61,8 @@ class HaloModConfigTest {
 
         assertTrue(config.isExperimentalYsmAnchorEnabled());
         assertArrayEquals(new double[]{0.1, -0.2, 0.3}, config.getExperimentalYsmHeadLocalOffset());
+        config.setExperimentalYsmAnchorEnabled(false);
+        assertFalse(config.isExperimentalYsmAnchorEnabled());
     }
 
     @Test
