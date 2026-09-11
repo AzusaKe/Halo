@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "ABC",
+    "DEB",
+    "EDA"
+  ],
+  "key": {
+    "A": "minecraft:redstone",
+    "B": "minecraft:glass",
+    "C": "minecraft:lapis_lazuli",
+    "D": "minecraft:gold_nugget",
+    "E": "minecraft:stick"
+  },
+  "result": {
+    "id": "halo:halo_scepter",
+    "count": 1
+  }
+}
