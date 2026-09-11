@@ -1,5 +1,8 @@
 package network.azusake.halo.compat.ysm;
 
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.HaloAnchorApi;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraft.client.render.Frustum;
@@ -19,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class YsmHeadCapture {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
+    private static final AnchorSource YSM_SOURCE = HaloAnchorApi.register("halo:ysm");
 
     private static final Map<UUID, CapturedHead> CURRENT = new ConcurrentHashMap<>();
     private static final Map<UUID, CapturedHead> PREVIOUS = new ConcurrentHashMap<>();
@@ -96,11 +100,20 @@ public final class YsmHeadCapture {
                     "[YSM Compat] rendered YSM model has no finite, non-degenerate Head locator; using Halo fallback");
                 return;
             }
-            if (CURRENT.putIfAbsent(uuid, new CapturedHead(
+            CapturedHead captured = new CapturedHead(
                 new Matrix4f(headMatrix),
                 new Matrix4f(frame.viewMatrix),
                 frame.cameraPos
-            )) == null) {
+            );
+            if (CURRENT.putIfAbsent(uuid, captured) == null) {
+                double[] rawOffset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
+                AnchorPose pose = YsmHeadMath.toAnchorPose(
+                    captured, new Vec3d(rawOffset[0], rawOffset[1], rawOffset[2]));
+                if (pose != null) {
+                    YSM_SOURCE.submit(uuid, pose);
+                } else {
+                    markAnchorConversionFailed();
+                }
                 infoOnce("head-captured",
                     "[YSM Compat] Head matrix captured from a bracketed YSM living-entity render");
             }

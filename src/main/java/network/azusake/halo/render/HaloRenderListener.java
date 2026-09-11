@@ -43,13 +43,18 @@ public final class HaloRenderListener {
         // halo pass (AFTER_ENTITIES) only sees this frame's captures; entities
         // that did not render this frame fall back to their previous provider.
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
-            RenderHeadCapture.clearFrame();
             // The world-render stack is at its root (the camera view
             // matrix) right before entities render.  Captured head
             // matrices are camera-relative, so the halo pipeline needs
             // this view matrix to recover world-space anchors.
             Matrix4f viewMatrix = new Matrix4f(context.matrixStack().peek().getPositionMatrix());
-            RenderHeadCapture.setViewMatrix(viewMatrix);
+            RenderHeadCapture.beginFrame(
+                viewMatrix,
+                context.camera().getPos(),
+                context.frustum(),
+                context.tickDelta(),
+                context.world()
+            );
             EmfHeadCapture.beginFrame(viewMatrix, context.camera().getPos());
             YsmHeadCapture.beginFrame(
                 viewMatrix,

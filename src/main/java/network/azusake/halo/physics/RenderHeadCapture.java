@@ -1,11 +1,18 @@
 package network.azusake.halo.physics;
 
+import network.azusake.halo.anchor.AnchorCaptureCoordinator;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.AnchorVec3;
+import network.azusake.halo.api.v2.HaloAnchorApi;
 import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
 import java.util.Map;
@@ -34,6 +41,7 @@ public final class RenderHeadCapture {
     private static final ThreadLocal<PlayerEntityModel<?>> CURRENT_MODEL = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> AUXILIARY_YSM_PASS =
         ThreadLocal.withInitial(() -> false);
+    private static final AnchorSource VANILLA_SOURCE = HaloAnchorApi.register("halo:vanilla");
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
@@ -42,6 +50,9 @@ public final class RenderHeadCapture {
      * positions and angles.
      */
     private static volatile Matrix4f viewMatrix;
+    private static volatile Vec3d cameraPos;
+    private static volatile Frustum mainFrustum;
+    private static volatile float frameTickDelta;
 
     private RenderHeadCapture() { /* utility class */ }
 
@@ -65,6 +76,33 @@ public final class RenderHeadCapture {
             CURRENT_ENTITY.remove();
             AUXILIARY_YSM_PASS.set(entity instanceof LivingEntity);
         }
+    }
+
+    /** Open the source-neutral render scope used by API v2 submissions. */
+    public static void beginEntityRender(Entity entity, MatrixStack matrices, float tickDelta) {
+        Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
+        boolean mainPass = entity instanceof LivingEntity living
+            && matchesMainView(root)
+            && isVisibleToMainCamera(living)
+            && OptionalIrisPassDetector.isMainPass();
+        if (entity instanceof LivingEntity living) {
+            Vec3d position = interpolatedPosition(living, tickDelta);
+            AnchorCaptureCoordinator.beginEntityRender(
+                living.getUuid(), living.getId(), living.getWorld(),
+                new AnchorVec3(position.x, position.y, position.z), mainPass);
+            if (mainPass) {
+                CURRENT_ENTITY.set(living);
+                AUXILIARY_YSM_PASS.set(false);
+            } else {
+                CURRENT_ENTITY.remove();
+                AUXILIARY_YSM_PASS.set(true);
+            }
+        }
+    }
+
+    public static void endEntityRender() {
+        AnchorCaptureCoordinator.endEntityRender();
+        end();
     }
 
     /**
@@ -105,6 +143,16 @@ public final class RenderHeadCapture {
         CAPTURES.clear();
     }
 
+    public static void beginFrame(Matrix4f frameViewMatrix, Vec3d frameCameraPos,
+                                  Frustum frustum, float tickDelta, Object worldIdentity) {
+        clearFrame();
+        viewMatrix = frameViewMatrix == null ? null : new Matrix4f(frameViewMatrix);
+        cameraPos = frameCameraPos;
+        mainFrustum = frustum == null ? null : new Frustum(frustum);
+        frameTickDelta = tickDelta;
+        AnchorCaptureCoordinator.beginFrame(worldIdentity);
+    }
+
     /** Record the frame's view matrix (world → camera). */
     public static void setViewMatrix(Matrix4f value) {
         viewMatrix = value;
@@ -136,19 +184,45 @@ public final class RenderHeadCapture {
             return;
         }
         LivingEntity entity = CURRENT_ENTITY.get();
-        if (entity == null) {
+        Vec3d frameCameraPos = cameraPos;
+        Matrix4f frameViewMatrix = viewMatrix;
+        if (entity == null || frameCameraPos == null || frameViewMatrix == null) {
             return;
         }
-        CAPTURES.put(entity.getUuid(), new CapturedHead(
+        CapturedHead captured = new CapturedHead(
             new Matrix4f(matrices.peek().getPositionMatrix()),
             part.pivotX, part.pivotY, part.pivotZ,
             part.pitch, part.yaw, part.roll,
             part.xScale, part.yScale, part.zScale
-        ));
+        );
+        CAPTURES.put(entity.getUuid(), captured);
+        try {
+            AnchorPose pose = RenderHeadMath.toAnchorPose(captured, frameCameraPos, frameViewMatrix);
+            VANILLA_SOURCE.submit(entity.getUuid(), pose);
+        } catch (RuntimeException ignored) {
+            // Invalid capture data is a normal safe-fallback condition.
+        }
     }
 
     public static CapturedHead get(UUID uuid) {
         return CAPTURES.get(uuid);
+    }
+
+    public static float getFrameTickDelta() {
+        return frameTickDelta;
+    }
+
+    private static boolean isVisibleToMainCamera(LivingEntity entity) {
+        Frustum frustum = mainFrustum;
+        return frustum != null && frustum.isVisible(entity.getVisibilityBoundingBox());
+    }
+
+    private static Vec3d interpolatedPosition(LivingEntity entity, float tickDelta) {
+        return new Vec3d(
+            entity.prevX + (entity.getX() - entity.prevX) * tickDelta,
+            entity.prevY + (entity.getY() - entity.prevY) * tickDelta,
+            entity.prevZ + (entity.getZ() - entity.prevZ) * tickDelta
+        );
     }
 
     /**

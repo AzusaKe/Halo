@@ -1,6 +1,6 @@
 package network.azusake.halo.compat.emf;
 
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.physics.RenderHeadMath;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
@@ -12,7 +12,7 @@ public final class EmfHeadMath {
     }
 
     /** Convert using the exact camera frame that produced this capture. */
-    public static HeadAnchor toHeadAnchor(EmfHeadCapture.CapturedHead captured) {
+    public static AnchorPose toAnchorPose(EmfHeadCapture.CapturedHead captured) {
         if (captured == null || captured.headMatrix() == null
             || captured.viewMatrix() == null || captured.cameraPos() == null
             || !isFinite(captured.headMatrix()) || !isFinite(captured.viewMatrix())
@@ -30,10 +30,7 @@ public final class EmfHeadMath {
         }
 
         try {
-            Vec3d center = RenderHeadMath.headCenter(worldMatrix, captured.cameraPos());
-            float[] ypr = RenderHeadMath.toYawPitchRoll(worldMatrix);
-            HeadAnchor anchor = new HeadAnchor(center, ypr[0], ypr[1], ypr[2]);
-            return isFinite(anchor) ? anchor : null;
+            return RenderHeadMath.toAnchorPose(worldMatrix, captured.cameraPos());
         } catch (Throwable ignored) {
             return null;
         }
@@ -52,12 +49,5 @@ public final class EmfHeadMath {
 
     private static boolean isFinite(Vec3d value) {
         return Double.isFinite(value.x) && Double.isFinite(value.y) && Double.isFinite(value.z);
-    }
-
-    private static boolean isFinite(HeadAnchor anchor) {
-        return anchor != null && isFinite(anchor.headCenter())
-            && Float.isFinite(anchor.yaw())
-            && Float.isFinite(anchor.pitch())
-            && Float.isFinite(anchor.roll());
     }
 }

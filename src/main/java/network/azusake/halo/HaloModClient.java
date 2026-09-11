@@ -3,16 +3,10 @@ package network.azusake.halo;
 import network.azusake.halo.client.FabricHaloCommandInterceptor;
 import network.azusake.halo.client.HaloLocalManager;
 import network.azusake.halo.client.HaloPhaseTracker;
-import network.azusake.halo.compat.ysm.YsmEntityAnchorProvider;
 import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
-import network.azusake.halo.api.AnchorProviderSetupEvent;
-import network.azusake.halo.api.EntityAnchorProviderRegistry;
-import network.azusake.halo.config.HaloModConfigStore;
+import network.azusake.halo.anchor.AnchorCaptureCoordinator;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
-import network.azusake.halo.api.FallbackAnchorProvider;
-import network.azusake.halo.physics.PlayerAnchorProvider;
-import network.azusake.halo.physics.RenderHeadAnchorProvider;
 import network.azusake.halo.render.HaloClientManager;
 import network.azusake.halo.render.HaloRenderListener;
 import net.fabricmc.api.ClientModInitializer;
@@ -23,19 +17,13 @@ import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 public class HaloModClient implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(HaloMod.MOD_ID);
-
-    private static final AtomicBoolean ANCHOR_SETUP_FIRED = new AtomicBoolean(false);
 
     @Override
     public void onInitializeClient() {
@@ -55,53 +43,6 @@ public class HaloModClient implements ClientModInitializer {
         // Register entity-anchor profile loader on the client side
         network.azusake.halo.json.EntityAnchorLoader.registerClientResources();
 
-        // Register the default anchor providers immediately.  The setup event
-        // is fired once at the end of the first client tick (see below) so
-        // that every other mod's client entrypoint has run by then — Fabric
-        // gives no cross-mod ordering guarantee for entrypoints, so firing
-        // here could race with other mods registering their listeners.
-        EntityAnchorProviderRegistry anchorRegistry = EntityAnchorProviderRegistry.getInstance();
-        anchorRegistry.register(PlayerEntity.class, PlayerAnchorProvider.getInstance());
-        // Default generic YSM wrapper plus player provider: YSM-rendered living
-        // entities can consume their Head locator, while the player provider
-        // also retains Halo's vanilla ModelPart head capture.
-        // The render-head capture provider anchors
-        // the halo to the actually rendered head.  It keeps PlayerAnchorProvider
-        // (backed by entity_anchors/player.json) as its no-capture fallback for
-        // first-person, culled, or renderer-replaced players.  Both providers
-        // are registered so external mods can still override via the setup
-        // event (last-wins). Non-YSM living entities delegate to the unchanged
-        // FallbackAnchorProvider.
-        anchorRegistry.register(
-            LivingEntity.class,
-            new YsmEntityAnchorProvider(FallbackAnchorProvider.getInstance()));
-        anchorRegistry.register(PlayerEntity.class, new RenderHeadAnchorProvider(PlayerAnchorProvider.getInstance()));
-
-        // Fire AnchorProviderSetupEvent exactly once, at the end of the first
-        // client tick.  All mod entrypoints have run by then, so listeners
-        // registered in any onInitializeClient are always observed.
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (ANCHOR_SETUP_FIRED.compareAndSet(false, true)) {
-                AnchorProviderSetupEvent.EVENT.invoker().onSetup(anchorRegistry);
-                LOGGER.info("Default anchor providers registered; AnchorProviderSetupEvent fired (first client tick)");
-                if (HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()) {
-                    var effectiveProvider = anchorRegistry.getProvider(PlayerEntity.class);
-                    if (!(effectiveProvider instanceof RenderHeadAnchorProvider)) {
-                        LOGGER.warn(
-                            "[YSM Compat] player anchor provider was overridden by {}; that provider controls YSM anchors",
-                            effectiveProvider.getClass().getName());
-                    }
-                    var genericProvider = anchorRegistry.getProvider(LivingEntity.class);
-                    if (!(genericProvider instanceof YsmEntityAnchorProvider)) {
-                        LOGGER.warn(
-                            "[YSM Compat] generic living-entity anchor provider was overridden by {}; "
-                                + "that provider controls non-player YSM anchors",
-                            genericProvider.getClass().getName());
-                    }
-                }
-            }
-        });
-
         // Register the halo renderer with Fabric's world-render pipeline
         HaloRenderListener.register();
 
@@ -119,6 +60,7 @@ public class HaloModClient implements ClientModInitializer {
         ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             if (entity != null) {
                 HaloClientManager.getInstance().onEntityUnloaded(entity.getUuid());
+                AnchorCaptureCoordinator.clearEntity(entity.getUuid());
             }
         });
 
@@ -166,6 +108,7 @@ public class HaloModClient implements ClientModInitializer {
         // retains local halos so they survive reconnects to the same server.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             network.azusake.halo.manager.HaloManager.getInstance().clearAllClientHalos();
+            AnchorCaptureCoordinator.clearCaptures();
             HaloPhaseTracker.getInstance().resetToLocal();
         });
 

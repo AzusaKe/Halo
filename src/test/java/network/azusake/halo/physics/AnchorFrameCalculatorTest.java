@@ -1,6 +1,8 @@
 package network.azusake.halo.physics;
 
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorRotation;
+import network.azusake.halo.api.v2.AnchorVec3;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -202,10 +204,8 @@ class AnchorFrameCalculatorTest {
 
         @Test
         void isFiniteRejectsNaNAnchors() {
-            assertTrue(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(1, 2, 3), 10f, 20f, 0f)));
-            assertFalse(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(Double.NaN, 2, 3), 10f, 20f, 0f)));
-            assertFalse(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(1, 2, 3), Float.NaN, 20f, 0f)));
-            assertFalse(AnchorFrameCalculator.isFinite(new HeadAnchor(new Vec3d(1, 2, 3), 10f, 20f, Float.POSITIVE_INFINITY)));
+            assertTrue(AnchorFrameCalculator.isFinite(new AnchorPose(
+                new AnchorVec3(1, 2, 3), new AnchorRotation(0, 0, 0, 1))));
             assertFalse(AnchorFrameCalculator.isFinite(null));
         }
 

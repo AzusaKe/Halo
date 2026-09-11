@@ -1,6 +1,9 @@
 package network.azusake.halo.physics;
 
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorPoseMath;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorRotation;
+import network.azusake.halo.api.v2.AnchorVec3;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -87,11 +90,29 @@ public final class RenderHeadMath {
      *                   Pass the identity matrix when the capture is already
      *                   in world space (unit tests / degenerate capture).
      */
-    public static HeadAnchor toHeadAnchor(RenderHeadCapture.CapturedHead captured, Vec3d cameraPos, Matrix4f viewMatrix) {
+    public static AnchorPose toAnchorPose(RenderHeadCapture.CapturedHead captured, Vec3d cameraPos, Matrix4f viewMatrix) {
         Matrix4f head = viewToWorld(composeHeadMatrix(captured), viewMatrix);
+        return toAnchorPose(head, cameraPos);
+    }
+
+    /** Convert an already composed world-space head matrix. */
+    public static AnchorPose toAnchorPose(Matrix4f head, Vec3d cameraPos) {
         Vec3d center = headCenter(head, cameraPos);
-        float[] ypr = toYawPitchRoll(head);
-        return new HeadAnchor(center, ypr[0], ypr[1], ypr[2]);
+        AnchorRotation rotation = AnchorPoseMath.fromForwardUp(
+            direction(head, 0f, 0f, -1f),
+            direction(head, 0f, -1f, 0f)
+        );
+        return new AnchorPose(new AnchorVec3(center.x, center.y, center.z), rotation);
+    }
+
+    private static AnchorVec3 direction(Matrix4f matrix, float x, float y, float z) {
+        Vector4f origin = matrix.transform(new Vector4f(0f, 0f, 0f, 1f));
+        Vector4f endpoint = matrix.transform(new Vector4f(x, y, z, 1f));
+        return new AnchorVec3(
+            endpoint.x - origin.x,
+            endpoint.y - origin.y,
+            endpoint.z - origin.z
+        );
     }
 
     /**
