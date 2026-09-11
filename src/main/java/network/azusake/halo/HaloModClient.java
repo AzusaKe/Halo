@@ -4,6 +4,7 @@ import network.azusake.halo.client.FabricHaloCommandInterceptor;
 import network.azusake.halo.client.HaloLocalManager;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.anchor.AnchorCaptureCoordinator;
+import network.azusake.halo.client.HaloScepterClientInput;
 import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
@@ -54,6 +55,7 @@ public class HaloModClient implements ClientModInitializer {
         // querying the entity every frame.
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             HaloClientManager.getInstance().updateEntityStateCache();
+            HaloScepterClientInput.tick(client);
         });
 
         // Clean up entity cache when entities are unloaded from the client world
