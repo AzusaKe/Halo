@@ -4,6 +4,7 @@ import network.azusake.halo.command.HaloConfigCommand;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.EntityHaloTracker;
+import network.azusake.halo.item.HaloItems;
 import network.azusake.halo.network.HaloNetwork;
 import network.azusake.halo.server.HaloServerEvents;
 import net.neoforged.bus.api.IEventBus;
@@ -42,6 +43,9 @@ public class HaloMod {
         // Load the file-backed mod config (permission level etc.) before the
         // /halo command tree registers, so the permission gate reads it.
         HaloModConfigStore.load();
+
+        // Register the halo scepter and its server-authoritative interactions.
+        HaloItems.register(modEventBus);
 
         // Register /halo command tree (dump, reload, list, show, hide, config)
         NeoForge.EVENT_BUS.addListener(RegisterCommandsEvent.class,

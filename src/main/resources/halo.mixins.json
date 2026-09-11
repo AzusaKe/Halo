@@ -3,6 +3,6 @@
   "package": "network.azusake.halo.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": ["LivingEntityDataMixin", "EntityTeleportMixin"],
-  "client": ["EntityRenderContextMixin", "PlayerRendererHeadCaptureMixin", "ModelPartHeadCaptureMixin"],
+  "client": ["EntityRenderContextMixin", "MinecraftClientAttackMixin", "PlayerRendererHeadCaptureMixin", "ModelPartHeadCaptureMixin"],
   "injectors": {"defaultRequire": 1}
 }

@@ -8,6 +8,7 @@ import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.EntityHaloTracker;
 import network.azusake.halo.lifecycle.HaloWorldSaveData;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.util.HaloIdMatcher;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
@@ -362,11 +363,8 @@ public final class HaloConfigCommand {
     }
 
     private static void suggestIfMatch(SuggestionsBuilder builder, ResourceLocation id, String remaining) {
-        String idStr = id.toString();
-        if (idStr.toLowerCase().startsWith(remaining)) {
-            builder.suggest(idStr);
-        } else if (!remaining.contains(":") && id.getPath().toLowerCase().startsWith(remaining)) {
-            builder.suggest(idStr);
+        if (HaloIdMatcher.matches(id, remaining)) {
+            builder.suggest(id.toString());
         }
     }
 

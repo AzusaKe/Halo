@@ -2,6 +2,7 @@ package network.azusake.halo;
 
 import network.azusake.halo.anchor.AnchorCaptureCoordinator;
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.client.HaloScepterClientInput;
 import network.azusake.halo.client.NeoForgeHaloCommandInterceptor;
 import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -37,8 +38,10 @@ public final class HaloModClient {
         HaloRenderListener.register();
         HaloClientManager.getInstance();
 
-        NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class,
-            event -> HaloClientManager.getInstance().updateEntityStateCache());
+        NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> {
+            HaloClientManager.getInstance().updateEntityStateCache();
+            HaloScepterClientInput.tick(net.minecraft.client.Minecraft.getInstance());
+        });
         NeoForge.EVENT_BUS.addListener(EntityLeaveLevelEvent.class, event -> {
             var entity = event.getEntity();
             if (entity != null) {
