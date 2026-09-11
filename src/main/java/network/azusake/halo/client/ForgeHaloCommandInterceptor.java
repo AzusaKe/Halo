@@ -19,6 +19,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import network.azusake.halo.json.HaloJsonLoader;
+import network.azusake.halo.util.HaloIdMatcher;
 
 import java.time.Instant;
 import java.util.BitSet;
@@ -30,10 +31,8 @@ public final class ForgeHaloCommandInterceptor implements HaloCommandInterceptor
     private static final SuggestionProvider<CommandSourceStack> DEFINITIONS = (ctx, builder) -> {
         String remaining = builder.getRemaining().toLowerCase();
         for (ResourceLocation id : HaloJsonLoader.getDefinitions().keySet()) {
-            String value = id.toString();
-            if (value.toLowerCase().startsWith(remaining)
-                    || (!remaining.contains(":") && id.getPath().toLowerCase().startsWith(remaining))) {
-                builder.suggest(value);
+            if (HaloIdMatcher.matches(id, remaining)) {
+                builder.suggest(id.toString());
             }
         }
         return builder.buildFuture();

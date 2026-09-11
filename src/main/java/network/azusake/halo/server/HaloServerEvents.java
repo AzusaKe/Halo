@@ -3,6 +3,7 @@ package network.azusake.halo.server;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.item.HaloScepterService;
 import network.azusake.halo.network.HaloNetwork;
 import network.azusake.halo.physics.HaloTickHandler;
 import net.minecraft.server.level.ServerLevel;
@@ -57,8 +58,10 @@ public final class HaloServerEvents {
             false,
             EntityLeaveLevelEvent.class,
             event -> {
-                if (event.getLevel() instanceof ServerLevel level)
+                if (event.getLevel() instanceof ServerLevel level) {
                     HaloManager.getInstance().removeHalo(event.getEntity().getUUID(), level.getServer());
+                    HaloScepterService.invalidateTarget(level.getServer(), event.getEntity().getUUID());
+                }
             }
         );
         entityRegistered = true;
@@ -90,6 +93,7 @@ public final class HaloServerEvents {
                     UUID uuid = player.getUUID();
                     HaloManager.getInstance().removeHalo(uuid, player.level().getServer());
                     HaloJsonLoader.removeClientReportedDefs(uuid);
+                    HaloScepterService.close(uuid);
                 }
             }
         );

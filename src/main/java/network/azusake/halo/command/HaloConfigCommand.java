@@ -15,6 +15,7 @@ import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.lifecycle.EntityHaloTracker;
 import network.azusake.halo.lifecycle.HaloWorldSaveData;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.util.HaloIdMatcher;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -75,5 +76,5 @@ public final class HaloConfigCommand {
     private static int debug(CommandContext<CommandSourceStack> c) { EntityHaloTracker.setDebugMode(BoolArgumentType.getBool(c,"enabled")); return Command.SINGLE_SUCCESS; }
     private static int setConfig(CommandContext<CommandSourceStack> c,String key) { double v=DoubleArgumentType.getDouble(c,"value"); HaloConfig cfg=HaloManager.getInstance().getConfig(); switch(key){case "linear-damping"->cfg.setLinearDampingFactor(v);case "angular-damping"->cfg.setAngularDampingFactor(v);case "max-linear-distance"->cfg.setMaxLinearDistance(v);case "max-angular-degrees"->cfg.setMaxAngularDegrees(v);case "scale"->cfg.setHaloScale(v);case "angular-momentum-factor"->cfg.setAngularMomentumFactor(v);case "max-angular-momentum-degrees"->cfg.setMaxAngularMomentumDegrees(v);} return feedback(c,"§aSet §f"+key+"§a to §f"+v); }
     private static int setBool(CommandContext<CommandSourceStack> c,String key) { boolean v=BoolArgumentType.getBool(c,"value"); HaloManager.getInstance().getConfig().setAllowAngularMomentum(v); return feedback(c,"§aSet §f"+key+"§a to §f"+v); }
-    private static CompletableFuture<Suggestions> suggest(CommandContext<CommandSourceStack> c,SuggestionsBuilder b) { String r=b.getRemaining().toLowerCase(); for(ResourceLocation id:HaloJsonLoader.getAllKnownDefinitionIds()) if(id.toString().startsWith(r)||(!r.contains(":")&&id.getPath().startsWith(r))) b.suggest(id.toString()); return b.buildFuture(); }
+    private static CompletableFuture<Suggestions> suggest(CommandContext<CommandSourceStack> c,SuggestionsBuilder b) { String r=b.getRemaining(); for(ResourceLocation id:HaloJsonLoader.getAllKnownDefinitionIds()) if(HaloIdMatcher.matches(id,r)) b.suggest(id.toString()); return b.buildFuture(); }
 }

@@ -10,6 +10,7 @@
     ],
     "client": [
         "EntityRenderContextMixin",
+        "MinecraftClientAttackMixin",
         "PlayerEntityRendererHeadCaptureMixin",
         "ModelPartHeadCaptureMixin"
     ],

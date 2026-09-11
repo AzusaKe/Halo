@@ -1,6 +1,7 @@
 package network.azusake.halo.network;
 
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.client.HaloScepterScreen;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.data.HaloTransitionState;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -42,10 +43,31 @@ public final class HaloNetworkClient {
         if (state != null && state.transitionActive() && !state.groups().isEmpty()) inst.setHideVisuals(state.groups());
     }
     public static void handleHello() { HaloPhaseTracker.getInstance().transitionToMultiplayer(); }
+    public static void handleScepterOpen(int targetEntityId, UUID targetUuid, String targetName) {
+        Minecraft.getInstance().setScreen(new HaloScepterScreen(targetEntityId, targetUuid, targetName));
+    }
+    public static void handleScepterClose() {
+        if (Minecraft.getInstance().screen instanceof HaloScepterScreen) {
+            Minecraft.getInstance().setScreen(null);
+        }
+    }
+    public static void sendScepterSelection(ResourceLocation definitionId) {
+        if (canSend()) HaloNetwork.CHANNEL.sendToServer(new HaloNetwork.ScepterSelectMessage(definitionId));
+    }
+    public static void sendScepterClose() {
+        if (canSend()) HaloNetwork.CHANNEL.sendToServer(new HaloNetwork.ScepterCloseMessage());
+    }
+    public static void sendScepterRemoveSelf() {
+        if (canSend()) HaloNetwork.CHANNEL.sendToServer(new HaloNetwork.ScepterRemoveSelfMessage());
+    }
     public static void sendDefsReport() {
         if (Minecraft.getInstance().getConnection() == null) return;
-        if (!HaloNetwork.CHANNEL.isRemotePresent(Minecraft.getInstance().getConnection().getConnection())) return;
+        if (!canSend()) return;
         Set<ResourceLocation> ids = HaloJsonLoader.getDefinitions().keySet();
         if (!ids.isEmpty()) HaloNetwork.CHANNEL.sendToServer(new HaloNetwork.DefsReportMessage(ids));
+    }
+    private static boolean canSend() {
+        return Minecraft.getInstance().getConnection() != null
+            && HaloNetwork.CHANNEL.isRemotePresent(Minecraft.getInstance().getConnection().getConnection());
     }
 }
