@@ -28,11 +28,13 @@ desktop.ini
 
 # Minecraft / Fabric Loom
 run/
+runServer/
+runForgeServer/
 logs/
 crash-reports/
 
 # Local dev tools (user-specific, not part of the mod)
-scripts/update-proxy.sh
+scripts/
 
 # Local containerized build (user-specific)
 .local/
