@@ -1,7 +1,9 @@
 package network.azusake.halo.compat.ysm;
 
 import net.minecraft.world.phys.Vec3;
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorPoseMath;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.physics.HeadFrameMath;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -40,7 +42,7 @@ class YsmCompatTest {
             bone(0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0))));
         assertNull(YsmV265Adapter.composeHeadMatrix(new Matrix4f(), List.of(
             bone(Float.NaN, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0))));
-        assertNull(YsmHeadMath.toHeadAnchor(new Matrix4f().m00(Float.NaN),
+        assertNull(YsmHeadMath.toAnchorPose(new Matrix4f().m00(Float.NaN),
             Vec3.ZERO, Vec3.ZERO, new Matrix4f()));
     }
 
@@ -54,15 +56,16 @@ class YsmCompatTest {
         Vec3 offset = new Vec3(0.2, 0.3, -0.1);
         Vec3 camera = new Vec3(10, 60, -5);
 
-        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(captured, offset, camera, view);
+        AnchorPose anchor = YsmHeadMath.toAnchorPose(captured, offset, camera, view);
         assertNotNull(anchor);
         Vector4f expected = world.transform(new Vector4f(0.2f, 0.3f, -0.1f, 1));
-        assertEquals(camera.x + expected.x, anchor.headCenter().x, EPS);
-        assertEquals(camera.y + expected.y, anchor.headCenter().y, EPS);
-        assertEquals(camera.z + expected.z, anchor.headCenter().z, EPS);
-        assertEquals(yaw, anchor.yaw(), 0.05);
-        assertEquals(pitch, anchor.pitch(), 0.05);
-        assertEquals(roll, anchor.roll(), 0.05);
+        assertEquals(camera.x + expected.x, anchor.position().x(), EPS);
+        assertEquals(camera.y + expected.y, anchor.position().y(), EPS);
+        assertEquals(camera.z + expected.z, anchor.position().z(), EPS);
+        AnchorVec3 actualForward = AnchorPoseMath.rotate(anchor.rotation(), new AnchorVec3(0, 0, 1));
+        AnchorVec3 actualUp = AnchorPoseMath.rotate(anchor.rotation(), new AnchorVec3(0, 1, 0));
+        assertVector(frame.forward(), actualForward);
+        assertVector(frame.headUp(), actualUp);
     }
 
     private static YsmV265Adapter.BonePose bone(
@@ -78,6 +81,12 @@ class YsmCompatTest {
             .rotate(new Quaternionf().rotationZYX(b.rotationZ(), b.rotationY(), b.rotationX()))
             .scale(b.scaleX(), b.scaleY(), b.scaleZ());
         if (away) matrix.translate(-b.pivotX() / 16, -b.pivotY() / 16, -b.pivotZ() / 16);
+    }
+
+    private static void assertVector(Vec3 expected, AnchorVec3 actual) {
+        assertEquals(expected.x, actual.x(), EPS);
+        assertEquals(expected.y, actual.y(), EPS);
+        assertEquals(expected.z, actual.z(), EPS);
     }
 
     private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3 origin) {

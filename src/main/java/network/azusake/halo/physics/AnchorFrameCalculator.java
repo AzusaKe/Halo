@@ -1,15 +1,19 @@
 package network.azusake.halo.physics;
 
 import network.azusake.halo.config.HaloConfig;
-import network.azusake.halo.api.EntityAnchorProvider;
-import network.azusake.halo.api.EntityAnchorProviderRegistry;
-import network.azusake.halo.api.FallbackAnchorProvider;
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorCaptureCoordinator;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorRotation;
+import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.data.OrientationMode;
 import network.azusake.halo.manager.HaloManager;
+import net.minecraft.client.Camera;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,9 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import net.minecraft.client.Camera;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.Vec3;
 
 /**
  * Computes the world-space {@link AnchorFrame} for a halo instance each
@@ -63,7 +64,7 @@ public final class AnchorFrameCalculator {
     // anchor (bad provider frame) holds this anchor instead of poisoning the
     // damping state — NaN is sticky and would hide the halo until its
     // per-frame state is dropped (sleep/invis hide or rejoin). ----
-    private final Map<UUID, HeadAnchor> lastGoodAnchors = new HashMap<>();
+    private final Map<UUID, AnchorPose> lastGoodAnchors = new HashMap<>();
 
     // ---- per-instance rotation / spin damping state ----
     private final Map<UUID, HaloDampingState> rotationStates = new HashMap<>();
@@ -106,13 +107,6 @@ public final class AnchorFrameCalculator {
         return calculate(instance, entity, definition, camera.position(), tickDelta, frameDt);
     }
 
-    /**
-     * Camera-agnostic overload for the 26.1 GPU pipeline, where the drawing
-     * phase has the camera position as a plain {@link Vec3} instead of a
-     * {@link Camera} object.
-     *
-     * @param cameraPosition the camera position this frame
-     */
     public AnchorFrame calculate(
         HaloInstance instance,
         LivingEntity entity,
@@ -123,35 +117,31 @@ public final class AnchorFrameCalculator {
     ) {
         UUID uuid = instance.getEntityUuid();
 
-        // 1. Pose-aware head anchor via the provider registry
-        EntityAnchorProvider provider = EntityAnchorProviderRegistry.getInstance().getProvider(entity);
-        HeadAnchor ha = provider.resolve(entity, tickDelta);
-        if (ha == null) {
-            // Contract: providers must never return null (they should cache
-            // the previous frame's anchor when current-frame data is not ready
-            // yet).  Defend the render path anyway so one misbehaving provider
-            // cannot crash it.
-            LOGGER.error("EntityAnchorProvider {} returned null for entity {}; falling back to FallbackAnchorProvider",
-                provider.getClass().getSimpleName(), uuid);
-            ha = FallbackAnchorProvider.getInstance().resolve(entity, tickDelta);
+        // 1. Prefer the local first-person camera. Otherwise consume the most
+        // recent accepted render submission, then use Halo's internal fallback.
+        AnchorVec3 entityPosition = interpolatedPosition(entity, tickDelta);
+        AnchorPose pose = isLocalFirstPerson(entity)
+            ? PlayerAnchorProvider.getInstance().resolve(entity, tickDelta)
+            : AnchorCaptureCoordinator.resolve(
+                entity.getUUID(), entity.getId(), entity.level(), entityPosition);
+        if (pose == null) {
+            pose = entity instanceof Player
+                ? PlayerAnchorProvider.getInstance().resolve(entity, tickDelta)
+                : DefaultAnchorResolver.resolve(entity, tickDelta);
         }
-        // A transient non-finite anchor must never enter the damping state.
-        // Hold the last good anchor (or the fallback on the very first frame)
-        // so a single bad provider frame cannot permanently poison the halo.
-        if (!isFinite(ha)) {
-            HeadAnchor lastGood = lastGoodAnchors.get(uuid);
-            ha = lastGood != null ? lastGood : FallbackAnchorProvider.getInstance().resolve(entity, tickDelta);
+        // Hold the last good pose if an integration ever returns transient bad data.
+        if (!isFinite(pose)) {
+            AnchorPose lastGood = lastGoodAnchors.get(uuid);
+            pose = lastGood != null ? lastGood : DefaultAnchorResolver.resolve(entity, tickDelta);
         } else {
-            lastGoodAnchors.put(uuid, ha);
+            lastGoodAnchors.put(uuid, pose);
         }
-        Vec3 headAnchor = ha.headCenter();
-        float yaw = ha.yaw();
-        float pitch = ha.pitch();
-        float roll = ha.roll();
+        Vec3 headAnchor = toVec3(pose.position());
+        Quaternionf headRotation = toQuaternion(pose.rotation());
 
         // 2. Head-relative offset → world-space target position
         Vec3 offset = getEffectiveOffset(definition);
-        Vec3 headRelOffset = computeHeadRelativeOffset(yaw, pitch, roll, offset);
+        Vec3 headRelOffset = computeHeadRelativeOffset(headRotation, offset);
         Vec3 targetPos = headAnchor.add(headRelOffset);
 
         // 3. Merge damping config
@@ -183,12 +173,9 @@ public final class AnchorFrameCalculator {
         // 5. toHead direction: from halo centre toward entity head
         Vec3 toHead = headAnchor.subtract(haloWorldPos).normalize();
 
-        // 6. Head frame vectors (world space): forward, right, headUp
-        //    Same roll-aware computation as computeHeadRelativeOffset.
-        HeadFrameMath.HeadFrame headFrame = HeadFrameMath.of(yaw, pitch, roll);
-        Vec3 forward = headFrame.forward();
-        Vec3 right = headFrame.right();
-        Vec3 headUp = headFrame.headUp();
+        // 6. Head frame vectors come directly from the API v2 quaternion.
+        Vec3 forward = rotate(new Vec3(0, 0, 1), headRotation);
+        Vec3 headUp = rotate(new Vec3(0, 1, 0), headRotation);
 
         // 7. Look-at orientation: shortest-arc rotation mapping definition -Y → toHead.
         //    This preserves the "up" direction as close to world-up as the
@@ -260,7 +247,7 @@ public final class AnchorFrameCalculator {
                 // rotateX(pitch) × rotateZ(roll) reproduces Minecraft's
                 // forward = (−sin yaw·cos pitch, −sin pitch, cos yaw·cos pitch)
                 // and matches the roll-aware HeadFrameMath basis.
-                Quaternionf Q_head = buildHeadQuaternion(yaw, pitch, roll);
+                Quaternionf Q_head = new Quaternionf(headRotation);
 
                 // Retrieve or capture the fixed relative rotation.
                 // First frame: Q_halo(0) = Q_syncOffset × Q_LOCKED.
@@ -527,12 +514,14 @@ public final class AnchorFrameCalculator {
     }
 
     static Vec3 computeHeadRelativeOffset(float yawDeg, float pitchDeg, float rollDeg, Vec3 offset) {
-        HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yawDeg, pitchDeg, rollDeg);
-        Vec3 behind = frame.forward().scale(-1);
+        return computeHeadRelativeOffset(buildHeadQuaternion(yawDeg, pitchDeg, rollDeg), offset);
+    }
 
-        return frame.right().scale(offset.x)
-            .add(frame.headUp().scale(offset.y))
-            .add(behind.scale(offset.z));
+    static Vec3 computeHeadRelativeOffset(Quaternionf rotation, Vec3 offset) {
+        Vec3 right = rotate(new Vec3(-1, 0, 0), rotation);
+        Vec3 up = rotate(new Vec3(0, 1, 0), rotation);
+        Vec3 behind = rotate(new Vec3(0, 0, -1), rotation);
+        return right.scale(offset.x).add(up.scale(offset.y)).add(behind.scale(offset.z));
     }
 
     /**
@@ -583,13 +572,38 @@ public final class AnchorFrameCalculator {
      * NaN/∞ anchors are transient garbage and must not enter the damping
      * state (see {@link #calculate}).
      */
-    static boolean isFinite(HeadAnchor anchor) {
-        if (anchor == null) {
+    static boolean isFinite(AnchorPose pose) {
+        if (pose == null) {
             return false;
         }
-        Vec3 center = anchor.headCenter();
-        return Double.isFinite(center.x) && Double.isFinite(center.y) && Double.isFinite(center.z)
-            && Float.isFinite(anchor.yaw()) && Float.isFinite(anchor.pitch()) && Float.isFinite(anchor.roll());
+        AnchorVec3 center = pose.position();
+        AnchorRotation rotation = pose.rotation();
+        return Double.isFinite(center.x()) && Double.isFinite(center.y()) && Double.isFinite(center.z())
+            && Double.isFinite(rotation.x()) && Double.isFinite(rotation.y())
+            && Double.isFinite(rotation.z()) && Double.isFinite(rotation.w());
+    }
+
+    private static boolean isLocalFirstPerson(LivingEntity entity) {
+        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+        return client != null && entity == client.player
+            && client.options.getCameraType().isFirstPerson();
+    }
+
+    private static AnchorVec3 interpolatedPosition(LivingEntity entity, float tickDelta) {
+        return new AnchorVec3(
+            entity.xo + (entity.getX() - entity.xo) * tickDelta,
+            entity.yo + (entity.getY() - entity.yo) * tickDelta,
+            entity.zo + (entity.getZ() - entity.zo) * tickDelta
+        );
+    }
+
+    private static Vec3 toVec3(AnchorVec3 value) {
+        return new Vec3(value.x(), value.y(), value.z());
+    }
+
+    private static Quaternionf toQuaternion(AnchorRotation value) {
+        return new Quaternionf((float) value.x(), (float) value.y(),
+            (float) value.z(), (float) value.w());
     }
 
     /**
