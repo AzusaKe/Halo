@@ -1,4 +1,4 @@
-package network.azusake.halo.compat.ysm.mixin;
+package network.azusake.halo.mixin;
 
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -10,45 +10,29 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Brackets YSM's dispatcher-level replacement render with its source entity. */
+/** Brackets every entity render attempt so API v2 can reject auxiliary passes. */
 @Mixin(EntityRenderDispatcher.class)
-public abstract class YsmEntityRenderContextMixin {
+public abstract class EntityRenderContextMixin {
 
     @Inject(
         method = "render(Lnet/minecraft/entity/Entity;DDDFFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
         at = @At("HEAD")
     )
-    private void halo$beginYsmEntityRender(
-        Entity entity,
-        double x,
-        double y,
-        double z,
-        float yaw,
-        float tickDelta,
-        MatrixStack matrices,
-        VertexConsumerProvider vertexConsumers,
-        int light,
-        CallbackInfo ci
+    private void halo$beginAnchorRender(
+        Entity entity, double x, double y, double z, float yaw, float tickDelta,
+        MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci
     ) {
-        RenderHeadCapture.beginYsmEntity(entity, matrices);
+        RenderHeadCapture.beginEntityRender(entity, matrices, tickDelta);
     }
 
     @Inject(
         method = "render(Lnet/minecraft/entity/Entity;DDDFFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
         at = @At("RETURN")
     )
-    private void halo$endYsmEntityRender(
-        Entity entity,
-        double x,
-        double y,
-        double z,
-        float yaw,
-        float tickDelta,
-        MatrixStack matrices,
-        VertexConsumerProvider vertexConsumers,
-        int light,
-        CallbackInfo ci
+    private void halo$endAnchorRender(
+        Entity entity, double x, double y, double z, float yaw, float tickDelta,
+        MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci
     ) {
-        RenderHeadCapture.end();
+        RenderHeadCapture.endEntityRender();
     }
 }

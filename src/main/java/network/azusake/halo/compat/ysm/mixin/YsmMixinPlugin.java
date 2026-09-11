@@ -53,9 +53,6 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
         if (!apply) {
             return false;
         }
-        if (mixinClassName.endsWith("YsmEntityRenderContextMixin")) {
-            return true;
-        }
         if (mixinClassName.endsWith("YsmGeoRendererNamedMixin")) {
             return namedRuntime;
         }

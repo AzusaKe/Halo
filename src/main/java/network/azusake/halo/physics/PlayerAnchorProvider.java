@@ -3,8 +3,9 @@ package network.azusake.halo.physics;
 import network.azusake.halo.data.EntityAnchorProfile;
 import network.azusake.halo.data.PoseAnchor;
 import network.azusake.halo.json.EntityAnchorLoader;
-import network.azusake.halo.api.EntityAnchorProvider;
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorPoseMath;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.EntityPose;
@@ -16,7 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Player-specific {@link EntityAnchorProvider} that resolves the world-space head
+ * Player-specific fallback that resolves the world-space head
  * center using pose-aware pivot and head-center-vector data loaded from
  * {@code data/halo/entity_anchors/player.json}.
  *
@@ -35,9 +36,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Fallback: if the player profile or pose entry is missing, the provider
  * falls back to the standard {@code standing} eye-height behaviour, which is
- * equivalent to what {@link FallbackAnchorProvider} does for non-player entities.</p>
+ * equivalent to the internal Vanilla fallback for non-player entities.</p>
  */
-public final class PlayerAnchorProvider implements EntityAnchorProvider {
+public final class PlayerAnchorProvider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PlayerAnchorProvider.class);
 
@@ -51,8 +52,7 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
         return INSTANCE;
     }
 
-    @Override
-    public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
+    public AnchorPose resolve(LivingEntity entity, float tickDelta) {
         // 1. Interpolated foot position & head yaw/pitch
         double x = entity.prevX + (entity.getX() - entity.prevX) * tickDelta;
         double y = entity.prevY + (entity.getY() - entity.prevY) * tickDelta;
@@ -72,7 +72,7 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
             // The local first-person camera is the rendered head.  Entity
             // interpolation omits camera bob and can lag independently,
             // causing shader-pass captures to orbit or jump around the player.
-            return new HeadAnchor(firstPersonCamera.getPos(), yaw, pitch, roll);
+            return pose(firstPersonCamera.getPos(), yaw, pitch, roll);
         }
 
         // 2. Pose key → PoseAnchor
@@ -92,7 +92,14 @@ public final class PlayerAnchorProvider implements EntityAnchorProvider {
             .add(frame.forward().multiply(hcv.z));
         Vec3d headCenter = pivotWorld.add(offset);
 
-        return new HeadAnchor(headCenter, yaw, pitch, roll);
+        return pose(headCenter, yaw, pitch, roll);
+    }
+
+    private static AnchorPose pose(Vec3d position, float yaw, float pitch, float roll) {
+        return new AnchorPose(
+            new AnchorVec3(position.x, position.y, position.z),
+            AnchorPoseMath.fromMinecraftYawPitchRoll(yaw, pitch, roll)
+        );
     }
 
     /**

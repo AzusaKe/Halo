@@ -1,6 +1,8 @@
 package network.azusake.halo.compat.emf;
 
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorPoseMath;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.physics.HeadFrameMath;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
@@ -82,11 +84,11 @@ class EmfCompatTest {
         EmfHeadCapture.recordForTests(uuid, capturedHead, captureView, captureCamera);
         EmfHeadCapture.advanceFrameForTests();
 
-        HeadAnchor anchor = EmfHeadMath.toHeadAnchor(EmfHeadCapture.getPrevious(uuid));
+        AnchorPose anchor = EmfHeadMath.toAnchorPose(EmfHeadCapture.getPrevious(uuid));
         assertNotNull(anchor);
-        assertEquals(expectedWorld.x, anchor.headCenter().x, EPS);
-        assertEquals(expectedWorld.y - 0.25, anchor.headCenter().y, EPS);
-        assertEquals(expectedWorld.z, anchor.headCenter().z, EPS);
+        assertEquals(expectedWorld.x, anchor.position().x(), EPS);
+        assertEquals(expectedWorld.y - 0.25, anchor.position().y(), EPS);
+        assertEquals(expectedWorld.z, anchor.position().z(), EPS);
     }
 
     @Test
@@ -99,26 +101,25 @@ class EmfCompatTest {
         Vec3d cubeOrigin = new Vec3d(2, 3, 4);
         Matrix4f matrix = matrixFromFrame(frame, cubeOrigin);
 
-        HeadAnchor anchor = EmfHeadMath.toHeadAnchor(new EmfHeadCapture.CapturedHead(
+        AnchorPose anchor = EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
             matrix, new Matrix4f(), Vec3d.ZERO));
 
         assertNotNull(anchor);
-        assertEquals(yaw, anchor.yaw(), 0.05);
-        assertEquals(pitch, anchor.pitch(), 0.05);
-        assertEquals(roll, anchor.roll(), 0.05);
+        assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
+        assertDirection(frame.headUp(), anchor, new AnchorVec3(0, 1, 0));
         Vec3d expectedCenter = cubeOrigin.add(frame.headUp().multiply(0.25));
-        assertEquals(expectedCenter.x, anchor.headCenter().x, EPS);
-        assertEquals(expectedCenter.y, anchor.headCenter().y, EPS);
-        assertEquals(expectedCenter.z, anchor.headCenter().z, EPS);
+        assertEquals(expectedCenter.x, anchor.position().x(), EPS);
+        assertEquals(expectedCenter.y, anchor.position().y(), EPS);
+        assertEquals(expectedCenter.z, anchor.position().z(), EPS);
     }
 
     @Test
     @DisplayName("non-finite EMF matrices fall back instead of poisoning the anchor")
     void nonFiniteMatrixRejected() {
         Matrix4f invalid = new Matrix4f().m00(Float.NaN);
-        assertNull(EmfHeadMath.toHeadAnchor(new EmfHeadCapture.CapturedHead(
+        assertNull(EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
             invalid, new Matrix4f(), Vec3d.ZERO)));
-        assertNull(EmfHeadMath.toHeadAnchor(new EmfHeadCapture.CapturedHead(
+        assertNull(EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
             new Matrix4f(), new Matrix4f().scale(0f), Vec3d.ZERO)));
     }
 
@@ -130,13 +131,19 @@ class EmfCompatTest {
         Matrix4f view = new Matrix4f().rotate(new Quaternionf().rotationYXZ(0.4f, -0.2f, 0.1f));
         Matrix4f viewSpace = new Matrix4f(view).mul(world);
 
-        HeadAnchor anchor = EmfHeadMath.toHeadAnchor(new EmfHeadCapture.CapturedHead(
+        AnchorPose anchor = EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
             viewSpace, view, Vec3d.ZERO));
 
         assertNotNull(anchor);
-        assertEquals(-70f, anchor.yaw(), 0.05);
-        assertEquals(25f, anchor.pitch(), 0.05);
-        assertEquals(-30f, anchor.roll(), 0.05);
+        assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
+        assertDirection(frame.headUp(), anchor, new AnchorVec3(0, 1, 0));
+    }
+
+    private static void assertDirection(Vec3d expected, AnchorPose pose, AnchorVec3 local) {
+        AnchorVec3 actual = AnchorPoseMath.rotate(pose.rotation(), local);
+        assertEquals(expected.x, actual.x(), EPS);
+        assertEquals(expected.y, actual.y(), EPS);
+        assertEquals(expected.z, actual.z(), EPS);
     }
 
     private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3d origin) {

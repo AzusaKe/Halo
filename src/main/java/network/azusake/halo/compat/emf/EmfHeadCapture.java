@@ -1,9 +1,13 @@
 package network.azusake.halo.compat.emf;
 
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.HaloAnchorApi;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -18,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class EmfHeadCapture {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
+    private static final AnchorSource EMF_SOURCE = HaloAnchorApi.register("halo:emf");
     private static final Map<UUID, CapturedHead> CURRENT = new ConcurrentHashMap<>();
     private static final Map<UUID, CapturedHead> PREVIOUS = new ConcurrentHashMap<>();
     private static final Set<String> EMITTED_DIAGNOSTICS = ConcurrentHashMap.newKeySet();
@@ -48,7 +53,7 @@ public final class EmfHeadCapture {
 
         LivingEntity entity = RenderHeadCapture.getCurrentEntity();
         CaptureFrame frame = captureFrame;
-        if (entity == null || frame == null || matrices == null
+        if (!(entity instanceof PlayerEntity) || frame == null || matrices == null
             || RenderHeadCapture.isAuxiliaryYsmPass()) {
             return;
         }
@@ -71,11 +76,16 @@ public final class EmfHeadCapture {
                         "[EMF Compat] rejected a non-finite EMF head matrix; using Halo fallback");
                     return;
                 }
-                if (CURRENT.putIfAbsent(uuid, new CapturedHead(
+                CapturedHead captured = new CapturedHead(
                     headMatrix,
                     new Matrix4f(frame.viewMatrix),
                     frame.cameraPos
-                )) == null) {
+                );
+                if (CURRENT.putIfAbsent(uuid, captured) == null) {
+                    AnchorPose pose = EmfHeadMath.toAnchorPose(captured);
+                    if (pose != null) {
+                        EMF_SOURCE.submit(uuid, pose);
+                    }
                     infoOnce("head-captured",
                         "[EMF Compat] head matrix captured from EMFModelPart.render");
                 }

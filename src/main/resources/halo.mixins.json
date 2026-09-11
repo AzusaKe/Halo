@@ -7,6 +7,7 @@
         "EntityTeleportMixin"
     ],
     "client": [
+        "EntityRenderContextMixin",
         "PlayerEntityRendererHeadCaptureMixin",
         "ModelPartHeadCaptureMixin"
     ],
