@@ -36,6 +36,13 @@ java {
     withSourcesJar()
 }
 
+tasks.named('processResources') {
+    inputs.property 'mod_version', project.mod_version
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand mod_version: project.mod_version
+    }
+}
+
 jar {
     from("LICENSE") {
         rename { "${it}_${project.base.archivesName.get()}" }
@@ -47,6 +54,23 @@ test {
     testLogging {
         events "passed", "skipped", "failed"
     }
+}
+
+def verifyModMetadataVersion = tasks.register('verifyModMetadataVersion') {
+    dependsOn tasks.named('jar')
+    doLast {
+        def metadata = zipTree(tasks.named('jar').get().archiveFile).matching {
+            include 'META-INF/neoforge.mods.toml'
+        }.singleFile.text
+        def expected = "version=\"${project.mod_version}\""
+        if (!metadata.contains(expected)) {
+            throw new GradleException("Built NeoForge metadata does not contain ${expected}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn verifyModMetadataVersion
 }
 
 // NeoForge dev environment: 2560x1600 window, non-fullscreen
