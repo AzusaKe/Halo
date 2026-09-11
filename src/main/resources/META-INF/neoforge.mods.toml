@@ -5,7 +5,7 @@ iconFile="assets/halo/textures/halo/ring.png"
 
 [[mods]]
     modId="halo"
-    version="1.2.1"
+    version="${mod_version}"
     displayName="Halo Mod"
     description="Halo ring rendering mod for Minecraft"
     authors="Azusa_Ke"
