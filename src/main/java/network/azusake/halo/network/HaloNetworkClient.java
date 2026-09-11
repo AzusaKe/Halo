@@ -12,6 +12,7 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.util.Identifier;
+import network.azusake.halo.client.HaloScepterScreen;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -129,6 +130,48 @@ public final class HaloNetworkClient {
                 );
             }
         );
+
+        ClientPlayNetworking.registerGlobalReceiver(
+            HaloNetwork.CHANNEL_SCEPTER_OPEN,
+            (client, handler, buf, responseSender) -> {
+                int targetEntityId = buf.readInt();
+                UUID targetUuid = HaloNetwork.readUuid(buf);
+                String targetName = buf.readString(128);
+                client.execute(() -> client.setScreen(
+                    new HaloScepterScreen(targetEntityId, targetUuid, targetName)
+                ));
+            }
+        );
+
+        ClientPlayNetworking.registerGlobalReceiver(
+            HaloNetwork.CHANNEL_SCEPTER_CLOSE_SCREEN,
+            (client, handler, buf, responseSender) -> client.execute(() -> {
+                if (client.currentScreen instanceof HaloScepterScreen) {
+                    client.setScreen(null);
+                }
+            })
+        );
+    }
+
+    public static void sendScepterSelection(Identifier definitionId) {
+        if (!ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_SCEPTER_SELECT)) {
+            return;
+        }
+        var buf = PacketByteBufs.create();
+        buf.writeIdentifier(definitionId);
+        ClientPlayNetworking.send(HaloNetwork.CHANNEL_SCEPTER_SELECT, buf);
+    }
+
+    public static void sendScepterClose() {
+        if (ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_SCEPTER_CLOSE)) {
+            ClientPlayNetworking.send(HaloNetwork.CHANNEL_SCEPTER_CLOSE, PacketByteBufs.empty());
+        }
+    }
+
+    public static void sendScepterRemoveSelf() {
+        if (ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_SCEPTER_REMOVE_SELF)) {
+            ClientPlayNetworking.send(HaloNetwork.CHANNEL_SCEPTER_REMOVE_SELF, PacketByteBufs.empty());
+        }
     }
 
     /**
