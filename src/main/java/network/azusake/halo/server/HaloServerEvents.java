@@ -3,6 +3,7 @@ package network.azusake.halo.server;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.item.HaloScepterService;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -49,6 +50,7 @@ public final class HaloServerEvents {
                 entity.getUUID(), entity.getType().getDescription().getString()
             );
             HaloManager.getInstance().removeHalo(entity.getUUID(), world.getServer());
+            HaloScepterService.invalidateTarget(world.getServer(), entity.getUUID());
         });
     }
 
@@ -76,6 +78,7 @@ public final class HaloServerEvents {
             );
             HaloManager.getInstance().removeHalo(uuid, server);
             HaloJsonLoader.removeClientReportedDefs(uuid);
+            HaloScepterService.close(uuid);
         });
     }
 }

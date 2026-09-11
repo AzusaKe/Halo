@@ -1,0 +1,21 @@
+{
+  "item.halo.halo_scepter": "Halo Scepter",
+  "tooltip.halo.halo_scepter.use": "Right-click an entity to choose its halo",
+  "tooltip.halo.halo_scepter.remove": "Left-click an entity to remove its halo",
+  "tooltip.halo.halo_scepter.self": "Sneak while clicking to target yourself",
+  "screen.halo.halo_scepter.title": "Select Halo",
+  "screen.halo.halo_scepter.target": "Target: %s",
+  "screen.halo.halo_scepter.search": "Search halos",
+  "screen.halo.halo_scepter.search_hint": "namespace:name or name",
+  "screen.halo.halo_scepter.no_definitions": "No local halo definitions are loaded",
+  "screen.halo.halo_scepter.no_results": "No matching halos",
+  "gui.halo.close": "Close",
+  "message.halo.halo_scepter.no_permission": "Requires permission level %s to use the Halo Scepter",
+  "message.halo.halo_scepter.not_holding": "You must still be holding the Halo Scepter",
+  "message.halo.halo_scepter.invalid_target": "The halo target is no longer valid",
+  "message.halo.halo_scepter.session_expired": "The Halo Scepter target lock has expired",
+  "message.halo.halo_scepter.applied": "Applied %s to %s",
+  "message.halo.halo_scepter.too_far": "That target is too far away",
+  "message.halo.halo_scepter.no_halo": "%s has no halo to remove",
+  "message.halo.halo_scepter.removed": "Removed the halo from %s"
+}

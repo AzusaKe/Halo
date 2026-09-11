@@ -2,6 +2,7 @@ package network.azusake.halo.network;
 
 import network.azusake.halo.data.HaloTransitionState;
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.client.HaloScepterScreen;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
@@ -130,6 +131,49 @@ public final class HaloNetworkClient {
                 );
             }
         );
+
+        ClientPlayNetworking.registerGlobalReceiver(
+            HaloPayloads.ScepterOpen.ID,
+            (payload, context) -> {
+                var buf = payload.buf();
+                int targetEntityId = buf.readInt();
+                UUID targetUuid = HaloNetwork.readUuid(buf);
+                String targetName = buf.readUtf(128);
+                context.client().execute(() -> context.client().setScreen(
+                    new HaloScepterScreen(targetEntityId, targetUuid, targetName)
+                ));
+            }
+        );
+
+        ClientPlayNetworking.registerGlobalReceiver(
+            HaloPayloads.ScepterCloseScreen.ID,
+            (payload, context) -> context.client().execute(() -> {
+                if (context.client().screen instanceof HaloScepterScreen) {
+                    context.client().setScreen(null);
+                }
+            })
+        );
+    }
+
+    public static void sendScepterSelection(Identifier definitionId) {
+        if (!ClientPlayNetworking.canSend(HaloPayloads.ScepterSelect.ID)) {
+            return;
+        }
+        var buf = FriendlyByteBufs.create();
+        buf.writeIdentifier(definitionId);
+        ClientPlayNetworking.send(new HaloPayloads.ScepterSelect(buf));
+    }
+
+    public static void sendScepterClose() {
+        if (ClientPlayNetworking.canSend(HaloPayloads.ScepterClose.ID)) {
+            ClientPlayNetworking.send(new HaloPayloads.ScepterClose(FriendlyByteBufs.create()));
+        }
+    }
+
+    public static void sendScepterRemoveSelf() {
+        if (ClientPlayNetworking.canSend(HaloPayloads.ScepterRemoveSelf.ID)) {
+            ClientPlayNetworking.send(new HaloPayloads.ScepterRemoveSelf(FriendlyByteBufs.create()));
+        }
     }
 
     /**
