@@ -1,6 +1,8 @@
 package network.azusake.halo.physics;
 
 import java.lang.reflect.Method;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Optional, diagnostics-only access to Iris render-pass state.
@@ -13,6 +15,8 @@ import java.lang.reflect.Method;
 final class OptionalIrisDiagnostics {
 
     private static final String IRIS_API_CLASS = "net.irisshaders.iris.api.v0.IrisApi";
+    private static final Logger LOGGER = LoggerFactory.getLogger("halo");
+    private static volatile boolean diagnosticEmitted;
 
     private static volatile Probe probe;
 
@@ -44,6 +48,7 @@ final class OptionalIrisDiagnostics {
         } catch (ClassNotFoundException error) {
             return NotLoadedProbe.INSTANCE;
         } catch (ReflectiveOperationException | LinkageError error) {
+            warnUnknown(error.getClass().getSimpleName());
             return new FailedProbe(error.getClass().getSimpleName());
         }
     }
@@ -79,6 +84,7 @@ final class OptionalIrisDiagnostics {
                 boolean shadows = (boolean) renderingShadowPass.invoke(api);
                 return new Snapshot(true, status(shaders), status(shadows), "iris-api-v0");
             } catch (ReflectiveOperationException | LinkageError error) {
+                warnUnknown(error.getClass().getSimpleName());
                 return new Snapshot(true, Status.UNKNOWN, Status.UNKNOWN,
                     error.getClass().getSimpleName());
             }
@@ -95,5 +101,16 @@ final class OptionalIrisDiagnostics {
     private static Status status(boolean value) {
         return value ? Status.TRUE : Status.FALSE;
     }
-}
 
+    private static void warnUnknown(String failure) {
+        if (!diagnosticEmitted) {
+            synchronized (OptionalIrisDiagnostics.class) {
+                if (!diagnosticEmitted) {
+                    diagnosticEmitted = true;
+                    LOGGER.warn("Iris is present but its render pass could not be classified ({}); "
+                        + "rejecting head-anchor submissions for safety", failure);
+                }
+            }
+        }
+    }
+}
