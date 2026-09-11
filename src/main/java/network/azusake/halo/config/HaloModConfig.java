@@ -20,8 +20,8 @@ public class HaloModConfig {
     /** Permission level required by the {@code /halo} command tree.  Clamped to [0, 4]. */
     private int commandPermissionLevel = 2;
 
-    /** Experimental, version-pinned YSM render-anchor capture. */
-    private boolean experimentalYsmAnchorEnabled = false;
+    /** Version-pinned YSM render-anchor capture; users may opt out in halo_mod_config.json. */
+    private boolean experimentalYsmAnchorEnabled = true;
 
     /** Head-local [right, up, back] offset in blocks. */
     private double[] experimentalYsmHeadLocalOffset = ZERO_YSM_HEAD_OFFSET.clone();

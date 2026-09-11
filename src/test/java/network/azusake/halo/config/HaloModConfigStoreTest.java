@@ -33,7 +33,7 @@ class HaloModConfigStoreTest {
         HaloModConfig config = HaloModConfigStore.load(configFile());
 
         assertEquals(2, config.getCommandPermissionLevel());
-        assertFalse(config.isExperimentalYsmAnchorEnabled());
+        assertTrue(config.isExperimentalYsmAnchorEnabled());
         assertArrayEquals(new double[]{0, 0, 0}, config.getExperimentalYsmHeadLocalOffset());
         assertTrue(Files.exists(configFile()));
 
@@ -131,6 +131,18 @@ class HaloModConfigStoreTest {
         assertTrue(loaded.isExperimentalYsmAnchorEnabled());
         assertArrayEquals(new double[]{0.125, 0.25, -0.5},
             loaded.getExperimentalYsmHeadLocalOffset());
+    }
+
+    @Test
+    @DisplayName("explicit false keeps YSM compatibility disabled")
+    void explicitFalseDisablesYsmCompatibility() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        Files.writeString(configFile(), "{\"experimentalYsmAnchorEnabled\":false}");
+
+        HaloModConfig loaded = HaloModConfigStore.load(configFile());
+
+        assertFalse(loaded.isExperimentalYsmAnchorEnabled());
+        assertTrue(Files.readString(configFile()).contains("\"experimentalYsmAnchorEnabled\": false"));
     }
 
     @Test

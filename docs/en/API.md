@@ -93,15 +93,15 @@ with a warning.
 | `HaloModConfigStore.getPermissionLevel()` | Permission level required by the `/halo` command tree (default 2, range 0–4) |
 | `HaloModConfig.getCommandPermissionLevel()` | Current permission level |
 | `HaloModConfig.setCommandPermissionLevel(int)` | Set the permission level (clamped to 0–4) |
-| `HaloModConfig.isExperimentalYsmAnchorEnabled()` | Experimental YSM 2.6.5 Head anchor switch (default `false`) |
+| `HaloModConfig.isExperimentalYsmAnchorEnabled()` | YSM 2.6.5 Head anchor switch (default `true`; set `false` to disable) |
 | `HaloModConfig.getExperimentalYsmHeadLocalOffset()` | Head-local `[right, up, back]` offset in blocks; zero by default |
 
 ### Experimental YSM 2.6.5 compatibility
 
-This integration supports only the Fabric 1.20.1 release
-`2.6.5-fabric+mc1.20.1`. Existing configs receive the two experimental fields
-automatically on the next startup; the switch still defaults to `false`.
-Restart the game after editing the config:
+This integration supports only the NeoForge 26.1 release
+`2.6.5-neoforge+mc26.1`. Existing configs receive the two fields automatically
+on the next startup. The switch defaults to `true`; set it to `false` to disable
+YSM capture. Restart the game after editing the config:
 
 ```json
 {
