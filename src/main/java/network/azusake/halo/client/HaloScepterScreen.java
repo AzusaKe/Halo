@@ -123,13 +123,13 @@ public final class HaloScepterScreen extends Screen {
         graphics.fill(panelLeft, panelTop, panelRight, panelTop + 1, 0xFF4F6A78);
         graphics.fill(panelLeft, panelBottom - 1, panelRight, panelBottom, 0xFF090C10);
 
-        graphics.centeredText(font, title, width / 2, panelTop + 10, 0x7FE8FF);
+        graphics.centeredText(font, title, width / 2, panelTop + 10, 0xFF7FE8FF);
         graphics.centeredText(
             font,
             Component.translatable("screen.halo.halo_scepter.target", targetName),
             width / 2,
             panelTop + 26,
-            0xD5DDE5
+            0xFFD5DDE5
         );
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
@@ -143,7 +143,7 @@ public final class HaloScepterScreen extends Screen {
                 empty,
                 width / 2,
                 (panelTop + panelBottom) / 2,
-                0x8B98A5
+                0xFF8B98A5
             );
         }
     }
@@ -241,7 +241,7 @@ public final class HaloScepterScreen extends Screen {
                 identifier.toString(),
                 getX() + 7,
                 getY() + (getHeight() - font.lineHeight) / 2 - 1,
-                hovered ? 0x9EEBFF : 0xE6EDF3
+                hovered ? 0xFF9EEBFF : 0xFFE6EDF3
             );
         }
 
