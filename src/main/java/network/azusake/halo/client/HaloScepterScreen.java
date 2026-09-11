@@ -150,6 +150,15 @@ public final class HaloScepterScreen extends Screen {
         }
     }
 
+    /**
+     * Minecraft 1.21.1 blurs the framebuffer from {@link #renderBackground}.
+     * Keep the vanilla darkening layer, but leave the world and this screen's
+     * panel crisp like the 1.20.1 implementation.
+     */
+    @Override
+    protected void applyBlur(float delta) {
+    }
+
     @Override
     public void close() {
         sendCloseOnce();
