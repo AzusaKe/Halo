@@ -25,17 +25,18 @@ public interface HaloCommandInterceptor {
    - 在本地聊天栏显示返回的反馈文本。
    - **不要**将命令转发到服务器。
 3. 若为 `false`（单人游戏或 MULTIPLAYER 阶段——服务器有 mod）：
-   - 通过 Forge/Mojmap 的 `ServerboundChatCommandPacket` 将原始命令字符串转发到服务器。
+   - 通过加载器原生的发送命令机制将原始命令字符串转发到服务器
+     （例如 `client.getNetworkHandler().sendCommand(cmd)`）。
 
 ### 为什么需要此层
 
 - 核心类（`HaloPhaseTracker`、`HaloLocalCommandHandler`、`HaloLocalManager`）**零**加载器依赖。
-- 基于 Mixin 的拦截方案在不同映射版本间脆弱且难以移植。
-- 此接口将 Forge 命令注册与阶段追踪、本地执行逻辑隔离。
+- 基于 Mixin 的拦截方案在不同 Yarn 映射版本间脆弱且难以移植。
+- 此接口让每个加载器（Fabric、NeoForge 等）可以接入自己的命令注册 API，核心逻辑完全不变。
 
-### Forge 实现
+### Fabric 实现
 
-`ForgeHaloCommandInterceptor`（同一包下）通过 `MinecraftForge.EVENT_BUS` 上的 `RegisterClientCommandsEvent` 注册 `/halo`。
+`FabricHaloCommandInterceptor`（同一包下）通过 `ClientCommandRegistrationCallback.EVENT` 注册 `/halo`。
 
 ### 移植到其他加载器
 
@@ -96,7 +97,7 @@ static String handle(String command)
 
 ### YSM 2.6.5 实验性兼容
 
-仅支持 Forge 1.20.1 的 `2.6.5-forge+mc1.20.1` 发布包。旧配置会在下次启动时自动加入
+仅支持 Fabric 1.20.1 的 `2.6.5-fabric+mc1.20.1` 发布包。旧配置会在下次启动时自动加入
 以下两个实验字段；开关仍默认为 `false`。编辑配置后需要重启：
 
 ```json
@@ -115,65 +116,58 @@ static String handle(String command)
 
 ---
 
-## 自定义头部锚点（Custom Head Anchor）
+## 头部锚点 API v2
 
-Halo 提供一个按实体类型/UUID查找头部锚点的注册表。下文描述的是当前分支的真实接口。
+Halo 1.3.0 内置跨八分支一致的推送式 API v2。外部模组应把目标 Minecraft/加载器版本的 Halo jar 声明为 `compileOnly` 或 `provided`；无需也不应安装独立 API jar。API v1 已移除。
 
-> 重要：8个分支共享相同的核心解析语义，但不是跨 Minecraft 版本的同一个二进制 API；注册入口也会随 Fabric、Forge、NeoForge 和具体版本变化。外部模组必须依赖对应分支的 Halo，并使用该分支的 Minecraft 映射类型与加载器注册方式。
-
-### 数据流与调用契约
-
-`EntityAnchorProvider.resolve(entity, tickDelta)` 在客户端实体渲染线程上计算某个光环的锚点时调用。同一实体拥有多个光环时，一个渲染帧内可能调用多次。实现应返回非空、有限值的 `HeadAnchor`；若本帧数据尚未准备好，应保留上一帧有效值或返回合适的 Vanilla/fallback 锚点。
-
-本分支实体参数类型：`net.minecraft.world.entity.LivingEntity`。
-
-本分支 `HeadAnchor.headCenter` 类型：`net.minecraft.world.phys.Vec3`；yaw、pitch、roll 使用角度（度，Minecraft 约定）。
-
-注册表的解析顺序为：UUID 精确匹配 → 实体类精确匹配 → 父类链匹配 → fallback。相同键重复注册时，后注册的 provider 覆盖先注册的 provider。
-
-`getProvider(Class<?>)` 在没有专用 provider 时也会返回可用的 fallback provider，不应把返回值当作 nullable API。
-
-### 注册方式
-
-1.20.1 Forge 分支的事件是 Forge 原生事件，使用 Forge 总线订阅：
+公共包 `network.azusake.halo.api.v2` 只依赖 Java 17/JDK 类型：
 
 ```java
-import net.minecraft.world.entity.LivingEntity;
-import network.azusake.halo.api.AnchorProviderSetupEvent;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-
-@Mod.EventBusSubscriber(modid = "mymod", value = Dist.CLIENT,
-    bus = Mod.EventBusSubscriber.Bus.FORGE)
-public final class MyModClientEvents {
-    @SubscribeEvent
-    public static void onAnchorProviderSetup(AnchorProviderSetupEvent event) {
-        event.getRegistry().register(LivingEntity.class, new MyHeadProvider());
-    }
+public final class HaloAnchorApi {
+    public static AnchorSource register(String sourceId);
 }
+
+public interface AnchorSource extends AutoCloseable {
+    boolean submit(UUID entityUuid, AnchorPose pose);
+    @Override void close();
+}
+
+public record AnchorPose(AnchorVec3 position, AnchorRotation rotation) {}
+public record AnchorVec3(double x, double y, double z) {}
+public record AnchorRotation(double x, double y, double z, double w) {}
 ```
 
-这里使用的是 Forge 的 `@SubscribeEvent` 与 `event.getRegistry()`，不是 Fabric 的 `EVENT.register(...)`。
+### 注册与提交
 
-### 默认优先级与兼容行为
+在客户端初始化时注册一次 source，并在实际渲染器完成该实体最终头部变换的位置提交：
 
-- 外部 provider 只负责提供锚点；注册表的 UUID、精确类、父类链和 fallback 解析规则不因加载器改变。
-- 玩家优先使用 Halo 的玩家锚点 provider；EMF 捕获到的玩家头部数据可覆盖该帧锚点，捕获不可用时回退到玩家 provider。
-- 当前 EMF 兼容代码只接管玩家。非玩家实体不使用 EMF 捕获，继续走本分支已有的 YSM、Vanilla 或 fallback 路径；这是有意保留的保守策略。
-- YSM 兼容是否存在及其配置方式取决于具体分支，和 EMF 兼容相互独立；请以当前分支的 YSM 章节和配置为准。
+```java
+private static final AnchorSource SOURCE = HaloAnchorApi.register("example:custom_head");
 
-### EMF/ETF 兼容
+// 位于实体头部最终渲染变换处：
+boolean accepted = SOURCE.submit(entityUuid, new AnchorPose(
+    new AnchorVec3(worldX, worldY, worldZ),
+    new AnchorRotation(qx, qy, qz, qw)
+));
+```
 
-EMF 兼容默认开启，不增加 Halo 配置开关；支持版本下界为 EMF 3.1.1，不人为设置上界，并在运行时检测实际 ABI。ETF 不增加独立捕获代码，只进行与 EMF/ETF 共存验证。
+`sourceId` 必须是唯一的小写 `namespace:path`。活动 ID 重复注册会抛出异常；`close()` 幂等，关闭后同一 ID 可重新注册。句柄通常持续整个客户端进程；世界切换只清理捕获，不移除注册。关闭 source 会立即删除它的缓存，之后提交返回 `false`。
 
-若检测到当前 EMF ABI 不兼容，会在日志及聊天栏提示：
+同一主视角实体 pass 内，最后一次有效提交代表最终渲染结果。包装其他渲染器时，必须在自身最终变换完成后提交。`submit` 只在 Halo 当前识别的主视角实体渲染范围内、且 UUID 与当前实体一致时返回 `true`；阴影或辅助 pass、未知 shader pass、错误 UUID、范围外调用和已关闭 source 均返回 `false`，不会覆盖已有有效锚点。
 
-> 当前Halo模组的EMF兼容代码无法再适用于加载版本的emf模组，请前往源码库汇报
+### 坐标与姿态
 
-### 注册建议
+- `AnchorVec3` 是绝对世界坐标，单位为方块：`+X` 东、`+Y` 上、`+Z` 南。
+- `AnchorRotation` 是 `(x,y,z,w)` 四元数。有限且非零的输入会在构造时归一化；零或非有限值会被拒绝。
+- 旋转后的本地 `+Y` 是头顶方向，本地 `+Z` 是视线前方，实体右侧是旋转后的 `-X`。
 
-外部模组通常应注册自己的具体实体类，而不是无条件覆盖 `LivingEntity.class`；如需包装已有 provider，应先保存已有 provider，再在自定义 provider 中委托并只调整头部锚点。不要在渲染回调之外缓存跨实体的临时状态，也不要假设所有实体都有相同的模型部件结构。
+### 多 pass、延迟帧与回退
+
+Halo 将主相机根矩阵、主视锥、当前实体以及可用的 Iris shadow-pass 状态组合为安全门。检测到渲染后端但无法确认 pass 时会拒绝提交并限频记录诊断。Iris 后续的阴影/辅助渲染不会推进主帧，也不能覆盖主锚点。
+
+捕获最多保留一个主帧，以兼容延迟绘制；位置按实体相对坐标缓存，消费时叠加实体当前插值位置，因此上一帧摄像机或实体移动不会造成偏移。世界切换、实体卸载或 source 关闭会立即使相关捕获失效。没有有效提交时，玩家使用姿态配置回退，其他生物使用 Vanilla 高度/yaw/pitch 回退；本地第一人称玩家始终以摄像机锚点为准。
+
+Halo 内置 `halo:vanilla`、`halo:emf` 和受支持版本上的 `halo:ysm`。Vanilla 与 EMF 仅捕获玩家头部；YSM 保留其既有全生物范围。EMF 仍仅把 ETF 作为共存验证对象。
 
 ## 网络通道
 

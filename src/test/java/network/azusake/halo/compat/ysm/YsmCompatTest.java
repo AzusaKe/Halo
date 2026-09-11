@@ -1,6 +1,8 @@
 package network.azusake.halo.compat.ysm;
 
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorPoseMath;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.physics.HeadFrameMath;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -10,7 +12,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,29 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class YsmCompatTest {
 
     private static final double EPS = 1.0e-3;
-
-    @Test
-    @DisplayName("unexpected Forge render arguments fail safely")
-    void unexpectedRenderArgumentsFailSafely() {
-        assertDoesNotThrow(() -> YsmHeadCapture.captureAndReleaseEntity(new Object(), new Object()));
-    }
-
-    @Test
-    @DisplayName("optional Forge mixins use the production refmap and generic entity hook")
-    void forgeMixinConfigIncludesProductionMappingsAndGenericHook() throws Exception {
-        try (var stream = YsmCompatTest.class.getResourceAsStream("/halo-ysm.mixins.json")) {
-            assertNotNull(stream);
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"refmap\": \"halo.refmap.json\""));
-            assertTrue(json.contains("\"YsmGeoEntityRendererMixin\""));
-        }
-    }
 
     @AfterEach
     void clearCapture() {
@@ -88,9 +71,9 @@ class YsmCompatTest {
             Float.NaN, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0))));
 
         Matrix4f nonFiniteHead = new Matrix4f().m00(Float.NaN);
-        assertNull(YsmHeadMath.toHeadAnchor(
+        assertNull(YsmHeadMath.toAnchorPose(
             nonFiniteHead, Vec3.ZERO, Vec3.ZERO, new Matrix4f()));
-        assertNull(YsmHeadMath.toHeadAnchor(
+        assertNull(YsmHeadMath.toAnchorPose(
             new Matrix4f(), Vec3.ZERO, Vec3.ZERO, new Matrix4f().scale(0f)));
     }
 
@@ -105,16 +88,15 @@ class YsmCompatTest {
         Vec3 localOffset = new Vec3(0.2, 0.3, -0.1);
         Vec3 camera = new Vec3(10, 60, -5);
 
-        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(matrix, localOffset, camera, new Matrix4f());
+        AnchorPose anchor = YsmHeadMath.toAnchorPose(matrix, localOffset, camera, new Matrix4f());
 
         assertNotNull(anchor);
         Vector4f expectedLocal = matrix.transform(new Vector4f(0.2f, 0.3f, -0.1f, 1f));
-        assertEquals(camera.x + expectedLocal.x, anchor.headCenter().x, EPS);
-        assertEquals(camera.y + expectedLocal.y, anchor.headCenter().y, EPS);
-        assertEquals(camera.z + expectedLocal.z, anchor.headCenter().z, EPS);
-        assertEquals(yaw, anchor.yaw(), 0.05);
-        assertEquals(pitch, anchor.pitch(), 0.05);
-        assertEquals(roll, anchor.roll(), 0.05);
+        assertEquals(camera.x + expectedLocal.x, anchor.position().x(), EPS);
+        assertEquals(camera.y + expectedLocal.y, anchor.position().y(), EPS);
+        assertEquals(camera.z + expectedLocal.z, anchor.position().z(), EPS);
+        assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
+        assertDirection(frame.headUp(), anchor, new AnchorVec3(0, 1, 0));
     }
 
     @Test
@@ -125,12 +107,11 @@ class YsmCompatTest {
         Matrix4f view = new Matrix4f().rotate(new Quaternionf().rotationYXZ(0.4f, -0.2f, 0.1f));
         Matrix4f viewSpace = new Matrix4f(view).mul(world);
 
-        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(viewSpace, Vec3.ZERO, Vec3.ZERO, view);
+        AnchorPose anchor = YsmHeadMath.toAnchorPose(viewSpace, Vec3.ZERO, Vec3.ZERO, view);
 
         assertNotNull(anchor);
-        assertEquals(-70f, anchor.yaw(), 0.05);
-        assertEquals(25f, anchor.pitch(), 0.05);
-        assertEquals(-30f, anchor.roll(), 0.05);
+        assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
+        assertDirection(frame.headUp(), anchor, new AnchorVec3(0, 1, 0));
     }
 
     @Test
@@ -165,15 +146,23 @@ class YsmCompatTest {
             (float) (expectedWorld.z - captureCamera.z));
         Matrix4f capturedHead = new Matrix4f(captureView).mul(cameraRelativeWorld);
 
-        YsmHeadCapture.recordForTests(uuid, capturedHead, captureView, captureCamera);
+        YsmHeadCapture.recordForTests(
+            uuid, capturedHead, captureView, captureCamera);
         YsmHeadCapture.advanceFrameForTests();
 
         YsmHeadCapture.CapturedHead previous = YsmHeadCapture.getPrevious(uuid);
-        HeadAnchor anchor = YsmHeadMath.toHeadAnchor(previous, Vec3.ZERO);
+        AnchorPose anchor = YsmHeadMath.toAnchorPose(previous, Vec3.ZERO);
         assertNotNull(anchor);
-        assertEquals(expectedWorld.x, anchor.headCenter().x, EPS);
-        assertEquals(expectedWorld.y, anchor.headCenter().y, EPS);
-        assertEquals(expectedWorld.z, anchor.headCenter().z, EPS);
+        assertEquals(expectedWorld.x, anchor.position().x(), EPS);
+        assertEquals(expectedWorld.y, anchor.position().y(), EPS);
+        assertEquals(expectedWorld.z, anchor.position().z(), EPS);
+    }
+
+    private static void assertDirection(Vec3 expected, AnchorPose pose, AnchorVec3 local) {
+        AnchorVec3 actual = AnchorPoseMath.rotate(pose.rotation(), local);
+        assertEquals(expected.x, actual.x(), EPS);
+        assertEquals(expected.y, actual.y(), EPS);
+        assertEquals(expected.z, actual.z(), EPS);
     }
 
     @Test

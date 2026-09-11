@@ -1,9 +1,13 @@
 package network.azusake.halo.compat.emf;
 
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.HaloAnchorApi;
 import network.azusake.halo.physics.RenderHeadCapture;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.geom.ModelPart;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -14,10 +18,21 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Per-frame capture of the head part rendered by Entity Model Features. */
+/**
+ * Per-frame capture of the head part rendered by Entity Model Features.
+ *
+ * <p>The hook is deliberately isolated from EMF's classes.  EMF is optional,
+ * so the only object crossing this boundary is the already mapped vanilla
+ * {@link ModelPart}.  The EMF vanilla-part mixin exposes the part's actual
+ * {@code name} field and this class accepts only the part named {@code head}.
+ * This is intentional: the 3D Skin Layers integration point runs at the head
+ * of EMFModelPart.render, after EMF has applied its animation state but before
+ * the part pushes its own transform for drawing.</p>
+ */
 public final class EmfHeadCapture {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
+    private static final AnchorSource EMF_SOURCE = HaloAnchorApi.register("halo:emf");
     private static final Map<UUID, CapturedHead> CURRENT = new ConcurrentHashMap<>();
     private static final Map<UUID, CapturedHead> PREVIOUS = new ConcurrentHashMap<>();
     private static final Set<String> EMITTED_DIAGNOSTICS = ConcurrentHashMap.newKeySet();
@@ -27,17 +42,26 @@ public final class EmfHeadCapture {
     private EmfHeadCapture() {
     }
 
-    /** Advance the EMF buffers at the same point as vanilla and YSM buffers. */
+    /**
+     * Advance the EMF capture buffers at the same point as the vanilla and YSM
+     * buffers.  A capture keeps the view matrix and camera position that
+     * produced it so a previous-frame anchor remains valid after camera motion.
+     */
     public static void beginFrame(Matrix4f viewMatrix, Vec3 cameraPos) {
         PREVIOUS.clear();
         PREVIOUS.putAll(CURRENT);
         CURRENT.clear();
         captureFrame = viewMatrix == null || cameraPos == null
             ? null
-            : new CaptureFrame(new Matrix4f(viewMatrix), cameraPos);
+            : new CaptureFrame(new Matrix4f(viewMatrix),
+                new Vec3(cameraPos.x, cameraPos.y, cameraPos.z));
     }
 
-    /** Called by the optional EMFModelPart mixin at the head of its render method. */
+    /**
+     * Called by the optional EMFModelPart mixin at the head of the render
+    * method.  The first named head part wins, preventing armor and feature
+     * passes from replacing the main-model transform.
+     */
     public static void capture(PoseStack matrices, ModelPart part) {
         Object candidate = part;
         if (!(candidate instanceof EmfPartNameAccess namedPart)
@@ -48,7 +72,7 @@ public final class EmfHeadCapture {
 
         LivingEntity entity = RenderHeadCapture.getCurrentEntity();
         CaptureFrame frame = captureFrame;
-        if (entity == null || frame == null || matrices == null
+        if (!(entity instanceof Player) || frame == null || matrices == null
             || RenderHeadCapture.isAuxiliaryYsmPass()) {
             return;
         }
@@ -60,8 +84,9 @@ public final class EmfHeadCapture {
 
         try {
             // EMFModelPart.render receives the stack before ModelPart's local
-            // transform is applied.  Reproduce that transform on a temporary
-            // stack without mutating EMF's live render stack.
+            // transform is applied.  Reproduce the exact vanilla operation on
+            // a temporary stack; this also respects EMF's overridden rotate()
+            // implementation without changing the real render stack.
             matrices.pushPose();
             try {
                 part.translateAndRotate(matrices);
@@ -71,11 +96,16 @@ public final class EmfHeadCapture {
                         "[EMF Compat] rejected a non-finite EMF head matrix; using Halo fallback");
                     return;
                 }
-                if (CURRENT.putIfAbsent(uuid, new CapturedHead(
+                CapturedHead captured = new CapturedHead(
                     headMatrix,
                     new Matrix4f(frame.viewMatrix),
                     frame.cameraPos
-                )) == null) {
+                );
+                if (CURRENT.putIfAbsent(uuid, captured) == null) {
+                    AnchorPose pose = EmfHeadMath.toAnchorPose(captured);
+                    if (pose != null) {
+                        EMF_SOURCE.submit(uuid, pose);
+                    }
                     infoOnce("head-captured",
                         "[EMF Compat] head matrix captured from EMFModelPart.render");
                 }
@@ -112,7 +142,8 @@ public final class EmfHeadCapture {
 
     static void recordForTests(UUID uuid, Matrix4f matrix, Matrix4f viewMatrix, Vec3 cameraPos) {
         CURRENT.put(uuid, new CapturedHead(
-            new Matrix4f(matrix), new Matrix4f(viewMatrix), cameraPos));
+            new Matrix4f(matrix), new Matrix4f(viewMatrix),
+            new Vec3(cameraPos.x, cameraPos.y, cameraPos.z)));
     }
 
     static void advanceFrameForTests() {

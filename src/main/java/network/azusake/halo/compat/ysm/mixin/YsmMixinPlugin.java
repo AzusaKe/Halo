@@ -48,8 +48,7 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
         if (!apply) {
             return false;
         }
-        return mixinClassName.endsWith("YsmEntityRenderContextMixin")
-            || mixinClassName.endsWith("YsmGeoEntityRendererMixin")
+        return mixinClassName.endsWith("YsmGeoEntityRendererMixin")
             || mixinClassName.endsWith("YsmGeoReplacedEntityRendererMixin");
     }
 
@@ -68,10 +67,6 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
-        if (mixinClassName.endsWith("YsmEntityRenderContextMixin")) {
-            reportHook(targetClass, "$halo$beginYsmEntityRender", "dispatcher entity-context");
-            return;
-        }
         if (YsmV265Symbols.LIVING_GEO_RENDERER.equals(targetClassName)) {
             reportHook(targetClass, "$halo$captureYsmHead", "living renderer capture");
         } else if (YsmV265Symbols.ENTITY_GEO_RENDERER.equals(targetClassName)) {

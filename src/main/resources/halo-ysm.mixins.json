@@ -6,7 +6,6 @@
   "refmap": "halo.refmap.json",
   "plugin": "network.azusake.halo.compat.ysm.mixin.YsmMixinPlugin",
   "client": [
-    "YsmEntityRenderContextMixin",
     "YsmGeoEntityRendererMixin",
     "YsmGeoReplacedEntityRendererMixin"
   ],

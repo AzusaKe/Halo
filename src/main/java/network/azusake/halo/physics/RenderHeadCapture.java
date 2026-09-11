@@ -1,11 +1,18 @@
 package network.azusake.halo.physics;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.model.PlayerModel;
+import network.azusake.halo.anchor.AnchorCaptureCoordinator;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.AnchorVec3;
+import network.azusake.halo.api.v2.HaloAnchorApi;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.model.PlayerModel;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.Map;
@@ -15,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Per-frame capture of the player head's rendered transform.
  *
- * <p>Hooks installed by the client mixins bracket {@code PlayerEntityRenderer.render}
+ * <p>Hooks installed by the client mixins bracket {@code PlayerRenderer.render}
  * with {@link #begin}/{@link #end} (ThreadLocal context) and snapshot the model
  * root matrix plus the head {@link ModelPart}'s final pose when the head part is
  * actually rendered.  Captures are keyed by entity UUID and cleared once per
@@ -23,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * frame" — consumers should fall back to their previous provider.</p>
  *
  * <p>This is the default player-anchor capture path: hooks bracket
- * {@code PlayerEntityRenderer.render} with {@link #begin}/{@link #end} and
+ * {@code PlayerRenderer.render} with {@link #begin}/{@link #end} and
  * snapshot the head {@link ModelPart}'s rendered transform, then the anchor
  * pipeline converts the camera-relative matrix back to world space via the
  * per-frame view matrix recorded by {@link #setViewMatrix}.</p>
@@ -34,6 +41,7 @@ public final class RenderHeadCapture {
     private static final ThreadLocal<PlayerModel<?>> CURRENT_MODEL = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> AUXILIARY_YSM_PASS =
         ThreadLocal.withInitial(() -> false);
+    private static final AnchorSource VANILLA_SOURCE = HaloAnchorApi.register("halo:vanilla");
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
     /**
      * The frame's view matrix (world → camera space), captured once per frame
@@ -42,10 +50,13 @@ public final class RenderHeadCapture {
      * positions and angles.
      */
     private static volatile Matrix4f viewMatrix;
+    private static volatile Vec3 cameraPos;
+    private static volatile Frustum mainFrustum;
+    private static volatile float frameTickDelta;
 
     private RenderHeadCapture() { /* utility class */ }
 
-    /** Called at the HEAD of {@code PlayerEntityRenderer.render}. */
+    /** Called at the HEAD of {@code PlayerRenderer.render}. */
     public static void begin(AbstractClientPlayer entity, PlayerModel<?> model) {
         CURRENT_ENTITY.set(entity);
         CURRENT_MODEL.set(model);
@@ -67,6 +78,37 @@ public final class RenderHeadCapture {
         }
     }
 
+    /** Open the source-neutral render scope used by API v2 submissions. */
+    public static void beginEntityRender(Entity entity, PoseStack matrices, float tickDelta) {
+        Matrix4f root = matrices == null ? null : matrices.last().pose();
+        boolean mainPass = entity instanceof LivingEntity living
+            && matchesMainView(root)
+            && isVisibleToMainCamera(living)
+            && OptionalIrisPassDetector.isMainPass();
+        if (entity instanceof LivingEntity living) {
+            Vec3 position = interpolatedPosition(living, tickDelta);
+            AnchorCaptureCoordinator.beginEntityRender(
+                living.getUUID(), living.getId(), living.level(),
+                new AnchorVec3(position.x, position.y, position.z), mainPass);
+            if (mainPass) {
+                CURRENT_ENTITY.set(living);
+                AUXILIARY_YSM_PASS.set(false);
+            } else {
+                CURRENT_ENTITY.remove();
+                AUXILIARY_YSM_PASS.set(true);
+            }
+        }
+    }
+
+    public static void endEntityRender() {
+        AnchorCaptureCoordinator.endEntityRender();
+        end();
+    }
+
+    /**
+     * Auxiliary shader passes use a different root transform. They must never
+     * be paired with the main camera metadata used to restore world space.
+     */
     static boolean matchesMainView(Matrix4f candidate) {
         Matrix4f expected = viewMatrix;
         if (candidate == null || expected == null) {
@@ -86,7 +128,7 @@ public final class RenderHeadCapture {
     }
 
     /**
-     * Called on normal returns from {@code PlayerEntityRenderer.render};
+     * Called on normal returns from {@code PlayerRenderer.render};
      * renderer-replacement compatibility hooks may also release early after
      * taking their own capture.
      */
@@ -99,6 +141,16 @@ public final class RenderHeadCapture {
     /** Drop all captures from the previous frame; call before entity rendering. */
     public static void clearFrame() {
         CAPTURES.clear();
+    }
+
+    public static void beginFrame(Matrix4f frameViewMatrix, Vec3 frameCameraPos,
+                                  Frustum frustum, float tickDelta, Object worldIdentity) {
+        clearFrame();
+        viewMatrix = frameViewMatrix == null ? null : new Matrix4f(frameViewMatrix);
+        cameraPos = frameCameraPos;
+        mainFrustum = frustum == null ? null : new Frustum(frustum);
+        frameTickDelta = tickDelta;
+        AnchorCaptureCoordinator.beginFrame(worldIdentity);
     }
 
     /** Record the frame's view matrix (world → camera). */
@@ -116,6 +168,7 @@ public final class RenderHeadCapture {
         return CURRENT_ENTITY.get();
     }
 
+    /** Whether the current YSM render was rejected for using a non-main root matrix. */
     public static boolean isAuxiliaryYsmPass() {
         return AUXILIARY_YSM_PASS.get();
     }
@@ -131,19 +184,45 @@ public final class RenderHeadCapture {
             return;
         }
         LivingEntity entity = CURRENT_ENTITY.get();
-        if (entity == null) {
+        Vec3 frameCameraPos = cameraPos;
+        Matrix4f frameViewMatrix = viewMatrix;
+        if (entity == null || frameCameraPos == null || frameViewMatrix == null) {
             return;
         }
-        CAPTURES.put(entity.getUUID(), new CapturedHead(
+        CapturedHead captured = new CapturedHead(
             new Matrix4f(matrices.last().pose()),
             part.x, part.y, part.z,
             part.xRot, part.yRot, part.zRot,
             part.xScale, part.yScale, part.zScale
-        ));
+        );
+        CAPTURES.put(entity.getUUID(), captured);
+        try {
+            AnchorPose pose = RenderHeadMath.toAnchorPose(captured, frameCameraPos, frameViewMatrix);
+            VANILLA_SOURCE.submit(entity.getUUID(), pose);
+        } catch (RuntimeException ignored) {
+            // Invalid capture data is a normal safe-fallback condition.
+        }
     }
 
     public static CapturedHead get(UUID uuid) {
         return CAPTURES.get(uuid);
+    }
+
+    public static float getFrameTickDelta() {
+        return frameTickDelta;
+    }
+
+    private static boolean isVisibleToMainCamera(LivingEntity entity) {
+        Frustum frustum = mainFrustum;
+        return frustum != null && frustum.isVisible(entity.getBoundingBoxForCulling());
+    }
+
+    private static Vec3 interpolatedPosition(LivingEntity entity, float tickDelta) {
+        return new Vec3(
+            entity.xo + (entity.getX() - entity.xo) * tickDelta,
+            entity.yo + (entity.getY() - entity.yo) * tickDelta,
+            entity.zo + (entity.getZ() - entity.zo) * tickDelta
+        );
     }
 
     /**

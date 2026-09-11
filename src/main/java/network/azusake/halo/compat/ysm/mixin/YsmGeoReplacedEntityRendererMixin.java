@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
+import com.mojang.blaze3d.vertex.PoseStack;
 
 /** Captures the final animated Head immediately before YSM renders a living model. */
 @Pseudo
@@ -25,8 +26,7 @@ public abstract class YsmGeoReplacedEntityRendererMixin {
     )
     private void halo$captureYsmHead(Args args) {
         Object animatedModel = args.get(YsmV265Symbols.RENDER_MODEL_ARGUMENT);
-        Object matrices = args.get(YsmV265Symbols.RENDER_POSE_STACK_ARGUMENT);
-        YsmHeadCapture.markRenderHookInvoked();
+        PoseStack matrices = args.get(YsmV265Symbols.RENDER_POSE_STACK_ARGUMENT);
         YsmHeadCapture.captureAndReleaseEntity(animatedModel, matrices);
     }
 }

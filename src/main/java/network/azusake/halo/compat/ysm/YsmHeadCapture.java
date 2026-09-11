@@ -1,9 +1,12 @@
 package network.azusake.halo.compat.ysm;
 
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.HaloAnchorApi;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.physics.RenderHeadCapture;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.culling.Frustum;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -19,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class YsmHeadCapture {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
+    private static final AnchorSource YSM_SOURCE = HaloAnchorApi.register("halo:ysm");
 
     private static final Map<UUID, CapturedHead> CURRENT = new ConcurrentHashMap<>();
     private static final Map<UUID, CapturedHead> PREVIOUS = new ConcurrentHashMap<>();
@@ -36,19 +40,9 @@ public final class YsmHeadCapture {
      * material passes do not need the context once the UUID-keyed matrix has
      * been stored.
      */
-    public static void captureAndReleaseEntity(Object animatedModel, Object matrixArgument) {
+    public static void captureAndReleaseEntity(Object animatedModel, PoseStack matrices) {
         try {
-            if (!(matrixArgument instanceof PoseStack matrices)) {
-                warnOnce("invalid-render-arguments",
-                    "[YSM Compat] Forge render hook received an unexpected matrix argument type; "
-                        + "using Halo fallback");
-                return;
-            }
             capture(animatedModel, matrices);
-        } catch (Throwable error) {
-            warnOnce("render-hook-failure",
-                "[YSM Compat] Forge render hook failed safely; using Halo fallback: "
-                    + error.getClass().getSimpleName() + ": " + error.getMessage());
         } finally {
             RenderHeadCapture.end();
         }
@@ -106,11 +100,20 @@ public final class YsmHeadCapture {
                     "[YSM Compat] rendered YSM model has no finite, non-degenerate Head locator; using Halo fallback");
                 return;
             }
-            if (CURRENT.putIfAbsent(uuid, new CapturedHead(
+            CapturedHead captured = new CapturedHead(
                 new Matrix4f(headMatrix),
                 new Matrix4f(frame.viewMatrix),
                 frame.cameraPos
-            )) == null) {
+            );
+            if (CURRENT.putIfAbsent(uuid, captured) == null) {
+                double[] rawOffset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
+                AnchorPose pose = YsmHeadMath.toAnchorPose(
+                    captured, new Vec3(rawOffset[0], rawOffset[1], rawOffset[2]));
+                if (pose != null) {
+                    YSM_SOURCE.submit(uuid, pose);
+                } else {
+                    markAnchorConversionFailed();
+                }
                 infoOnce("head-captured",
                     "[YSM Compat] Head matrix captured from a bracketed YSM living-entity render");
             }
@@ -122,7 +125,11 @@ public final class YsmHeadCapture {
         }
     }
 
-    /** Snapshot the exact main-camera frame used by captures in this entity pass. */
+    /**
+     * Advance once at BEFORE_ENTITIES and snapshot the main-camera frame used
+     * by every capture. Previous-frame matrices must be restored with the
+     * camera transform from the frame that produced them, not the current one.
+     */
     public static void beginFrame(Matrix4f viewMatrix, Vec3 cameraPos, Frustum frustum) {
         PREVIOUS.clear();
         PREVIOUS.putAll(CURRENT);
@@ -174,59 +181,16 @@ public final class YsmHeadCapture {
         captureFrame = null;
     }
 
-    public static void markDispatcherContextAccepted(LivingEntity entity) {
-        infoOnce("dispatcher-context-accepted",
-            "[YSM Compat] STEP context: main-pass EntityRenderDispatcher context accepted for "
-                + entity.getClass().getName());
-    }
-
-    public static void markDispatcherContextRejected() {
-        infoOnce("dispatcher-context-rejected",
-            "[YSM Compat] STEP context: rejected a living-entity dispatcher context because its root "
-                + "matrix did not match the recorded main entity pass");
-    }
-
-    public static void markRenderHookInvoked() {
-        infoOnce("render-hook-invoked",
-            "[YSM Compat] STEP hook: injected Forge living-renderer hook invoked");
-    }
-
-    public static void markGenericRenderHookInvoked() {
-        infoOnce("generic-render-hook-invoked",
-            "[YSM Compat] STEP hook: injected Forge generic-entity renderer hook invoked");
-    }
-
-    public static void markProviderInvoked(boolean player) {
-        infoOnce(player ? "player-provider-invoked" : "living-provider-invoked",
-            player
-                ? "[YSM Compat] STEP provider: player YSM-aware anchor provider invoked"
-                : "[YSM Compat] STEP provider: generic living-entity YSM anchor provider invoked");
-    }
-
-    public static void markProviderMiss(boolean player) {
-        infoOnce(player ? "player-provider-miss" : "living-provider-miss",
-            player
-                ? "[YSM Compat] FALLBACK player: no eligible current/previous YSM Head capture was available"
-                : "[YSM Compat] FALLBACK living entity: no eligible current/previous YSM Head capture was available");
-    }
-
-    public static void markProviderOutsideFrustum(boolean player) {
-        infoOnce(player ? "player-provider-outside-frustum" : "living-provider-outside-frustum",
-            player
-                ? "[YSM Compat] FALLBACK player: outside the main camera frustum"
-                : "[YSM Compat] FALLBACK living entity: outside the main camera frustum");
-    }
-
-    public static void markLocalFirstPersonFallback() {
-        infoOnce("local-first-person-fallback",
-            "[YSM Compat] FALLBACK player: local first-person intentionally uses the camera anchor");
-    }
-
     static void recordForTests(UUID uuid, Matrix4f matrix) {
         CURRENT.put(uuid, new CapturedHead(new Matrix4f(matrix), new Matrix4f(), Vec3.ZERO));
     }
 
-    static void recordForTests(UUID uuid, Matrix4f matrix, Matrix4f viewMatrix, Vec3 cameraPos) {
+    static void recordForTests(
+        UUID uuid,
+        Matrix4f matrix,
+        Matrix4f viewMatrix,
+        Vec3 cameraPos
+    ) {
         CURRENT.put(uuid, new CapturedHead(
             new Matrix4f(matrix), new Matrix4f(viewMatrix), cameraPos));
     }
