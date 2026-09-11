@@ -81,7 +81,7 @@ Supported: `list`, `dump`, `show @s <def>`, `hide @s`, `config <p> <v>`, `reload
 ### `HaloModConfig` / `HaloModConfigStore`
 
 Mod-level config file `config/halo-azusake/halo_mod_config.json` holds command
-permissions and experimental compatibility switches. It is completely separate from the runtime `/halo config` tuning
+permissions. It is completely separate from the runtime `/halo config` tuning
 (`HaloConfig`). Missing or blank files are written with defaults at startup;
 missing fields in an existing file are merged back without deleting unknown
 keys; out-of-range values are clamped to 0–4; corrupt JSON falls back to defaults
@@ -93,33 +93,10 @@ with a warning.
 | `HaloModConfigStore.getPermissionLevel()` | Permission level required by the `/halo` command tree (default 2, range 0–4) |
 | `HaloModConfig.getCommandPermissionLevel()` | Current permission level |
 | `HaloModConfig.setCommandPermissionLevel(int)` | Set the permission level (clamped to 0–4) |
-| `HaloModConfig.isExperimentalYsmAnchorEnabled()` | Experimental YSM 2.6.5 Head anchor switch (default `false`) |
-| `HaloModConfig.getExperimentalYsmHeadLocalOffset()` | Head-local `[right, up, back]` offset in blocks; zero by default |
+### YSM compatibility
 
-### Experimental YSM 2.6.5 compatibility
-
-This integration supports only the Fabric 1.20.1 release
-`2.6.5-fabric+mc1.20.1`. Existing configs receive the two experimental fields
-automatically on the next startup; the switch still defaults to `false`.
-Restart the game after editing the config:
-
-```json
-{
-  "commandPermissionLevel": 2,
-  "experimentalYsmAnchorEnabled": true,
-  "experimentalYsmHeadLocalOffset": [0.0, 0.0, 0.0]
-}
-```
-
-The offset is applied in the final local coordinate frame of YSM's `Head`
-bone. A zero vector uses the model author's Head pivot directly. Capture applies
-to players and other living entities whose render is replaced by YSM; non-living
-entities are ignored. The local first-person player always uses the camera
-anchor so Iris shadow/auxiliary passes cannot contaminate its position, while
-third-person and other living entities continue to use YSM Head capture.
-Missing or unsupported YSM versions, unusable Head hierarchies, and degenerate
-matrices safely fall back to Halo's normal entity anchors. YSM is not a required
-Halo dependency.
+This branch does not include a YSM adapter. YSM capture and its configuration switch are
+available only in the five version-gated branches listed in the API v2 compatibility notes.
 
 ---
 
