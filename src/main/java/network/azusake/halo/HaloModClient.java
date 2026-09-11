@@ -1,22 +1,18 @@
 package network.azusake.halo;
 
-import network.azusake.halo.api.AnchorProviderSetupEvent;
-import network.azusake.halo.api.EntityAnchorProviderRegistry;
+import network.azusake.halo.anchor.AnchorCaptureCoordinator;
 import network.azusake.halo.client.NeoForgeHaloCommandInterceptor;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.network.HaloNetworkClient;
-import network.azusake.halo.physics.PlayerAnchorProvider;
-import network.azusake.halo.physics.RenderHeadAnchorProvider;
 import network.azusake.halo.render.HaloClientManager;
 import network.azusake.halo.render.HaloRenderListener;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
@@ -25,8 +21,6 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Client-side initialisation for the NeoForge port.
@@ -38,8 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class HaloModClient {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(HaloMod.MOD_ID);
-
-    private static final AtomicBoolean ANCHOR_SETUP_FIRED = new AtomicBoolean(false);
 
     private HaloModClient() {
         // utility class — use init()
@@ -68,29 +60,6 @@ public final class HaloModClient {
         // Register entity-anchor profile loader on the client side
         network.azusake.halo.json.EntityAnchorLoader.registerClientResources(modEventBus);
 
-        // Register the default anchor providers immediately.  The setup event
-        // is fired once at the end of the first client tick (see below) so
-        // that every other mod's client setup has run by then.
-        EntityAnchorProviderRegistry anchorRegistry = EntityAnchorProviderRegistry.getInstance();
-        anchorRegistry.register(Player.class, PlayerAnchorProvider.getInstance());
-        // Default player provider: the render-head capture provider anchors
-        // the halo to the actually rendered head.  It keeps PlayerAnchorProvider
-        // (backed by entity_anchors/player.json) as its no-capture fallback for
-        // first-person, culled, or renderer-replaced players.  Both providers
-        // are registered so external mods can still override via the setup
-        // event (last-wins).
-        anchorRegistry.register(Player.class, new RenderHeadAnchorProvider(PlayerAnchorProvider.getInstance()));
-
-        // Fire AnchorProviderSetupEvent exactly once, at the end of the first
-        // client tick.  All mods' client setup has run by then, so listeners
-        // registered during any mod's client init are always observed.
-        NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> {
-            if (ANCHOR_SETUP_FIRED.compareAndSet(false, true)) {
-                AnchorProviderSetupEvent.EVENT.invoker().onSetup(anchorRegistry);
-                LOGGER.info("Default anchor providers registered; AnchorProviderSetupEvent fired (first client tick)");
-            }
-        });
-
         // Register the halo renderer with NeoForge's world-render pipeline
         HaloRenderListener.register();
 
@@ -109,6 +78,7 @@ public final class HaloModClient {
             var entity = event.getEntity();
             if (entity != null) {
                 HaloClientManager.getInstance().onEntityUnloaded(entity.getUUID());
+                AnchorCaptureCoordinator.clearEntity(entity.getUUID());
             }
         });
 
@@ -150,6 +120,7 @@ public final class HaloModClient {
         // retains local halos so they survive reconnects to the same server.
         NeoForge.EVENT_BUS.addListener(ClientPlayerNetworkEvent.LoggingOut.class, event -> {
             HaloManager.getInstance().clearAllClientHalos();
+            AnchorCaptureCoordinator.clearCaptures();
             HaloPhaseTracker.getInstance().resetToLocal();
         });
 
