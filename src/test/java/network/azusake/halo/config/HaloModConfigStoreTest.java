@@ -35,7 +35,7 @@ class HaloModConfigStoreTest {
         HaloModConfig config = HaloModConfigStore.load(configFile());
 
         assertEquals(2, config.getCommandPermissionLevel());
-        assertFalse(config.isExperimentalYsmAnchorEnabled());
+        assertTrue(config.isExperimentalYsmAnchorEnabled());
         assertArrayEquals(new double[]{0.0, 0.0, 0.0}, config.getExperimentalYsmHeadLocalOffset());
         assertTrue(Files.exists(configFile()));
 
@@ -69,7 +69,7 @@ class HaloModConfigStoreTest {
         assertEquals(2, config.getCommandPermissionLevel());
         JsonObject persisted = persistedJson();
         assertEquals(2, persisted.get("commandPermissionLevel").getAsInt());
-        assertFalse(persisted.get("experimentalYsmAnchorEnabled").getAsBoolean());
+        assertTrue(persisted.get("experimentalYsmAnchorEnabled").getAsBoolean());
         assertEquals(3, persisted.getAsJsonArray("experimentalYsmHeadLocalOffset").size());
     }
 
@@ -83,7 +83,7 @@ class HaloModConfigStoreTest {
 
         assertEquals(4, config.getCommandPermissionLevel());
         assertEquals(4, HaloModConfigStore.getPermissionLevel());
-        assertFalse(persistedJson().get("experimentalYsmAnchorEnabled").getAsBoolean());
+        assertTrue(persistedJson().get("experimentalYsmAnchorEnabled").getAsBoolean());
     }
 
     @Test
@@ -120,8 +120,20 @@ class HaloModConfigStoreTest {
         assertEquals(3, config.getCommandPermissionLevel());
         JsonObject persisted = persistedJson();
         assertTrue(persisted.get("futureOption").getAsBoolean());
-        assertFalse(persisted.get("experimentalYsmAnchorEnabled").getAsBoolean());
+        assertTrue(persisted.get("experimentalYsmAnchorEnabled").getAsBoolean());
         assertTrue(persisted.has("experimentalYsmHeadLocalOffset"));
+    }
+
+    @Test
+    @DisplayName("explicit false keeps YSM compatibility disabled")
+    void explicitFalseDisablesYsmCompatibility() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        Files.writeString(configFile(), "{\"experimentalYsmAnchorEnabled\":false}");
+
+        HaloModConfig loaded = HaloModConfigStore.load(configFile());
+
+        assertFalse(loaded.isExperimentalYsmAnchorEnabled());
+        assertFalse(persistedJson().get("experimentalYsmAnchorEnabled").getAsBoolean());
     }
 
     @Test
