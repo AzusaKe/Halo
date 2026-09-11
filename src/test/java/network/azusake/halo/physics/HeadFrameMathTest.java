@@ -132,16 +132,16 @@ class HeadFrameMathTest {
 
         private static Quaternionf cameraRotation(float yawDeg, float pitchDeg, float rollDeg) {
             return new Quaternionf()
-                .rotateY((float) -Math.toRadians(yawDeg))
-                .rotateX((float) Math.toRadians(pitchDeg))
+                .rotateY((float) Math.PI - (float) Math.toRadians(yawDeg))
+                .rotateX(-(float) Math.toRadians(pitchDeg))
                 .rotateZ((float) Math.toRadians(rollDeg));
         }
 
         @Test
         void zeroWhenCameraHasNoRoll() {
-            // Regression for the "halo circles vertically while turning yaw"
-            // bug: a yaw-sign mismatch made the recovered roll non-zero and
-            // yaw-dependent even though the vanilla camera never rolls.
+            // Regression for first-person rotation twitching since 1.21: Halo
+            // previously stripped Camera#rotation with the 1.20.1 basis,
+            // producing a changing pseudo-roll even though vanilla has no roll.
             for (float yaw : new float[]{0f, 30f, 90f, 180f, -120f}) {
                 for (float pitch : new float[]{-60f, -30f, 0f, 30f, 60f}) {
                     float roll = HeadFrameMath.recoverRollDeg(yaw, pitch, cameraRotation(yaw, pitch, 0f));

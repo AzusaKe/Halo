@@ -9,10 +9,11 @@ import org.joml.Quaternionf;
  *
  * <p>All angles are degrees and follow the Minecraft convention (yaw = head
  * yaw, pitch = head pitch, roll = head/camera roll).  The camera/head
- * orientation quaternion used throughout this class is
- * {@code rotateY(-yaw) * rotateX(pitch) * rotateZ(roll)}, i.e. the same as
- * {@code Quaternionf.rotationYXZ(-yaw, pitch, roll)} used by
- * {@code net.minecraft.client.render.Camera}.</p>
+ * orientation quaternion used by the anchor frame is
+ * {@code rotateY(-yaw) * rotateX(pitch) * rotateZ(roll)}.  Minecraft 26.2's
+ * {@code Camera} stores the equivalent view-facing orientation with a flipped
+ * basis as {@code rotationYXZ(PI - yaw, -pitch, roll)}; see
+ * {@link #recoverRollDeg}.</p>
  */
 public final class HeadFrameMath {
 
@@ -69,12 +70,12 @@ public final class HeadFrameMath {
     /**
      * Recover the roll (degrees) folded into a Minecraft camera/head rotation.
      *
-     * <p>The 1.20.1 {@code Camera} has no {@code getRoll()}; a non-zero roll
+     * <p>The 26.2 {@code Camera} has no {@code getRoll()}; a non-zero roll
      * (e.g. injected by a camera mod) is folded into
-     * {@code Camera.getRotation()} as {@code rotationYXZ(-yaw, pitch, roll)}.
-     * This strips the yaw/pitch component and returns the remaining pure
-     * Z-rotation angle, which can be fed straight back into
-     * {@link #of} / the head quaternion.</p>
+     * {@code Camera.rotation()} as
+     * {@code rotationYXZ(PI - yaw, -pitch, roll)}.  This strips that version's
+     * yaw/pitch component and returns the remaining pure Z-rotation angle,
+     * which can be fed into {@link #of}.</p>
      *
      * @param yawDeg         camera yaw in degrees
      * @param pitchDeg       camera pitch in degrees
@@ -82,12 +83,14 @@ public final class HeadFrameMath {
      * @return roll in degrees within (−180, 180]
      */
     public static float recoverRollDeg(float yawDeg, float pitchDeg, Quaternionf cameraRotation) {
-        // Camera rotation = rotateY(-yaw) * rotateX(pitch) * rotateZ(roll).
-        // Stripping the yaw/pitch part leaves a pure Z rotation:
+        // Since 1.21, Camera#setRotation stores a view-facing quaternion with
+        // a 180-degree yaw basis flip and inverted pitch:
+        // rotateY(PI - yaw) * rotateX(-pitch) * rotateZ(roll).
+        // Stripping the matching yaw/pitch part leaves a pure Z rotation:
         // (x=0, y=0, z=sin(roll/2), w=cos(roll/2)).
         Quaternionf qYawPitch = new Quaternionf()
-            .rotateY(-(float) Math.toRadians(yawDeg))
-            .rotateX((float) Math.toRadians(pitchDeg));
+            .rotateY((float) Math.PI - (float) Math.toRadians(yawDeg))
+            .rotateX(-(float) Math.toRadians(pitchDeg));
         Quaternionf qRoll = new Quaternionf(qYawPitch).conjugate().mul(cameraRotation);
         return (float) Math.toDegrees(2.0 * Math.atan2(qRoll.z, qRoll.w));
     }
