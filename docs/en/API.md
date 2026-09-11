@@ -102,6 +102,150 @@ available only in the five version-gated branches listed in the API v2 compatibi
 
 ## Head Anchor API v2
 
+### Developer quick start
+
+Use the following sequence for an external renderer integration.
+
+#### Add Halo to the build and loader metadata
+
+Place the Halo 1.3.0 jar matching the Minecraft version and loader in the external mod's
+`libs` directory. Compile against it, but do not bundle it into the external mod:
+
+```groovy
+dependencies {
+    compileOnly files("libs/halo-<minecraft>-<loader>-1.3.0.jar")
+}
+```
+
+Halo must be installed separately at runtime. For a required integration, declare a loader
+dependency as well:
+
+```json
+{
+  "depends": {
+    "halo": ">=1.3.0"
+  }
+}
+```
+
+```toml
+# Forge 1.20.1: META-INF/mods.toml
+[[dependencies.your_mod_id]]
+modId="halo"
+mandatory=true
+versionRange="[1.3.0,)"
+ordering="AFTER"
+side="CLIENT"
+
+# NeoForge: META-INF/neoforge.mods.toml
+[[dependencies.your_mod_id]]
+modId="halo"
+type="required"
+versionRange="[1.3.0,)"
+ordering="AFTER"
+side="CLIENT"
+```
+
+For an optional integration, first use the loader's mod-presence check and isolate all direct
+API references in a compatibility-only class. Do not load that class when Halo is absent.
+
+#### Register one source and keep its handle
+
+Create one source for the integration, not one per entity or frame:
+
+```java
+import java.util.UUID;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorRotation;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.AnchorVec3;
+import network.azusake.halo.api.v2.HaloAnchorApi;
+
+public final class HaloAnchorBridge implements AutoCloseable {
+    private AnchorSource source;
+
+    public void start() {
+        if (source == null) {
+            source = HaloAnchorApi.register("your_mod_id:final_head");
+        }
+    }
+
+    public boolean submit(
+        UUID entityUuid,
+        double worldX, double worldY, double worldZ,
+        double qx, double qy, double qz, double qw
+    ) {
+        AnchorSource active = source;
+        return active != null && active.submit(entityUuid, new AnchorPose(
+            new AnchorVec3(worldX, worldY, worldZ),
+            new AnchorRotation(qx, qy, qz, qw)
+        ));
+    }
+
+    @Override
+    public void close() {
+        AnchorSource active = source;
+        source = null;
+        if (active != null) {
+            active.close();
+        }
+    }
+}
+```
+
+The ID must match `[a-z0-9_.-]+:[a-z0-9_./-]+`. An invalid ID throws
+`IllegalArgumentException`; an active duplicate throws `IllegalStateException`.
+`close()` is idempotent, clears that source's cached captures immediately, and allows the
+same ID to be registered again.
+
+#### Submit at the final base-head transform
+
+Call the bridge synchronously where the effective renderer has completed the current entity's
+final visual head transform. This is usually immediately after the final head model or locator
+transform. A renderer wrapper must submit after its own final adjustment.
+
+Do not submit from a client tick, end-of-frame callback, worker thread, armour layer, or
+unrelated feature model. Pass the UUID of the entity currently being rendered. The call must
+remain inside Halo's entity-render scope; moving it to a later callback will make it return
+`false`.
+
+#### Convert renderer coordinates to the API basis
+
+The position must be absolute world space in blocks, not model or camera/view space. If a
+renderer exposes a view-relative final matrix, undo the view rotation and add the camera world
+position:
+
+```text
+worldPosition = cameraWorldPosition + inverse(viewRotation) * viewPosition
+worldRotation = inverse(viewRotation) * viewRotationOfHead
+```
+
+Extract an orthonormal rotation before creating the quaternion; scale and shear do not belong
+in `AnchorRotation`. JOML quaternion components can be passed without reordering:
+
+```java
+bridge.submit(entityUuid, worldX, worldY, worldZ,
+    worldRotation.x(), worldRotation.y(),
+    worldRotation.z(), worldRotation.w());
+```
+
+#### Handle the result
+
+`submit(...) == true` means this pose was accepted for the current main-camera entity pass.
+`false` is expected for shadow/auxiliary or unknown passes, a wrong/null UUID, a null pose,
+calls outside the render scope, or a closed source. A rejected submission never replaces the
+last valid pose. Do not retry it later from outside the renderer; only rate-limit diagnostics
+if expected third-person main-pass submissions continually return `false`.
+
+Deferred renderers must submit during the actual deferred head draw, not when extraction is
+queued. Halo retains an accepted capture for at most one main frame and rebases its
+entity-relative position onto current interpolation. World changes, entity unload, and source
+close invalidate captures. The local first-person player uses Halo's camera anchor instead of
+an external entity submission.
+
+Before release, test third-person movement, shaders on/off, entity unload, world changes, live
+source close, and source re-registration.
+
 Halo 1.3.0 embeds the same push-based API v2 in all eight target jars. Add the matching Halo jar as a `compileOnly` or `provided` dependency; there is no separate API artifact. API v1 has been removed.
 
 The public package is `network.azusake.halo.api.v2` and uses only Java 17/JDK types:

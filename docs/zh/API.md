@@ -101,6 +101,143 @@ static String handle(String command)
 
 ## 头部锚点 API v2
 
+### 开发者快速接入
+
+外部渲染模组可按以下顺序接入。
+
+#### 添加 Halo 构建依赖和加载器依赖
+
+把与目标 Minecraft 版本及加载器匹配的 Halo 1.3.0 jar 放入外部模组的 `libs`
+目录。只参与编译，不要把 Halo 打进外部模组自己的 jar：
+
+```groovy
+dependencies {
+    compileOnly files("libs/halo-<minecraft>-<loader>-1.3.0.jar")
+}
+```
+
+运行时仍须把 Halo 作为独立模组安装。若该适配是必需功能，还应声明加载器依赖，
+防止外部模组在缺少 Halo 或 Halo 版本过旧时启动：
+
+```json
+{
+  "depends": {
+    "halo": ">=1.3.0"
+  }
+}
+```
+
+```toml
+# Forge 1.20.1：META-INF/mods.toml
+[[dependencies.your_mod_id]]
+modId="halo"
+mandatory=true
+versionRange="[1.3.0,)"
+ordering="AFTER"
+side="CLIENT"
+
+# NeoForge：META-INF/neoforge.mods.toml
+[[dependencies.your_mod_id]]
+modId="halo"
+type="required"
+versionRange="[1.3.0,)"
+ordering="AFTER"
+side="CLIENT"
+```
+
+若 Halo 是可选依赖，应先通过加载器检查 Halo 是否存在，并把所有直接 API 引用隔离在
+专用兼容类中；Halo 不存在时不得加载该类。
+
+#### 注册一个 source 并保存句柄
+
+每个适配注册一个 source，不要为每个实体或每一帧重复注册：
+
+```java
+import java.util.UUID;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorRotation;
+import network.azusake.halo.api.v2.AnchorSource;
+import network.azusake.halo.api.v2.AnchorVec3;
+import network.azusake.halo.api.v2.HaloAnchorApi;
+
+public final class HaloAnchorBridge implements AutoCloseable {
+    private AnchorSource source;
+
+    public void start() {
+        if (source == null) {
+            source = HaloAnchorApi.register("your_mod_id:final_head");
+        }
+    }
+
+    public boolean submit(
+        UUID entityUuid,
+        double worldX, double worldY, double worldZ,
+        double qx, double qy, double qz, double qw
+    ) {
+        AnchorSource active = source;
+        return active != null && active.submit(entityUuid, new AnchorPose(
+            new AnchorVec3(worldX, worldY, worldZ),
+            new AnchorRotation(qx, qy, qz, qw)
+        ));
+    }
+
+    @Override
+    public void close() {
+        AnchorSource active = source;
+        source = null;
+        if (active != null) {
+            active.close();
+        }
+    }
+}
+```
+
+ID 必须匹配 `[a-z0-9_.-]+:[a-z0-9_./-]+`。非法 ID 会抛出
+`IllegalArgumentException`，活动 ID 重复注册会抛出 `IllegalStateException`。
+`close()` 幂等，会立即清除此 source 的缓存；关闭后可用同一 ID 重新注册。
+
+#### 在基础头部最终变换处提交
+
+必须在实际渲染器完成当前实体头部最终视觉变换的位置同步调用 bridge，通常是在最终
+Head 模型或 locator 变换之后。包装其他渲染器的模组，应在自身最后一次调整完成后提交。
+
+不要从客户端 tick、帧末回调、工作线程、盔甲层或无关 feature model 提交。传入的 UUID
+必须属于当前正在渲染的实体。调用必须仍处于 Halo 的实体渲染范围内；如果延后到其他
+回调，`submit` 将返回 `false`。
+
+#### 将渲染坐标转换为 API 坐标
+
+位置必须是以方块为单位的绝对世界坐标，而不是模型坐标或摄像机/view 坐标。若渲染器
+提供的是 view-relative 最终矩阵，应先消除视角旋转，再加上摄像机世界位置：
+
+```text
+worldPosition = cameraWorldPosition + inverse(viewRotation) * viewPosition
+worldRotation = inverse(viewRotation) * viewRotationOfHead
+```
+
+构造四元数前应提取正交归一的旋转；缩放和切变不能写入 `AnchorRotation`。JOML
+四元数的分量可以保持原顺序传入：
+
+```java
+bridge.submit(entityUuid, worldX, worldY, worldZ,
+    worldRotation.x(), worldRotation.y(),
+    worldRotation.z(), worldRotation.w());
+```
+
+#### 处理提交结果
+
+`submit(...) == true` 表示姿态已被当前主视角实体 pass 接受。阴影/辅助或未知 pass、
+错误或空 UUID、空 pose、渲染范围外调用、已关闭 source 都会返回 `false`。被拒绝的
+提交不会覆盖已有有效姿态。不要离开渲染器后再次补交；如果预期的第三人称主 pass 持续
+返回 `false`，只需限频记录诊断并检查 UUID、调用点、渲染器嵌套和 pass 判定。
+
+延迟渲染器应在头部实际绘制时提交，而不是在 extraction 入队时提交。Halo 最多保留一个
+主帧的有效捕获，并根据实体当前插值位置重基准。世界切换、实体卸载和 source 关闭都会
+使捕获失效。本地第一人称玩家使用 Halo 的摄像机锚点，不使用外部实体提交。
+
+发布前应覆盖第三人称连续移动、开关光影、实体卸载、世界切换、运行时关闭 source，以及
+关闭后用同一 ID 重新注册。
+
 Halo 1.3.0 内置跨八分支一致的推送式 API v2。外部模组应把目标 Minecraft/加载器版本的 Halo jar 声明为 `compileOnly` 或 `provided`；无需也不应安装独立 API jar。API v1 已移除。
 
 公共包 `network.azusake.halo.api.v2` 只依赖 Java 17/JDK 类型：
