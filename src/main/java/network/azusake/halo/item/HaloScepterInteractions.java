@@ -36,14 +36,8 @@ final class HaloScepterInteractions {
         eventBus.addListener(
             EventPriority.HIGHEST,
             false,
-            PlayerInteractEvent.RightClickBlock.class,
-            HaloScepterInteractions::onUseBlock
-        );
-        eventBus.addListener(
-            EventPriority.HIGHEST,
-            false,
-            PlayerInteractEvent.RightClickItem.class,
-            HaloScepterInteractions::onUseItem
+            PlayerInteractEvent.EntityInteractSpecific.class,
+            HaloScepterInteractions::onUseEntitySpecific
         );
         eventBus.addListener(
             EventPriority.HIGHEST,
@@ -73,24 +67,12 @@ final class HaloScepterInteractions {
         consume(event);
     }
 
-    private static void onUseBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (!event.getEntity().isShiftKeyDown()
-            || !event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
+    private static void onUseEntitySpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (!event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
             return;
         }
         if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
-            HaloScepterService.open(player, player);
-        }
-        consume(event);
-    }
-
-    private static void onUseItem(PlayerInteractEvent.RightClickItem event) {
-        if (!event.getEntity().isShiftKeyDown()
-            || !event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
-            return;
-        }
-        if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
-            HaloScepterService.open(player, player);
+            HaloScepterService.open(player, player.isShiftKeyDown() ? player : event.getTarget());
         }
         consume(event);
     }
