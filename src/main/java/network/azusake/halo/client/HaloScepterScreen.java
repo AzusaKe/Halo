@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -118,9 +119,7 @@ public final class HaloScepterScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        // 1.21.1's Screen.renderBackground applies a framebuffer blur.  This
-        // selector intentionally keeps the world and panel crisp.
-        graphics.fill(0, 0, width, height, 0xA0000000);
+        renderBackground(graphics, mouseX, mouseY, delta);
         graphics.fill(panelLeft, panelTop, panelRight, panelBottom, 0xE0101520);
         graphics.fill(panelLeft, panelTop, panelRight, panelTop + 1, 0xFF4F6A78);
         graphics.fill(panelLeft, panelBottom - 1, panelRight, panelBottom, 0xFF090C10);
@@ -134,7 +133,11 @@ public final class HaloScepterScreen extends Screen {
             0xD5DDE5
         );
 
-        super.render(graphics, mouseX, mouseY, delta);
+        // Screen.render() would draw the background a second time before the
+        // widgets, blurring the panel and title that were just drawn.
+        for (Renderable renderable : renderables) {
+            renderable.render(graphics, mouseX, mouseY, delta);
+        }
 
         if (haloList.children().isEmpty()) {
             Component empty = HaloJsonLoader.getDefinitions().isEmpty()
@@ -148,6 +151,11 @@ public final class HaloScepterScreen extends Screen {
                 0x8B98A5
             );
         }
+    }
+
+    /** Keep the vanilla menu darkening while disabling 1.21.1's framebuffer blur. */
+    @Override
+    protected void renderBlurredBackground(float delta) {
     }
 
     @Override
