@@ -1,6 +1,8 @@
 package network.azusake.halo.physics;
 
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorPoseMath;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -197,15 +199,14 @@ class RenderHeadMathTest {
                 1f, 1f, 1f);
 
             // Identity view matrix → the capture is already world space.
-            HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, new Matrix4f());
+            AnchorPose anchor = RenderHeadMath.toAnchorPose(captured, cameraPos, new Matrix4f());
             Matrix4f head = RenderHeadMath.composeHeadMatrix(captured);
-            HeadFrameMath.HeadFrame frame = HeadFrameMath.of(anchor.yaw(), anchor.pitch(), anchor.roll());
 
-            assertVec(transformDirection(head, 0f, 0f, -1f), frame.forward(), "forward");
-            assertVec(transformDirection(head, 0f, -1f, 0f), frame.headUp(), "headUp");
+            assertVec(transformDirection(head, 0f, 0f, -1f), rotate(anchor, 0, 0, 1), "forward");
+            assertVec(transformDirection(head, 0f, -1f, 0f), rotate(anchor, 0, 1, 0), "headUp");
 
             Vec3 expectedCenter = cameraPos.add(transformPoint(head, 0f, -0.25f, 0f));
-            assertVec(expectedCenter, anchor.headCenter(), "headCenter");
+            assertVec(expectedCenter, vec(anchor.position()), "headCenter");
         }
     }
 
@@ -226,12 +227,12 @@ class RenderHeadMathTest {
                         (float) Math.toRadians(headYawDeg),
                         0f,
                         1f, 1f, 1f);
-                    HeadAnchor anchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, new Matrix4f());
-                    HeadFrameMath.HeadFrame frame = HeadFrameMath.of(anchor.yaw(), anchor.pitch(), anchor.roll());
+                    AnchorPose anchor = RenderHeadMath.toAnchorPose(captured, cameraPos, new Matrix4f());
+                    Vec3 forward = rotate(anchor, 0, 0, 1);
+                    Vec3 up = rotate(anchor, 0, 1, 0);
                     String ctx = "body=" + bodyYawDeg + " head=" + headYawDeg;
-                    assertEquals(0.0, frame.forward().y, 1e-4, ctx + " forward.y");
-                    assertEquals(0.0, anchor.pitch(), 1e-4, ctx + " pitch");
-                    assertEquals(0.0, anchor.roll(), 1e-4, ctx + " roll");
+                    assertEquals(0.0, forward.y, 1e-4, ctx + " forward.y");
+                    assertEquals(1.0, up.y, 1e-4, ctx + " up.y");
                 }
             }
         }
@@ -284,7 +285,7 @@ class RenderHeadMathTest {
                 (float) Math.toRadians(headYawDeg),
                 (float) Math.toRadians(headRollDeg),
                 1f, 1f, 1f);
-            HeadAnchor worldAnchor = RenderHeadMath.toHeadAnchor(captured, cameraPos, new Matrix4f());
+            AnchorPose worldAnchor = RenderHeadMath.toAnchorPose(captured, cameraPos, new Matrix4f());
 
             // The entity render stack is the camera view matrix (rotation +
             // renderer flip) followed by the entity transform, so the captured
@@ -304,15 +305,22 @@ class RenderHeadMathTest {
                         (float) Math.toRadians(headYawDeg),
                         (float) Math.toRadians(headRollDeg),
                         1f, 1f, 1f);
-                    HeadAnchor viewAnchor = RenderHeadMath.toHeadAnchor(viewCaptured, cameraPos, view);
+                    AnchorPose viewAnchor = RenderHeadMath.toAnchorPose(viewCaptured, cameraPos, view);
 
                     String ctx = "camPitch=" + camPitch + " camYaw=" + camYaw;
-                    assertVec(worldAnchor.headCenter(), viewAnchor.headCenter(), ctx + " headCenter");
-                    assertEquals(worldAnchor.yaw(), viewAnchor.yaw(), 1e-2, ctx + " yaw");
-                    assertEquals(worldAnchor.pitch(), viewAnchor.pitch(), 1e-2, ctx + " pitch");
-                    assertEquals(worldAnchor.roll(), viewAnchor.roll(), 1e-2, ctx + " roll");
+                    assertVec(vec(worldAnchor.position()), vec(viewAnchor.position()), ctx + " headCenter");
+                    assertVec(rotate(worldAnchor, 0, 0, 1), rotate(viewAnchor, 0, 0, 1), ctx + " forward");
+                    assertVec(rotate(worldAnchor, 0, 1, 0), rotate(viewAnchor, 0, 1, 0), ctx + " up");
                 }
             }
         }
+    }
+
+    private static Vec3 rotate(AnchorPose pose, double x, double y, double z) {
+        return vec(AnchorPoseMath.rotate(pose.rotation(), new AnchorVec3(x, y, z)));
+    }
+
+    private static Vec3 vec(AnchorVec3 value) {
+        return new Vec3(value.x(), value.y(), value.z());
     }
 }

@@ -98,8 +98,8 @@ with a warning.
 
 ### Experimental YSM 2.6.5 compatibility
 
-This integration supports only the NeoForge 1.21.1 release
-`2.6.5-neoforge+mc1.21.1`. Existing configs receive the two experimental fields
+This integration supports only the Fabric 1.20.1 release
+`2.6.5-fabric+mc1.20.1`. Existing configs receive the two experimental fields
 automatically on the next startup; the switch still defaults to `false`.
 Restart the game after editing the config:
 
@@ -123,88 +123,57 @@ Halo dependency.
 
 ---
 
-## Custom Head Anchor
+## Head Anchor API v2
 
-Halo exposes a registry that resolves head-anchor providers by entity type or UUID. The details below describe the actual public API in this branch.
+Halo 1.3.0 embeds the same push-based API v2 in all eight target jars. Add the matching Halo jar as a `compileOnly` or `provided` dependency; there is no separate API artifact. API v1 has been removed.
 
-> Important: the eight branches share the same semantics, but they are not one cross-version binary API. An external mod must depend on the Halo build for the target branch and use that branch's Minecraft mapping types and loader registration mechanism.
-
-### Data flow & call contract
-
-`EntityAnchorProvider.resolve(entity, tickDelta)` is called when a halo's anchor is calculated on the client render thread. An entity with multiple halos may invoke the provider multiple times in one render frame. The provider should return a non-null `HeadAnchor` whose components are finite; when current-frame data is not ready, it should retain the previous valid frame or use an appropriate Vanilla/fallback anchor.
-
-The entity parameter type in this branch is `net.minecraft.world.entity.LivingEntity`.
-
-The `HeadAnchor.headCenter` type in this branch is `net.minecraft.world.phys.Vec3`; yaw, pitch and roll are angles in degrees, following Minecraft conventions.
-
-The lookup order is: exact UUID → exact entity class → superclass chain → fallback. For the same key, the last registration wins.
-
-`getProvider(Class<?>)` returns a usable fallback provider when no dedicated provider is registered; callers should not treat it as a nullable API.
-
-### Registration
-
-NeoForge branches use Halo's event holder during client setup:
+The public package is `network.azusake.halo.api.v2` and uses only Java 17/JDK types:
 
 ```java
-import network.azusake.halo.api.AnchorProviderSetupEvent;
-import net.minecraft.world.entity.LivingEntity;
-
-public final class MyModClient {
-    public static void registerHaloProviders() {
-        AnchorProviderSetupEvent.EVENT.register(registry ->
-            registry.register(LivingEntity.class, new MyHeadProvider()));
-    }
+public final class HaloAnchorApi {
+    public static AnchorSource register(String sourceId);
 }
+
+public interface AnchorSource extends AutoCloseable {
+    boolean submit(UUID entityUuid, AnchorPose pose);
+    @Override void close();
+}
+
+public record AnchorPose(AnchorVec3 position, AnchorRotation rotation) {}
+public record AnchorVec3(double x, double y, double z) {}
+public record AnchorRotation(double x, double y, double z, double w) {}
 ```
 
-Call `registerHaloProviders()` exactly once from the mod's client-initialisation entry point; defining the method alone does not register the provider. The 1.21.1 NeoForge branch also posts an event object to the native NeoForge bus. Choose one registration path for a provider; do not register the same provider through both paths.
+### Registration and submission
 
-The provider implementation has the following shape:
+Register once during client initialization, then submit where the effective renderer has completed the entity's final head transform:
 
 ```java
-import network.azusake.halo.api.EntityAnchorProvider;
-import network.azusake.halo.api.HeadAnchor;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.Vec3;
+private static final AnchorSource SOURCE = HaloAnchorApi.register("example:custom_head");
 
-final class MyHeadProvider implements EntityAnchorProvider {
-    @Override
-    public HeadAnchor resolve(LivingEntity entity, float tickDelta) {
-        Vec3 headCenter = ...; // custom head center in world coordinates
-        float yaw = ...;        // degrees
-        float pitch = ...;      // degrees
-        float roll = ...;       // degrees
-        return new HeadAnchor(headCenter, yaw, pitch, roll);
-    }
-}
+boolean accepted = SOURCE.submit(entityUuid, new AnchorPose(
+    new AnchorVec3(worldX, worldY, worldZ),
+    new AnchorRotation(qx, qy, qz, qw)
+));
 ```
 
-### Default behaviour and compatibility
+`sourceId` must be a unique lowercase `namespace:path`. Registering an active duplicate throws; after the idempotent `close()`, the id may be registered again. A source normally lives for the client process. World changes clear captures but keep registrations. Closing a source immediately removes its cached capture, and later submissions return `false`.
 
-- External providers only supply an anchor. The UUID, exact-class, superclass-chain and fallback rules do not change with the loader.
-- Players use Halo's player anchor provider; an available EMF player capture may override the anchor for that frame, and unavailable capture falls back to the player provider.
-- The current EMF compatibility code captures players only. Non-player entities do not use EMF capture and continue through the branch's existing YSM, Vanilla or fallback path. This is an intentional conservative policy.
-- YSM compatibility and configuration are branch-specific and independent of EMF; consult the YSM section and configuration for the target branch.
+The last valid submission in one main-camera entity pass is the final rendered result. Renderer wrappers must submit after completing their own final transform. `submit` returns `true` only inside a main-camera entity render scope whose UUID matches. Shadow/auxiliary or unknown shader passes, wrong UUIDs, calls outside the scope, and closed sources return `false` and do not replace a valid anchor.
 
-### EMF/ETF compatibility
+### Coordinates and rotation
 
-EMF compatibility is enabled by default and has no Halo configuration switch. The supported lower bound is EMF 3.1.1; no fixed upper bound is imposed, and the actual ABI is checked at runtime. ETF adds no separate capture code and is validated only for coexistence with EMF/ETF.
+- `AnchorVec3` is an absolute world position in blocks: `+X` east, `+Y` up, `+Z` south.
+- `AnchorRotation` is an `(x,y,z,w)` quaternion. Its constructor normalizes finite non-zero input and rejects zero or non-finite values.
+- Rotated local `+Y` is head-up, local `+Z` is head-forward, and entity-right is rotated local `-X`.
 
-When the loaded EMF ABI is incompatible, Halo reports the following message in the log and chat:
+### Multiple passes, delayed frames, and fallback
 
-> 当前Halo模组的EMF兼容代码无法再适用于加载版本的emf模组，请前往源码库汇报
+Halo's safety gate combines the main camera root matrix, main frustum, current entity, and an Iris shadow-pass probe when available. If a detected render backend cannot be classified, submission is rejected with rate-limited diagnostics. Later Iris shadow or auxiliary passes do not advance the main frame and cannot replace the main anchor.
 
-### API v1 and a possible API v2
+Captures survive for at most one main frame for deferred drawing. Positions are cached relative to the entity and rebased onto its current interpolated position, avoiding stale camera/entity offsets. World changes, entity unload, and source close invalidate captures immediately. Without an accepted capture, players use the configured pose fallback and other living entities use Vanilla height/yaw/pitch. The local first-person player always uses the camera anchor.
 
-The current public API is v1. It exposes the Minecraft-mapped `LivingEntity` and vector type of each branch, so it is semantically consistent across branches but not source- or binary-identical across loaders and Minecraft versions.
-
-A future API v2 can coexist with v1 and provide a more platform-neutral abstraction. Each branch would implement v2 through its own loader/version adapter and internal abstraction layer while preserving the same anchor semantics. This is a design direction, not an implemented API.
-
-To preserve existing external mods and Halo's current compatibility packages, v2 should be additive or provide a v1 bridge. Removing or changing the v1 method descriptors or anchor units would require updates to the EMF/YSM adapter boundaries and could break already-compiled external mods. The EMF capture and ABI-detection layer, and ETF coexistence validation, can remain isolated behind those adapters.
-
-### Registration advice
-
-External mods should normally register a concrete entity class instead of unconditionally replacing `LivingEntity.class`. When wrapping an existing provider, capture it before registering the replacement and delegate for states that your provider does not handle. Do not assume that every entity has the same model-part hierarchy.
+Halo registers `halo:vanilla`, `halo:emf`, and `halo:ysm` on supported YSM branches. Vanilla and EMF capture player heads only; YSM retains its existing all-living-entity scope. ETF remains a coexistence test target rather than a separate capture source.
 
 ## Network Channels
 

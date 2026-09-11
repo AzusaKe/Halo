@@ -1,16 +1,8 @@
 {
-    "required": true,
-    "package": "network.azusake.halo.mixin",
-    "compatibilityLevel": "JAVA_21",
-    "mixins": [
-        "LivingEntityDataMixin",
-        "EntityTeleportMixin"
-    ],
-    "client": [
-        "PlayerRendererHeadCaptureMixin",
-        "ModelPartHeadCaptureMixin"
-    ],
-    "injectors": {
-        "defaultRequire": 1
-    }
+  "required": true,
+  "package": "network.azusake.halo.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": ["LivingEntityDataMixin", "EntityTeleportMixin"],
+  "client": ["EntityRenderContextMixin", "PlayerRendererHeadCaptureMixin", "ModelPartHeadCaptureMixin"],
+  "injectors": {"defaultRequire": 1}
 }

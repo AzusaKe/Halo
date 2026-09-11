@@ -1,6 +1,9 @@
 package network.azusake.halo.compat.ysm;
 
-import network.azusake.halo.api.HeadAnchor;
+import network.azusake.halo.anchor.AnchorPoseMath;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorRotation;
+import network.azusake.halo.api.v2.AnchorVec3;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
@@ -12,11 +15,11 @@ public final class YsmHeadMath {
     }
 
     /** Convert using the exact camera frame that produced this capture. */
-    public static HeadAnchor toHeadAnchor(YsmHeadCapture.CapturedHead captured, Vec3 localOffset) {
+    public static AnchorPose toAnchorPose(YsmHeadCapture.CapturedHead captured, Vec3 localOffset) {
         if (captured == null) {
             return null;
         }
-        return toHeadAnchor(
+        return toAnchorPose(
             captured.headMatrix(),
             localOffset,
             captured.cameraPos(),
@@ -24,7 +27,7 @@ public final class YsmHeadMath {
         );
     }
 
-    public static HeadAnchor toHeadAnchor(
+    public static AnchorPose toAnchorPose(
         Matrix4f viewSpace,
         Vec3 localOffset,
         Vec3 cameraPos,
@@ -67,25 +70,15 @@ public final class YsmHeadMath {
         }
         up = up.normalize();
 
-        float yaw = (float) Math.toDegrees(Math.atan2(-forward.x, forward.z));
-        float pitch = (float) Math.toDegrees(Math.asin(clamp(-forward.y)));
-
-        Vec3 worldUp = new Vec3(0, 1, 0);
-        Vec3 right0;
-        if (Math.abs(forward.dot(worldUp)) > 0.999) {
-            float yawRad = (float) Math.toRadians(yaw);
-            right0 = new Vec3(-Math.cos(yawRad), 0, -Math.sin(yawRad));
-        } else {
-            right0 = forward.cross(worldUp).normalize();
+        try {
+            AnchorRotation rotation = AnchorPoseMath.fromForwardUp(
+                new AnchorVec3(forward.x, forward.y, forward.z),
+                new AnchorVec3(up.x, up.y, up.z)
+            );
+            return new AnchorPose(new AnchorVec3(center.x, center.y, center.z), rotation);
+        } catch (IllegalArgumentException error) {
+            return null;
         }
-        Vec3 headUp0 = right0.cross(forward).normalize();
-        float roll = (float) Math.toDegrees(Math.atan2(
-            up.dot(right0),
-            up.dot(headUp0)
-        ));
-
-        HeadAnchor anchor = new HeadAnchor(center, yaw, pitch, roll);
-        return isFinite(anchor) ? anchor : null;
     }
 
     private static Matrix4f viewToWorld(Matrix4f viewSpace, Matrix4f viewMatrix) {
@@ -109,14 +102,4 @@ public final class YsmHeadMath {
         return Double.isFinite(value.x) && Double.isFinite(value.y) && Double.isFinite(value.z);
     }
 
-    private static boolean isFinite(HeadAnchor anchor) {
-        return anchor != null && isFinite(anchor.headCenter())
-            && Float.isFinite(anchor.yaw())
-            && Float.isFinite(anchor.pitch())
-            && Float.isFinite(anchor.roll());
-    }
-
-    private static double clamp(double value) {
-        return Math.max(-1.0, Math.min(1.0, value));
-    }
 }

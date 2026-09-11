@@ -4,11 +4,6 @@
   "package": "network.azusake.halo.compat.ysm.mixin",
   "compatibilityLevel": "JAVA_21",
   "plugin": "network.azusake.halo.compat.ysm.mixin.YsmMixinPlugin",
-  "client": [
-    "YsmEntityRenderContextMixin",
-    "YsmGeoRendererNamedMixin"
-  ],
-  "injectors": {
-    "defaultRequire": 0
-  }
+  "client": ["YsmGeoRendererNamedMixin"],
+  "injectors": {"defaultRequire": 0}
 }
