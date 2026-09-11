@@ -92,13 +92,13 @@ static String handle(String command)
 | `HaloModConfigStore.getPermissionLevel()` | `/halo` 命令树所需权限等级（默认 2，范围 0-4） |
 | `HaloModConfig.getCommandPermissionLevel()` | 当前权限等级 |
 | `HaloModConfig.setCommandPermissionLevel(int)` | 设置权限等级（钳制到 0-4） |
-| `HaloModConfig.isExperimentalYsmAnchorEnabled()` | YSM 2.6.5 实验性 Head 锚点是否启用（默认 `false`） |
+| `HaloModConfig.isExperimentalYsmAnchorEnabled()` | YSM 2.6.5 Head 锚点是否启用（默认 `true`，设为 `false` 可关闭） |
 | `HaloModConfig.getExperimentalYsmHeadLocalOffset()` | Head 局部偏移 `[右, 上, 后]`，单位格，默认全零 |
 
 ### YSM 2.6.5 实验性兼容
 
-仅支持 Fabric 1.20.1 的 `2.6.5-fabric+mc1.20.1` 发布包。旧配置会在下次启动时自动加入
-以下两个实验字段；开关仍默认为 `false`。编辑配置后需要重启：
+仅支持 NeoForge 1.21.1 的 `2.6.5-neoforge+mc1.21.1` 发布包。旧配置会在下次启动时自动加入
+以下两个字段；开关默认为 `true`，如需关闭 YSM 捕获可设为 `false`。编辑配置后需要重启：
 
 ```json
 {

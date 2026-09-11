@@ -20,10 +20,10 @@ public class HaloModConfig {
     private int commandPermissionLevel = 2;
 
     /**
-     * Experimental YSM 2.6.5 render-anchor capture.  Disabled by default so
-     * ordinary installations never execute version-pinned compatibility code.
+     * Experimental YSM 2.6.5 render-anchor capture. Enabled by default after
+     * compatibility validation; users may opt out in halo_mod_config.json.
      */
-    private boolean experimentalYsmAnchorEnabled = false;
+    private boolean experimentalYsmAnchorEnabled = true;
 
     /**
      * Head-local offset [right, up, back] in blocks, applied after YSM's Head
