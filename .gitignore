@@ -29,11 +29,12 @@ desktop.ini
 # Minecraft / Fabric Loom
 run/
 runServer/
+runForgeServer/
 logs/
 crash-reports/
 
 # Local dev tools (user-specific, not part of the mod)
-scripts/update-proxy.sh
+scripts/
 
 # Local containerized build (user-specific)
 .local/
@@ -63,6 +64,5 @@ serika*
 run2/
 .VSCodeCounter/
 build-in-docker.ps1
-scripts/stop-halo-server.ps1
 bin/
 .eclipse/
