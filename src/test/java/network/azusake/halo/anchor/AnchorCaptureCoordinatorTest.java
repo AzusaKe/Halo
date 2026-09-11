@@ -116,6 +116,20 @@ class AnchorCaptureCoordinatorTest {
         assertFalse(source.submit(entityUuid, pose(1.0, 2.0, 3.0)));
     }
 
+    @Test
+    void entityUnloadImmediatelyInvalidatesCapture() {
+        AnchorSource source = HaloAnchorApi.register("example:head");
+        AnchorCaptureCoordinator.beginFrame(world);
+        AnchorCaptureCoordinator.beginEntityRender(entityUuid, 7, world,
+            new AnchorVec3(0.0, 0.0, 0.0), true);
+        assertTrue(source.submit(entityUuid, pose(1.0, 2.0, 3.0)));
+        AnchorCaptureCoordinator.endEntityRender();
+
+        AnchorCaptureCoordinator.clearEntity(entityUuid);
+        assertNull(AnchorCaptureCoordinator.resolve(entityUuid, 7, world,
+            new AnchorVec3(0.0, 0.0, 0.0)));
+    }
+
     private static AnchorPose pose(double x, double y, double z) {
         return new AnchorPose(new AnchorVec3(x, y, z), new AnchorRotation(0, 0, 0, 1));
     }
