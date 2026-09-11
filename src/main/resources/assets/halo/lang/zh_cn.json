@@ -1,0 +1,21 @@
+{
+  "item.halo.halo_scepter": "光环权杖",
+  "tooltip.halo.halo_scepter.use": "右键实体以选择光环",
+  "tooltip.halo.halo_scepter.remove": "左键实体以移除光环",
+  "tooltip.halo.halo_scepter.self": "下蹲并点击可将目标切换为自己",
+  "screen.halo.halo_scepter.title": "选择光环",
+  "screen.halo.halo_scepter.target": "目标：%s",
+  "screen.halo.halo_scepter.search": "搜索光环",
+  "screen.halo.halo_scepter.search_hint": "命名空间:名称 或 名称",
+  "screen.halo.halo_scepter.no_definitions": "未加载本地光环定义",
+  "screen.halo.halo_scepter.no_results": "没有匹配的光环",
+  "gui.halo.close": "关闭",
+  "message.halo.halo_scepter.no_permission": "需要权限等级 %s 才能使用光环权杖",
+  "message.halo.halo_scepter.not_holding": "你必须继续持有光环权杖",
+  "message.halo.halo_scepter.invalid_target": "光环目标已失效",
+  "message.halo.halo_scepter.session_expired": "光环权杖的目标锁定已失效",
+  "message.halo.halo_scepter.applied": "已将 %s 赋予 %s",
+  "message.halo.halo_scepter.too_far": "目标距离过远",
+  "message.halo.halo_scepter.no_halo": "%s 没有可移除的光环",
+  "message.halo.halo_scepter.removed": "已移除 %s 的光环"
+}

@@ -1,6 +1,7 @@
 package network.azusake.halo;
 
 import network.azusake.halo.anchor.AnchorCaptureCoordinator;
+import network.azusake.halo.client.HaloScepterClientInput;
 import network.azusake.halo.client.NeoForgeHaloCommandInterceptor;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
@@ -71,6 +72,7 @@ public final class HaloModClient {
         // querying the entity every frame.
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> {
             HaloClientManager.getInstance().updateEntityStateCache();
+            HaloScepterClientInput.tick(net.minecraft.client.Minecraft.getInstance());
         });
 
         // Clean up entity cache when entities are unloaded from the client world

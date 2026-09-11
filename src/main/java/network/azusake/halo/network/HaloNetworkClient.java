@@ -3,6 +3,7 @@ package network.azusake.halo.network;
 import io.netty.buffer.Unpooled;
 import network.azusake.halo.data.HaloTransitionState;
 import network.azusake.halo.client.HaloPhaseTracker;
+import network.azusake.halo.client.HaloScepterScreen;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
@@ -126,6 +127,58 @@ public final class HaloNetworkClient {
         context.enqueueWork(() ->
             HaloPhaseTracker.getInstance().transitionToMultiplayer()
         );
+    }
+
+    /** Open the selector for the target locked by the server session. */
+    public static void handleScepterOpen(HaloPayloads.ScepterOpen payload, IPayloadContext context) {
+        var buf = payload.buf();
+        int targetEntityId = buf.readInt();
+        UUID targetUuid = HaloNetwork.readUuid(buf);
+        String targetName = buf.readUtf(128);
+        context.enqueueWork(() -> Minecraft.getInstance().gui.setScreen(
+            new HaloScepterScreen(targetEntityId, targetUuid, targetName)
+        ));
+    }
+
+    /** Close a selector whose server-side session became invalid. */
+    public static void handleScepterCloseScreen(
+        HaloPayloads.ScepterCloseScreen payload,
+        IPayloadContext context
+    ) {
+        context.enqueueWork(() -> {
+            Minecraft client = Minecraft.getInstance();
+            if (client.gui.screen() instanceof HaloScepterScreen) {
+                client.gui.setScreen(null);
+            }
+        });
+    }
+
+    public static void sendScepterSelection(Identifier definitionId) {
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection == null || !NetworkRegistry.hasChannel(connection, HaloNetwork.CHANNEL_SCEPTER_SELECT)) {
+            return;
+        }
+        var buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeIdentifier(definitionId);
+        ClientPacketDistributor.sendToServer(new HaloPayloads.ScepterSelect(buf));
+    }
+
+    public static void sendScepterClose() {
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection != null && NetworkRegistry.hasChannel(connection, HaloNetwork.CHANNEL_SCEPTER_CLOSE)) {
+            ClientPacketDistributor.sendToServer(
+                new HaloPayloads.ScepterClose(new FriendlyByteBuf(Unpooled.buffer()))
+            );
+        }
+    }
+
+    public static void sendScepterRemoveSelf() {
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection != null && NetworkRegistry.hasChannel(connection, HaloNetwork.CHANNEL_SCEPTER_REMOVE_SELF)) {
+            ClientPacketDistributor.sendToServer(
+                new HaloPayloads.ScepterRemoveSelf(new FriendlyByteBuf(Unpooled.buffer()))
+            );
+        }
     }
 
     /**

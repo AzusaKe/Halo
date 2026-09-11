@@ -38,5 +38,6 @@ public class HaloTickHandler {
         // Refresh the server reference so debug chat messages work
         network.azusake.halo.lifecycle.EntityHaloTracker.setCurrentServer(server);
         HaloManager.getInstance().tickAll(server);
+        network.azusake.halo.item.HaloScepterService.tick(server);
     }
 }

@@ -3,6 +3,7 @@ package network.azusake.halo.server;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
+import network.azusake.halo.item.HaloScepterService;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
@@ -59,6 +60,7 @@ public final class HaloServerEvents {
                 entity.getUUID(), entity.getType().getDescription().getString()
             );
             HaloManager.getInstance().removeHalo(entity.getUUID(), serverLevel.getServer());
+            HaloScepterService.invalidateTarget(serverLevel.getServer(), entity.getUUID());
         });
     }
 
@@ -92,6 +94,7 @@ public final class HaloServerEvents {
             );
             HaloManager.getInstance().removeHalo(uuid, player.level().getServer());
             HaloJsonLoader.removeClientReportedDefs(uuid);
+            HaloScepterService.close(uuid);
         });
     }
 }
