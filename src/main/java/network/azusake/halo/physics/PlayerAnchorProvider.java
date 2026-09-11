@@ -105,7 +105,7 @@ public final class PlayerAnchorProvider {
     /**
      * Head roll for this entity this frame.  Vanilla entity heads never roll,
      * but the local player's head follows the camera, so its roll is inherited
-     * from the actual camera rotation.  The 1.20.1 {@link Camera} exposes no
+     * from the actual camera rotation.  The 1.21.1 {@link Camera} exposes no
      * {@code getRoll()}; a roll (when present, e.g. from a camera mod) is folded
      * into {@link Camera#getRotation()}, so it is recovered by stripping the
      * camera's own yaw/pitch component.  Other entities (including remote
