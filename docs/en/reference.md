@@ -44,7 +44,7 @@ A halo definition JSON file contains the following top-level fields:
 
 - **Type**: String
 - **Required**: No
-- **Default**: `"1.0.10"` (when absent, the definition is treated as this version)
+- **Default**: `"1.1.0"` (when absent; older versions remain supported)
 - **Format**: Semantic version `major.minor.patch`, e.g. `"1.0.10"`
 - **Description**: The schema version this definition was written for. The parser uses this to handle format changes across mod versions. If the definition's version is higher than the mod supports, a warning is logged and unrecognized fields are skipped — rendering may fail. You can safely omit this field for definitions written for the current mod version.
 
@@ -211,14 +211,19 @@ Each element in the `layers` array is a **group** — a transform node that can 
 
 ## Primitive
 
-Two primitive types are currently supported:
+Three primitive types are currently supported:
 
 - **`billboard`**: A flat quad with no thickness
 - **`ring`**: A cylindrical ring with radius and axial width, supporting separate inner and outer textures
 
-More primitive types will be supported in the future:
+- **`mesh`**: Static resource-pack OBJ geometry with an optional grayscale alpha mask
 
-- **`mesh`**: 3D mesh model
+### Mesh Primitive
+
+`mesh` requires `model`, `texture`, and three-component `size:[x,y,z]`. Size fits local bounds in blocks,
+preserving the exported origin; the enclosing group controls transforms and animation.
+Optional `material.effects` supports one `alpha_mask` with LINEAR/STEP transfer and U/V animation.
+See [OBJ meshes and alpha masks](mesh.md) for the complete JSON, defaults, coordinates, export and reload rules.
 
 ### Billboard Primitive
 

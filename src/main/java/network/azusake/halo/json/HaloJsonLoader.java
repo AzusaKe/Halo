@@ -208,6 +208,7 @@ public final class HaloJsonLoader {
         @Override
         public void reload(ResourceManager manager) {
             HaloJsonLoader.reload(manager, clientLoadedIds);
+            network.azusake.halo.render.HaloMeshResources.reload(manager, snapshot());
         }
     }
     public static void clearServerResources() { RESOURCES.reload(0, List.of()); clientReportedDefs.clear(); }

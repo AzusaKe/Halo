@@ -46,6 +46,7 @@ public class HaloModClient implements ClientModInitializer {
         // definitions are available for rendering in single-player and when
         // definitions are bundled in a client resource pack.
         HaloJsonLoader.registerClientResources();
+        network.azusake.halo.render.HaloMeshShader.register();
 
         // Register entity-anchor profile loader on the client side
         network.azusake.halo.json.EntityAnchorLoader.registerClientResources();
@@ -58,6 +59,7 @@ public class HaloModClient implements ClientModInitializer {
 
         // Input polling belongs to the client tick; scene facts are sampled once per render frame.
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            network.azusake.halo.render.HaloMeshResources.refreshDefinitions();
             HaloScepterClientInput.tick(client);
         });
 

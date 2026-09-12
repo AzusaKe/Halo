@@ -14,6 +14,8 @@ import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.physics.*;
 import network.azusake.halo.platform.*;
 import java.util.*;
+import org.joml.Matrix4f;
+import com.mojang.blaze3d.systems.VertexSorter;
 import static network.azusake.halo.platform.PlatformTypes.*;
 
 /** Fabric render adapter: capture world facts, then submit core-generated batches. */
@@ -21,17 +23,21 @@ public final class HaloRenderer {
     private static final HaloRenderer INSTANCE=new HaloRenderer();
     private Object previousWorld;
     private long worldToken;
-    public void clearWorld() { previousWorld = null; }
+    private record DeferredMeshes(List<DrawBatch> batches, Matrix4f modelView, Matrix4f projection, VertexSorter sorting) {}
+    private DeferredMeshes deferredMeshes;
+    public void clearWorld() { previousWorld = null; deferredMeshes = null; }
     public static HaloRenderer getInstance() { return INSTANCE; }
     public IdlePhaseTracker.RenderState readLastRenderState(UUID uuid) { return HaloClientState.get().renderer().readLastRenderState(uuid); }
     public void clearIdlePhases() { HaloClientState.get().renderer().clearIdlePhases(); }
     public void renderHalos(MatrixStack matrices,Camera camera,float tickDelta) {
+        deferredMeshes = null;
         MinecraftClient client=MinecraftClient.getInstance();
         if(client.world==null) return;
         if(previousWorld!=client.world) { previousWorld=client.world;worldToken++; }
         HaloClientManager.getInstance().restoreLocalOwnership();
         var runtime=HaloClientState.get();
-        runtime.definitions(HaloJsonLoader.snapshot());
+        var assets = HaloMeshResources.snapshot();
+        runtime.definitions(assets.definitions());
         Map<UUID,FrameScene.EntitySample> samples=new LinkedHashMap<>();
         var assignments=runtime.assignments();
         for(var entity:client.world.getEntities()) {
@@ -63,19 +69,67 @@ public final class HaloRenderer {
             }, id -> {
                 try { client.getTextureManager().getTexture(game(id));return true; }
                 catch(RuntimeException ex) { return false; }
-            });
-        try {
-            for(DrawBatch batch:runtime.render(scene)) submit(client,batch);
-            if (client.isInSingleplayer()) IntegratedBridge.publishDiagnostics(runtime.diagnostics());
+            }, assets.visuals());
+        List<DrawBatch> batches = runtime.render(scene);
+        {
+            var meshes = new ArrayList<DrawBatch>();
+            var legacy = new ArrayList<DrawBatch>();
+            for (var batch : batches) {
+                if (batch.material() instanceof MaterialState.Mesh) meshes.add(batch);
+                else legacy.add(batch);
+            }
+            if (!meshes.isEmpty()) deferredMeshes = new DeferredMeshes(List.copyOf(meshes),
+                new Matrix4f(RenderSystem.getModelViewMatrix()), new Matrix4f(RenderSystem.getProjectionMatrix()),
+                RenderSystem.getVertexSorting());
+            batches = legacy;
         }
-        finally { RenderSystem.setShaderColor(1,1,1,1);RenderSystem.enableCull();RenderSystem.enableDepthTest();RenderSystem.depthMask(true);RenderSystem.disableBlend(); }
+        submitBatches(client, batches);
+        if (client.isInSingleplayer()) IntegratedBridge.publishDiagnostics(runtime.diagnostics());
+    }
+
+    /** Submit after entity buffers have been flushed, while the world shader pipeline is still active. */
+    public void submitDeferredMeshes() {
+        DeferredMeshes pending = deferredMeshes;
+        deferredMeshes = null;
+        if (pending == null || MinecraftClient.getInstance().world == null) return;
+        Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
+        var sorting = RenderSystem.getVertexSorting();
+        var modelView = RenderSystem.getModelViewStack();
+        modelView.push();
+        try {
+            modelView.peek().getPositionMatrix().set(pending.modelView());
+            RenderSystem.applyModelViewMatrix();
+            RenderSystem.setProjectionMatrix(pending.projection(), pending.sorting());
+            submitBatches(MinecraftClient.getInstance(), pending.batches());
+        } finally {
+            modelView.pop();
+            RenderSystem.applyModelViewMatrix();
+            RenderSystem.setProjectionMatrix(projection, sorting);
+        }
+    }
+
+    private static void submitBatches(MinecraftClient client, List<DrawBatch> batches) {
+        int previousTexture0 = RenderSystem.getShaderTexture(0);
+        int previousTexture1 = RenderSystem.getShaderTexture(1);
+        var previousShader = RenderSystem.getShader();
+        try {
+            for(DrawBatch batch:batches) submit(client,batch);
+        }
+        finally {
+            RenderSystem.setShaderTexture(0, previousTexture0);
+            RenderSystem.setShaderTexture(1, previousTexture1);
+            if (previousShader != null) RenderSystem.setShader(() -> previousShader);
+            RenderSystem.setShaderColor(1,1,1,1);RenderSystem.enableCull();RenderSystem.enableDepthTest();RenderSystem.depthMask(true);RenderSystem.disableBlend();
+        }
     }
     private static void submit(MinecraftClient client,DrawBatch b) {
         if(b.cull())RenderSystem.enableCull();else RenderSystem.disableCull();
         if(b.blend()){RenderSystem.enableBlend();RenderSystem.defaultBlendFunc();}else RenderSystem.disableBlend();
         if(b.depthTest())RenderSystem.enableDepthTest();else RenderSystem.disableDepthTest();
         RenderSystem.depthMask(b.depthWrite());RenderSystem.setShaderColor(b.red(),b.green(),b.blue(),b.alpha());
-        if(b.textured()) {
+        if (b.material() instanceof MaterialState.Mesh mesh) {
+            if (!HaloMeshShader.bind(client, b, mesh)) return;
+        } else if(b.textured()) {
             RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
             RenderSystem.setShaderTexture(0,client.getTextureManager().getTexture(game(b.texture())).getGlId());
         } else RenderSystem.setShader(GameRenderer::getPositionColorProgram);

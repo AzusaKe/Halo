@@ -9,7 +9,7 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**, with feature version **1.3.1**, the accepted refactor baseline. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md) and the [core contracts](core/README.md).
+This branch targets **Minecraft 1.20.1 Fabric**, developing **2.0.0** native OBJ meshes and alpha masks; **1.3.1** remains the accepted refactor baseline. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 For contributors and coding agents, the [development guide](DEVELOPMENT.md) covers feature development, debugging, porting to other game branches, and the two-repository commit and release workflow.
 
@@ -66,7 +66,7 @@ This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader ve
 
 - [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
 - [x] **More Animations**: Animation-driven `alpha` (opacity) and `glow` intensity channels, scale animations, and "intro animations"
-- [ ] **More Halo Layer Types**: Planned additions include `mesh` (mesh loaded from `.obj` files)
+- [x] **OBJ Mesh Primitives**: Three-axis size, authored origins, grayscale alpha masks and U/V animation; see the [mesh authoring guide](docs/en/mesh.md).
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
 - [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
@@ -308,7 +308,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`. Uncommitted development builds append `.dev`; a clean release uses `halo-1.20.1-fabric-1.3.1+adapter.1.jar`. See the [release checks](docs/core-refactor.md).
+The compiled JAR is under `build/libs/`; the current development artifact is `halo-1.20.1-fabric-2.0.0+adapter.1.dev.jar`. A release requires both repositories to be pinned and validated. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 

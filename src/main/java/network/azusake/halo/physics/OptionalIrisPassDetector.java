@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Method;
 
 /** Optional Iris pass probe used as a hard safety gate for anchor captures. */
-final class OptionalIrisPassDetector {
+public final class OptionalIrisPassDetector {
 
     private static final String IRIS_MOD_ID = "iris";
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
@@ -45,11 +45,23 @@ final class OptionalIrisPassDetector {
                 OptionalIrisPassDetector.class.getClassLoader());
             Object api = apiClass.getMethod("getInstance").invoke(null);
             Method shadowPass = apiClass.getMethod("isRenderingShadowPass");
-            return () -> !(boolean) shadowPass.invoke(api);
+            Method shaderPack = apiClass.getMethod("isShaderPackInUse");
+            return new Probe() {
+                public boolean isKnownMainPass() throws Exception { return !(boolean) shadowPass.invoke(api); }
+                public boolean hasShaderPack() throws Exception { return (boolean) shaderPack.invoke(api); }
+            };
         } catch (Throwable error) {
             warnUnknown(error);
             return () -> false;
         }
+    }
+
+    /** Whether the adapter must use the shader-pack mesh program for this frame. */
+    public static boolean hasShaderPack() {
+        if (!FabricLoader.getInstance().isModLoaded(IRIS_MOD_ID)) return false;
+        isMainPass(); // Initialize the same cached public-API probe used for captures.
+        try { return probe.hasShaderPack(); }
+        catch (Exception error) { warnUnknown(error); return true; }
     }
 
     private static void warnUnknown(Throwable error) {
@@ -67,5 +79,6 @@ final class OptionalIrisPassDetector {
     @FunctionalInterface
     private interface Probe {
         boolean isKnownMainPass() throws Exception;
+        default boolean hasShaderPack() throws Exception { return true; }
     }
 }

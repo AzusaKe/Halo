@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 1.20.1 Fabric**，功能版本为 **1.3.1**，作为已验收的重构基准。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)和 [core 接口契约](core/README.md)。
+本分支面向 **Minecraft 1.20.1 Fabric**，正在开发 **2.0.0** 的原生 OBJ mesh 与透明遮罩支持；已验收的重构基准仍为 **1.3.1**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
 
@@ -66,7 +66,7 @@
 
 - [ ] **在物品栏内可见** : 目前模组的光环不会在物品栏中的玩家模型头部渲染，等待后续加入
 - [x] **更多动画** : 添加 `animation.alpha` 透明度 / `animation.glow` 发光强度动画、缩放动画、以及"启动动画"
-- [ ] **更多光环layer种类** : 预计将添加`mesh`（以`.obj`为载体的网格）
+- [x] **OBJ mesh 图元**：三维 size、保留导出原点、灰度透明遮罩与 U/V 动画；参见 [mesh 作者指南](docs/zh/mesh.md)。
 - [ ] **更多的layer字段** : 将加入thickness，采用精灵图挤出的方法使billboard拥有厚度，但可能在材质较大的情况下影响性能
 - [ ] **更完善的自发光** : 兼容更多光影、质感更强
 - [ ] **更多实体和姿态适配** : 目前光环的显示位置和动画在部分实体上存在问题，等待修复
@@ -308,7 +308,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-1.20.1-fabric-1.3.1+adapter.1.jar`。
+编译好的 JAR 文件位于 `build/libs/`；当前开发成品为 `halo-1.20.1-fabric-2.0.0+adapter.1.dev.jar`。正式发布需要先完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 

@@ -25,7 +25,8 @@
     "mixins": [
         "halo.mixins.json",
         "halo-ysm.mixins.json",
-        "halo-emf.mixins.json"
+        "halo-emf.mixins.json",
+        "halo-iris.mixins.json"
     ],
     "depends": {
         "fabricloader": ">=0.15.0",

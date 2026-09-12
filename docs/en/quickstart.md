@@ -124,7 +124,7 @@ Here is what each field in this JSON means:
 | `layers[0].position` | This layer's position in the halo's local space `[X, Y, Z]` (in blocks). `[0, 0, 0]` represents the halo's **origin** — this origin will be aligned with the position computed by damping physics. The layer's actual position in space = damped follow position + the offset defined here. |
 | `layers[0].rotation` | This layer's initial rotation `[pitch, yaw, roll]` (in degrees). `[0, 0, 0]` means no rotation. |
 | `layers[0].scale` | This layer's scale multiplier. `1.0` is the original size. |
-| `layers[0].primitive` | The rendering primitive for this layer. `"billboard"` is a flat quad with no thickness (named for its lack of depth) — this is currently the only available primitive type. |
+| `layers[0].primitive` | The rendering primitive for this layer. `"billboard"` is a flat quad with no thickness. Other supported types are `ring` and [OBJ `mesh`](mesh.md). |
 | `layers[0].primitive.texture` | The texture path. Format: `namespace:textures/halo/filename.png`. This path is relative to `assets/`, where the **namespace** corresponds to a folder name under `assets/`. For example, in `halo:textures/halo/yourhalo.png`, `halo` is the namespace and maps to the `assets/halo/` folder. If you use your own namespace (e.g. `mypack`), place files under `assets/mypack/` and write the path as `mypack:textures/halo/yourhalo.png`. |
 | `layers[0].primitive.size` | The quad's dimensions `[width, height]` (in blocks). `[0.5, 0.5]` is a 0.5×0.5-block square. |
 | `animation` | The halo's overall animation. Here we've added a Y-axis sinusoidal bobbing effect — the halo gently floats up and down, giving it a lively feel. |
@@ -171,7 +171,7 @@ yourhalo_pack/
 
 ### ⚠️ Texture Orientation (Important)
 
-Each halo layer is rendered on a flat quad (billboard) with no thickness. When a layer's `position` and `rotation` are both set to `[0, 0, 0]`, and the halo is mounted at some `offset` from the entity's head:
+This example renders each layer on a flat quad (billboard) with no thickness. When a layer's `position` and `rotation` are both set to `[0, 0, 0]`, and the halo is mounted at some `offset` from the entity's head:
 
 **Basic direction mapping**:
 - **Up** in an image viewer = **up** for the player in-game (world Y+, toward the sky) — **never flips**
