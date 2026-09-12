@@ -220,9 +220,11 @@ Three primitive types are currently supported:
 
 ### Mesh Primitive
 
-`mesh` requires `model`, `texture`, and three-component `size:[x,y,z]`. Size fits local bounds in blocks,
-preserving the exported origin; the enclosing group controls transforms and animation.
-Optional `material.effects` supports one `alpha_mask` with LINEAR/STEP transfer and U/V animation.
+`mesh` requires `model` and `texture`. By default, required `size:[x,y,z]` fits local bounds in blocks by axis.
+With `preserve_proportions: true` (default false), `size` is optional and ignored; primitive `scale` (default 1)
+uniformly multiplies the authored coordinates. Both modes preserve the exported origin; groups control transforms and animation.
+Optional `material.effects` supports one `alpha_mask` with LINEAR/STEP transfer and U/V animation;
+base/mask dimensions must be equal or uniform integer multiples/divisors.
 See [OBJ meshes and alpha masks](mesh.md) for the complete JSON, defaults, coordinates, export and reload rules.
 
 ### Billboard Primitive

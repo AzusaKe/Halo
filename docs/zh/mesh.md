@@ -45,7 +45,7 @@ assets/mypack/textures/halo/example_mask.png
 
 ## 坐标与尺寸
 
-`model`、`texture` 和三个分量的 `size` 必填。`size` 是沿模型本地 X/Y/Z 的目标包围盒尺寸，单位为格，
+`model`、`texture` 必填。默认模式下，三个分量的 `size` 也必填。`size` 是沿模型本地 X/Y/Z 的目标包围盒尺寸，单位为格，
 各轴独立缩放，之后再应用所属 group 和祖先的缩放。大小不是乘数；`[1,1,1]` 会将模型包围盒适配为一格见方。
 
 保留导出的原点，不居中、不换轴、不额外旋转。OBJ 的 `(0,0,0)` 对应父组原点；父组位移和旋转为零时坐标轴一致。
@@ -54,6 +54,29 @@ assets/mypack/textures/halo/example_mask.png
 
 `size` 必须为有限非负数。平面模型的零跨度轴只接受 `size=0`；该轴保持原始坐标，不产生除零。
 例如 XY 平面模型使用 `[0.5,0.5,0]`。有跨度的轴允许缩放到零。
+
+希望导出的模型开箱即用时，在图元内设置 **`preserve_proportions: true`**：
+
+```json
+{
+  "type": "mesh",
+  "model": "mypack:models/halo/example.obj",
+  "texture": "mypack:textures/halo/example.png",
+  "preserve_proportions": true,
+  "scale": 1
+}
+```
+
+| 图元字段 | 默认 | 行为 |
+| --- | --- | --- |
+| `preserve_proportions` | `false` | `true` 保留 OBJ 原始坐标并忽略 `size`，不会按 `size` 限制模型大小 |
+| `scale` | `1` | 一个有限非负数；仅在 `preserve_proportions` 开启时，统一乘到原始 XYZ 坐标 |
+| `size` | 关闭开关时必填 | 开启时可以省略；若提供，仍须满足三个分量、有限非负数的格式要求 |
+
+此模式下，`scale: 1` 时一个 OBJ 单位对应一格，顶点变换为
+`所属 group/祖先累计矩阵 × 图元统一 scale × OBJ 顶点`。缩放围绕导出原点进行，
+包括几何相对原点的偏移；平面模型的零跨度轴不需要额外设置。
+group 和 positioning 的缩放仍独立作用。开关关闭时，图元内的 `scale` 不生效，旧定义继续按 `size` 分轴换算。
 
 ## OBJ 导出
 
@@ -73,7 +96,8 @@ Blender 原生 OBJ 导出可使用 **Forward = -Z、Up = Y**（Python：`forward
 外部 OBJ 没有统一的轴向元数据，Halo 按文件里的 XYZ 原样读取，不能猜测它来自 Z-up 还是 Y-up 软件。
 先在 Blender 中按源文件约定导入并确认朝向，之后统一执行上述 Halo 导出转换。
 OBJ 的顶点应相对于对应 group 的原点：对象变换可以烘焙进顶点，但已经写入 JSON group 的变换不能再烘焙一次。
-希望保留导出几何的绝对尺寸时，将 `size` 设置为导出顶点包围盒的实际 XYZ 跨度；任意填 `[1,1,1]` 会独立拉伸三个轴。
+希望保留导出几何的绝对尺寸时，使用 `preserve_proportions: true, scale: 1`。
+旧定义仍可将 `size` 设置为导出顶点包围盒的实际 XYZ 跨度；默认模式下任意填 `[1,1,1]` 会独立拉伸三个轴。
 
 已用 Blender 5.2 实际导出一个原点偏移、三个轴长度不同的四面体，验证 `(0.25,0.5,1)`
 进入 OBJ 后为 `(0.25,1,-0.5)`，导入 core 后保持该坐标、面绕序及 UV 接缝；没有额外居中或镜像。
@@ -89,13 +113,19 @@ OBJ 的 V 在导入时转换一次为现有贴图坐标：U 向右、V 向下。
 | 字段 | 默认 | 行为 |
 | --- | --- | --- |
 | `double_sided` | `true` | 双面绘制；`false` 按面绕序剔除背面 |
-| `effects[].texture` | 必填 | 与基础 PNG 宽高相同的灰度遮罩 |
+| `effects[].texture` | 必填 | 灰度遮罩 PNG；与基础 PNG 同尺寸，或宽高按同一整数倍放大/缩小 |
 | `mode` | `linear` | `linear` 使用灰度；`step` 根据阈值二值化 |
 | `threshold` | `0.5` | `[0,1]`，仅 `step` 生效；灰度大于等于阈值时显示 |
 | `uv_offset.u/v` | 零偏移 | 与现有动画相同的 term 数组，相同通道各项求和 |
 
 遮罩读取 PNG 的 R 通道数值，忽略遮罩自身 alpha，不做 sRGB 转换：黑为 0，白为 1，128 灰为 `128/255`。
 最近邻、循环采样，不改变共享纹理的过滤设置。`linear` 表示灰度与透明度的对应关系，不表示双线性过滤。
+
+基础纹理为 `m × n` 时，遮罩可以是 `i*m × i*n` 或 `m/i × n/i`，其中 `i` 为正整数且尺寸必须是整数。
+例如 `32×16` 接受 `16×8`、`32×16`、`64×32`、`96×48`，不接受 `64×16`（两轴倍数不同）
+或 `48×24`（非整数倍）。两张图共用归一化 UV，各自按原生分辨率读取；小图的每个像素对应大图上的完整像素块，
+不降低大图分辨率、不平均、不生成或重复上传放大贴图，高分辨率遮罩的细节完整保留。
+基础纹理仍遵循 Minecraft/资源包的过滤设置；保持 PNG 的 `blur` 关闭（普通默认值）即可按最近邻无损放大像素。
 
 ```text
 maskUV = fract(baseUV + offset(t))
@@ -125,9 +155,12 @@ Iris 路径中，未被丢弃的 mesh 片元也写入透明阶段深度 `depthte
 
 内置 `halo:mesh_demo`、`halo:mesh_mask_demo`、`halo:mesh_step_demo` 分别演示普通贴图、线性遮罩与阈值遮罩。
 使用 `/halo show @s halo:mesh_mask_demo` 佩戴，`/halo hide @s` 关闭。
+`halo:mesh_preserve_demo` 省略 `size`，以图元 `scale: 0.4` 原比例显示导出几何。
+`halo:mesh_mask_resolution_demo` 使用两个独立 mesh，将 32×32 基础纹理分别搭配 16×16、64×64 遮罩；
+64×64 遮罩包含细条纹，用于检查高分辨率细节是否保留。
 
 模型、基础纹理和遮罩均由客户端资源包提供，按资源包优先级覆盖。修改后使用 **F3+T**；服务端 `/reload` 是数据包重载。
 专用服不需要加载 OBJ 或 PNG，也不会通过 Halo 协议传输这些文件；希望玩家看到同样外观时，应分发相同的客户端资源包。
 
-文件缺失或损坏只跳过相关 mesh；遮罩尺寸不匹配同样跳过该 mesh，日志会说明资源 ID 和原因。
+文件缺失或损坏只跳过相关 mesh；遮罩尺寸不符合整数倍规则时同样跳过该 mesh，日志会说明资源 ID、尺寸和原因。
 修复并重载即可恢复，佩戴关系和其他有效图元保留。

@@ -220,7 +220,9 @@
 
 ### Mesh 图元
 
-`mesh` 必须提供 `model`、`texture` 与三维 `size:[x,y,z]`。size 为本地包围盒尺寸（格），保留导出原点，变换和动画由父组控制。
+`mesh` 必须提供 `model`、`texture`；默认还须提供三维 `size:[x,y,z]`，按本地包围盒尺寸（格）分轴缩放。
+开启 `preserve_proportions: true`（默认关闭）后，`size` 可省略且不生效，图元 `scale`（默认 1）统一乘到原始坐标。
+两种模式均保留导出原点，变换和动画由父组控制。遮罩与基础纹理允许同尺寸或宽高按同一整数倍放大/缩小。
 可选 `material.effects` 支持一个 `alpha_mask`，提供线性/阈值模式及 U/V 动画。
 完整 JSON、字段默认值、坐标、导出与重载规则见 [OBJ mesh 与透明遮罩](mesh.md)。
 

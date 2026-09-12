@@ -45,7 +45,7 @@ A complete definition follows. Omit `material` for an ordinary textured mesh.
 
 ## Coordinates and size
 
-`model`, `texture`, and three-component `size` are required. Size specifies the target local X/Y/Z bounding-box
+`model` and `texture` are required. By default, three-component `size` is also required. Size specifies the target local X/Y/Z bounding-box
 dimensions in blocks, with independent scaling per axis before group/ancestor scaling. It is a dimension,
 not a multiplier: `[1,1,1]` fits the bounds into a one-block cube.
 
@@ -56,6 +56,30 @@ around your intended pivot. Position, rotation and animation belong on the group
 
 Size must be finite and nonnegative. A zero-extent source axis requires size=0 and retains its authored
 coordinate on that axis; an XY plane uses `[0.5,0.5,0]`. An axis with nonzero extent may be collapsed to zero.
+
+For ready-to-use exported geometry, set **`preserve_proportions: true`** inside the primitive:
+
+```json
+{
+  "type": "mesh",
+  "model": "mypack:models/halo/example.obj",
+  "texture": "mypack:textures/halo/example.png",
+  "preserve_proportions": true,
+  "scale": 1
+}
+```
+
+| Primitive field | Default | Behavior |
+| --- | --- | --- |
+| `preserve_proportions` | `false` | `true` keeps authored OBJ coordinates and ignores `size`; this does not fit geometry inside `size` |
+| `scale` | `1` | One finite nonnegative number; uniformly multiplies authored XYZ only when `preserve_proportions` is true |
+| `size` | Required when the flag is false | May be omitted when true; if supplied it must still be a valid three-component nonnegative size |
+
+In this mode, one OBJ unit is one block at `scale: 1`, and the transform is
+`group/ancestor matrix × uniform primitive scale × OBJ vertex`. Scaling is about the authored origin,
+including any offset of the geometry from that origin. Zero-extent axes need no special settings.
+Group and positioning scales still apply afterwards, independently. With the flag false, primitive `scale`
+has no effect and existing definitions retain independent per-axis size fitting.
 
 ## Exporting OBJ
 
@@ -76,7 +100,8 @@ do not apply the exporter axis conversion a second time.
 External OBJ files have no standard axis metadata. Import them into Blender with their source axis convention,
 verify orientation, then export using the Halo convention above. Halo reads OBJ XYZ unchanged.
 Vertices must be relative to the enclosing group's origin; do not bake a group transform into geometry and
-also encode it in JSON. To retain exact exported dimensions, set `size` to the exported XYZ bounding-box extents.
+also encode it in JSON. To retain exact exported dimensions, use `preserve_proportions: true, scale: 1`.
+Older definitions can still set `size` to the exported XYZ bounding-box extents.
 
 A Blender 5.2 export of an asymmetric off-origin tetrahedron verifies that `(0.25,0.5,1)` becomes
 `(0.25,1,-0.5)`, retains its winding and UV seams, and is neither centered nor mirrored by core.
@@ -93,7 +118,7 @@ Only mesh supports `material` in this release. `effects` may be omitted/empty an
 | Field | Default | Behavior |
 | --- | --- | --- |
 | `double_sided` | `true` | Render both sides; false culls back faces using winding |
-| `effects[].texture` | Required | Grayscale mask PNG with the same width/height as the base PNG |
+| `effects[].texture` | Required | Grayscale mask PNG; same dimensions or a uniform integer multiple/divisor of the base PNG |
 | `mode` | `linear` | `linear` preserves gray values; `step` applies a binary threshold |
 | `threshold` | `0.5` | In [0,1], STEP only; visible when gray is at least the threshold |
 | `uv_offset.u/v` | Zero | Arrays of existing animation terms, summed independently per channel |
@@ -101,6 +126,14 @@ Only mesh supports `material` in this release. `effects` may be omitted/empty an
 The mask reads normalized PNG R, ignores its own alpha, and applies no sRGB conversion. Black is zero,
 white is one, gray 128 is `128/255`. Sampling is nearest and repeating without changing shared texture state.
 LINEAR describes gray-to-alpha transfer, not bilinear filtering.
+
+For a base texture of `m × n`, the mask may be `i*m × i*n` or `m/i × n/i`, with a positive integer `i`
+and integer dimensions. For example, `32×16` accepts `16×8`, `32×16`, `64×32` and `96×48`, but not
+`64×16` (unequal axis factors) or `48×24` (noninteger factor). Both textures use the same normalized UV
+domain at their own resolutions. The smaller texture's pixels cover whole blocks on the larger grid;
+no texture is downsampled, averaged, or uploaded again as an enlarged image. A high-resolution mask keeps
+all of its detail. Base texture filtering remains controlled by Minecraft/resource metadata; keep PNG
+`blur` disabled for pixel-exact nearest enlargement (the ordinary default).
 
 ```text
 maskUV = fract(baseUV + offset(t))
@@ -134,10 +167,13 @@ stages or base-sampling forms pause meshes with a diagnostic; changing packs reb
 
 Built-ins `halo:mesh_demo`, `halo:mesh_mask_demo` and `halo:mesh_step_demo` show base textures, linear masks,
 and step masks. Equip with `/halo show @s halo:mesh_mask_demo`; hide with `/halo hide @s`.
+`halo:mesh_preserve_demo` uses authored geometry with primitive `scale: 0.4` and no `size`.
+`halo:mesh_mask_resolution_demo` pairs a 32×32 base with 16×16 and 64×64 masks on two separate meshes;
+the fine stripes in the 64×64 mask demonstrate that its extra detail is retained.
 
 Models/base textures/masks come from client resource packs, following pack priority. Use **F3+T** after changes;
 server `/reload` reloads data packs instead. Dedicated servers do not load OBJ/PNG files and the Halo protocol
 does not transmit them. Distribute the same client resource pack when players should see the same appearance.
 
-Missing/corrupt assets or mismatched mask dimensions skip only the affected mesh, with resource diagnostics.
+Missing/corrupt assets or mask dimensions outside the integer-ratio rule skip only the affected mesh, with resource diagnostics.
 Repair and reload to recover without re-equipping; other valid primitives remain visible.

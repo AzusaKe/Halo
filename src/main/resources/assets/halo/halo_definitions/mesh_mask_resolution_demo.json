@@ -1,0 +1,153 @@
+{
+  "version": "1.1.0",
+  "id": "halo:mesh_mask_resolution_demo",
+  "orientation_mode": "locked",
+  "positioning": {
+    "offset": [
+      0,
+      0.4,
+      0
+    ],
+    "scale": 1
+  },
+  "layers": [
+    {
+      "id": "mask_16",
+      "rotation": [
+        0,
+        15,
+        10
+      ],
+      "primitive": {
+        "type": "mesh",
+        "model": "halo:models/halo/mesh_demo.obj",
+        "texture": "halo:textures/halo/mesh_demo.png",
+        "size": [
+          0.8,
+          0.12,
+          0.8
+        ],
+        "material": {
+          "double_sided": true,
+          "effects": [
+            {
+              "type": "alpha_mask",
+              "texture": "halo:textures/halo/mesh_demo_mask_16.png",
+              "mode": "linear",
+              "threshold": 0.5,
+              "uv_offset": {
+                "u": [
+                  {
+                    "function": "linear",
+                    "speed": 0.125
+                  }
+                ],
+                "v": [
+                  {
+                    "function": "sin",
+                    "A": 0.05,
+                    "omega": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "animation": {
+        "rotation": {
+          "yaw": [
+            {
+              "function": "linear",
+              "speed": 15
+            }
+          ]
+        }
+      },
+      "position": [
+        -0.55,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mask_64",
+      "rotation": [
+        0,
+        15,
+        10
+      ],
+      "primitive": {
+        "type": "mesh",
+        "model": "halo:models/halo/mesh_demo.obj",
+        "texture": "halo:textures/halo/mesh_demo.png",
+        "size": [
+          0.8,
+          0.12,
+          0.8
+        ],
+        "material": {
+          "double_sided": true,
+          "effects": [
+            {
+              "type": "alpha_mask",
+              "texture": "halo:textures/halo/mesh_demo_mask_64.png",
+              "mode": "linear",
+              "threshold": 0.5,
+              "uv_offset": {
+                "u": [
+                  {
+                    "function": "linear",
+                    "speed": 0.125
+                  }
+                ],
+                "v": [
+                  {
+                    "function": "sin",
+                    "A": 0.05,
+                    "omega": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "animation": {
+        "rotation": {
+          "yaw": [
+            {
+              "function": "linear",
+              "speed": 15
+            }
+          ]
+        }
+      },
+      "position": [
+        0.55,
+        0,
+        0
+      ]
+    }
+  ],
+  "startup": {
+    "segments": [
+      {
+        "duration": 0.5,
+        "alpha": {
+          "from": 0
+        }
+      }
+    ]
+  },
+  "shutdown": {
+    "segments": [
+      {
+        "duration": 0.5,
+        "alpha": {
+          "to": 0
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "version": "1.1.0",
+  "id": "halo:mesh_preserve_demo",
+  "orientation_mode": "locked",
+  "positioning": {
+    "offset": [
+      0,
+      0.4,
+      0
+    ],
+    "scale": 1
+  },
+  "layers": [
+    {
+      "id": "mesh",
+      "rotation": [
+        0,
+        15,
+        10
+      ],
+      "primitive": {
+        "type": "mesh",
+        "model": "halo:models/halo/mesh_demo.obj",
+        "texture": "halo:textures/halo/mesh_demo.png",
+        "preserve_proportions": true,
+        "scale": 0.4
+      },
+      "animation": {
+        "rotation": {
+          "yaw": [
+            {
+              "function": "linear",
+              "speed": 15
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "startup": {
+    "segments": [
+      {
+        "duration": 0.5,
+        "alpha": {
+          "from": 0
+        }
+      }
+    ]
+  },
+  "shutdown": {
+    "segments": [
+      {
+        "duration": 0.5,
+        "alpha": {
+          "to": 0
+        }
+      }
+    ]
+  }
+}
