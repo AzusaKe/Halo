@@ -12,6 +12,7 @@ Core：`AzusaKe/HaloCore` 的 `v1.3.0`，提交 `a12100e48e0e71d07e96c7b7dc69155
 | Halo 适配层 JUnit | 82 项通过、1 项跳过，无失败 |
 | Core 独立性 | 依赖精确为 Gson 2.10 / JOML 1.10.5；生产字节码无 Minecraft/Fabric/Mixin/LWJGL/Blaze3D 引用 |
 | 独立远端克隆 | 从 HaloCore `v1.3.0` 重新克隆，执行 `gradlew build` 成功 |
+| Halo 干净递归克隆 | 从本地已提交的 `1.20.1-fabric` 全新克隆，core 从 GitHub 按 gitlink 检出；`gradlew build -Prelease=true` 成功 |
 | Core GitHub CI | Ubuntu / Java 17 独立构建通过：[运行记录](https://github.com/AzusaKe/HaloCore/actions/runs/34682673211) |
 | 旧锚点 API v2 | 调用方先针对冻结的旧 API 编译，再仅使用最终 Halo JAR 运行，成功 |
 | 格式和协议 | 旧格式世界 NBT 往返、配置/本地文件、固定字节的全量与增量佩戴包检查通过 |
@@ -32,6 +33,7 @@ Core：`AzusaKe/HaloCore` 的 `v1.3.0`，提交 `a12100e48e0e71d07e96c7b7dc69155
 - 单人游戏从存档恢复佩戴、指令隐藏并完成关闭动画、权杖界面选择后重新挂载。
 - 单人运行配置桥接：`/halo config scale 2` 立即使客户端光环缩放生效。
 - 原版专用服务器（没有 Fabric/Halo）上执行本地 `/halo show @s halo:ring_default`，第三人称正常绘制，旧格式本地佩戴 JSON 写入成功。
+- 完全退出客户端并重启，重新连接同一原版服务器后，本地光环自动恢复，无需重新输入佩戴命令。
 
 ## 限制与待复测项
 
