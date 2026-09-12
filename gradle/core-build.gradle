@@ -35,13 +35,31 @@ tasks.register('verifyCoreLock') {
     doLast {
         if (!releaseBuild) return
         if (development) throw new GradleException('Release requires clean Halo/core trees and core HEAD equal to the committed gitlink. Commit core first, then commit the Halo pointer.')
-        if (gitOutput(coreDir, ['rev-parse', "v${coreVersion}^{commit}"]) != coreCommit) {
-            throw new GradleException("Core release must point to its v${coreVersion} tag.")
+        def remoteUrl = gitOutput(coreDir, ['remote', 'get-url', 'origin'])
+        if (!remoteUrl) throw new GradleException('Core must have an origin remote for release verification.')
+
+        // Fetch only the pinned SHA into an empty repository. A local object or a stale
+        // remote-tracking ref cannot prove availability; the SHA may also be behind a branch tip.
+        temporaryDir.mkdirs()
+        def remoteRepo = java.nio.file.Files.createTempDirectory(temporaryDir.toPath(), 'origin-').toFile()
+        if (remoteRepo.canonicalFile.parentFile != temporaryDir.canonicalFile) {
+            throw new GradleException('Remote verification directory escaped the task temporary directory.')
         }
-        // A release tag must be advertised remotely, including its peeled commit for annotated tags.
-        def advertised = gitOutput(coreDir, ['ls-remote', 'origin', "refs/tags/v${coreVersion}", "refs/tags/v${coreVersion}^{}"])
-        if (!advertised.readLines().any { it.startsWith(coreCommit + '\t') }) {
-            throw new GradleException('The exact core release commit is not available from origin at its version tag.')
+        try {
+            exec {
+                workingDir remoteRepo
+                commandLine 'git', 'init', '--bare', '--quiet'
+            }
+            def fetched = exec {
+                workingDir remoteRepo
+                commandLine 'git', 'fetch', '--quiet', '--depth=1', '--no-tags', '--no-recurse-submodules', remoteUrl, coreCommit
+                ignoreExitValue true
+            }
+            if (fetched.exitValue != 0 || gitOutput(remoteRepo, ['rev-parse', '--verify', 'FETCH_HEAD^{commit}']) != coreCommit) {
+                throw new GradleException('The pinned core commit cannot be fetched from origin. Push core first and check remote access before releasing Halo.')
+            }
+        } finally {
+            project.delete(remoteRepo)
         }
     }
 }
