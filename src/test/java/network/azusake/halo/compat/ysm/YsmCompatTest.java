@@ -158,7 +158,7 @@ class YsmCompatTest {
         assertEquals(expectedWorld.z, anchor.position().z(), EPS);
     }
 
-    private static void assertDirection(Vec3d expected, AnchorPose pose, AnchorVec3 local) {
+    private static void assertDirection(network.azusake.halo.core.Vec3d expected, AnchorPose pose, AnchorVec3 local) {
         AnchorVec3 actual = AnchorPoseMath.rotate(pose.rotation(), local);
         assertEquals(expected.x, actual.x(), EPS);
         assertEquals(expected.y, actual.y(), EPS);

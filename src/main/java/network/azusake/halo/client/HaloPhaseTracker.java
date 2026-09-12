@@ -32,7 +32,7 @@ public final class HaloPhaseTracker {
 
     private static final HaloPhaseTracker INSTANCE = new HaloPhaseTracker();
 
-    private volatile Phase phase = Phase.LOCAL;
+    private final network.azusake.halo.core.runtime.ConnectionMode mode = new network.azusake.halo.core.runtime.ConnectionMode();
 
     private HaloPhaseTracker() {
         // singleton
@@ -43,7 +43,7 @@ public final class HaloPhaseTracker {
     }
 
     public Phase getPhase() {
-        return phase;
+        return mode.remoteAuthority() ? Phase.MULTIPLAYER : Phase.LOCAL;
     }
 
     /**
@@ -51,9 +51,7 @@ public final class HaloPhaseTracker {
      * Idempotent — subsequent calls after the first are no-ops.
      */
     public void transitionToMultiplayer() {
-        if (phase == Phase.LOCAL) {
-            phase = Phase.MULTIPLAYER;
-        }
+        mode.hello();
     }
 
     /**
@@ -61,7 +59,7 @@ public final class HaloPhaseTracker {
      * starts fresh.
      */
     public void resetToLocal() {
-        phase = Phase.LOCAL;
+        mode.reset();
     }
 
     /**
@@ -75,6 +73,6 @@ public final class HaloPhaseTracker {
         if (MinecraftClient.getInstance().isIntegratedServerRunning()) {
             return false;
         }
-        return phase == Phase.LOCAL;
+        return mode.intercept(false);
     }
 }

@@ -9,10 +9,10 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash"]
+    branches: ["1.20.1-fabric"]
     tags: ["v*"]
   pull_request:
-    branches: ["main", "1.20.1-fabric", "1.21.1-fabric-flash"]
+    branches: ["1.20.1-fabric"]
   workflow_dispatch:
 
 jobs:
@@ -25,6 +25,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.1.7
+        with:
+          submodules: recursive
+          fetch-depth: 0
       - name: Set up JDK 17
         uses: actions/setup-java@v4.2.1
         with:
@@ -36,12 +39,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build with Gradle Wrapper
-        run: ./gradlew build
+      - name: Verify core independently
+        working-directory: core
+        run: ./gradlew check
+
+      - name: Build adapter and verify distribution
+        env:
+          RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: ./gradlew build -Prelease="$RELEASE_BUILD"
 
       # Upload JAR as workflow artifact (always available for download)
       - name: Upload JAR artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Halo-Mod
@@ -67,6 +76,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.1.7
+        with:
+          submodules: recursive
+          fetch-depth: 0
       - name: Set up JDK 17
         uses: actions/setup-java@v4.2.1
         with:

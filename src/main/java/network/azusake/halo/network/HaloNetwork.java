@@ -10,11 +10,12 @@ import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
+import static network.azusake.halo.platform.PlatformTypes.*;
 
 /**
  * Server-side networking hub for halo state synchronisation.
@@ -33,31 +34,31 @@ import java.util.UUID;
 public final class HaloNetwork {
 
     /** Full-state snapshot — sent to a player on join. */
-    public static final Identifier CHANNEL_SYNC = new Identifier("halo", "sync");
+    public static final net.minecraft.util.Identifier CHANNEL_SYNC = new net.minecraft.util.Identifier("halo", "sync");
 
     /** Incremental attach / remove — broadcast to all players. */
-    public static final Identifier CHANNEL_UPDATE = new Identifier("halo", "update");
+    public static final net.minecraft.util.Identifier CHANNEL_UPDATE = new net.minecraft.util.Identifier("halo", "update");
 
     /** C2S — client reports its locally-available definition IDs. */
-    public static final Identifier CHANNEL_DEFS_REPORT = new Identifier("halo", "defs_report");
+    public static final net.minecraft.util.Identifier CHANNEL_DEFS_REPORT = new net.minecraft.util.Identifier("halo", "defs_report");
 
     /** S2C — handshake, sent on player join to signal "server has the mod installed". */
-    public static final Identifier CHANNEL_HELLO = new Identifier("halo", "hello");
+    public static final net.minecraft.util.Identifier CHANNEL_HELLO = new net.minecraft.util.Identifier("halo", "hello");
 
     /** S2C — open the selector for a server-locked target. */
-    public static final Identifier CHANNEL_SCEPTER_OPEN = new Identifier("halo", "scepter_open");
+    public static final net.minecraft.util.Identifier CHANNEL_SCEPTER_OPEN = new net.minecraft.util.Identifier("halo", "scepter_open");
 
     /** S2C — close a selector whose server session became invalid. */
-    public static final Identifier CHANNEL_SCEPTER_CLOSE_SCREEN = new Identifier("halo", "scepter_close_screen");
+    public static final net.minecraft.util.Identifier CHANNEL_SCEPTER_CLOSE_SCREEN = new net.minecraft.util.Identifier("halo", "scepter_close_screen");
 
     /** C2S — apply a definition to the current locked target. */
-    public static final Identifier CHANNEL_SCEPTER_SELECT = new Identifier("halo", "scepter_select");
+    public static final net.minecraft.util.Identifier CHANNEL_SCEPTER_SELECT = new net.minecraft.util.Identifier("halo", "scepter_select");
 
     /** C2S — release the current target lock. */
-    public static final Identifier CHANNEL_SCEPTER_CLOSE = new Identifier("halo", "scepter_close");
+    public static final net.minecraft.util.Identifier CHANNEL_SCEPTER_CLOSE = new net.minecraft.util.Identifier("halo", "scepter_close");
 
     /** C2S — crouching left-click on air/block removes the player's own halo. */
-    public static final Identifier CHANNEL_SCEPTER_REMOVE_SELF = new Identifier("halo", "scepter_remove_self");
+    public static final net.minecraft.util.Identifier CHANNEL_SCEPTER_REMOVE_SELF = new net.minecraft.util.Identifier("halo", "scepter_remove_self");
 
     private HaloNetwork() {
         // utility class
@@ -83,7 +84,7 @@ public final class HaloNetwork {
                 int count = buf.readInt();
                 Set<Identifier> ids = new LinkedHashSet<>(count);
                 for (int i = 0; i < count; i++) {
-                    ids.add(buf.readIdentifier());
+                    ids.add(core(buf.readIdentifier()));
                 }
                 server.execute(() ->
                     HaloJsonLoader.putClientReportedDefs(player.getUuid(), ids)
@@ -94,7 +95,7 @@ public final class HaloNetwork {
         ServerPlayNetworking.registerGlobalReceiver(
             CHANNEL_SCEPTER_SELECT,
             (server, player, handler, buf, responseSender) -> {
-                Identifier definitionId = buf.readIdentifier();
+                Identifier definitionId = core(buf.readIdentifier());
                 server.execute(() -> HaloScepterService.select(player, definitionId));
             }
         );
@@ -123,20 +124,8 @@ public final class HaloNetwork {
      * @param player the player who just joined
      */
     public static void sendFullSync(ServerPlayerEntity player) {
-        var instances = HaloManager.getInstance().getAllInstances();
-        // Count only active instances
-        int count = 0;
-        for (HaloInstance inst : instances) {
-            if (inst.isActive()) count++;
-        }
-
-        var buf = PacketByteBufs.create();
-        buf.writeInt(count);
-        for (HaloInstance inst : instances) {
-            if (!inst.isActive()) continue;
-            writeUuid(buf, inst.getEntityUuid());
-            buf.writeIdentifier(inst.getDefinitionId());
-        }
+        var snapshot = HaloManager.getInstance().ownershipSnapshot();
+        var buf = HaloPacketCodec.encodeSnapshot(snapshot);
 
         ServerPlayNetworking.send(player, CHANNEL_SYNC, buf);
     }
@@ -149,10 +138,7 @@ public final class HaloNetwork {
      * @param defId      the halo definition identifier
      */
     public static void sendHaloAttach(MinecraftServer server, UUID entityUuid, Identifier defId) {
-        var buf = PacketByteBufs.create();
-        writeUuid(buf, entityUuid);
-        buf.writeBoolean(true); // isAttach
-        buf.writeIdentifier(defId);
+        var buf = HaloPacketCodec.encodeUpdate(entityUuid, true, defId);
 
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);
@@ -175,10 +161,7 @@ public final class HaloNetwork {
      * @param defId      the halo definition identifier (for client-side shutdown animation)
      */
     public static void sendHaloRemove(MinecraftServer server, UUID entityUuid, Identifier defId) {
-        var buf = PacketByteBufs.create();
-        writeUuid(buf, entityUuid);
-        buf.writeBoolean(false); // isAttach = false → removal
-        buf.writeIdentifier(defId);
+        var buf = HaloPacketCodec.encodeUpdate(entityUuid, false, defId);
 
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(player, CHANNEL_UPDATE, buf);

@@ -4,10 +4,12 @@
 </h1>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC Version](https://img.shields.io/badge/Minecraft-1.19.4--1.20.4-green.svg)
+![MC Version](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
 ![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 English | [中文](README_ZH.md)
+
+This branch targets **Minecraft 1.20.1 Fabric**, with feature version **1.3.0**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md) and the [core contracts](core/README.md).
 
 ## Table of Contents
 
@@ -35,9 +37,8 @@ English | [中文](README_ZH.md)
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 1.20.1 supported via [Sinytra Connector](https://modrinth.com/mod/connector)).
+This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader versions use their own adapter branches.
 
-> **Note on 1.19.4**: Core features (show/hide halo, multiplayer sync, persistence) work normally, but some query commands (`/halo list`, `/halo active`, `/halo dump`) produce no chat output. This is a known compatibility issue.
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
 
@@ -74,7 +75,7 @@ Currently available for Minecraft 1.19.4 ~ 1.20.4 with Fabric (NeoForge / Forge 
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.19.4 ~ 1.20.4.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.20.1.
 2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for your Minecraft version.
 3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
 4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
@@ -300,19 +301,19 @@ Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`
 ### Build
 
 ```bash
-git clone https://github.com/AzusaKe/Halo.git
+git clone --branch 1.20.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-The compiled JAR file will be at `build/libs/halo-1.0.3.jar`.
+The compiled JAR is under `build/libs/`. Uncommitted development builds append `.dev`; a clean release uses `halo-1.20.1-fabric-1.3.0+adapter.1.jar`. See the [release checks](docs/core-refactor.md).
 
 <a id="run-tests"></a>
 
 ### Run Tests
 
 ```bash
-./gradlew test
+./gradlew check
 ```
 
 <a id="run-client--server"></a>
@@ -331,31 +332,19 @@ The compiled JAR file will be at `build/libs/halo-1.0.3.jar`.
 
 ## Project Structure
 
-```
-src/main/
-  java/network/azusake/halo/
-    HaloMod.java              — Mod initializer (server entry point)
-    HaloModClient.java         — Client initializer (client entry point)
-    animation/                 — Animation curves (Linear, Oscillate, Constant)
-    client/                    — Client-side command interceptor, phase tracker, local manager
-    command/                   — /halo Brigadier command tree
-    config/                    — Runtime HaloConfig (damping, scale, offset)
-    data/                      — HaloDefinition, HaloInstance, HaloEntityData, etc.
-    json/                      — JSON deserializers and resource loaders
-    lifecycle/                 — EntityHaloTracker, HaloWorldSaveData, event handlers
-    manager/                   — HaloManager (singleton managing all active halos)
-    mixin/                     — EntityTeleportMixin, LivingEntityDataMixin
-    network/                   — HaloNetwork, HaloNetworkClient (multiplayer sync)
-    physics/                   — AnchorFrameCalculator, DampingPhysics, HaloTickHandler
-    render/                    — HaloRenderer, HaloClientManager, HaloRenderListener
-    server/                    — HaloServerEvents, ServerTickHandler
-    shape/                     — BillboardPrimitive, RingPrimitive, HaloGroup, HaloModel
-  resources/
-    fabric.mod.json            — Mod metadata (entry points, mixins, dependencies)
-    halo.mixins.json            — Mixin configuration
-    assets/halo/
-      halo_definitions/        — JSON halo definition files (resource pack, client rendering)
-      textures/halo/           — Halo and glow textures
+```text
+core/                         # independent HaloCore repository (git submodule)
+  src/main/java/              # definitions, ownership, anchors, physics, animation, geometry
+  src/test/                   # standalone contracts, replay and numeric fixtures
+src/main/java/network/azusake/halo/
+  platform/                   # core value conversions and explicit integrated-server bridge
+  client/, command/, item/    # UI, Brigadier and item inputs
+  json/, config/, lifecycle/  # resource, file and world/NBT adapters
+  network/                    # Fabric channels and existing byte codecs
+  physics/, compat/, mixin/   # game/model capture, EMF/YSM/Iris integration
+  render/                     # frame assembly and GPU batch submission
+src/main/resources/           # built-in definitions, textures, recipes and translations
+src/testFixtures/             # frozen anchor API v2 ABI consumer
 ```
 
 <a id="contributing"></a>

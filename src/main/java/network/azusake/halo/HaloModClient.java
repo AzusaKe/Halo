@@ -29,6 +29,12 @@ public class HaloModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
+        network.azusake.halo.platform.IntegratedBridge.config = snapshot ->
+            net.minecraft.client.MinecraftClient.getInstance().execute(() ->
+                network.azusake.halo.platform.HaloClientState.get().setConfig(snapshot.toConfig()));
+        network.azusake.halo.platform.IntegratedBridge.teleport = uuid ->
+            net.minecraft.client.MinecraftClient.getInstance().execute(() ->
+                network.azusake.halo.platform.HaloClientState.get().teleport(uuid));
         EmfCompatChatNotifier.register();
 
         // Force initialisation of the phase tracker singleton.  The client
@@ -50,18 +56,20 @@ public class HaloModClient implements ClientModInitializer {
         // Initialise the client-side halo visibility manager
         HaloClientManager.getInstance();
 
-        // Update per-tick entity state cache (invisible, sleeping) once per
-        // client tick so the render path reads cached values instead of
-        // querying the entity every frame.
+        // Input polling belongs to the client tick; scene facts are sampled once per render frame.
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            HaloClientManager.getInstance().updateEntityStateCache();
             HaloScepterClientInput.tick(client);
         });
 
         // Clean up entity cache when entities are unloaded from the client world
         ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             if (entity != null) {
-                HaloClientManager.getInstance().onEntityUnloaded(entity.getUuid());
+                var runtime = network.azusake.halo.platform.HaloClientState.get();
+                if (entity instanceof net.minecraft.entity.LivingEntity living && !living.isAlive()) {
+                    runtime.died(entity.getUuid(), entity instanceof net.minecraft.entity.player.PlayerEntity);
+                } else {
+                    runtime.unload(entity.getUuid());
+                }
                 AnchorCaptureCoordinator.clearEntity(entity.getUuid());
             }
         });
@@ -72,8 +80,7 @@ public class HaloModClient implements ClientModInitializer {
         new FabricHaloCommandInterceptor().register();
 
         // Register networking packet receivers for multiplayer halo sync.
-        // These write directly into HaloManager so the existing single-player
-        // rendering pipeline works unchanged on dedicated-server clients.
+        // Received messages update only the client core runtime.
         HaloNetworkClient.registerReceivers();
 
         // Send local definition IDs to the server on join and on resource reloads.
@@ -106,11 +113,13 @@ public class HaloModClient implements ClientModInitializer {
         });
 
         // Clear runtime halo state when disconnecting from a server.
-        // Only HaloManager (runtime) is cleared; HaloLocalManager (persistent)
+        // Only the client replica is cleared; HaloLocalManager (persistent)
         // retains local halos so they survive reconnects to the same server.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            network.azusake.halo.manager.HaloManager.getInstance().clearAllClientHalos();
+            network.azusake.halo.platform.HaloClientState.get().clearAllClientHalos();
+            network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
             AnchorCaptureCoordinator.clearCaptures();
+            network.azusake.halo.render.HaloRenderer.getInstance().clearWorld();
             HaloPhaseTracker.getInstance().resetToLocal();
         });
 

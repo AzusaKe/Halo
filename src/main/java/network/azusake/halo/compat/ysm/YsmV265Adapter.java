@@ -57,45 +57,16 @@ public final class YsmV265Adapter {
     }
 
     /** Pure implementation of YSM 2.6.5 RenderUtils.prepMatrixForLocator. */
-    public static Matrix4f composeHeadMatrix(Matrix4f rootMatrix, List<BonePose> hierarchy) {
-        if (rootMatrix == null || hierarchy == null || hierarchy.isEmpty() || !isFinite(rootMatrix)) {
-            return null;
-        }
-
-        Matrix4f matrix = new Matrix4f(rootMatrix);
-        for (int i = 0; i < hierarchy.size(); i++) {
-            BonePose bone = hierarchy.get(i);
-            if (bone == null || !bone.isUsable()) {
-                return null;
-            }
-
-            matrix.translate(-bone.positionX / 16f, bone.positionY / 16f, bone.positionZ / 16f);
-            matrix.translate(bone.pivotX / 16f, bone.pivotY / 16f, bone.pivotZ / 16f);
-            if (bone.rotationX != 0f || bone.rotationY != 0f || bone.rotationZ != 0f) {
-                matrix.rotate(new Quaternionf().rotationZYX(
-                    bone.rotationZ, bone.rotationY, bone.rotationX));
-            }
-            matrix.scale(bone.scaleX, bone.scaleY, bone.scaleZ);
-
-            // prepMatrixForLocator intentionally remains at the final Head
-            // pivot, while intermediate bones translate back out of theirs.
-            if (i + 1 < hierarchy.size()) {
-                matrix.translate(-bone.pivotX / 16f, -bone.pivotY / 16f, -bone.pivotZ / 16f);
-            }
-        }
-        return isFinite(matrix) ? matrix : null;
+    public static Matrix4f composeHeadMatrix(Matrix4f root,List<BonePose> hierarchy) {
+        if(hierarchy==null)return null;
+        var bones=hierarchy.stream().map(b->b==null?null:new network.azusake.halo.core.LocatorMath.BonePose(
+            b.rotationX,b.rotationY,b.rotationZ,b.positionX,b.positionY,b.positionZ,
+            b.scaleX,b.scaleY,b.scaleZ,b.pivotX,b.pivotY,b.pivotZ)).toList();
+        float[] result=network.azusake.halo.core.LocatorMath.composeHeadMatrix(root==null?null:root.get(new float[16]),bones);
+        return result==null?null:new Matrix4f().set(result);
     }
-
     public static boolean isFinite(Matrix4f matrix) {
-        return matrix != null
-            && Float.isFinite(matrix.m00()) && Float.isFinite(matrix.m01())
-            && Float.isFinite(matrix.m02()) && Float.isFinite(matrix.m03())
-            && Float.isFinite(matrix.m10()) && Float.isFinite(matrix.m11())
-            && Float.isFinite(matrix.m12()) && Float.isFinite(matrix.m13())
-            && Float.isFinite(matrix.m20()) && Float.isFinite(matrix.m21())
-            && Float.isFinite(matrix.m22()) && Float.isFinite(matrix.m23())
-            && Float.isFinite(matrix.m30()) && Float.isFinite(matrix.m31())
-            && Float.isFinite(matrix.m32()) && Float.isFinite(matrix.m33());
+        return matrix!=null && network.azusake.halo.core.CapturedModelMath.finite(matrix.get(new float[16]));
     }
 
     private static Accessors accessorsFor(Object model) throws ReflectiveOperationException {

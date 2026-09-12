@@ -5,7 +5,7 @@ import network.azusake.halo.data.HaloInstance;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -116,7 +116,7 @@ public final class HaloLocalCommandHandler {
 
         // Player's own halo
         if (serverKey != null) {
-            var halo = HaloLocalManager.getInstance().getHalo(serverKey, playerUuid);
+            var halo = HaloLocalManager.getInstance().getCoreHalo(serverKey, playerUuid);
             sb.append("\n§7你的光环: ");
             if (halo.isPresent()) {
                 Identifier defId = halo.get();
@@ -200,7 +200,7 @@ public final class HaloLocalCommandHandler {
 
         HaloLocalManager.getInstance().showHalo(serverKey, client.player.getUuid(), defId);
         // Put into HaloManager with STARTING state — triggers startup animation
-        HaloManager.getInstance().putClientHalo(client.player.getUuid(), defId, HaloTransitionState.STARTING);
+        network.azusake.halo.platform.HaloClientState.get().putClientHalo(client.player.getUuid(), defId, HaloTransitionState.STARTING);
         return "§a本地光环: 已将 §f" + defId
             + "§a 设置给自己。\n"
             + "§7(仅在当前服务器当前会话中可见)";
@@ -229,28 +229,13 @@ public final class HaloLocalCommandHandler {
             return "§e未连接到服务器。";
         }
 
-        // Set ENDING state — renderer will play shutdown animation and remove the instance
-        HaloInstance inst = HaloManager.getInstance().getInstance(client.player.getUuid());
-        if (inst != null) {
-            inst.setHiddenByState(false);
-            // Align the shutdown head to the idle animation's actual phase
-            // at the hide moment (rawAnimTime - startupDur after a startup).
-            HaloDefinition def = HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
-            double freeze = inst.currentAnimTime(
-                def != null ? def.startupAnimation().orElse(null) : null);
-            inst.setTransitionState(HaloTransitionState.ENDING);
-            inst.startTransition(freeze);
-            // Mid-transition hide (e.g. during startup): start the shutdown
-            // from the exact on-screen values the renderer was drawing
-            // (renderer-owned phase table — no server involvement).
-            IdlePhaseTracker.RenderState renderState =
-                HaloRenderer.getInstance().readLastRenderState(client.player.getUuid());
-            if (renderState != null && renderState.transitionActive()
-                    && !renderState.groups().isEmpty()) {
-                inst.setHideVisuals(renderState.groups());
-            }
-        }
         HaloLocalManager.getInstance().hideHalo(serverKey, client.player.getUuid());
+
+        // Set ENDING state — renderer will play shutdown animation and remove the instance
+        var runtime=network.azusake.halo.platform.HaloClientState.get();
+        var inst=runtime.getInstance(client.player.getUuid());
+        runtime.hide(client.player.getUuid(),inst==null?null:inst.getDefinitionId());
+
         return "§a已移除自己的本地光环。";
     }
 
@@ -271,7 +256,7 @@ public final class HaloLocalCommandHandler {
         }
 
         String param = tokens[2].toLowerCase();
-        HaloConfig config = HaloManager.getInstance().getConfig();
+        HaloConfig config = network.azusake.halo.platform.HaloClientState.get().getConfig();
 
         // Boolean parameter
         if (param.equals("allow-angular-momentum")) {
@@ -288,15 +273,8 @@ public final class HaloLocalCommandHandler {
             return "§c无效的数值: §f" + tokens[3];
         }
 
-        switch (param) {
-            case "linear-damping"                -> config.setLinearDampingFactor(value);
-            case "angular-damping"               -> config.setAngularDampingFactor(value);
-            case "max-linear-distance"           -> config.setMaxLinearDistance(value);
-            case "max-angular-degrees"           -> config.setMaxAngularDegrees(value);
-            case "angular-momentum-factor"       -> config.setAngularMomentumFactor(value);
-            case "max-angular-momentum-degrees"  -> config.setMaxAngularMomentumDegrees(value);
-            case "scale"                         -> config.setHaloScale(value);
-            default -> {
+        if (!config.setNumber(param, value)) {
+            {
                 return "§c未知参数: §f" + param + "\n"
                     + "§7可用参数: linear-damping, angular-damping, max-linear-distance, max-angular-degrees, allow-angular-momentum, angular-momentum-factor, max-angular-momentum-degrees, scale";
             }
@@ -323,7 +301,7 @@ public final class HaloLocalCommandHandler {
             return "§e未连接到服务器。";
         }
 
-        var halo = HaloLocalManager.getInstance().getHalo(serverKey, client.player.getUuid());
+        var halo = HaloLocalManager.getInstance().getCoreHalo(serverKey, client.player.getUuid());
         if (halo.isPresent()) {
             return "§a当前光环: §f" + halo.get() + "\n"
                 + "§7(本地阶段，仅自己可见)";

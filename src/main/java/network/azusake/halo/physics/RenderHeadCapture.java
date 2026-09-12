@@ -197,7 +197,7 @@ public final class RenderHeadCapture {
         );
         CAPTURES.put(entity.getUuid(), captured);
         try {
-            AnchorPose pose = RenderHeadMath.toAnchorPose(captured, frameCameraPos, frameViewMatrix);
+            AnchorPose pose = RenderHeadMath.toAnchorPose(captured, network.azusake.halo.platform.PlatformTypes.core(frameCameraPos), frameViewMatrix);
             VANILLA_SOURCE.submit(entity.getUuid(), pose);
         } catch (RuntimeException ignored) {
             // Invalid capture data is a normal safe-fallback condition.
@@ -236,5 +236,5 @@ public final class RenderHeadCapture {
         float pivotX, float pivotY, float pivotZ,
         float pitch, float yaw, float roll,
         float xScale, float yScale, float zScale
-    ) {}
+    ) implements RenderHeadMath.HeadCapture {}
 }

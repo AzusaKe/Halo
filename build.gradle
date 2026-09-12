@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.5.+'
+    id 'fabric-loom' version '1.5.8'
     id 'maven-publish'
 }
 
@@ -9,8 +9,15 @@ java {
 }
 
 archivesBaseName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
-version = project.mod_version
+def coreProperties = new Properties()
+file('core/gradle.properties').withInputStream { coreProperties.load(it) }
+ext.coreVersion = coreProperties.getProperty('version')
+version = "${coreVersion}+adapter.${project.adapter_revision}"
 group = project.maven_group
+
+configurations {
+    coreContents { transitive = false }
+}
 
 repositories {
     // Add repositories to retrieve artifacts from in here.
@@ -18,6 +25,8 @@ repositories {
 }
 
 dependencies {
+    implementation "network.azusake:halo-core:${coreVersion}"
+    coreContents "network.azusake:halo-core:${coreVersion}"
     // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
@@ -28,11 +37,11 @@ dependencies {
 
     // Test dependencies
     testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
-    testImplementation "com.google.code.gson:gson:2.10.1"
+    testImplementation "com.google.code.gson:gson:2.10"
 }
 
 processResources {
-    inputs.property "version", project.version
+    inputs.property "version", providers.provider { project.version.toString() }
     filteringCharset "UTF-8"
 
     filesMatching("fabric.mod.json") {
@@ -43,6 +52,7 @@ processResources {
 tasks.withType(JavaCompile).configureEach {
     // Minecraft 1.20.1 (23w16a) and above require Java 17.
     it.options.release = 17
+    it.options.encoding = "UTF-8"
 }
 
 java {
@@ -51,6 +61,10 @@ java {
 }
 
 jar {
+    dependsOn configurations.coreContents
+    from({ configurations.coreContents.collect { zipTree(it) } }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
     from("LICENSE") {
         rename { "${it}_${project.archivesBaseName}" }
     }
@@ -62,6 +76,8 @@ test {
         events "passed", "skipped", "failed"
     }
 }
+
+tasks.named('check') { dependsOn gradle.includedBuild('core').task(':check') }
 
 // Client run configuration: 2560x1600 window, non-fullscreen
 loom {
@@ -78,8 +94,28 @@ loom {
             programArgs("--username", "Dev2")
             runDir = "run2"
         }
+        smokeServer {
+            inherit server
+            runDir = ".local/smoke-server"
+            programArgs("nogui")
+            vmArg "-Xlog:class+load=info:file=loaded-classes.log"
+        }
+        smokeClient {
+            inherit client
+            runDir = ".local/smoke-client"
+            programArgs("--width", "1280", "--height", "720")
+            if (project.hasProperty('smokeServerAddress')) programArgs("--quickPlayMultiplayer", project.property('smokeServerAddress'))
+            if (project.hasProperty('smokeWorldName')) programArgs("--quickPlaySingleplayer", project.property('smokeWorldName'))
+        }
+        smokeClient2 {
+            inherit smokeClient
+            programArgs("--username", "Dev2")
+            runDir = ".local/smoke-client2"
+        }
     }
 }
+
+tasks.named('runSmokeServer') { standardInput = System.in }
 
 // Force fullscreen:false before each runClient launch
 tasks.named('runClient') {
@@ -108,3 +144,5 @@ publishing {
         // Add repositories to publish to here.
     }
 }
+
+apply from: "gradle/core-build.gradle"

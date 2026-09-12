@@ -102,108 +102,25 @@ public final class HaloModConfigStore {
             if (file.getParent() != null) {
                 Files.createDirectories(file.getParent());
             }
-            Files.writeString(file, GSON.toJson(config));
+            Files.writeString(file, network.azusake.halo.core.ModConfigCodec.encode(config));
         } catch (IOException e) {
             HaloMod.LOGGER.warn("Failed to save Halo mod config {}: {}", file, e.getMessage());
         }
     }
 
     private static HaloModConfig readOrCreate(Path file) {
-        if (!Files.exists(file)) {
-            HaloModConfig defaults = new HaloModConfig();
-            save(defaults, file);
-            return defaults;
-        }
-
         try {
-            String raw = Files.readString(file);
-            if (raw.isBlank()) {
-                // An empty file counts as defaults; backfill so the file is self-documenting.
-                HaloModConfig defaults = new HaloModConfig();
-                save(defaults, file);
-                return defaults;
+            var decoded=network.azusake.halo.core.ModConfigCodec.decode(Files.exists(file)?Files.readString(file):null);
+            if(decoded.replacement()!=null) {
+                try {
+                    if(file.getParent()!=null)Files.createDirectories(file.getParent());
+                    Files.writeString(file,decoded.replacement());
+                } catch(IOException ex) { HaloMod.LOGGER.warn("Failed to save Halo mod config {}: {}",file,ex.getMessage()); }
             }
-
-            JsonElement root = JsonParser.parseString(raw);
-            if (!root.isJsonObject()) {
-                HaloMod.LOGGER.warn("Halo mod config {} is not a JSON object; using defaults", file);
-                return new HaloModConfig();
-            }
-
-            JsonObject document = root.getAsJsonObject();
-            HaloModConfig parsed = GSON.fromJson(document, HaloModConfig.class);
-            if (parsed == null) {
-                HaloMod.LOGGER.warn("Halo mod config {} contains no data; using defaults", file);
-                return new HaloModConfig();
-            }
-
-            List<String> migratedFields = new ArrayList<>();
-            int level = parsed.getCommandPermissionLevel();
-            if (level < 0 || level > 4) {
-                HaloMod.LOGGER.warn(
-                    "Halo mod config {} has out-of-range commandPermissionLevel={}; clamping to [0, 4]",
-                    file, level);
-                parsed.setCommandPermissionLevel(level); // clamps
-                document.addProperty("commandPermissionLevel", parsed.getCommandPermissionLevel());
-                migratedFields.add("commandPermissionLevel (normalized)");
-            } else if (!document.has("commandPermissionLevel")
-                || document.get("commandPermissionLevel").isJsonNull()) {
-                document.addProperty("commandPermissionLevel", parsed.getCommandPermissionLevel());
-                migratedFields.add("commandPermissionLevel");
-            }
-
-            if (!document.has("experimentalYsmAnchorEnabled")
-                || document.get("experimentalYsmAnchorEnabled").isJsonNull()) {
-                document.addProperty(
-                    "experimentalYsmAnchorEnabled",
-                    parsed.isExperimentalYsmAnchorEnabled());
-                migratedFields.add("experimentalYsmAnchorEnabled");
-            }
-
-            if (!parsed.validateExperimentalYsmHeadLocalOffset()) {
-                HaloMod.LOGGER.warn(
-                    "Halo mod config {} has invalid experimentalYsmHeadLocalOffset; using [0.0, 0.0, 0.0]",
-                    file);
-                document.add(
-                    "experimentalYsmHeadLocalOffset",
-                    GSON.toJsonTree(parsed.getExperimentalYsmHeadLocalOffset()));
-                migratedFields.add("experimentalYsmHeadLocalOffset (normalized)");
-            } else if (!document.has("experimentalYsmHeadLocalOffset")
-                || document.get("experimentalYsmHeadLocalOffset").isJsonNull()) {
-                document.add(
-                    "experimentalYsmHeadLocalOffset",
-                    GSON.toJsonTree(parsed.getExperimentalYsmHeadLocalOffset()));
-                migratedFields.add("experimentalYsmHeadLocalOffset");
-            }
-
-            if (!migratedFields.isEmpty()) {
-                saveMigratedDocument(document, file, migratedFields);
-            }
-            return parsed;
-        } catch (IOException e) {
-            HaloMod.LOGGER.warn("Failed to read Halo mod config {}: {}; using defaults", file, e.getMessage());
+            return decoded.config();
+        } catch(IOException ex) {
+            HaloMod.LOGGER.warn("Failed to read Halo mod config {}: {}",file,ex.getMessage());
             return new HaloModConfig();
-        } catch (Exception e) {
-            HaloMod.LOGGER.warn("Failed to parse Halo mod config {}: {}; using defaults", file, e.getMessage());
-            return new HaloModConfig();
-        }
-    }
-
-    private static void saveMigratedDocument(JsonObject document, Path file, List<String> migratedFields) {
-        try {
-            if (file.getParent() != null) {
-                Files.createDirectories(file.getParent());
-            }
-            Files.writeString(file, GSON.toJson(document));
-            HaloMod.LOGGER.info(
-                "Migrated Halo mod config {} with missing or normalized field(s): {}",
-                file, String.join(", ", migratedFields));
-        } catch (IOException e) {
-            // The already parsed in-memory configuration is still usable even
-            // when the self-documenting migration cannot be persisted.
-            HaloMod.LOGGER.warn(
-                "Failed to persist migrated Halo mod config {}: {}",
-                file, e.getMessage());
         }
     }
 }

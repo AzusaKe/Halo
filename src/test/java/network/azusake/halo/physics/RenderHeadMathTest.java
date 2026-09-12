@@ -3,7 +3,7 @@ package network.azusake.halo.physics;
 import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorVec3;
-import net.minecraft.util.math.Vec3d;
+import network.azusake.halo.core.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector4f;

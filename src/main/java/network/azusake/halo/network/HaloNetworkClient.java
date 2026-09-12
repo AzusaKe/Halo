@@ -1,22 +1,18 @@
 package network.azusake.halo.network;
 
-import network.azusake.halo.data.HaloTransitionState;
 import network.azusake.halo.client.HaloPhaseTracker;
-import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
-import network.azusake.halo.manager.HaloManager;
-import network.azusake.halo.render.HaloRenderer;
-import network.azusake.halo.render.IdlePhaseTracker;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 import network.azusake.halo.client.HaloScepterScreen;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import static network.azusake.halo.platform.PlatformTypes.*;
 
 /**
  * Client-side network receiver for halo state synchronisation.
@@ -24,9 +20,7 @@ import java.util.UUID;
  * <p>Registers handlers for {@link HaloNetwork#CHANNEL_SYNC} (full snapshot)
  * and {@link HaloNetwork#CHANNEL_UPDATE} (incremental attach/remove).
  *
- * <p>Received state is written directly into the client's {@link HaloManager}
- * singleton, so the existing single-player rendering pipeline works unchanged
- * on dedicated-server clients.</p>
+ * <p>Decoded messages update the client core replica. Animation state is owned exclusively by core.</p>
  *
  * <p><b>Thread safety:</b> the Fabric networking callback runs on the netty
  * I/O thread.  All state mutations are dispatched to the main client thread
@@ -48,18 +42,12 @@ public final class HaloNetworkClient {
         ClientPlayNetworking.registerGlobalReceiver(
             HaloNetwork.CHANNEL_SYNC,
             (client, handler, buf, responseSender) -> {
-                int count = buf.readInt();
-                Map<UUID, Identifier> incoming = new HashMap<>(count);
-                for (int i = 0; i < count; i++) {
-                    UUID uuid = HaloNetwork.readUuid(buf);
-                    Identifier defId = buf.readIdentifier();
-                    incoming.put(uuid, defId);
-                }
+                var incoming = HaloPacketCodec.decodeSnapshot(buf);
                 client.execute(() -> {
-                    HaloManager.getInstance().replaceAllClientHalos(incoming);
+                    network.azusake.halo.platform.HaloClientState.get().replaceAllClientHalos(incoming);
                     // New authoritative snapshot — drop any phase records from the
                     // previous world/connection.
-                    HaloRenderer.getInstance().clearIdlePhases();
+
                 });
             }
         );
@@ -68,56 +56,12 @@ public final class HaloNetworkClient {
         ClientPlayNetworking.registerGlobalReceiver(
             HaloNetwork.CHANNEL_UPDATE,
             (client, handler, buf, responseSender) -> {
-                UUID uuid = HaloNetwork.readUuid(buf);
-                boolean isAttach = buf.readBoolean();
-                if (isAttach) {
-                    Identifier defId = buf.readIdentifier();
-                    client.execute(() ->
-                        HaloManager.getInstance().putClientHalo(uuid, defId, HaloTransitionState.STARTING)
-                    );
-                } else {
-                    Identifier defId = buf.readIdentifier();
-                    boolean hasDefId = !defId.getPath().isEmpty();
-                    client.execute(() -> {
-                        // Set ENDING state — renderer will play shutdown animation
-                        HaloInstance inst = HaloManager.getInstance().getInstance(uuid);
-                        // Read the renderer-owned render state (idle phase +
-                        // whether the last frame was inside a transition + the
-                        // per-group values actually drawn) so a hide that lands
-                        // mid-transition starts the fade-out from the exact
-                        // on-screen state.  Rendering state stays client-owned.
-                        IdlePhaseTracker.RenderState renderState =
-                            HaloRenderer.getInstance().readLastRenderState(uuid);
-                        double freeze;
-                        if (inst == null && hasDefId) {
-                            // In integrated server mode, the server already removed the
-                            // instance from the shared activeHalos.  Create a fresh one
-                            // with ENDING so the shutdown animation can play, and align
-                            // its head to the last idle phase the renderer actually drew
-                            // (owned by the renderer — no server involvement).  Without
-                            // this the fresh instance would freeze at ~0 and the head
-                            // would align to idle(0) instead of the last rendered frame.
-                            HaloManager.getInstance().putClientHalo(uuid, defId);
-                            inst = HaloManager.getInstance().getInstance(uuid);
-                            freeze = renderState != null ? renderState.phase() : 0.0;
-                        } else if (inst != null) {
-                            var def = HaloJsonLoader.getDefinition(inst.getDefinitionId()).orElse(null);
-                            freeze = inst.currentAnimTime(
-                                def != null ? def.startupAnimation().orElse(null) : null);
-                        } else {
-                            return; // no definition id and no instance — nothing to animate
-                        }
-                        inst.setHiddenByState(false);
-                        inst.setTransitionState(HaloTransitionState.ENDING);
-                        inst.startTransition(freeze);
-                        if (renderState != null && renderState.transitionActive()
-                                && !renderState.groups().isEmpty()) {
-                            // Hide landed mid-transition — head-patch the
-                            // shutdown queues to the exact on-screen values.
-                            inst.setHideVisuals(renderState.groups());
-                        }
-                    });
-                }
+                var update = HaloPacketCodec.decodeUpdate(buf);
+                client.execute(() -> {
+                    var runtime = network.azusake.halo.platform.HaloClientState.get();
+                    if (update.attach()) runtime.attach(update.entity(), update.definition(), true);
+                    else runtime.hide(update.entity(), update.definition());
+                });
             }
         );
 
@@ -158,7 +102,7 @@ public final class HaloNetworkClient {
             return;
         }
         var buf = PacketByteBufs.create();
-        buf.writeIdentifier(definitionId);
+        buf.writeIdentifier(game(definitionId));
         ClientPlayNetworking.send(HaloNetwork.CHANNEL_SCEPTER_SELECT, buf);
     }
 
@@ -184,12 +128,11 @@ public final class HaloNetworkClient {
             return; // not connected to a server — silently skip
         }
         var defs = HaloJsonLoader.getDefinitions();
-        if (defs.isEmpty()) return;
 
         var buf = PacketByteBufs.create();
         buf.writeInt(defs.size());
         for (Identifier id : defs.keySet()) {
-            buf.writeIdentifier(id);
+            buf.writeIdentifier(game(id));
         }
         ClientPlayNetworking.send(HaloNetwork.CHANNEL_DEFS_REPORT, buf);
     }

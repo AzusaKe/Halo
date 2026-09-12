@@ -2,15 +2,11 @@ package network.azusake.halo.lifecycle;
 
 import network.azusake.halo.data.HaloInstance;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.util.Identifier;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import network.azusake.halo.core.Identifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,29 +20,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * Minecraft server.</p>
  */
 class EntityHaloTrackerTest {
-
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
-    /** Access the private recentlyTeleported map via reflection for assertions. */
-    @SuppressWarnings("unchecked")
-    private static Map<UUID, Long> getRecentlyTeleported() throws Exception {
-        Field field = EntityHaloTracker.class.getDeclaredField("recentlyTeleported");
-        field.setAccessible(true);
-        return (Map<UUID, Long>) field.get(null);
-    }
-
-    @BeforeEach
-    void setUp() throws Exception {
-        // Clear static state between tests
-        getRecentlyTeleported().clear();
-    }
-
-    @AfterEach
-    void tearDown() throws Exception {
-        getRecentlyTeleported().clear();
-    }
 
     // ------------------------------------------------------------------
     // 1. NBT round-trip (HaloEntityData)
@@ -158,196 +131,6 @@ class EntityHaloTrackerTest {
             assertFalse(entity1Nbt.contains("HaloInstance"));
             assertTrue(entity2Nbt.contains("HaloInstance"),
                 "removing halo from entity 1 must not affect entity 2");
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // 2. Teleport marking
-    // ------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("Teleport marking and grace period")
-    class TeleportMarking {
-
-        @Test
-        @DisplayName("markTeleport sets needsSnap on the halo instance")
-        void testMarkTeleportSetsNeedsSnap() {
-            UUID entityUuid = UUID.randomUUID();
-            HaloInstance instance = new HaloInstance(entityUuid,
-                new Identifier("halo", "ring_default"));
-
-            // Fresh instance starts with needsSnap = true
-            assertTrue(instance.isNeedsSnap(),
-                "new HaloInstance must start with needsSnap=true");
-
-            // Clear the snap flag (simulating one tick of physics)
-            instance.setNeedsSnap(false);
-            assertFalse(instance.isNeedsSnap());
-
-            // Simulate teleport
-            instance.markTeleported();
-            assertTrue(instance.isNeedsSnap(),
-                "markTeleported must set needsSnap back to true");
-        }
-
-        @Test
-        @DisplayName("teleport tracking map entry expires after grace period")
-        void testTeleportGracePeriodExpiry() throws Exception {
-            UUID uuid = UUID.randomUUID();
-
-            // Manually add an expired entry
-            long expiredTime = System.currentTimeMillis() - 200; // 200 ms ago (> 100 ms grace)
-            getRecentlyTeleported().put(uuid, expiredTime);
-
-            // Simulate the expiry check logic
-            long now = System.currentTimeMillis();
-            getRecentlyTeleported().values().removeIf(
-                timestamp -> now - timestamp > 100
-            );
-
-            assertFalse(getRecentlyTeleported().containsKey(uuid),
-                "expired teleport entries must be removed");
-        }
-
-        @Test
-        @DisplayName("teleport tracking map entry within grace period is retained")
-        void testTeleportGracePeriodRetained() throws Exception {
-            UUID uuid = UUID.randomUUID();
-
-            // Add a recent entry
-            getRecentlyTeleported().put(uuid, System.currentTimeMillis());
-
-            // Simulate the expiry check — recent entry should survive
-            long now = System.currentTimeMillis();
-            getRecentlyTeleported().values().removeIf(
-                timestamp -> now - timestamp > 100
-            );
-
-            assertTrue(getRecentlyTeleported().containsKey(uuid),
-                "recent teleport entries must survive expiry check");
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // 3. Position tracking / teleport detection
-    // ------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("Position-based teleport detection")
-    class PositionDetection {
-
-        @Test
-        @DisplayName("movement > 1000 blocks in one tick triggers teleport flag")
-        void testLargeMovementTriggersTeleport() {
-            UUID uuid = UUID.randomUUID();
-            HaloInstance instance = new HaloInstance(uuid,
-                new Identifier("halo", "ring_default"));
-            instance.setNeedsSnap(false);
-
-            // Simulate: entity was at (0,0,0), now at (2000,0,0) — 2000 block jump
-            // Threshold is 1000² as a last-resort safety net (primary detection is via mixin hooks)
-            double distanceSq = 2000.0 * 2000.0; // = 4,000,000
-            double thresholdSq = 1000.0 * 1000.0; // = 1,000,000
-
-            assertTrue(distanceSq > thresholdSq,
-                "2000-block jump must exceed the 1000-block teleport threshold");
-
-            // This mirrors the logic in EntityHaloTracker.onEndTick:
-            // if distance > threshold, markTeleport is called
-            instance.markTeleported();
-            assertTrue(instance.isNeedsSnap(),
-                ">1000 block movement must trigger needsSnap");
-        }
-
-        @Test
-        @DisplayName("movement ≤ 1000 blocks does NOT trigger teleport flag")
-        void testSmallMovementDoesNotTrigger() {
-            UUID uuid = UUID.randomUUID();
-            HaloInstance instance = new HaloInstance(uuid,
-                new Identifier("halo", "ring_default"));
-            instance.setNeedsSnap(false);
-
-            // Simulate: entity moved 50 blocks (normal fast travel)
-            double distanceSq = 50.0 * 50.0; // = 2500
-            double thresholdSq = 1000.0 * 1000.0; // = 1,000,000
-
-            assertFalse(distanceSq > thresholdSq,
-                "50-block movement must NOT exceed the 1000-block teleport threshold");
-
-            // No teleport → needsSnap stays false
-            assertFalse(instance.isNeedsSnap(),
-                "normal movement must NOT trigger needsSnap");
-        }
-
-        @Test
-        @DisplayName("movement exactly 1000 blocks does NOT trigger (boundary)")
-        void testBoundaryDistance() {
-            double distanceSq = 1000.0 * 1000.0; // exactly 1,000,000
-            double thresholdSq = 1000.0 * 1000.0; // = 1,000,000
-
-            // Strict inequality: > threshold triggers, == does not
-            assertFalse(distanceSq > thresholdSq,
-                "exactly 1000 block movement must NOT trigger (strict > check)");
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // 4. Cleanup
-    // ------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("Entity cleanup")
-    class Cleanup {
-
-        @Test
-        @DisplayName("cleanup removes halo NBT from entity persistent data")
-        void testCleanupRemovesNbt() {
-            NbtCompound persistent = new NbtCompound();
-
-            // Attach a halo
-            NbtCompound haloTag = new NbtCompound();
-            haloTag.putString("HaloId", UUID.randomUUID().toString());
-            haloTag.putString("Definition", "halo:ring_default");
-            persistent.put("HaloInstance", haloTag);
-
-            assertTrue(persistent.contains("HaloInstance"));
-
-            // Simulate cleanup: remove the halo NBT
-            persistent.remove("HaloInstance");
-
-            assertFalse(persistent.contains("HaloInstance"),
-                "cleanup must remove HaloInstance from persistent NBT");
-        }
-
-        @Test
-        @DisplayName("cleanup clears teleport tracking for the entity")
-        void testCleanupClearsTeleportTracking() throws Exception {
-            UUID uuid = UUID.randomUUID();
-            getRecentlyTeleported().put(uuid, System.currentTimeMillis());
-            assertTrue(getRecentlyTeleported().containsKey(uuid));
-
-            // Simulate cleanup: remove from tracking
-            getRecentlyTeleported().remove(uuid);
-
-            assertFalse(getRecentlyTeleported().containsKey(uuid),
-                "cleanup must remove entity from teleport tracking");
-        }
-
-        @Test
-        @DisplayName("deactivated HaloInstance returns isActive=false")
-        void testDeactivatedInstance() {
-            HaloInstance instance = new HaloInstance(
-                UUID.randomUUID(),
-                new Identifier("halo", "ring_default")
-            );
-
-            assertTrue(instance.isActive(),
-                "new HaloInstance must be active by default");
-
-            instance.deactivate();
-
-            assertFalse(instance.isActive(),
-                "deactivated HaloInstance must return isActive=false");
         }
     }
 

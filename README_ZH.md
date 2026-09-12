@@ -1,10 +1,12 @@
+本分支面向 **Minecraft 1.20.1 Fabric**，功能版本保持 **1.3.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)和 [core 接口契约](core/README.md)。
+
 <h1>
   <img src="src/main/resources/assets/halo/textures/halo/ring.png" alt="封面" height="40" style="vertical-align:middle;margin-right:12px">
   Halo Mod（光环模组）
 </h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-1.19.4--1.20.4-green.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
 ![模组加载器](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 中文 | [English](README.md)
@@ -35,9 +37,8 @@
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-目前支持 Minecraft 1.19.4 ~ 1.20.4 的 Fabric 环境（NeoForge / Forge 1.20.1 可通过 [Sinytra Connector](https://modrinth.com/mod/connector) 运行）。
+当前源码分支面向 Minecraft 1.20.1 Fabric；其他游戏版本与加载器通过各自适配分支维护。
 
-> **关于 1.19.4**：核心功能（显示/隐藏光环、多人同步、持久化）正常工作，但部分查询命令（`/halo list`、`/halo active`、`/halo dump`）在聊天栏无输出。此为已知兼容性问题。
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
 
@@ -74,7 +75,7 @@
 
 ## 安装
 
-1. 为 Minecraft 1.19.4 ~ 1.20.4 安装 [Fabric Loader](https://fabricmc.net/use/)。
+1. 为 Minecraft 1.20.1 安装 [Fabric Loader](https://fabricmc.net/use/)。
 2. 下载对应版本的 [Fabric API](https://modrinth.com/mod/fabric-api)。
 3. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载最新的 **Halo** 模组 JAR 文件。
 4. 将两个 JAR 文件放入 Minecraft 安装目录的 `mods` 文件夹中。
@@ -300,19 +301,19 @@ Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的�
 ### 构建
 
 ```bash
-git clone https://github.com/AzusaKe/Halo.git
+git clone --branch 1.20.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-1.0.3.jar`。
+编译好的 JAR 文件位于 `build/libs/halo-1.20.1-fabric-1.3.0+adapter.1.jar`。
 
 <a id="运行测试"></a>
 
 ### 运行测试
 
 ```bash
-./gradlew test
+./gradlew check
 ```
 
 <a id="运行客户端服务端"></a>
@@ -331,31 +332,19 @@ cd Halo
 
 ## 项目结构
 
-```
-src/main/
-  java/network/azusake/halo/
-    HaloMod.java              — 模组初始化器（服务端入口）
-    HaloModClient.java         — 客户端初始化器（客户端入口）
-    animation/                 — 动画曲线（Linear、Oscillate、Constant）
-    client/                    — 客户端指令拦截、阶段追踪、本地管理
-    command/                   — /halo Brigadier 命令树
-    config/                    — 运行时 HaloConfig（衰减、缩放、偏移）
-    data/                      — HaloDefinition、HaloInstance、HaloEntityData 等
-    json/                      — JSON 反序列化器和资源加载器
-    lifecycle/                 — EntityHaloTracker、HaloWorldSaveData、事件处理器
-    manager/                   — HaloManager（单例，管理所有活跃光环）
-    mixin/                     — EntityTeleportMixin、LivingEntityDataMixin
-    network/                   — HaloNetwork、HaloNetworkClient（多人同步）
-    physics/                   — AnchorFrameCalculator、DampingPhysics、HaloTickHandler
-    render/                    — HaloRenderer、HaloClientManager、HaloRenderListener
-    server/                    — HaloServerEvents、ServerTickHandler
-    shape/                     — BillboardPrimitive、RingPrimitive、HaloGroup、HaloModel
-  resources/
-    fabric.mod.json            — 模组元数据（入口点、Mixin、依赖）
-    halo.mixins.json            — Mixin 配置
-    assets/halo/
-      halo_definitions/         — JSON 光环定义文件（资源包，客户端渲染使用）
-      textures/halo/            — 光环与发光纹理
+```text
+core/                         # independent HaloCore repository (git submodule)
+  src/main/java/              # definitions, ownership, anchors, physics, animation, geometry
+  src/test/                   # standalone contracts, replay and numeric fixtures
+src/main/java/network/azusake/halo/
+  platform/                   # core value conversions and explicit integrated-server bridge
+  client/, command/, item/    # UI, Brigadier and item inputs
+  json/, config/, lifecycle/  # resource, file and world/NBT adapters
+  network/                    # Fabric channels and existing byte codecs
+  physics/, compat/, mixin/   # game/model capture, EMF/YSM/Iris integration
+  render/                     # frame assembly and GPU batch submission
+src/main/resources/           # built-in definitions, textures, recipes and translations
+src/testFixtures/             # frozen anchor API v2 ABI consumer
 ```
 
 <a id="贡献"></a>

@@ -1,0 +1,126 @@
+// Source pinning is exclusively the Git submodule entry. No branch-following dependency resolution.
+def gitOutput = { File directory, List<String> arguments ->
+    def output = new ByteArrayOutputStream()
+    def errors = new ByteArrayOutputStream()
+    try {
+        def result = exec {
+            workingDir directory
+            commandLine(['git'] + arguments)
+            standardOutput output
+            errorOutput errors
+            ignoreExitValue true
+        }
+        result.exitValue == 0 ? output.toString('UTF-8').trim() : ''
+    } catch (Exception ignored) { '' }
+}
+
+def coreDir = file('core')
+def coreCommit = gitOutput(coreDir, ['rev-parse', 'HEAD'])
+def haloCommit = gitOutput(projectDir, ['rev-parse', 'HEAD'])
+def committedLink = gitOutput(projectDir, ['ls-tree', 'HEAD', 'core'])
+def coreLock = committedLink.startsWith('160000 ') ? committedLink.split(/\s+/)[2] : ''
+def coreDirty = !gitOutput(coreDir, ['status', '--porcelain', '--untracked-files=normal']).isEmpty()
+def haloDirty = !gitOutput(projectDir, ['status', '--porcelain', '--untracked-files=normal']).isEmpty()
+def development = coreDirty || haloDirty || !coreLock || coreLock != coreCommit
+ext.releaseBuild = providers.gradleProperty('release').map { it.toBoolean() }.getOrElse(false)
+if (development && !releaseBuild) version = "${version}.dev"
+
+def provenance = [coreVersion: coreVersion, coreCommit: coreCommit ?: 'uncommitted',
+    coreLock: coreLock ?: 'uncommitted', haloCommit: haloCommit ?: 'uncommitted',
+    adapterRevision: adapter_revision, development: development]
+
+tasks.register('verifyCoreLock') {
+    group = 'verification'
+    description = 'Require a clean, pinned and remotely retrievable core for release builds.'
+    doLast {
+        if (!releaseBuild) return
+        if (development) throw new GradleException('Release requires clean Halo/core trees and core HEAD equal to the committed gitlink. Commit core first, then commit the Halo pointer.')
+        if (gitOutput(coreDir, ['rev-parse', "v${coreVersion}^{commit}"]) != coreCommit) {
+            throw new GradleException("Core release must point to its v${coreVersion} tag.")
+        }
+        // A release tag must be advertised remotely, including its peeled commit for annotated tags.
+        def advertised = gitOutput(coreDir, ['ls-remote', 'origin', "refs/tags/v${coreVersion}", "refs/tags/v${coreVersion}^{}"])
+        if (!advertised.readLines().any { it.startsWith(coreCommit + '\t') }) {
+            throw new GradleException('The exact core release commit is not available from origin at its version tag.')
+        }
+    }
+}
+
+def generatedProvenance = layout.buildDirectory.dir('generated/halo-provenance')
+tasks.register('generateCoreProvenance') {
+    dependsOn 'verifyCoreLock'
+    inputs.properties(provenance)
+    outputs.dir(generatedProvenance)
+    doLast {
+        def target = generatedProvenance.get().file('halo-build.json').asFile
+        target.parentFile.mkdirs()
+        target.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(provenance)) + '\n'
+    }
+}
+sourceSets.main.resources.srcDir(generatedProvenance)
+tasks.named('processResources') { dependsOn 'generateCoreProvenance' }
+tasks.named('sourcesJar') { dependsOn 'generateCoreProvenance'; from('core/src/main/java') }
+
+tasks.register('verifyDistribution') {
+    group = 'verification'
+    dependsOn 'remapJar'
+    doLast {
+        def jarFile = tasks.named('remapJar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(jarFile).withCloseable { archive ->
+            def names = Collections.list(archive.entries()).collect { it.name }
+            def duplicates = names.countBy { it }.findAll { key, count -> count > 1 }
+            if (duplicates) throw new GradleException("Duplicate distribution entries: ${duplicates.keySet()}")
+            def forbidden = names.findAll { it.startsWith('net/minecraft/') || it.startsWith('com/google/gson/') || it.startsWith('org/joml/') }
+            if (forbidden) throw new GradleException('Distribution contains classes supplied by Minecraft: ' + forbidden.take(5))
+            new java.util.zip.ZipFile(configurations.coreContents.singleFile).withCloseable { coreJar ->
+                Collections.list(coreJar.entries()).findAll { it.name.endsWith('.class') }.each {
+                    if (!names.contains(it.name)) throw new GradleException('Missing flat core class: ' + it.name)
+                }
+            }
+            if (!names.contains('halo-build.json') || !names.contains('network/azusake/halo/api/v2/HaloAnchorApi.class')) {
+                throw new GradleException('Provenance or directly visible anchor API missing from final jar.')
+            }
+            logger.lifecycle("Verified flat core packaging and provenance: ${jarFile.name}")
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verifyDistribution', 'verifyLegacyAnchorApi' }
+
+// Compile the consumer against the frozen pre-refactor API, then run it with ONLY the final Halo jar.
+tasks.register('compileLegacyAnchorApi', JavaCompile) {
+    source = fileTree('src/testFixtures/api-v2-baseline') { include '**/*.java' }
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('compat/api-v2-baseline')
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+tasks.register('compileLegacyAnchorConsumer', JavaCompile) {
+    dependsOn 'compileLegacyAnchorApi'
+    source = fileTree('src/testFixtures/api-v2-consumer') { include '**/*.java' }
+    classpath = files(tasks.named('compileLegacyAnchorApi').flatMap { it.destinationDirectory })
+    destinationDirectory = layout.buildDirectory.dir('compat/api-v2-consumer')
+    options.release = 17
+}
+tasks.register('verifyLegacyAnchorApi', JavaExec) {
+    group = 'verification'
+    dependsOn 'compileLegacyAnchorConsumer', 'remapJar'
+    classpath = files(tasks.named('compileLegacyAnchorConsumer').flatMap { it.destinationDirectory },
+        tasks.named('remapJar').flatMap { it.archiveFile })
+    mainClass = 'compat.LegacyAnchorConsumer'
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+// Several dev clients can run while core is rebuilt. Never overwrite an open ZipFile in those JVMs.
+tasks.withType(JavaExec).matching { it.name.startsWith('run') }.configureEach {
+    doFirst {
+        def coreJar = configurations.coreContents.singleFile
+        def snapshot = file(".gradle/halo-runtime-core/${java.util.UUID.randomUUID()}/halo-core.jar")
+        snapshot.parentFile.mkdirs()
+        java.nio.file.Files.copy(coreJar.toPath(), snapshot.toPath())
+        classpath = files(classpath.files.collect { it == coreJar ? snapshot : it })
+    }
+}

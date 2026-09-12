@@ -18,6 +18,7 @@ import net.minecraft.server.MinecraftServer;
  */
 public class HaloTickHandler implements ServerTickEvents.EndTick {
 
+    private static boolean registered;
     private static final HaloTickHandler INSTANCE = new HaloTickHandler();
 
     private HaloTickHandler() {
@@ -28,6 +29,8 @@ public class HaloTickHandler implements ServerTickEvents.EndTick {
      * Register this handler on the Fabric tick event bus.
      */
     public static void register() {
+        if (registered) return;
+        registered = true;
         ServerTickEvents.END_SERVER_TICK.register(INSTANCE);
         HaloMod.LOGGER.debug("HaloTickHandler: registered on END_SERVER_TICK");
     }

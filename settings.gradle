@@ -10,3 +10,8 @@ pluginManagement {
 }
 
 rootProject.name = 'halo'
+
+if (!file('core/settings.gradle').isFile()) {
+    throw new GradleException('HaloCore is missing. Run: git submodule update --init --recursive')
+}
+includeBuild('core')

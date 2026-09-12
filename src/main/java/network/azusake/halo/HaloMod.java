@@ -19,6 +19,23 @@ public class HaloMod implements ModInitializer {
     @Override
     public void onInitialize() {
         LOGGER.info("Halo mod initializing...");
+        network.azusake.halo.core.Diagnostics.setSink((level, message, args) -> {
+            switch (level) {
+                case "warn" -> LOGGER.warn(message, args);
+                case "info" -> LOGGER.info(message, args);
+                case "trace" -> LOGGER.trace(message, args);
+                default -> LOGGER.debug(message, args);
+            }
+        });
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(
+            server -> network.azusake.halo.manager.HaloManager.getInstance().bind(server));
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            network.azusake.halo.manager.HaloManager.getInstance().stop();
+            network.azusake.halo.lifecycle.EntityHaloTracker.clear();
+            network.azusake.halo.data.HaloEntityData.clear();
+            network.azusake.halo.json.HaloJsonLoader.clearServerResources();
+            network.azusake.halo.json.EntityAnchorLoader.clearServerResources();
+        });
 
         // Register resource reload listeners for JSON halo definitions
         HaloJsonLoader.register();
@@ -28,9 +45,6 @@ public class HaloMod implements ModInitializer {
 
         // Register server-side event handlers (tick, entity, connection)
         HaloServerEvents.registerAll();
-
-        // Register per-tick halo physics driver
-        network.azusake.halo.physics.HaloTickHandler.register();
 
         // Register entity lifecycle tracker (teleport detection, NBT restore, cleanup)
         EntityHaloTracker.register();

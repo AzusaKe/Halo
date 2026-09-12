@@ -5,7 +5,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 
 import java.util.Map;
 import java.util.UUID;
@@ -224,4 +224,5 @@ public final class HaloEntityData {
             list.getDouble(2)
         };
     }
+    public static void clear() { DATA.clear(); }
 }

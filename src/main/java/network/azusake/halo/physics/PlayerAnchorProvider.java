@@ -11,8 +11,8 @@ import net.minecraft.client.render.Camera;
 import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import network.azusake.halo.core.Identifier;
+import network.azusake.halo.core.Vec3d;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,27 +72,14 @@ public final class PlayerAnchorProvider {
             // The local first-person camera is the rendered head.  Entity
             // interpolation omits camera bob and can lag independently,
             // causing shader-pass captures to orbit or jump around the player.
-            return pose(firstPersonCamera.getPos(), yaw, pitch, roll);
+            return pose(network.azusake.halo.platform.PlatformTypes.core(firstPersonCamera.getPos()), yaw, pitch, roll);
         }
 
         // 2. Pose key → PoseAnchor
         String poseKey = resolvePoseKey(entity);
         PoseAnchor pose = getPoseAnchor(poseKey);
 
-        // 3. World-space pivot
-        Vec3d pivotWorld = footPos.add(pose.pivot());
-
-        // 4. Head orientation basis (shared with AnchorFrameCalculator)
-        HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yaw, pitch, roll);
-
-        // 5. Project head_center_vector through basis → world-space head center
-        Vec3d hcv = pose.headCenterVector();
-        Vec3d offset = frame.right().multiply(hcv.x)
-            .add(frame.headUp().multiply(hcv.y))
-            .add(frame.forward().multiply(hcv.z));
-        Vec3d headCenter = pivotWorld.add(offset);
-
-        return pose(headCenter, yaw, pitch, roll);
+        return network.azusake.halo.core.AnchorFallback.player(footPos,pose,yaw,pitch,roll);
     }
 
     private static AnchorPose pose(Vec3d position, float yaw, float pitch, float roll) {
@@ -176,24 +163,10 @@ public final class PlayerAnchorProvider {
      */
     static String resolvePoseKey(boolean sleeping, boolean fallFlying, boolean swimming,
                                  EntityPose pose, boolean sneaking, boolean onGround) {
-        if (sleeping) {
-            return "sleeping";
-        }
-        if (fallFlying) {
-            return "fall_flying";
-        }
-        if (swimming) {
-            return "swimming";
-        }
-        // EntityPose.SWIMMING without the swimming flag means crawling under a block
-        if (pose == EntityPose.SWIMMING) {
-            return "crawling";
-        }
-        // Crouch anchor only applies on the ground; airborne sneaking keeps standing.
-        if (onGround && (pose == EntityPose.CROUCHING || sneaking)) {
-            return "sneaking";
-        }
-        return "standing";
+        var semantic = pose==EntityPose.SWIMMING ? network.azusake.halo.core.AnchorFallback.Pose.SWIMMING
+            : pose==EntityPose.CROUCHING ? network.azusake.halo.core.AnchorFallback.Pose.CROUCHING
+            : network.azusake.halo.core.AnchorFallback.Pose.STANDING;
+        return network.azusake.halo.core.AnchorFallback.poseKey(sleeping,fallFlying,swimming,semantic,sneaking,onGround);
     }
 
     // ------------------------------------------------------------------

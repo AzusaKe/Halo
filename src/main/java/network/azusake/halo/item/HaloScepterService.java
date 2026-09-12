@@ -9,7 +9,7 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.world.World;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.network.HaloNetwork;
@@ -26,85 +26,38 @@ public final class HaloScepterService {
     }
 
     public static void open(ServerPlayerEntity player, Entity requestedTarget) {
-        if (!hasPermission(player)) {
-            feedback(player, "message.halo.halo_scepter.no_permission",
-                HaloModConfigStore.getPermissionLevel());
-            return;
-        }
-        if (!isHoldingScepter(player)) {
-            feedback(player, "message.halo.halo_scepter.not_holding");
-            return;
-        }
-        if (!(requestedTarget instanceof LivingEntity target) || !target.isAlive()) {
-            feedback(player, "message.halo.halo_scepter.invalid_target");
-            return;
-        }
+        var failure=network.azusake.halo.core.runtime.ScepterPolicy.open(hasPermission(player),isHoldingScepter(player),
+            requestedTarget instanceof LivingEntity && requestedTarget.isAlive());
+        if(failure!=null){deny(player,failure,requestedTarget);return;}
+        LivingEntity target=(LivingEntity)requestedTarget;
 
         SESSIONS.open(
             player.getUuid(),
             target.getUuid(),
-            target.getWorld().getRegistryKey().getValue()
+            network.azusake.halo.platform.PlatformTypes.core(target.getWorld().getRegistryKey().getValue())
         );
         HaloNetwork.sendScepterOpen(player, target);
     }
 
     public static void select(ServerPlayerEntity player, Identifier definitionId) {
         HaloScepterSessionStore.Session session = SESSIONS.get(player.getUuid());
-        if (session == null) {
-            feedback(player, "message.halo.halo_scepter.session_expired");
-            HaloNetwork.sendScepterClose(player);
-            return;
-        }
-        if (!hasPermission(player)) {
-            feedback(player, "message.halo.halo_scepter.no_permission",
-                HaloModConfigStore.getPermissionLevel());
-            close(player.getUuid());
-            HaloNetwork.sendScepterClose(player);
-            return;
-        }
-        if (!isHoldingScepter(player)) {
-            feedback(player, "message.halo.halo_scepter.not_holding");
-            close(player.getUuid());
-            HaloNetwork.sendScepterClose(player);
-            return;
-        }
-
-        LivingEntity target = resolveTarget(player.getServer(), session);
-        if (target == null) {
-            feedback(player, "message.halo.halo_scepter.invalid_target");
-            close(player.getUuid());
-            HaloNetwork.sendScepterClose(player);
-            return;
-        }
+        LivingEntity target=session==null?null:resolveTarget(player.getServer(),session);
+        var failure=network.azusake.halo.core.runtime.ScepterPolicy.select(session!=null,hasPermission(player),
+            isHoldingScepter(player),target!=null);
+        if(failure!=null){deny(player,failure,target);close(player.getUuid());HaloNetwork.sendScepterClose(player);return;}
 
         HaloManager.getInstance().showHaloOn(target, definitionId);
         feedback(player, "message.halo.halo_scepter.applied", definitionId.toString(), target.getDisplayName());
     }
 
     public static void remove(ServerPlayerEntity player, Entity requestedTarget, boolean selfTarget) {
-        if (!hasPermission(player)) {
-            feedback(player, "message.halo.halo_scepter.no_permission",
-                HaloModConfigStore.getPermissionLevel());
-            return;
-        }
-        if (!player.getMainHandStack().isOf(HaloItems.HALO_SCEPTER)) {
-            feedback(player, "message.halo.halo_scepter.not_holding");
-            return;
-        }
-
-        Entity resolved = selfTarget ? player : requestedTarget;
-        if (!(resolved instanceof LivingEntity target) || !target.isAlive()) {
-            feedback(player, "message.halo.halo_scepter.invalid_target");
-            return;
-        }
-        if (!selfTarget && player.squaredDistanceTo(target) > MAX_DIRECT_TARGET_DISTANCE_SQUARED) {
-            feedback(player, "message.halo.halo_scepter.too_far");
-            return;
-        }
-        if (HaloManager.getInstance().getHaloInstance(target.getUuid()) == null) {
-            feedback(player, "message.halo.halo_scepter.no_halo", target.getDisplayName());
-            return;
-        }
+        Entity resolved=selfTarget?player:requestedTarget;
+        var failure=network.azusake.halo.core.runtime.ScepterPolicy.remove(hasPermission(player),
+            player.getMainHandStack().isOf(HaloItems.HALO_SCEPTER),resolved instanceof LivingEntity && resolved.isAlive(),
+            selfTarget,resolved==null?Double.POSITIVE_INFINITY:player.squaredDistanceTo(resolved),
+            resolved!=null && HaloManager.getInstance().getHaloInstance(resolved.getUuid())!=null);
+        if(failure!=null){deny(player,failure,resolved);return;}
+        LivingEntity target=(LivingEntity)resolved;
 
         HaloManager.getInstance().hideHaloOn(target);
         feedback(player, "message.halo.halo_scepter.removed", target.getDisplayName());
@@ -128,10 +81,8 @@ public final class HaloScepterService {
         for (HaloScepterSessionStore.Session session : SESSIONS.snapshot()) {
             ServerPlayerEntity player = server.getPlayerManager().getPlayer(session.playerUuid());
             LivingEntity target = resolveTarget(server, session);
-            boolean valid = player != null
-                && player.isAlive()
-                && player.getWorld().getRegistryKey().getValue().equals(session.worldId())
-                && target != null;
+            boolean valid = network.azusake.halo.core.runtime.ScepterPolicy.sessionValid(
+                player!=null && player.isAlive(),player!=null && player.getWorld().getRegistryKey().getValue().toString().equals(session.worldId().toString()),target!=null);
             if (!valid) {
                 SESSIONS.close(session.playerUuid());
                 if (player != null) {
@@ -149,7 +100,7 @@ public final class HaloScepterService {
         if (server == null) {
             return null;
         }
-        RegistryKey<World> worldKey = RegistryKey.of(RegistryKeys.WORLD, session.worldId());
+        RegistryKey<World> worldKey = RegistryKey.of(RegistryKeys.WORLD, network.azusake.halo.platform.PlatformTypes.game(session.worldId()));
         ServerWorld world = server.getWorld(worldKey);
         if (world == null) {
             return null;
@@ -169,5 +120,11 @@ public final class HaloScepterService {
 
     private static void feedback(ServerPlayerEntity player, String key, Object... args) {
         player.sendMessage(Text.translatable(key, args), true);
+    }
+    private static void deny(ServerPlayerEntity player,network.azusake.halo.core.runtime.ScepterPolicy.Failure failure,Entity target) {
+        String key="message.halo.halo_scepter."+failure.name().toLowerCase(java.util.Locale.ROOT);
+        if(failure==network.azusake.halo.core.runtime.ScepterPolicy.Failure.NO_PERMISSION)feedback(player,key,HaloModConfigStore.getPermissionLevel());
+        else if(failure==network.azusake.halo.core.runtime.ScepterPolicy.Failure.NO_HALO)feedback(player,key,target.getDisplayName());
+        else feedback(player,key);
     }
 }

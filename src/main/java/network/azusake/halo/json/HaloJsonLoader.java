@@ -2,19 +2,15 @@ package network.azusake.halo.json;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloDefinition;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.InputStreamReader;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Fabric resource reload listener that scans {@code halo_definitions/} in all
@@ -26,8 +22,8 @@ public final class HaloJsonLoader {
     private static final Logger LOG = LoggerFactory.getLogger(HaloMod.MOD_ID);
     private static final String DEFINITIONS_PATH = "halo_definitions";
 
-    private static final Map<Identifier, HaloDefinition> DEFINITIONS = new LinkedHashMap<>();
-    private static final HaloDefinitionDeserializer DESERIALIZER = new HaloDefinitionDeserializer();
+    private static final network.azusake.halo.core.runtime.DefinitionResources RESOURCES = new network.azusake.halo.core.runtime.DefinitionResources();
+    public static network.azusake.halo.core.runtime.DefinitionSnapshot snapshot() { return RESOURCES.snapshot(); }
 
     /** Definitions loaded by the server (data-pack) listener.  Cleared and repopulated on reload. */
     private static final Set<Identifier> serverLoadedIds = new LinkedHashSet<>();
@@ -53,7 +49,7 @@ public final class HaloJsonLoader {
      * thread), so a plain {@link java.util.concurrent.ConcurrentHashMap} gives
      * more than enough safety.
      */
-    private static final Map<UUID, Set<Identifier>> clientReportedDefs = new ConcurrentHashMap<>(8);
+    private static final network.azusake.halo.core.runtime.DefinitionReports clientReportedDefs = new network.azusake.halo.core.runtime.DefinitionReports();
 
     /**
      * Register resource reload listener for server data packs.
@@ -100,14 +96,14 @@ public final class HaloJsonLoader {
      * Return an unmodifiable view of all currently loaded definitions.
      */
     public static Map<Identifier, HaloDefinition> getDefinitions() {
-        return Collections.unmodifiableMap(DEFINITIONS);
+        return RESOURCES.legacyDefinitions();
     }
 
     /**
      * Look up a single definition by id.
      */
     public static Optional<HaloDefinition> getDefinition(Identifier id) {
-        return Optional.ofNullable(DEFINITIONS.get(id));
+        return Optional.ofNullable(RESOURCES.legacyDefinitions().get(id));
     }
 
     // ------------------------------------------------------------------
@@ -134,11 +130,7 @@ public final class HaloJsonLoader {
      * Return the union of all client-reported definition IDs.
      */
     public static Set<Identifier> getClientReportedDefIds() {
-        Set<Identifier> all = new LinkedHashSet<>();
-        for (var set : clientReportedDefs.values()) {
-            all.addAll(set);
-        }
-        return all;
+        return clientReportedDefs.all();
     }
 
     /**
@@ -146,7 +138,7 @@ public final class HaloJsonLoader {
      * if that player hasn't reported yet.
      */
     public static Set<Identifier> getClientReportedDefs(UUID playerUuid) {
-        return clientReportedDefs.getOrDefault(playerUuid, Set.of());
+        return clientReportedDefs.get(playerUuid);
     }
 
     /**
@@ -154,7 +146,7 @@ public final class HaloJsonLoader {
      * client-reported ones.  Used by {@code /halo list} and tab-completion.
      */
     public static Set<Identifier> getAllKnownDefinitionIds() {
-        Set<Identifier> all = new LinkedHashSet<>(DEFINITIONS.keySet());
+        Set<Identifier> all = new LinkedHashSet<>(RESOURCES.legacyDefinitions().keySet());
         all.addAll(getClientReportedDefIds());
         return all;
     }
@@ -174,34 +166,21 @@ public final class HaloJsonLoader {
      *                  will be cleared and repopulated with the new IDs
      */
     private static void reload(ResourceManager manager, Set<Identifier> sourceSet) {
-        // Remove only the definitions that were previously loaded from this source
-        for (Identifier id : sourceSet) {
-            DEFINITIONS.remove(id);
-        }
-        sourceSet.clear();
-
-        Map<Identifier, net.minecraft.resource.Resource> resources = manager.findResources(
-            DEFINITIONS_PATH,
-            id -> id.getPath().endsWith(".json")
-        );
-
-        LOG.info("Found {} halo definition(s) to load", resources.size());
-
-        for (Map.Entry<Identifier, net.minecraft.resource.Resource> entry : resources.entrySet()) {
-            Identifier fileId = entry.getKey();
-            try (InputStreamReader reader = new InputStreamReader(entry.getValue().getInputStream())) {
-                JsonElement root = JsonParser.parseReader(reader);
-                HaloDefinition def = DESERIALIZER.deserialize(root, HaloDefinition.class, null);
-
-                DEFINITIONS.put(def.id(), def);
-                sourceSet.add(def.id());
-                LOG.info("  Loaded halo definition: {}", def.id());
-            } catch (Exception e) {
-                LOG.warn("  Skipping malformed halo definition {}: {}", fileId, e.getMessage());
+        var loaded = new ArrayList<network.azusake.halo.core.runtime.ResourceInput>();
+        var resources = manager.findResources(DEFINITIONS_PATH, id -> id.getPath().endsWith(".json"));
+        for (var entry : resources.entrySet()) {
+            try (var input = entry.getValue().getInputStream()) {
+                loaded.add(new network.azusake.halo.core.runtime.ResourceInput(
+                    network.azusake.halo.platform.PlatformTypes.core(entry.getKey()), entry.getValue().getResourcePackName(),
+                    new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
+            } catch (java.io.IOException ex) {
+                LOG.warn("Could not read halo resource {}: {}", entry.getKey(), ex.getMessage());
             }
         }
-
-        LOG.info("Halo definition registry now holds {} entries", DEFINITIONS.size());
+        for (var problem : RESOURCES.reload(sourceSet == clientLoadedIds ? 1 : 0, loaded)) {
+            LOG.warn("Skipping malformed halo definition {} from {}: {}", problem.resource(), problem.source(), problem.message());
+        }
+        LOG.info("Halo definition registry now holds {} entries", RESOURCES.legacyDefinitions().size());
     }
 
     // ------------------------------------------------------------------
@@ -210,8 +189,8 @@ public final class HaloJsonLoader {
 
     private static class ServerListener implements SimpleSynchronousResourceReloadListener {
         @Override
-        public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "halo_definitions");
+        public net.minecraft.util.Identifier getFabricId() {
+            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "halo_definitions");
         }
 
         @Override
@@ -222,8 +201,8 @@ public final class HaloJsonLoader {
 
     private static class ClientListener implements SimpleSynchronousResourceReloadListener {
         @Override
-        public Identifier getFabricId() {
-            return new Identifier(HaloMod.MOD_ID, "halo_definitions_client");
+        public net.minecraft.util.Identifier getFabricId() {
+            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "halo_definitions_client");
         }
 
         @Override
@@ -231,4 +210,5 @@ public final class HaloJsonLoader {
             HaloJsonLoader.reload(manager, clientLoadedIds);
         }
     }
+    public static void clearServerResources() { RESOURCES.reload(0, List.of()); clientReportedDefs.clear(); }
 }

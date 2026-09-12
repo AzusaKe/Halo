@@ -9,7 +9,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.util.HaloIdMatcher;
 

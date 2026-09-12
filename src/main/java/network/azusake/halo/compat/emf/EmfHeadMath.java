@@ -13,41 +13,11 @@ public final class EmfHeadMath {
 
     /** Convert using the exact camera frame that produced this capture. */
     public static AnchorPose toAnchorPose(EmfHeadCapture.CapturedHead captured) {
-        if (captured == null || captured.headMatrix() == null
-            || captured.viewMatrix() == null || captured.cameraPos() == null
-            || !isFinite(captured.headMatrix()) || !isFinite(captured.viewMatrix())
-            || !isFinite(captured.cameraPos())) {
-            return null;
-        }
-
-        Matrix4f inverseView = new Matrix4f(captured.viewMatrix()).invert(new Matrix4f());
-        if (!isFinite(inverseView)) {
-            return null;
-        }
-        Matrix4f worldMatrix = inverseView.mul(captured.headMatrix(), new Matrix4f());
-        if (!isFinite(worldMatrix)) {
-            return null;
-        }
-
-        try {
-            return RenderHeadMath.toAnchorPose(worldMatrix, captured.cameraPos());
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static boolean isFinite(Matrix4f matrix) {
-        float[] values = new float[16];
-        matrix.get(values);
-        for (float value : values) {
-            if (!Float.isFinite(value)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean isFinite(Vec3d value) {
-        return Double.isFinite(value.x) && Double.isFinite(value.y) && Double.isFinite(value.z);
+        if(captured==null)return null;
+        return network.azusake.halo.core.CapturedModelMath.resolve(
+            captured.headMatrix()==null?null:captured.headMatrix().get(new float[16]),
+            captured.viewMatrix()==null?null:captured.viewMatrix().get(new float[16]),
+            captured.cameraPos()==null?null:network.azusake.halo.platform.PlatformTypes.core(captured.cameraPos()),
+            new network.azusake.halo.core.Vec3d(0,-.25,0),new network.azusake.halo.core.Vec3d(0,0,-1),new network.azusake.halo.core.Vec3d(0,-1,0));
     }
 }

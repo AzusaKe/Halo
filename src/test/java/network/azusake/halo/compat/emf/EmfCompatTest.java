@@ -98,7 +98,7 @@ class EmfCompatTest {
         assertNotNull(anchor);
         assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
         assertDirection(frame.headUp(), anchor, new AnchorVec3(0, 1, 0));
-        Vec3d expectedCenter = cubeOrigin.add(frame.headUp().multiply(0.25));
+        Vec3d expectedCenter = cubeOrigin.add(network.azusake.halo.platform.PlatformTypes.game(frame.headUp().multiply(0.25)));
         assertEquals(expectedCenter.x, anchor.position().x(), EPS);
         assertEquals(expectedCenter.y, anchor.position().y(), EPS);
         assertEquals(expectedCenter.z, anchor.position().z(), EPS);
@@ -130,7 +130,7 @@ class EmfCompatTest {
         assertDirection(frame.headUp(), anchor, new AnchorVec3(0, 1, 0));
     }
 
-    private static void assertDirection(Vec3d expected, AnchorPose pose, AnchorVec3 local) {
+    private static void assertDirection(network.azusake.halo.core.Vec3d expected, AnchorPose pose, AnchorVec3 local) {
         AnchorVec3 actual = AnchorPoseMath.rotate(pose.rotation(), local);
         assertEquals(expected.x, actual.x(), EPS);
         assertEquals(expected.y, actual.y(), EPS);

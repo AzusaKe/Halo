@@ -27,7 +27,7 @@ public final class HaloServerEvents {
      * Register every server-side event handler.
      */
     public static void registerAll() {
-        registerTickHandler();
+        network.azusake.halo.physics.HaloTickHandler.register();
         registerEntityEvents();
         registerConnectionEvents();
         HaloMod.LOGGER.info("HaloServerEvents: all server event handlers registered");
@@ -36,12 +36,6 @@ public final class HaloServerEvents {
     // ---------------------------------------------------------------
     // Per-category registrations (package-private for test visibility)
     // ---------------------------------------------------------------
-
-    static void registerTickHandler() {
-        ServerTickHandler tickHandler = new ServerTickHandler();
-        ServerTickEvents.END_SERVER_TICK.register(tickHandler);
-        HaloMod.LOGGER.debug("HaloServerEvents: ServerTickHandler registered");
-    }
 
     static void registerEntityEvents() {
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {

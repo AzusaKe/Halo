@@ -12,7 +12,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.Map;
@@ -88,7 +88,7 @@ public final class EntityHaloTracker {
     // ------------------------------------------------------------------
 
     /** Entities that have teleported recently, with their teleport timestamp (epoch ms). */
-    private static final Map<UUID, Long> recentlyTeleported = new ConcurrentHashMap<>();
+    private static final network.azusake.halo.core.runtime.TeleportTracker tracker = new network.azusake.halo.core.runtime.TeleportTracker();
 
     /**
      * How long (ms) after a teleport the entity is considered "still teleporting".
@@ -103,7 +103,7 @@ public final class EntityHaloTracker {
     // ------------------------------------------------------------------
 
     /** Last known world-space position of each tracked entity. */
-    private static final Map<UUID, Vec3d> lastKnownPositions = new ConcurrentHashMap<>();
+
 
     /**
      * Distance threshold squared (blocks²) for teleport detection via position
@@ -202,11 +202,16 @@ public final class EntityHaloTracker {
      */
     public static void markTeleport(LivingEntity entity) {
         UUID uuid = entity.getUuid();
-        recentlyTeleported.put(uuid, System.currentTimeMillis());
+        if (entity.getWorld().isClient) {
+            network.azusake.halo.platform.IntegratedBridge.teleport.accept(uuid);
+            return;
+        }
+        if(entity.getServer()!=null && !entity.getServer().isDedicated())
+            network.azusake.halo.platform.IntegratedBridge.teleport.accept(uuid);
+        tracker.mark(uuid, System.currentTimeMillis());
 
         HaloInstance instance = HaloManager.getInstance().getHaloInstance(uuid);
         if (instance != null) {
-            instance.markTeleported();
             if (debugMode && currentServer != null) {
                 Vec3d pos = entity.getPos();
                 var msg = Text.literal(
@@ -225,7 +230,7 @@ public final class EntityHaloTracker {
      *         {@value #TELEPORT_GRACE_PERIOD_MS} ms
      */
     public static boolean isTeleporting(UUID entityUuid) {
-        return recentlyTeleported.containsKey(entityUuid);
+        return tracker.isRecent(entityUuid);
     }
 
     /**
@@ -249,20 +254,9 @@ public final class EntityHaloTracker {
         UUID uuid = entity.getUuid();
         // Silent removal — no broadcast, no shutdown animation.  Ownership in the
         // world save is preserved (players) or pruned (non-players) below.
-        HaloManager.getInstance().forceRemoveHalo(uuid);
-        HaloEntityData.removeHalo(entity);
+        HaloManager.getInstance().died(entity, entity instanceof ServerPlayerEntity);
 
-        // A dead non-player will never respawn — drop its stale ownership entry.
-        // A dead player keeps theirs so the halo returns on respawn.
-        if (!(entity instanceof ServerPlayerEntity)) {
-            var server = entity.getServer();
-            if (server != null) {
-                HaloWorldSaveData.get(server.getOverworld()).remove(uuid);
-            }
-        }
-
-        recentlyTeleported.remove(uuid);
-        lastKnownPositions.remove(uuid);
+        tracker.remove(uuid);
     }
 
     // ------------------------------------------------------------------
@@ -278,9 +272,7 @@ public final class EntityHaloTracker {
 
         // ---- Expire old teleport markers ----
         long now = System.currentTimeMillis();
-        recentlyTeleported.values().removeIf(timestamp ->
-            now - timestamp > TELEPORT_GRACE_PERIOD_MS
-        );
+        tracker.expire(now);
 
         // ---- Position-based teleport detection (safety net) ----
         // Only check entities that currently have an active halo
@@ -296,13 +288,7 @@ public final class EntityHaloTracker {
             }
 
             Vec3d currentPos = entity.getPos();
-            Vec3d lastPos = lastKnownPositions.get(uuid);
-
-            if (lastPos != null && currentPos.squaredDistanceTo(lastPos) > TELEPORT_DISTANCE_SQ) {
-                markTeleport(entity);
-            }
-
-            lastKnownPositions.put(uuid, currentPos);
+            if(tracker.moved(uuid,network.azusake.halo.platform.PlatformTypes.core(currentPos)))markTeleport(entity);
         }
     }
 
@@ -337,7 +323,7 @@ public final class EntityHaloTracker {
             return;
         }
 
-        HaloManager.getInstance().showHaloOn(player, defId);
+        HaloManager.getInstance().restore(player);
         HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on player {} after respawn", defId, uuid);
     }
 
@@ -358,14 +344,7 @@ public final class EntityHaloTracker {
         }
 
         // Re-create the halo instance via HaloManager
-        HaloManager.getInstance().showHaloOn(entity, defId);
-
-        // Mark as teleported so the halo snaps to the entity immediately
-        // rather than sliding in from the world origin
-        HaloInstance instance = HaloManager.getInstance().getHaloInstance(entity.getUuid());
-        if (instance != null) {
-            instance.markTeleported();
-        }
+        HaloManager.getInstance().restore(entity);
 
         HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on entity {} from world save",
             defId, entity.getUuid());
@@ -383,4 +362,5 @@ public final class EntityHaloTracker {
         }
         return null;
     }
+    public static void clear() { tracker.clear(); currentServer=null; }
 }

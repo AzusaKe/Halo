@@ -23,7 +23,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import network.azusake.halo.core.Identifier;
 
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -318,7 +318,7 @@ public final class HaloConfigCommand {
             return 0;
         }
 
-        Identifier defId = IdentifierArgumentType.getIdentifier(ctx, "definition");
+        Identifier defId = network.azusake.halo.platform.PlatformTypes.core(IdentifierArgumentType.getIdentifier(ctx, "definition"));
 
         // (no namespace fallback — the server is a thin authority that accepts any
         // valid identifier; the namespace comes directly from tab-completion)
@@ -583,6 +583,7 @@ public final class HaloConfigCommand {
         boolean enabled = BoolArgumentType.getBool(ctx, "enabled");
         EntityHaloTracker.setDebugMode(enabled);
 
+        HaloManager.getInstance().publishConfig();
         ctx.getSource().sendFeedback(
             () -> Text.literal("§aHalo debug logging: " + (enabled ? "§eON" : "§7OFF")),
             true
@@ -596,20 +597,12 @@ public final class HaloConfigCommand {
     private static int configSet(CommandContext<ServerCommandSource> ctx, String param, double value) {
         HaloConfig config = HaloManager.getInstance().getConfig();
 
-        switch (param) {
-            case "linear-damping"                -> config.setLinearDampingFactor(value);
-            case "angular-damping"               -> config.setAngularDampingFactor(value);
-            case "max-linear-distance"           -> config.setMaxLinearDistance(value);
-            case "max-angular-degrees"           -> config.setMaxAngularDegrees(value);
-            case "scale"                         -> config.setHaloScale(value);
-            case "angular-momentum-factor"       -> config.setAngularMomentumFactor(value);
-            case "max-angular-momentum-degrees"  -> config.setMaxAngularMomentumDegrees(value);
-            default -> {
-                ctx.getSource().sendError(Text.literal("Unknown config parameter: " + param));
-                return 0;
-            }
+        if (!config.setNumber(param, value)) {
+            ctx.getSource().sendError(Text.literal("Unknown config parameter: " + param));
+            return 0;
         }
 
+        HaloManager.getInstance().publishConfig();
         ctx.getSource().sendFeedback(
             () -> Text.literal("§aSet §f" + param + "§a to §f" + value),
             true
@@ -631,6 +624,7 @@ public final class HaloConfigCommand {
             }
         }
 
+        HaloManager.getInstance().publishConfig();
         ctx.getSource().sendFeedback(
             () -> Text.literal("§aSet §f" + param + "§a to §f" + value),
             true

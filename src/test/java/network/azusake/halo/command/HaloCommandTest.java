@@ -3,8 +3,7 @@ package network.azusake.halo.command;
 import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDampingConfig;
 import network.azusake.halo.data.HaloPositioning;
-import network.azusake.halo.manager.HaloManager;
-import net.minecraft.util.math.Vec3d;
+import network.azusake.halo.core.Vec3d;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -276,40 +275,4 @@ class HaloCommandTest {
         }
     }
 
-    // ------------------------------------------------------------------
-    // 3. HaloManager — singleton and lifecycle
-    // ------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("HaloManager singleton and lifecycle")
-    class ManagerLifecycle {
-
-        @Test
-        @DisplayName("getInstance returns the same instance")
-        void singletonReturnsSameInstance() {
-            HaloManager m1 = HaloManager.getInstance();
-            HaloManager m2 = HaloManager.getInstance();
-            assertSame(m1, m2);
-        }
-
-        @Test
-        @DisplayName("getConfig returns non-null HaloConfig")
-        void getConfigReturnsConfig() {
-            HaloConfig config = HaloManager.getInstance().getConfig();
-            assertNotNull(config);
-        }
-
-        @Test
-        @DisplayName("active halos start empty")
-        void startsEmpty() {
-            assertEquals(0, HaloManager.getInstance().getActiveCount());
-            assertTrue(HaloManager.getInstance().getActiveHalos().isEmpty());
-        }
-
-        @Test
-        @DisplayName("getHaloInstance returns null for unknown UUID")
-        void nullForUnknownUuid() {
-            assertNull(HaloManager.getInstance().getHaloInstance(java.util.UUID.randomUUID()));
-        }
-    }
 }

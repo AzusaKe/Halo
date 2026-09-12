@@ -65,9 +65,7 @@ public abstract class EntityTeleportMixin {
     private void markIfHasHalo() {
         Entity self = (Entity) (Object) this;
         if (self instanceof LivingEntity living) {
-            if (HaloManager.getInstance().getHaloInstance(living.getUuid()) != null) {
-                EntityHaloTracker.markTeleport(living);
-            }
+            EntityHaloTracker.markTeleport(living);
         }
     }
 }
