@@ -1,8 +1,8 @@
-# Halo 2.0.0 mesh 开发验收记录
+# Halo 2.0.0 mesh 验收记录
 
-日期：2026-09-12。仅适配 Minecraft 1.20.1 Fabric。当前为 2.0.0 本地开发检查点，未发布。
+日期：2026-09-12 至 2026-09-13。仅适配 Minecraft 1.20.1 Fabric。用户已确认测试通过并批准 2.0.0 正式发布，发布验收见末节。前面的开发包、临时方案和未完成项保留为历史记录，不代表当前发布状态。
 
-## 源码与成品
+## 首轮开发源码与成品（历史记录）
 
 - Halo：`codex/mesh-1.20.1`，基线 `29760d9f56ef15503888be032b4a9c34935c4e71`，适配修订 1。
 - core：`codex/mesh`，基线 `dd6e24b2687a901e43de95568525cb1011f9316c`，功能版本升至 `2.0.0`，schema `1.1.0`。
@@ -68,7 +68,7 @@ YSM 2.6.5 发布包通过 ABI 测试，但实际启动报告 `Unsatisfied runtim
 
 这些是该机器一次本地基准，不能换算为保证的游戏 FPS。逐帧顶点列表仍有分配；GPU 常驻网格、实例化和全局透明排序不在本次实现范围。记录和可重放 Java 基准见临时目录 `benchmark.txt`、`MeshBenchmark.java`。
 
-## 发布前仍需补充的覆盖
+## 首轮发布前仍需补充的覆盖（历史记录）
 
 未完成的游戏项目不得由自动测试代替：所有方向的单面剔除、资源包优先级/模型替换/资源移除恢复全组合、睡眠/隐身/死亡等完整生命周期、长时间压力测试，以及可正常加载的真实 YSM 模型组合。当前只交付开发版，不执行发布门禁或高版本迁移。
 
@@ -174,3 +174,13 @@ core 独立 `build` 通过：268 项测试全部通过，无失败、错误或�
 按用户要求，先在 `codex/mesh` 提交 core 至 `004111050982bad5a27452977e2387a9523ae63b`，保存原比例缩放、同倍数遮罩和相关测试/文档；再由包含本节的 Halo 提交（`codex/mesh-1.20.1`）保存 demo、纹理、作者文档、验证记录和此 core gitlink。Halo SHA 可在本文件的提交历史中查询。两个仓库仅本地提交，不合并主线、不推送、不创建标签或 Release。
 
 版本保持 2.0.0 开发版 / schema 1.1.0 / adapter 1。此次只补充决定和提交记录，未修改已验证的功能源码/资源，未重新构建或运行游戏；沿用上一节 core 268 项、Halo 87 项以及隔离客户端验证，另检查文档和待提交差异。保留上一节 SHA-256 为 `77e9d73b8cf95661d097bb3a354da3323bbf57f8fb159ff53915fa6bb733875d` 的测试包；其构建来源仍记录提交前 Halo `83129f0` / core `0eb039a` 基线及开发工作树状态，不将其标记为新提交的正式发布构建。
+
+## 2.0.0 正式发布验收（2026-09-13）
+
+用户确认“通过测试，可以将其作为 2.0.0 正式版”，授权收尾、提交和推送，并明确要求 Halo 合并至 `1.20.1-fabric` 后删除本次开发分支。发布保留上述功能与限制：OBJ、原比例缩放、宽高同倍数遮罩、Iris 世界流水线材质，以及五个内置 demo；不新增 U/V 独立整数倍支持。最后两个功能提交为 Halo `93d67f5` / core `0041110`；本次发布收尾只修改文档、发布状态及 gitlink，不修改经过验证的功能代码和资源。
+
+core 发布提交为 `2800fb5af483753e589c7e9952f6056127b96f8c`，集成分支 `main`，标签 `v2.0.0`；Halo 以本发布提交的 gitlink 锁定它，集成分支 `1.20.1-fabric`，标签 `v2.0.0-fabric-1.20.1-adapter.1`。本次开发分支为 core `codex/mesh` 和 Halo `codex/mesh-1.20.1`，其他平台/flash 分支不属于本次发布或清理范围。
+
+已完成的验收证据为 core 268 项、Halo 87 项自动测试，上一节隔离客户端的原生/Bliss/Iteration RP/BSL/Iris fallback 与资源重载检查，以及用户本次最终复测。YSM 锚点和约 10 分钟稳定性沿用用户反馈；历史未覆盖项不改写为逐项通过。正式构建使用 `build -Prelease=true`，门禁要求两仓库干净、core HEAD 等于已提交 gitlink、且该 core SHA 可从远端获取；产物为 `halo-1.20.1-fabric-2.0.0+adapter.1.jar`，内含 `halo-build.json` 记录确切来源，`development=false`，schema 仍为 1.1.0，存档/协议/锚点 API v2 保持兼容。
+
+远端构建与发布结果以 [Halo Actions](https://github.com/AzusaKe/Halo/actions)、[HaloCore Actions](https://github.com/AzusaKe/HaloCore/actions) 和 [2.0.0 Release](https://github.com/AzusaKe/Halo/releases/tag/v2.0.0-fabric-1.20.1-adapter.1) 为准。正式产物由发布标签的 CI 构建并上传，不将前述 `.dev` 测试包重命名作为正式版。

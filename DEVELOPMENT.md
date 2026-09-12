@@ -2,11 +2,11 @@
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
-当前开发主线是 Halo 的 `1.20.1-fabric`，core 的集成分支是 `main`，已验收的重构基准为双方的 `v1.3.1`。主线不一定名为 `main`；开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
+当前开发主线是 Halo 的 `1.20.1-fabric`，core 的集成分支是 `main`。已验收的 mesh 正式版为 2.0.0，早期重构基准为双方的 `v1.3.1`。主线不一定名为 `main`；开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
 
 **常规流程：先定义功能的数据与规则 → 在 core 实现和验证 → 在主线实现适配器并联调 → 发布确定的 core 提交 → 提交主线的适配器及 core 指针 → 按需更新其他版本的指针和适配器 → 分别验收、推送和发布。** 不要求所有游戏版本同时跟进。
 
-文中的 `entity-opacity`（根据实体状态调整光环透明度）和 `1.21.1-fabric` 是完整流程的示例。当前 `2.0.0` 开发内容为原生 mesh，见 [mesh 验收记录](docs/mesh-verification.md)；以下版本发布命令仍是流程示例，不表示已经发布。编写本文时仅存在 `1.21.1-fabric-flash`，不存在已迁移的新架构 `1.21.1-fabric` 分支。
+文中的 `entity-opacity`（根据实体状态调整光环透明度）和 `1.21.1-fabric` 是完整流程的示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。编写本文时仅存在 `1.21.1-fabric-flash`，不存在已迁移的新架构 `1.21.1-fabric` 分支。
 
 ## 阅读路线
 
@@ -361,7 +361,7 @@ git switch -c 1.21.1-fabric
 | core 功能版本 | 来源为 `core/gradle.properties`。新功能/行为修复按影响选择新版本，并记录接口和兼容变化；文档/忽略规则维护可保持版本 |
 | Halo 功能版本 | 从选定 core 读取，不再在根目录维护另一个独立 `mod_version` |
 | 适配修订 | 来源为根 `gradle.properties` 的 `adapter_revision`。同一功能版本的纯平台修复递增该值；每次发布明确本平台修订 |
-| schema / 存档 / 协议 / 外部 API | 与功能版本分开管理，不因功能版本号变化就自动改格式或破坏兼容。mesh 开发版 schema 为 1.1.0，兼容旧 1.0.10 定义；外部锚点 API 仍为 v2，存档与协议不变 |
+| schema / 存档 / 协议 / 外部 API | 与功能版本分开管理，不因功能版本号变化就自动改格式或破坏兼容。mesh 2.0.0 的 schema 为 1.1.0，兼容旧 1.0.10 定义；外部锚点 API 仍为 v2，存档与协议不变 |
 | 源码锁定 | Halo 提交中的 core gitlink 是唯一锁定依据；标签用于识别发布，不替代 SHA 锁定 |
 | 标签 | Git 标签在同一仓库中跨分支共享。core 可用 `v1.4.0`；Halo 多平台发布建议带游戏版本、加载器和适配修订，避免同名冲突 |
 

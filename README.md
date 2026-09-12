@@ -9,7 +9,7 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**, developing **2.0.0** native OBJ meshes and alpha masks; **1.3.1** remains the accepted refactor baseline. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.20.1 Fabric**. **2.0.0** adds native OBJ meshes and alpha masks, including authored-proportion scaling and uniformly integer-scaled masks. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 For contributors and coding agents, the [development guide](DEVELOPMENT.md) covers feature development, debugging, porting to other game branches, and the two-repository commit and release workflow.
 
@@ -308,7 +308,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; the current development artifact is `halo-1.20.1-fabric-2.0.0+adapter.1.dev.jar`. A release requires both repositories to be pinned and validated. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; the release artifact is `halo-1.20.1-fabric-2.0.0+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 

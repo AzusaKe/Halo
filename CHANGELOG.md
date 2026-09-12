@@ -1,6 +1,8 @@
 # 更新记录
 
-## 2.0.0 — 开发中，未发布
+## 2.0.0 — 2026-09-13
+
+Minecraft 1.20.1 Fabric 正式版，用户已完成复测并确认发布。
 
 - 新增资源包 OBJ mesh 图元：三维 size、保留导出原点、复用父组变换和动画。
 - 新增 `preserve_proportions` 开关：开启后忽略 size，以图元统一 scale 保留导出比例，默认保持旧行为。
@@ -14,7 +16,7 @@
 - 提供 `mesh_demo`、`mesh_mask_demo`、`mesh_step_demo` 示例和中英文作者文档。
 - JSON schema 升至 1.1.0；存档、网络和锚点 API v2 不变。暂未迁移其他平台。
 
-验证状态见 [mesh 验证记录](docs/mesh-verification.md)。本节不表示已完成正式发布验收。
+成品版本：`2.0.0+adapter.1`。验证范围与已知限制见 [mesh 验证记录](docs/mesh-verification.md)。遮罩宽高仍须使用同一整数倍；U/V 独立倍数支持不在本次发布范围。
 
 ## 1.3.1 — 2026-09-12
 

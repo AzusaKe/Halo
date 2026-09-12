@@ -1,6 +1,6 @@
 # OBJ meshes and alpha masks
 
-Halo 2.0.0 development adds the `mesh` primitive with definition schema **1.1.0**. Existing definitions remain supported.
+Halo 2.0.0 adds the `mesh` primitive with definition schema **1.1.0**. Existing definitions remain supported.
 Put assets in a resource pack and reference them by namespace:
 
 ```text
