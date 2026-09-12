@@ -1,5 +1,7 @@
 本分支面向 **Minecraft 1.20.1 Fabric**，功能版本为 **1.3.1**，作为已验收的重构基准。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)和 [core 接口契约](core/README.md)。
 
+人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
+
 <h1>
   <img src="src/main/resources/assets/halo/textures/halo/ring.png" alt="封面" height="40" style="vertical-align:middle;margin-right:12px">
   Halo Mod（光环模组）

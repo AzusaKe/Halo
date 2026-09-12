@@ -11,6 +11,8 @@ English | [中文](README_ZH.md)
 
 This branch targets **Minecraft 1.20.1 Fabric**, with feature version **1.3.1**, the accepted refactor baseline. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md) and the [core contracts](core/README.md).
 
+For contributors and coding agents, the [development guide](DEVELOPMENT.md) covers feature development, debugging, porting to other game branches, and the two-repository commit and release workflow.
+
 ## Table of Contents
 
 - [Table of Contents](#table-of-contents)
