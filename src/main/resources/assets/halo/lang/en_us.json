@@ -10,6 +10,7 @@
   "screen.halo.halo_scepter.no_definitions": "No local halo definitions are loaded",
   "screen.halo.halo_scepter.no_results": "No matching halos",
   "gui.halo.close": "Close",
+  "message.halo.missing_definition": "[Halo] Missing definition: %s — install the resource pack or ask the server admin.",
   "message.halo.halo_scepter.no_permission": "Requires permission level %s to use the Halo Scepter",
   "message.halo.halo_scepter.not_holding": "You must still be holding the Halo Scepter",
   "message.halo.halo_scepter.invalid_target": "The halo target is no longer valid",

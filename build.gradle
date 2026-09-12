@@ -94,10 +94,14 @@ loom {
             programArgs("--username", "Dev2")
             runDir = "run2"
         }
+        server {
+            // Separate both the logical side and game version from existing development worlds.
+            runDir = "runServer/${project.minecraft_version}-fabric"
+            programArgs("nogui")
+        }
         smokeServer {
             inherit server
             runDir = ".local/smoke-server"
-            programArgs("nogui")
             vmArg "-Xlog:class+load=info:file=loaded-classes.log"
         }
         smokeClient {
@@ -115,7 +119,9 @@ loom {
     }
 }
 
-tasks.named('runSmokeServer') { standardInput = System.in }
+['runServer', 'runSmokeServer'].each { runTask ->
+    tasks.named(runTask) { standardInput = System.in }
+}
 
 // Force fullscreen:false before each runClient launch
 tasks.named('runClient') {

@@ -195,7 +195,8 @@ public final class HaloScepterScreen extends Screen {
 
         @Override
         public int getRowWidth() {
-            return width - 14;
+            // Keep the 3px gap and the whole 6px scrollbar inside the list's mouse hitbox.
+            return width - 22;
         }
 
         @Override

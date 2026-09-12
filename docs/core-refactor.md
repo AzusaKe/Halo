@@ -1,7 +1,7 @@
 # 1.20.1 Fabric / HaloCore 开发说明
 
 本次架构拆分从 `1.20.1-fabric` 的 `b30dad7` 开始，保留此前两个本地提交。
-功能版本仍为 **1.3.0**，定义 schema 仍为 **1.0.10**。其他 flash 分支不迁移、不回合并；
+初次提取的功能版本为 **1.3.0**；经多人游戏验收，当前重构基准确定为 **1.3.1**，定义 schema 仍为 **1.0.10**。其他 flash 分支不迁移、不回合并；
 它们的冻结由分支和发布说明表达。
 
 ## 实际边界与数据流
@@ -74,7 +74,7 @@ Windows 使用 `gradlew.bat`。保留 Gradle 8.8，Loom 固定为 1.5.8；不要
 或动态 core 依赖替代版本锁定。`includeBuild("core")` 替换 `network.azusake:halo-core` 的 Maven 坐标。
 
 Halo 功能版本来自 `core/gradle.properties`，适配修订来自根目录 `adapter_revision`。
-正式成品命名为 `halo-1.20.1-fabric-1.3.0+adapter.1.jar`；开发树未提交或指针不匹配时附加 `.dev`。
+正式成品命名为 `halo-1.20.1-fabric-1.3.1+adapter.1.jar`；开发树未提交或指针不匹配时附加 `.dev`。
 core 和必要资源平铺合入最终 JAR，锚点 API v2 可直接从 Halo JAR 编译引用。不会嵌入 Gson/JOML/Minecraft 的类。
 `halo-build.json` 记录 core 功能版本、core SHA、Halo SHA、已提交 gitlink 和开发状态。
 

@@ -10,6 +10,7 @@
   "screen.halo.halo_scepter.no_definitions": "未加载本地光环定义",
   "screen.halo.halo_scepter.no_results": "没有匹配的光环",
   "gui.halo.close": "关闭",
+  "message.halo.missing_definition": "[Halo] 缺少光环定义：%s，请安装对应资源包或联系服务器管理员。",
   "message.halo.halo_scepter.no_permission": "需要权限等级 %s 才能使用光环权杖",
   "message.halo.halo_scepter.not_holding": "你必须继续持有光环权杖",
   "message.halo.halo_scepter.invalid_target": "光环目标已失效",

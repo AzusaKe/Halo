@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 1.20.1 Fabric**，功能版本保持 **1.3.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)和 [core 接口契约](core/README.md)。
+本分支面向 **Minecraft 1.20.1 Fabric**，功能版本为 **1.3.1**，作为已验收的重构基准。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)和 [core 接口契约](core/README.md)。
 
 <h1>
   <img src="src/main/resources/assets/halo/textures/halo/ring.png" alt="封面" height="40" style="vertical-align:middle;margin-right:12px">
@@ -306,7 +306,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-1.20.1-fabric-1.3.0+adapter.1.jar`。
+编译好的 JAR 文件位于 `build/libs/halo-1.20.1-fabric-1.3.1+adapter.1.jar`。
 
 <a id="运行测试"></a>
 
@@ -325,8 +325,17 @@ cd Halo
 ./gradlew runClient
 
 # 启动带模组的专用服务端
-./gradlew runServer
+./gradlew runServer --console=plain
 ```
+
+客户端使用 `run/`，第二客户端使用 `run2/`；本分支的专用服务端独立使用
+`runServer/1.20.1-fabric/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
+`eula.txt`，并在 `server.properties` 中设置端口等参数。开发账号联机需要测试服务器允许离线账号；
+本机测试可将 `server-ip` 设为 `127.0.0.1`。控制台输入 `stop` 可正常保存并关闭服务器。
+
+不要把其他游戏版本的世界直接放入此目录。尤其是 26.2 存档不能交给 1.20.1 加载，
+`--safeMode` 也不负责降级存档。服务端日志出现 `Done (...)!` 才表示启动完成；
+`BUILD SUCCESSFUL` 仅表示 Gradle 启动任务正常结束。
 
 <a id="项目结构"></a>
 

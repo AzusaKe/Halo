@@ -9,7 +9,7 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**, with feature version **1.3.0**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md) and the [core contracts](core/README.md).
+This branch targets **Minecraft 1.20.1 Fabric**, with feature version **1.3.1**, the accepted refactor baseline. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen. See [core architecture and development](docs/core-refactor.md) and the [core contracts](core/README.md).
 
 ## Table of Contents
 
@@ -306,7 +306,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`. Uncommitted development builds append `.dev`; a clean release uses `halo-1.20.1-fabric-1.3.0+adapter.1.jar`. See the [release checks](docs/core-refactor.md).
+The compiled JAR is under `build/libs/`. Uncommitted development builds append `.dev`; a clean release uses `halo-1.20.1-fabric-1.3.1+adapter.1.jar`. See the [release checks](docs/core-refactor.md).
 
 <a id="run-tests"></a>
 
@@ -325,8 +325,18 @@ The compiled JAR is under `build/libs/`. Uncommitted development builds append `
 ./gradlew runClient
 
 # Launch dedicated server with the mod
-./gradlew runServer
+./gradlew runServer --console=plain
 ```
+
+The client uses `run/`, the second client uses `run2/`, and this branch's dedicated server uses
+`runServer/1.20.1-fabric/` for its own logs, configuration and world. On first launch, follow the
+instructions for `eula.txt` in that directory and configure the port in `server.properties`.
+Development usernames require an offline-mode test server; bind `server-ip` to `127.0.0.1` for local
+testing. Enter `stop` in the console to save and shut down normally.
+
+Do not reuse worlds from another game version here. In particular, 1.20.1 cannot load a 26.2 world,
+and `--safeMode` does not downgrade saves. The server's `Done (...)!` log confirms startup;
+`BUILD SUCCESSFUL` only means the Gradle launch task exited normally.
 
 <a id="project-structure"></a>
 
