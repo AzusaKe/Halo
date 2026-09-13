@@ -26,14 +26,17 @@ class HaloIdMatcherTest {
         assertTrue(HaloIdMatcher.matches(RING, "ring"));
         assertTrue(HaloIdMatcher.matches(RING, "RING_D"));
         assertFalse(HaloIdMatcher.matches(RING, "default"));
-        assertFalse(HaloIdMatcher.matches(RING, "hal"));
     }
 
     @Test
-    void namespacedQueryUsesFullIdentifierPrefix() {
+    void namespaceQueryUsesCaseInsensitiveFullIdentifierPrefix() {
+        assertTrue(HaloIdMatcher.matches(RING, "hal"));
+        assertTrue(HaloIdMatcher.matches(RING, "HALO"));
+        assertTrue(HaloIdMatcher.matches(RING, "halo:"));
         assertTrue(HaloIdMatcher.matches(RING, "halo:rin"));
         assertTrue(HaloIdMatcher.matches(RING, "HALO:RING"));
         assertFalse(HaloIdMatcher.matches(RING, "other:ring"));
+        assertFalse(HaloIdMatcher.matches(RING, "alo"));
     }
 
     @Test
@@ -47,6 +50,19 @@ class HaloIdMatcherTest {
         assertEquals(List.of(
             Identifier.fromNamespaceAndPath("alpha", "ring_blue"),
             Identifier.fromNamespaceAndPath("zeta", "ring")
+        ), result);
+    }
+
+    @Test
+    void namespacePrefixWithColonFiltersByFullIdentifier() {
+        List<Identifier> result = HaloIdMatcher.filterAndSort(List.of(
+            Identifier.fromNamespaceAndPath("halo", "ring_default"),
+            Identifier.fromNamespaceAndPath("other", "halo_ring"),
+            Identifier.fromNamespaceAndPath("halo_extra", "crown")
+        ), "halo:");
+
+        assertEquals(List.of(
+            Identifier.fromNamespaceAndPath("halo", "ring_default")
         ), result);
     }
 }
