@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 1.20.1 Fabric**。当前 **2.1.0** 正式版支持任意正分辨率的 mesh 透明遮罩，并为高面数 OBJ 提供 GPU 常驻几何路径。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 1.20.1 Fabric**。当前源码版本为 **2.1.1**，最新带标签的正式版仍为 **2.1.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
 
@@ -308,7 +308,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；正式成品为 `halo-1.20.1-fabric-2.1.0+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.1.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
