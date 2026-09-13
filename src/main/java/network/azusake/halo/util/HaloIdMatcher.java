@@ -13,19 +13,15 @@ public final class HaloIdMatcher {
     private HaloIdMatcher() {
     }
 
-    /**
-     * Match exactly like the existing command completion: a full identifier
-     * prefix when ':' is present, otherwise a path-only prefix.
-     */
+    /** Match a full identifier prefix or a path-only prefix. */
     public static boolean matches(Identifier id, String query) {
         String normalized = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         if (normalized.isEmpty()) {
             return true;
         }
-        if (normalized.indexOf(':') >= 0) {
-            return id.toString().toLowerCase(Locale.ROOT).startsWith(normalized);
-        }
-        return id.getPath().toLowerCase(Locale.ROOT).startsWith(normalized);
+        String fullId = id.toString().toLowerCase(Locale.ROOT);
+        String path = id.getPath().toLowerCase(Locale.ROOT);
+        return fullId.startsWith(normalized) || path.startsWith(normalized);
     }
 
     /** Return matching identifiers in stable, full-ID lexical order. */
