@@ -52,7 +52,9 @@ public final class HaloMeshResources {
                 return info;
             }
         }, problem -> LOG.warn("Skipping mesh asset {}: {}", problem.resource(), problem.message()));
-        published = new Snapshot(definitions, loader.load(definitions.assets()));
+        VisualResources visuals = loader.load(definitions.assets());
+        HaloRenderer.getInstance().reloadMeshBuffers(visuals);
+        published = new Snapshot(definitions, visuals);
     }
 
     /** Data-pack/integrated definition changes are reconciled during tick, outside the render path. */
@@ -61,7 +63,10 @@ public final class HaloMeshResources {
         Snapshot previous = published;
         if (definitions == previous.definitions()) return;
         VisualResources visuals = previous.visuals();
-        if (!definitions.assets().equals(previous.definitions().assets()) && loader != null) visuals = loader.load(definitions.assets());
+        if (!definitions.assets().equals(previous.definitions().assets()) && loader != null) {
+            visuals = loader.load(definitions.assets());
+            HaloRenderer.getInstance().reloadMeshBuffers(visuals);
+        }
         published = new Snapshot(definitions, visuals);
     }
 }

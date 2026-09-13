@@ -224,7 +224,7 @@ Three primitive types are currently supported:
 With `preserve_proportions: true` (default false), `size` is optional and ignored; primitive `scale` (default 1)
 uniformly multiplies the authored coordinates. Both modes preserve the exported origin; groups control transforms and animation.
 Optional `material.effects` supports one `alpha_mask` with LINEAR/STEP transfer and U/V animation;
-base/mask dimensions must be equal or uniform integer multiples/divisors.
+base and mask textures may use independent positive dimensions and aspect ratios.
 See [OBJ meshes and alpha masks](mesh.md) for the complete JSON, defaults, coordinates, export and reload rules.
 
 ### Billboard Primitive

@@ -184,3 +184,34 @@ core 发布提交为 `2800fb5af483753e589c7e9952f6056127b96f8c`，集成分支 `
 已完成的验收证据为 core 268 项、Halo 87 项自动测试，上一节隔离客户端的原生/Bliss/Iteration RP/BSL/Iris fallback 与资源重载检查，以及用户本次最终复测。YSM 锚点和约 10 分钟稳定性沿用用户反馈；历史未覆盖项不改写为逐项通过。正式构建使用 `build -Prelease=true`，门禁要求两仓库干净、core HEAD 等于已提交 gitlink、且该 core SHA 可从远端获取；产物为 `halo-1.20.1-fabric-2.0.0+adapter.1.jar`，内含 `halo-build.json` 记录确切来源，`development=false`，schema 仍为 1.1.0，存档/协议/锚点 API v2 保持兼容。
 
 远端构建与发布结果以 [Halo Actions](https://github.com/AzusaKe/Halo/actions)、[HaloCore Actions](https://github.com/AzusaKe/HaloCore/actions) 和 [2.0.0 Release](https://github.com/AzusaKe/Halo/releases/tag/v2.0.0-fabric-1.20.1-adapter.1) 为准。正式产物由发布标签的 CI 构建并上传，不将前述 `.dev` 测试包重命名作为正式版。
+
+## 2.1.0 任意分辨率遮罩与 GPU 常驻 mesh（2026-09-13）
+
+本轮基于 Halo `f9e6779`（`1.20.1-fabric`）和 core `2800fb5`（`main` / `v2.0.0`）实施，版本升至 2.1.0，schema 保持 1.1.0。core 不再把基础纹理与遮罩的尺寸比例作为材质有效性条件；二者继续共享归一化 UV，并由原生及 Iris shader 分别使用遮罩自身的 `textureSize` 做 texelFetch。`TextureInfo.hasIntegralScaleWith` 仅为旧调用方保留。
+
+core 新增 `FrameOutput` / `MeshDraw` 轻量帧契约与兼容展开器。优化适配器不再接收逐帧展开的 mesh 顶点；旧 `ClientPort.render`、`DrawBatch` 和默认 `renderFrame` 兼容入口继续可用。`MeshIndexWriter` 为每个模型预计算三角形中心，透明路径在调用方提供的 `IntBuffer` 中以稳定 radix sort 生成远到近索引，保留同深度源顺序及镜像绕序；工作区跨帧复用。
+
+1.20.1 Fabric 适配器在资源重载时为每个模型上传一次唯一 position+UV+白色顶点色，并建立普通、镜像静态 EBO；透明 mesh 每次绘制只更新动态 EBO。实例矩阵与亮度/alpha 通过 `VertexBuffer.draw` 和 `ColorModulator` 提交。缓存按视觉资源 generation 与模型 ID 管理，资源重载在渲染线程替换并释放旧缓存，退出时释放全部 GPU 资源；上传失败会记录诊断并退回 CPU 兼容展开。shader-pack 切换仍只重建 Iris 材质程序，不重建模型 VBO；AFTER_TRANSLUCENT、Iris `gbuffers_textured` 派生程序和既有深度行为未改变。
+
+自动测试新增任意尺寸正反组合（含 128×128 / 512×256、非整数倍及不同长宽比）、轻量输出与旧展开逐项等价、实例顺序、矩阵/亮度/alpha/镜像，以及索引写入器的透明/不透明、同深度、镜像和复用覆盖。Halo 侧新增缓存创建、同代复用、替换、移除、失败回退所有权测试，并检查原生与 Iris shader 仅依赖遮罩原生尺寸。
+
+最终 `clean build` 结果：core 272 项 JUnit 全部通过；Halo 90 项中 89 项通过、1 项跳过，失败和错误为 0。跳过项是未提供 `HALO_YSM_TEST_JAR` 时的官方 YSM 2.6.5 外部 JAR 签名检查；内置 YSM 单元测试、core 平台边界、发行包结构和旧锚点 API v2 调用方均通过。开发产物为 `build/libs/halo-1.20.1-fabric-2.1.0+adapter.1.dev.jar`，582,954 字节，SHA-256 `277fbf45b45a199190c5a886e03b44eb101029bf7332c2de9eb16eef56bac7af`。
+
+使用用户模型 `D:/download/blender/mika_halo_3D_obj.obj` 实测：96,484 个三角形、51,289 个唯一 position+UV 顶点、旧路径每帧展开 289,452 个顶点。Java 17 单实例 CPU 微基准（预热后采样，不含 Minecraft/GPU）如下：
+
+| 路径 | 中位 ms/帧 | p95 ms/帧 | 分配 KiB/帧 |
+| --- | ---: | ---: | ---: |
+| 2.0.0 `ClientRuntime.render` | 2.2493 | 3.2025 | 6756.38 |
+| 2.1.0 `renderFrame` 轻量输出 | 0.0054 | 0.0121 | 5.27 |
+| 2.1.0 旧适配器兼容展开 | 3.1673 | 3.9066 | 9395.20 |
+| 2.1.0 透明索引排序 | 1.2248 | 1.5470 | 0 |
+
+隔离客户端在 RTX 4060 Laptop / NVIDIA 616.64 上完成原生 OpenGL、Iris 1.7.6 + Bliss 2.1.2、Iteration RP Alpha 0.8.22、BSL 10.1.1 实际绘制。日志确认高面数模型只在资源 generation 建立时上传 VBO 与两个静态 EBO；不透明稳定帧不再上传动态 EBO，透明路径只增加动态 EBO 计数；资源重载建立 generation 2 并释放 generation 1，退出释放当前缓存。三种光影包均成功创建既有 `gbuffers_textured` 派生材质，没有 Halo 或 OpenGL 绘制错误。
+
+收到的 `mika_3d_mask.zip` 实际文件为 128×128 基础纹理配 512×512 遮罩，并非先前记录的 512×256。为精确覆盖计划组合，隔离测试从该遮罩制作仅用于测试的 512×256 fixture；运行时在重载前后均读取到 base=128×128、mask=512×256。BSL 下三只实体的动画光环均正常显示，重载前后截图为 `F:/codex-cache/halo-mesh/mask-2.1/before-reload.png` 与 `after-reload.png`；两图的视觉差异来自动画帧和实体姿态。测试探针、fixture 和光影包不进入发布 JAR。
+
+上述 CPU 数据不能直接换算为游戏 FPS。开发验收阶段没有在完全相同视角、实体数量、渲染距离和光影设置下录制 2.0.0/2.1.0 FPS 或 JFR 对照，因此不据微基准声明硬性 FPS 提升。
+
+用户随后在约 130 模组的重度整合包中使用同一个约十万面模型完成实际复测：超平坦世界、4K 分辨率、关闭光影时为 70～80 FPS；启用软件光追光影，并通过 render-scale 模组以一半画质按约 1080p 渲染时约 60 FPS。单个高面数光环佩戴与去除前后的帧率几乎无波动。用户确认测试通过、优化效果符合预期，并授权将当前成果作为 2.1.0 正式版提交和推送。
+
+发布按双仓库锁定顺序执行：HaloCore 发布提交为 `dfc52feadb9c4121dff023770697e6d74716dd27`，集成分支 `main`，标签 `v2.1.0`；Halo 的发布提交为包含本节、GPU 适配及该 core gitlink 的 `1.20.1-fabric` 提交，平台标签为 `v2.1.0-fabric-1.20.1-adapter.1`。标签触发 CI 正式构建与 GitHub Release，远端结果以对应仓库 Actions 和 Release 页面为准。2.1.0 仍仅适配 Minecraft 1.20.1 Fabric，不迁移或改动冻结的 flash 分支。

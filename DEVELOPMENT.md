@@ -2,7 +2,7 @@
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
-当前开发主线是 Halo 的 `1.20.1-fabric`，core 的集成分支是 `main`。已验收的 mesh 正式版为 2.0.0，早期重构基准为双方的 `v1.3.1`。主线不一定名为 `main`；开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
+当前开发主线是 Halo 的 `1.20.1-fabric`，core 的集成分支是 `main`。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。主线不一定名为 `main`；开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
 
 **常规流程：先定义功能的数据与规则 → 在 core 实现和验证 → 在主线实现适配器并联调 → 发布确定的 core 提交 → 提交主线的适配器及 core 指针 → 按需更新其他版本的指针和适配器 → 分别验收、推送和发布。** 不要求所有游戏版本同时跟进。
 

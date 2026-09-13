@@ -41,9 +41,18 @@ public final class HaloMeshShader {
     }
 
     public static boolean bind(MinecraftClient client, DrawBatch batch, MaterialState.Mesh material) {
+        return bind(client, batch.texture(), material) != null;
+    }
+
+    public static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.render.MeshDraw draw) {
+        return bind(client, draw.texture(), draw.material());
+    }
+
+    private static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.Identifier texture,
+                                      MaterialState.Mesh material) {
         boolean iris = OptionalIrisPassDetector.hasShaderPack();
         ShaderProgram shader = iris ? IrisMeshBridge.currentProgram() : program;
-        if (shader == null) return false;
+        if (shader == null) return null;
         // A shader pack may store translucent color separately and reconstruct its position
         // from depthtex0 during compositing/fog. Leaving only the background depth makes
         // nearby masked meshes look like distant glass/sky (Bliss, Iteration RP).
@@ -54,13 +63,13 @@ public final class HaloMeshShader {
         if (iris) RenderSystem.depthMask(true);
         var mask = material.mask();
         RenderSystem.setShader(() -> shader);
-        RenderSystem.setShaderTexture(0, client.getTextureManager().getTexture(game(batch.texture())).getGlId());
-        RenderSystem.setShaderTexture(1, client.getTextureManager().getTexture(game(mask == null ? batch.texture() : mask.texture())).getGlId());
+        RenderSystem.setShaderTexture(0, client.getTextureManager().getTexture(game(texture)).getGlId());
+        RenderSystem.setShaderTexture(1, client.getTextureManager().getTexture(game(mask == null ? texture : mask.texture())).getGlId());
         String prefix = iris ? (shader.getUniform("HaloMaskEnabled") != null ? "Halo" : "iris_Halo") : "";
         shader.getUniformOrDefault(prefix + "MaskEnabled").set(mask == null ? 0 : 1);
         shader.getUniformOrDefault(prefix + "MaskMode").set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
         shader.getUniformOrDefault(prefix + "MaskThreshold").set(mask == null ? 0.5f : mask.threshold());
         shader.getUniformOrDefault(prefix + "MaskOffset").set(mask == null ? 0f : mask.offsetU(), mask == null ? 0f : mask.offsetV());
-        return true;
+        return shader;
     }
 }

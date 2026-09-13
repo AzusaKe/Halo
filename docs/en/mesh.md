@@ -118,7 +118,7 @@ Only mesh supports `material` in this release. `effects` may be omitted/empty an
 | Field | Default | Behavior |
 | --- | --- | --- |
 | `double_sided` | `true` | Render both sides; false culls back faces using winding |
-| `effects[].texture` | Required | Grayscale mask PNG; same dimensions or a uniform integer multiple/divisor of the base PNG |
+| `effects[].texture` | Required | Grayscale mask PNG; may use any positive dimensions and aspect ratio independently of the base PNG |
 | `mode` | `linear` | `linear` preserves gray values; `step` applies a binary threshold |
 | `threshold` | `0.5` | In [0,1], STEP only; visible when gray is at least the threshold |
 | `uv_offset.u/v` | Zero | Arrays of existing animation terms, summed independently per channel |
@@ -127,12 +127,11 @@ The mask reads normalized PNG R, ignores its own alpha, and applies no sRGB conv
 white is one, gray 128 is `128/255`. Sampling is nearest and repeating without changing shared texture state.
 LINEAR describes gray-to-alpha transfer, not bilinear filtering.
 
-For a base texture of `m × n`, the mask may be `i*m × i*n` or `m/i × n/i`, with a positive integer `i`
-and integer dimensions. For example, `32×16` accepts `16×8`, `32×16`, `64×32` and `96×48`, but not
-`64×16` (unequal axis factors) or `48×24` (noninteger factor). Both textures use the same normalized UV
-domain at their own resolutions. The smaller texture's pixels cover whole blocks on the larger grid;
-no texture is downsampled, averaged, or uploaded again as an enlarged image. A high-resolution mask keeps
-all of its detail. Base texture filtering remains controlled by Minecraft/resource metadata; keep PNG
+Base and mask dimensions/aspect ratios are independent: a `128×128` base may use a `512×256` mask.
+Both textures use their complete normalized UV domain at native resolution; authors should place features
+that need to coincide at the same normalized position in each image. No texture is downsampled, averaged,
+or uploaded again as a resized image, so a high-resolution mask keeps all of its detail. Base texture filtering
+remains controlled by Minecraft/resource metadata; keep PNG
 `blur` disabled for pixel-exact nearest enlargement (the ordinary default).
 
 ```text
@@ -175,5 +174,5 @@ Models/base textures/masks come from client resource packs, following pack prior
 server `/reload` reloads data packs instead. Dedicated servers do not load OBJ/PNG files and the Halo protocol
 does not transmit them. Distribute the same client resource pack when players should see the same appearance.
 
-Missing/corrupt assets or mask dimensions outside the integer-ratio rule skip only the affected mesh, with resource diagnostics.
+Missing/corrupt assets skip only the affected mesh, with resource diagnostics; differing dimensions or aspect ratios are valid.
 Repair and reload to recover without re-equipping; other valid primitives remain visible.

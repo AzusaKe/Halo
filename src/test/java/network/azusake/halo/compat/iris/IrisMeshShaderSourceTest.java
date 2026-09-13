@@ -1,10 +1,28 @@
 package network.azusake.halo.compat.iris;
 
 import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class IrisMeshShaderSourceTest {
+    @Test void nativeAndIrisMasksUseOnlyTheMaskTextureNativeSize() throws IOException {
+        String nativeSource;
+        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/mesh.fsh")) {
+            assertNotNull(input);
+            nativeSource = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertTrue(nativeSource.contains("textureSize(Sampler1, 0)"));
+        assertFalse(nativeSource.contains("textureSize(Sampler0"));
+        assertTrue(nativeSource.contains("floor(fract(texCoord0 + MaskOffset) * vec2(dimensions))"));
+
+        String iris = IrisMeshShaderSource.patch("test.fsh",
+            "#version 330 core\nuniform sampler2D gtexture;\nin vec2 uv;\nout vec4 color;\nvoid main(){color=texture(gtexture,uv);}");
+        assertTrue(iris.contains("textureSize(iris_HaloMaskTexture, 0)"));
+        assertFalse(iris.contains("textureSize(gtexture"));
+    }
+
     @Test void maskChangesOnlyAlbedoSamplesBeforePackLighting() {
         String fragment = """
             #version 330 core

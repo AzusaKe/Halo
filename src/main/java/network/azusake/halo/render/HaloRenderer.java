@@ -2,6 +2,7 @@ package network.azusake.halo.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
@@ -23,9 +24,31 @@ public final class HaloRenderer {
     private static final HaloRenderer INSTANCE=new HaloRenderer();
     private Object previousWorld;
     private long worldToken;
-    private record DeferredMeshes(List<DrawBatch> batches, Matrix4f modelView, Matrix4f projection, VertexSorter sorting) {}
+    private record DeferredMeshes(long generation, VisualResources visuals, List<MeshDraw> draws,
+                                  Matrix4f modelView, Matrix4f projection, VertexSorter sorting) {}
     private DeferredMeshes deferredMeshes;
+    private HaloMeshBufferCache meshBuffers = HaloMeshBufferCache.empty();
     public void clearWorld() { previousWorld = null; deferredMeshes = null; }
+    public void reloadMeshBuffers(VisualResources resources) {
+        Runnable reload = () -> {
+            deferredMeshes = null;
+            HaloMeshBufferCache previous = meshBuffers;
+            HaloMeshBufferCache replacement = previous.updated(resources);
+            meshBuffers = replacement;
+        };
+        if (RenderSystem.isOnRenderThread()) reload.run();
+        else RenderSystem.recordRenderCall(reload::run);
+    }
+    public void shutdown() {
+        Runnable close = () -> {
+            deferredMeshes = null;
+            HaloMeshBufferCache previous = meshBuffers;
+            meshBuffers = HaloMeshBufferCache.empty();
+            previous.close();
+        };
+        if (RenderSystem.isOnRenderThread()) close.run();
+        else RenderSystem.recordRenderCall(close::run);
+    }
     public static HaloRenderer getInstance() { return INSTANCE; }
     public IdlePhaseTracker.RenderState readLastRenderState(UUID uuid) { return HaloClientState.get().renderer().readLastRenderState(uuid); }
     public void clearIdlePhases() { HaloClientState.get().renderer().clearIdlePhases(); }
@@ -70,20 +93,11 @@ public final class HaloRenderer {
                 try { client.getTextureManager().getTexture(game(id));return true; }
                 catch(RuntimeException ex) { return false; }
             }, assets.visuals());
-        List<DrawBatch> batches = runtime.render(scene);
-        {
-            var meshes = new ArrayList<DrawBatch>();
-            var legacy = new ArrayList<DrawBatch>();
-            for (var batch : batches) {
-                if (batch.material() instanceof MaterialState.Mesh) meshes.add(batch);
-                else legacy.add(batch);
-            }
-            if (!meshes.isEmpty()) deferredMeshes = new DeferredMeshes(List.copyOf(meshes),
-                new Matrix4f(RenderSystem.getModelViewMatrix()), new Matrix4f(RenderSystem.getProjectionMatrix()),
-                RenderSystem.getVertexSorting());
-            batches = legacy;
-        }
-        submitBatches(client, batches);
+        FrameOutput output = runtime.renderFrame(scene);
+        if (!output.meshes().isEmpty()) deferredMeshes = new DeferredMeshes(output.visualGeneration(), assets.visuals(),
+            output.meshes(), new Matrix4f(RenderSystem.getModelViewMatrix()),
+            new Matrix4f(RenderSystem.getProjectionMatrix()), RenderSystem.getVertexSorting());
+        submitBatches(client, output.legacyBatches());
         if (client.isInSingleplayer()) IntegratedBridge.publishDiagnostics(runtime.diagnostics());
     }
 
@@ -100,11 +114,36 @@ public final class HaloRenderer {
             modelView.peek().getPositionMatrix().set(pending.modelView());
             RenderSystem.applyModelViewMatrix();
             RenderSystem.setProjectionMatrix(pending.projection(), pending.sorting());
-            submitBatches(MinecraftClient.getInstance(), pending.batches());
+            submitMeshes(MinecraftClient.getInstance(), pending);
         } finally {
             modelView.pop();
             RenderSystem.applyModelViewMatrix();
             RenderSystem.setProjectionMatrix(projection, sorting);
+        }
+    }
+
+    private void submitMeshes(MinecraftClient client, DeferredMeshes pending) {
+        int previousTexture0 = RenderSystem.getShaderTexture(0);
+        int previousTexture1 = RenderSystem.getShaderTexture(1);
+        var previousShader = RenderSystem.getShader();
+        try {
+            for (MeshDraw draw : pending.draws()) {
+                applyState(draw.cull(), draw.blend(), draw.depthTest(), draw.depthWrite(),
+                    draw.red(), draw.green(), draw.blue(), draw.alpha());
+                var shader = HaloMeshShader.bind(client, draw);
+                if (shader == null) continue;
+                if (!meshBuffers.draw(pending.generation(), draw, pending.modelView(), pending.projection(), shader)) {
+                    var fallback = new FrameOutput(pending.generation(), List.of(), List.of(draw))
+                        .expandedBatches(pending.visuals());
+                    for (DrawBatch batch : fallback) submit(client, batch);
+                }
+            }
+        } finally {
+            VertexBuffer.unbind();
+            RenderSystem.setShaderTexture(0, previousTexture0);
+            RenderSystem.setShaderTexture(1, previousTexture1);
+            if (previousShader != null) RenderSystem.setShader(() -> previousShader);
+            RenderSystem.setShaderColor(1,1,1,1);RenderSystem.enableCull();RenderSystem.enableDepthTest();RenderSystem.depthMask(true);RenderSystem.disableBlend();
         }
     }
 
@@ -123,10 +162,7 @@ public final class HaloRenderer {
         }
     }
     private static void submit(MinecraftClient client,DrawBatch b) {
-        if(b.cull())RenderSystem.enableCull();else RenderSystem.disableCull();
-        if(b.blend()){RenderSystem.enableBlend();RenderSystem.defaultBlendFunc();}else RenderSystem.disableBlend();
-        if(b.depthTest())RenderSystem.enableDepthTest();else RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(b.depthWrite());RenderSystem.setShaderColor(b.red(),b.green(),b.blue(),b.alpha());
+        applyState(b.cull(), b.blend(), b.depthTest(), b.depthWrite(), b.red(), b.green(), b.blue(), b.alpha());
         if (b.material() instanceof MaterialState.Mesh mesh) {
             if (!HaloMeshShader.bind(client, b, mesh)) return;
         } else if(b.textured()) {
@@ -142,6 +178,13 @@ public final class HaloRenderer {
             builder.color(v.red(),v.green(),v.blue(),v.alpha()).next();
         }
         Tessellator.getInstance().draw();
+    }
+    private static void applyState(boolean cull, boolean blend, boolean depthTest, boolean depthWrite,
+                                   float red, float green, float blue, float alpha) {
+        if(cull)RenderSystem.enableCull();else RenderSystem.disableCull();
+        if(blend){RenderSystem.enableBlend();RenderSystem.defaultBlendFunc();}else RenderSystem.disableBlend();
+        if(depthTest)RenderSystem.enableDepthTest();else RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(depthWrite);RenderSystem.setShaderColor(red,green,blue,alpha);
     }
     static LivingEntity findEntityByUuid(MinecraftClient client,UUID uuid) {
         if(client.world!=null) for(var entity:client.world.getEntities())
