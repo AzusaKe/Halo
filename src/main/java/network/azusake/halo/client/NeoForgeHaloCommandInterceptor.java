@@ -15,6 +15,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import network.azusake.halo.json.HaloJsonLoader;
+import network.azusake.halo.util.HaloIdMatcher;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
@@ -62,10 +63,7 @@ public final class NeoForgeHaloCommandInterceptor implements HaloCommandIntercep
             String remaining = builder.getRemaining().toLowerCase();
             for (Identifier id : HaloJsonLoader.getDefinitions().keySet()) {
                 String idStr = id.toString();
-                if (idStr.toLowerCase().startsWith(remaining)) {
-                    builder.suggest(idStr);
-                } else if (!remaining.contains(":")
-                    && id.getPath().toLowerCase().startsWith(remaining)) {
+                if (HaloIdMatcher.matches(id, remaining)) {
                     builder.suggest(idStr);
                 }
             }
