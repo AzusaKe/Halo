@@ -87,7 +87,7 @@ has no effect and existing definitions retain independent per-axis size fitting.
 2. Unwrap every face and use a single PNG. Named objects/groups are combined under the JSON material.
 3. Triangulate on export. Planar convex quads are also supported; concave faces, nonplanar quads and larger polygons require triangulation before loading.
 4. Every corner needs a UV: `v/vt` or `v/vt/vn`. Positive/negative independent indices and UV seams are supported.
-5. Normals are accepted, but v1 uses one lightmap sample for the whole halo and no directional normal shading. MTL, object/group names and smoothing groups do not alter the material. Bones, model animations and free-form geometry are unsupported.
+5. Valid `vn` values are normalized and preserve hard edges. Missing or zero normals are generated per face. MTL, object/group names and smoothing groups do not alter the material. Bones, model animations and free-form geometry are unsupported.
 
 ### Blender and external OBJ files
 
@@ -146,19 +146,27 @@ the opposite direction. One offset unit is a full texture period. `linear` is `s
 freezes mask motion during startup/shutdown transitions and resumes it afterwards. Resource reload preserves ownership and instance time.
 
 When `glowing` is false, Halo samples separate block/sky levels at the halo root and lets Minecraft's current
-lightmap apply day/night, weather, dimension, gamma and vision effects. When it is true, full-bright plus
-`animation.glow` controls emission. This adds no PBR or directional normal lighting. Blended meshes use ordinary depth-tested transparency sorting, with the usual limitations
+lightmap apply day/night, weather, dimension, gamma and vision effects. Non-glowing primitives additionally use
+Minecraft's two-direction entity surface lighting, so differently oriented normals receive different brightness.
+When `glowing` is true, full-bright plus `animation.glow` controls emission and the original angle-independent flat
+path remains in use. This does not yet add Halo LabPBR material mapping. Blended meshes use ordinary depth-tested transparency sorting, with the usual limitations
 for intersecting surfaces and intersections with world water/glass.
 
-Meshes submit after entity buffers have been flushed, so later entity draws cannot overwrite blended meshes
-that intentionally do not write depth. When Iris is active, Halo creates a private lightmapped particle-program variant
-during shader loading. Mask alpha modifies the base sample before pack shading; Iris owns its world render
+Without a shader pack, meshes submit after entity buffers have been flushed, so later entity draws cannot overwrite
+blended meshes that intentionally do not write depth. With Iris, opaque non-glowing meshes submit before the pack
+consumes its solid G-buffer; genuinely blended and glowing meshes retain the established late pass. Halo retains the private particle-program variant for
+glowing primitives and creates a separate solid diffuse entity normal-bearing variant only for non-glowing primitives.
+Mask alpha modifies the base sample before pack shading; Iris owns its world render
 targets and subsequent post-processing, with no new Iris runtime dependency. In this Iris pass, surviving mesh fragments also write translucent depth (`depthtex0`),
 including linear masks. Packs need the mesh's own depth to reconstruct its position for compositing and fog;
 using glass/sky background depth can fade out a nearby mesh. The opaque depth copy (`depthtex1`) is already
 complete at this stage. Zero-alpha fragments are discarded, and alpha blending/sorting remain in effect.
-Without shaders, blended meshes retain the usual no-depth-write behavior. Color, fog and bloom depend on
-the shader pack; v1 adds neither PBR nor a separate
+Without shaders, blended meshes retain the usual no-depth-write behavior. Color, directional lighting, fog and bloom depend on
+the shader pack. The normal-bearing cache expands triangle corners so Iris derives tangents from actual triangles instead of unrelated indexed vertices.
+When a fragment program reconstructs a face normal from screen derivatives of one world-space position input, Halo
+uses a generic GLSL data-flow check to substitute the uploaded smooth normal. The check contains no pack name, output
+target, or fixed local-variable identifier, and leaves ambiguous coordinate spaces untouched.
+Iris receives entity normals and extended vertex data, but this version adds neither Halo LabPBR mapping nor a separate
 mesh shadow-casting pass. The 1.20.1 bridge lives in Halo, outside core. Unsupported geometry/tessellation
 stages or base-sampling forms pause meshes with a diagnostic; changing packs rebuilds the material.
 

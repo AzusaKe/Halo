@@ -39,6 +39,17 @@ public final class HaloRenderer {
         if (RenderSystem.isOnRenderThread()) reload.run();
         else RenderSystem.recordRenderCall(reload::run);
     }
+    /** Recreate vertex layouts after Iris enables its extended entity format. */
+    public void rebuildMeshBuffersForShaderPipeline() {
+        Runnable rebuild = () -> {
+            deferredMeshes = null;
+            HaloMeshBufferCache previous = meshBuffers;
+            meshBuffers = HaloMeshBufferCache.empty().updated(HaloMeshResources.snapshot().visuals());
+            previous.close();
+        };
+        if (RenderSystem.isOnRenderThread()) rebuild.run();
+        else RenderSystem.recordRenderCall(rebuild::run);
+    }
     public void shutdown() {
         Runnable close = () -> {
             deferredMeshes = null;
@@ -99,11 +110,33 @@ public final class HaloRenderer {
                     client.world.getLightLevel(LightType.SKY, block));
             });
         FrameOutput output = runtime.renderFrame(scene);
-        if (!output.meshes().isEmpty()) deferredMeshes = new DeferredMeshes(output.visualGeneration(), assets.visuals(),
-            output.meshes(), new Matrix4f(RenderSystem.getModelViewMatrix()),
-            new Matrix4f(RenderSystem.getProjectionMatrix()), RenderSystem.getVertexSorting());
+        boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
+        List<MeshDraw> solidLitMeshes = new ArrayList<>();
+        List<MeshDraw> lateMeshes = new ArrayList<>();
+        for (MeshDraw draw : output.meshes()) {
+            (submitBeforeTranslucents(draw, shaderPack) ? solidLitMeshes : lateMeshes).add(draw);
+        }
+        Matrix4f meshModelView = new Matrix4f(RenderSystem.getModelViewMatrix());
+        Matrix4f meshProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
+        VertexSorter meshSorting = RenderSystem.getVertexSorting();
         submitBatches(client, output.legacyBatches());
+        if (!solidLitMeshes.isEmpty()) {
+            // Solid entity shaders write deferred G-buffer data. Submit these while
+            // Iris is still before beginTranslucents(), which consumes that data.
+            submitMeshes(client, new DeferredMeshes(output.visualGeneration(), assets.visuals(), solidLitMeshes,
+                meshModelView, meshProjection, meshSorting));
+        }
+        if (!lateMeshes.isEmpty()) deferredMeshes = new DeferredMeshes(output.visualGeneration(), assets.visuals(),
+            lateMeshes, meshModelView, meshProjection, meshSorting);
         if (client.isInSingleplayer()) IntegratedBridge.publishDiagnostics(runtime.diagnostics());
+    }
+
+    static boolean submitBeforeTranslucents(MeshDraw draw, boolean shaderPack) {
+        // Preserve the established late particle path for glowing meshes and the
+        // sorted late path for real alpha blending. Vanilla keeps its previous late
+        // submission too; only an active pack's opaque lit geometry must precede
+        // Iris beginTranslucents(), which consumes the solid/deferred entity buffer.
+        return shaderPack && draw.directionalLighting() && !draw.blend();
     }
 
     /** Submit after entity buffers have been flushed, while the world shader pipeline is still active. */
@@ -131,6 +164,7 @@ public final class HaloRenderer {
         int previousTexture0 = RenderSystem.getShaderTexture(0);
         int previousTexture1 = RenderSystem.getShaderTexture(1);
         int previousTexture2 = RenderSystem.getShaderTexture(2);
+        int previousTexture3 = RenderSystem.getShaderTexture(3);
         var previousShader = RenderSystem.getShader();
         try {
             // Direct VBO submission does not pass through a vanilla RenderLayer,
@@ -149,9 +183,11 @@ public final class HaloRenderer {
             }
         } finally {
             VertexBuffer.unbind();
+            client.gameRenderer.getOverlayTexture().teardownOverlayColor();
             RenderSystem.setShaderTexture(0, previousTexture0);
             RenderSystem.setShaderTexture(1, previousTexture1);
             RenderSystem.setShaderTexture(2, previousTexture2);
+            RenderSystem.setShaderTexture(3, previousTexture3);
             if (previousShader != null) RenderSystem.setShader(() -> previousShader);
             RenderSystem.setShaderColor(1,1,1,1);RenderSystem.enableCull();RenderSystem.enableDepthTest();RenderSystem.depthMask(true);RenderSystem.disableBlend();
         }
@@ -161,6 +197,7 @@ public final class HaloRenderer {
         int previousTexture0 = RenderSystem.getShaderTexture(0);
         int previousTexture1 = RenderSystem.getShaderTexture(1);
         int previousTexture2 = RenderSystem.getShaderTexture(2);
+        int previousTexture3 = RenderSystem.getShaderTexture(3);
         var previousShader = RenderSystem.getShader();
         try {
             // Tessellator submission likewise runs outside a RenderLayer. Bind
@@ -169,9 +206,11 @@ public final class HaloRenderer {
             for(DrawBatch batch:batches) submit(client,batch);
         }
         finally {
+            client.gameRenderer.getOverlayTexture().teardownOverlayColor();
             RenderSystem.setShaderTexture(0, previousTexture0);
             RenderSystem.setShaderTexture(1, previousTexture1);
             RenderSystem.setShaderTexture(2, previousTexture2);
+            RenderSystem.setShaderTexture(3, previousTexture3);
             if (previousShader != null) RenderSystem.setShader(() -> previousShader);
             RenderSystem.setShaderColor(1,1,1,1);RenderSystem.enableCull();RenderSystem.enableDepthTest();RenderSystem.depthMask(true);RenderSystem.disableBlend();
         }
@@ -181,7 +220,7 @@ public final class HaloRenderer {
         boolean nativeLight = b.light().available();
         if (b.material() instanceof MaterialState.Mesh mesh) {
             if (!HaloMeshShader.bind(client, b, mesh)) return;
-        } else if (b.textured() && nativeLight) {
+        } else if (b.directionalLighting() || b.textured() && nativeLight) {
             if (!HaloMeshShader.bindLegacy(client, b)) return;
         } else if(b.textured()) {
             RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
@@ -189,16 +228,25 @@ public final class HaloRenderer {
         } else if (nativeLight) RenderSystem.setShader(GameRenderer::getPositionColorLightmapProgram);
         else RenderSystem.setShader(GameRenderer::getPositionColorProgram);
         var builder=Tessellator.getInstance().getBuffer();
-        VertexFormat format = b.textured() ? VertexFormats.POSITION_TEXTURE_COLOR
+        VertexFormat format = b.directionalLighting() ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL
+            : b.textured() ? VertexFormats.POSITION_TEXTURE_COLOR
             : nativeLight ? VertexFormats.POSITION_COLOR_LIGHT : VertexFormats.POSITION_COLOR;
         builder.begin(b.topology()==DrawBatch.Topology.QUADS?VertexFormat.DrawMode.QUADS:VertexFormat.DrawMode.TRIANGLES,
             format);
         int packedLight = packLight(b.light());
         for(var v:b.vertices()) {
             builder.vertex(v.x(),v.y(),v.z());
-            if(b.textured())builder.texture(v.u(),v.v());
-            builder.color(v.red(),v.green(),v.blue(),v.alpha());
-            if (!b.textured() && nativeLight) builder.light(packedLight);
+            if (b.directionalLighting()) {
+                builder.color(v.red(),v.green(),v.blue(),v.alpha());
+                builder.texture(b.textured() ? v.u() : 0f, b.textured() ? v.v() : 0f);
+                builder.overlay(OverlayTexture.DEFAULT_UV);
+                builder.light(packedLight);
+                builder.normal(v.normalX(), v.normalY(), v.normalZ());
+            } else {
+                if(b.textured())builder.texture(v.u(),v.v());
+                builder.color(v.red(),v.green(),v.blue(),v.alpha());
+                if (!b.textured() && nativeLight) builder.light(packedLight);
+            }
             builder.next();
         }
         Tessellator.getInstance().draw();

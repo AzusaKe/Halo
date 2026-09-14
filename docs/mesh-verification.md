@@ -235,3 +235,35 @@ core 独立 `build` 通过：274 项 JUnit 全部通过。Halo 联合 `build` �
 用户验收的开发产物为 `build/libs/halo-1.20.1-fabric-2.1.1+adapter.1.dev.jar`，588,001 字节，SHA-256 `c969ab76f94dc48f11b0351dfee87515ebefad1ee8887ff1a4e172c2c10235ab`。版本为 2.1.1 未发布开发版 / schema 1.1.0 / adapter 1。
 
 按用户要求固定成果：先将 core 提交至 `0ac792b83862569af210692363efd191b08fc5bc`（`main`），再由包含本节、Fabric/Iris 实现和该 core gitlink 的 Halo 本地提交保存适配成果；Halo SHA 可在本文件的 Git 历史中查询。两个仓库均不推送，不创建标签或 Release。
+
+## 2.1.1 非自发光表面方向光（2026-09-14）
+
+本轮从 Halo `e781be9a2038f1ae6d7e1c2752e14e014c6acf40`（`1.20.1-fabric`）和 core `0ac792b83862569af210692363efd191b08fc5bc`（`main`，当前 gitlink）继续开发。目标限定为：仅 `glowing:false` 图元使用法线方向光；`glowing:true` 必须保留既有扁平 full-bright、`animation.glow`、遮罩、透明排序、深度和剔除效果。
+
+core 的 `TriangleMesh`、轻量 `MeshDraw` 和兼容 `DrawBatch.Vertex` 增加归一化法线，绘制命令另带显式 `directionalLighting` 标记。OBJ 的有效 `vn` 参与角点去重以保留硬边；缺失法线按面生成。隔离客户端的既有测试资源包含 `vn 0 0 0`，若严格拒绝会让此前可加载的 mesh 消失，因此零法线保留其 OBJ 索引槽、在引用面上使用生成法线；后续负索引仍只按文件中实际声明的 `vn` 计数。旧公开构造入口保留并默认使用此前扁平光照，未修改 JSON schema、存档、协议或锚点 API。
+
+1.20.1 Fabric 为每个模型建立两套顶点 VBO，并分别持有普通/镜像静态 EBO 和透明动态 EBO：自发光继续使用原 `POSITION_TEXTURE_COLOR`、唯一顶点索引与 flat shader；非自发光使用实体顶点格式、法线矩阵、原版 `minecraft_mix_light` 双方向光，并乘同一位置的 block/sky lightmap。billboard 使用其表面法线，ring 的内外侧使用相反径向法线。无贴图旧图元以白色基础纹理进入同一非自发光路径。CPU 兼容展开使用逆转置矩阵变换法线，非均匀缩放不会把方向直接按位置矩阵错误拉伸。
+
+Iris 1.7.6 下保留原 particles 私有程序给自发光图元，并为非自发光分别增加 `ENTITIES_SOLID_DIFFUSE` 与 `ENTITIES_TRANSLUCENT` 私有程序。实体程序保留 overlay、法线以及 Iris 扩展格式生成的切线等数据；Iris 流水线建立后强制重建一次模型 VBO，确保资源初载早于世界流水线时也不会沿用缺少扩展属性的 vanilla entity 格式。Halo 遮罩改用纹理槽 3，避免占用实体 overlay 的槽 1。光影包可能通过 `texture2D_POMSwitch(gtexture, ...)` 等自定义函数读取基础纹理，本轮按完整调用表达式包裹遮罩结果，只处理 `gtexture`/基础采样，不改写 normals、specular、noise、shadow 或 depth 采样。不透明非自发光 mesh 在 Iris 消费 solid G-buffer 前提交；需要 alpha 混合的非自发光 mesh 使用透明实体程序并保留晚期排序，自发光与无光影路径也保持既有晚期提交。零 alpha 丢弃与透明深度修复不变；本轮未新增 Halo 自己的 LabPBR 贴图约定或独立 mesh 投影通道。
+
+自动检查覆盖 OBJ authored/missing/zero normals、硬边与负索引、旧 `TriangleMesh` 自动法线、非自发光方向光标记、自发光保持 flat、法线兼容展开，以及 Iris 普通与自定义基础采样改写。最终 `clean build` 均通过：core 277 项测试全部通过；Halo 91 项中 90 项通过、1 项因未提供官方 YSM 2.6.5 验签 jar 而按设计跳过，0 项失败。
+
+本轮开发产物为 `build/libs/halo-1.20.1-fabric-2.1.1+adapter.1.dev.jar`，600,285 字节，SHA-256 `56a957e427439885e4546f331d72acc8a26d239582532a96a4c6259fa722fc7c`。
+
+隔离原生客户端进入 `halo-smoke`，原生 lit shader 成功加载；包含约 16.4 万唯一顶点、11 万三角形的组合资源完成两套 VBO 上传，稳定绘制及退出释放期间未记录 Halo shader 或 OpenGL 绘制错误。随后在同一隔离世界安装 Iris 1.7.6、Sodium 0.5.12-beta.2 并启用 Bliss 2.1.2：首次实测分别暴露并修复零 OBJ 法线、Bliss 自定义 `texture2D_POMSwitch` 采样以及兼容 GLSL 函数声明问题；最终日志确认 `flat=true, directionally-lit=true`，两个私有材质均创建成功，稳定绘制后正常释放。测试依赖来自既有 `F:/codex-cache/halo-mesh/client1`，测试结束已从 `.local/smoke-client` 移除。这里仅把程序创建、资源上传和无绘制错误记为冒烟通过；法线明暗、自发光外观、遮罩及不同光影包的目视对照仍交由用户复测。
+
+### 光影包方向光兼容补正（2026-09-14）
+
+用户在原生模式确认方向光通过后，报告 Bliss 2.1.2 天空背景下非自发光模型几乎不可见、BSL 8.2.09 模型扭曲（BSL 10.1.1 正常），以及 IterationRP Alpha 0.8.22 平滑效果消失。静态检查确认三者来自不同层面：Bliss 为透明实体程序选择特殊合成路径；Iris 扩展实体格式需要连续三角形角点来生成切线；另一些实体程序会忽略上传法线，改用屏幕空间位置导数形成逐面法线。
+
+修复只作用于 `glowing:false`：Iris 私有 lit 材质按是否需要真实 alpha 混合从 `ENTITIES_SOLID_DIFFUSE` 或 `ENTITIES_TRANSLUCENT` 派生；不透明 lit mesh 提前到 Iris 的 solid G-buffer 消费点之前，透明、自发光与原版路径保留既有时机。Halo 仍自行设置 alpha 混合、深度、剔除与稳定逐三角形排序；lit VBO 按 OBJ 三角形角点展开，并使用对应的 expanded EBO，flat VBO 与自发光路径保持原样。兼容补正不识别光影包名称、输出目标或固定局部变量，而是保守识别“同一 world-space 位置输入经过 `dFdx`、`dFdy`、`cross`、`normalize` 重建面法线”的通用 GLSL 数据流，再以经法线矩阵变换的上传法线替换该结果；空间不明确、导数来源不同或无关的叉积保持原样。
+
+使用同一隔离世界依次加载 Bliss 2.1.2、BSL 10.1.1、BSL 8.2.09 和 IterationRP Alpha 0.8.22；四者均成功建立自发光 flat、非自发光 solid 与非自发光 translucent 三个私有材质。每个模型记录两次 VBO 和四次静态 EBO 上传；透明动态 EBO 正常更新，退出时完整释放，日志未见 Halo shader 编译、链接或 OpenGL 绘制错误。IterationRP 平滑法线补正后再次完成真实程序编译与世界加载。
+
+用户随后发现此前同时启用了多个 Halo JAR、且一度误将全部自发光的 `Seia_mesh_import.zip` 当作非自发光测试资源。清理旧 JAR 并恢复 `Seia_mesh_import_glow.zip` 后，使用当前模组重新复测：Bliss 天空背景不可见问题消失；BSL 8 不再扭曲；IterationRP 平滑法线维持正常。Bliss 剩余的局部暗斑与其实体阴影、屏幕空间接触阴影/环境遮蔽处理相符，本轮不通过篡改法线或绕过 solid G-buffer 来消除光影包自身的阴影风格。以上仅是用户对所列组合的目视验收，不外推为任意版本光影包兼容保证。
+
+IterationRP Alpha 包内 `LICENSE.md` 为 all-rights-reserved：允许私人修改，但规定在其他原创项目中使用其源码片段需要作者明确许可与署名，并限制未经授权的商业化。为避免把兼容性分析转化为源码复用，最终提交已删除该包的拼写特征、变量组合、固定局部变量以及仿写测试片段；生产实现只依赖 Iris/通用 shader ABI 与上述通用 GLSL 数据流，测试使用独立编写的合成名称，并覆盖空间不明确时不得改写。Halo 不包含、不修改磁盘上的光影包，也不分发其任何文件；这里只记录技术边界，不代替作者许可或法律意见。
+
+去特化后使用用户现有的 Iris 1.7.6、Sodium 0.5.13 与 IterationRP Alpha 0.8.28 在 `halo-smoke` 隔离世界重新编译真实流水线；日志确认 `flat=true, lit-solid=true, lit-translucent=true`，约 16.4 万唯一顶点、11 万三角形的两套 VBO 正常重建，稳定运行期间未出现 Halo shader 编译、链接或 OpenGL 绘制错误。此次只记录真实程序编译与资源生命周期，不在没有新的截图对照时重复宣称目视效果。
+
+提交前最终 `clean build` 通过：core 279 项全部通过；Halo 94 项中 93 项通过、1 项因未配置官方 YSM 2.6.5 验签 JAR 而按设计跳过，失败与错误为 0；core 平台边界、合包来源及旧锚点 API v2 调用方检查均通过。对应去特化开发产物 `build/libs/halo-1.20.1-fabric-2.1.1+adapter.1.dev.jar` 为 605,329 字节，SHA-256 `30ff9aada8d304f7f75781be6b340e6506c12e436a0400d3921a992023d99169`。

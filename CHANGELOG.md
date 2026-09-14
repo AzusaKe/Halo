@@ -5,7 +5,9 @@
 - 恢复按光环定义命名空间前缀搜索：`/halo show` 补全和光环权杖现在都可用 `hal`、`halo` 或 `halo:` 找到 `halo:*` 定义。
 - `glowing:false` 改为在光环位置保留方块光/天空光双通道，并通过 Minecraft 原生 lightmap 呈现；露天地表会随昼夜、天气、维度环境光及客户端视觉光照变化，不再把原始天空光 15 直接当作满亮灰度。
 - `glowing:true` 继续使用 full-bright 与 `animation.glow`；旧 core 单浮点亮度与构造器保留为未来未迁移适配器的兼容回退。
-- 1.20.1 Fabric 的普通与 mesh 图元接入原版 lightmap；两个直接绘制阶段显式绑定并恢复 lightmap 纹理槽，mesh 缓存继续只上传一次模型顶点，每实例光照通过 uniform 提交。Iris 私有材质改从带 lightmap 语义的粒子程序派生。
+- OBJ 法线现在会保留并归一化；缺失或导出器写出的零法线按面生成。`glowing:false` 图元在原生模式下使用 Minecraft 的双方向实体光照并继续乘当前位置 lightmap，减少高面数模型整面同亮的失真。
+- 1.20.1 Fabric 为每个 mesh 缓存原有扁平格式和新增实体法线格式两套 VBO。法线流按三角形角点展开，使 Iris 能按真实三角形生成切线；`glowing:true` 仍走原有扁平全亮程序，遮罩、动画、透明排序、深度与剔除规则不变。
+- Iris 同样保留自发光粒子变体，仅为 `glowing:false` 增加普通实体漫反射的不透明与透明变体。不透明非自发光 mesh 在 Iris 消费 solid G-buffer 前提交，避免 Bliss 将其按玻璃/水透明管线合成；真正混合透明、自发光与原版路径保持既有晚期提交。兼容层支持光影包自定义基础采样函数而不改写 normal/specular/noise 采样，并以不含光影包专有标识的通用 GLSL 数据流检测，将 world-space 位置导数重建的面法线替换为上传的平滑法线。本版不承诺 Halo LabPBR 材质映射或独立投影。
 - 保留按 path 前缀搜索、JSON schema 1.1.0、存档、网络协议和锚点 API v2。
 
 源码版本：`2.1.1+adapter.1`；本次不创建发布标签或 GitHub Release。

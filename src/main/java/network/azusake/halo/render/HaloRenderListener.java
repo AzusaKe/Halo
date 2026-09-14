@@ -12,8 +12,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Registers the halo renderer with Fabric's world-render pipeline.
  *
- * <p>Capture/geometry evaluation follows entities. Mesh submission waits for entity
- * buffers to be flushed so depth testing works for opaque and translucent meshes.</p>
+ * <p>Capture/geometry evaluation follows entities. Opaque shader-pack meshes submit
+ * before Iris consumes its solid G-buffer; glowing, blended and vanilla meshes retain
+ * the established late submission after translucent entity buffers are flushed.</p>
  *
  * <p>Usage: call {@link #register()} once during client initialisation.</p>
  */
