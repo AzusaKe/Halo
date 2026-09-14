@@ -270,6 +270,6 @@ IterationRP Alpha 包内 `LICENSE.md` 为 all-rights-reserved：允许私人修�
 
 ## 2.1.2 源码收尾（2026-09-14）
 
-上述未发布的 lightmap、方向光与光影兼容改动统一作为 2.1.2 源码提交；adapter revision 保持 1，schema 1.1.0、存档、协议和锚点 API v2 均不变。按维护者要求仅提交并推送 HaloCore `main` 与 Halo `1.20.1-fabric` 源码分支，不创建标签或 GitHub Release。部分光影包仍可能选择自己的逐面法线策略；Halo 对空间不明确的程序保持不改写，以降低误适配和长期维护成本。
+上述未发布的 lightmap、方向光与光影兼容改动统一作为 2.1.2；adapter revision 保持 1，schema 1.1.0、存档、协议和锚点 API v2 均不变。维护者先要求推送源码分支，随后确认创建 HaloCore `v2.1.2` 与 Halo `v2.1.2-fabric-1.20.1-adapter.1` 标签，并由标签 CI 创建 GitHub Release。部分光影包仍可能选择自己的逐面法线策略；Halo 对空间不明确的程序保持不改写，以降低误适配和长期维护成本。
 
 2.1.2 提交前再次执行 Halo `clean build`：core 279 项全部通过，Halo 94 项中 93 项通过、1 项 YSM 外部验签按设计跳过，失败与错误为 0；开发产物 `halo-1.20.1-fabric-2.1.2+adapter.1.dev.jar` 为 605,357 字节，SHA-256 `3eadaa7b56de68e47cd8163cc0b67a33a59318e80891a044d72b0cfc76d5bc1f`。
