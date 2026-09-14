@@ -267,3 +267,9 @@ IterationRP Alpha 包内 `LICENSE.md` 为 all-rights-reserved：允许私人修�
 去特化后使用用户现有的 Iris 1.7.6、Sodium 0.5.13 与 IterationRP Alpha 0.8.28 在 `halo-smoke` 隔离世界重新编译真实流水线；日志确认 `flat=true, lit-solid=true, lit-translucent=true`，约 16.4 万唯一顶点、11 万三角形的两套 VBO 正常重建，稳定运行期间未出现 Halo shader 编译、链接或 OpenGL 绘制错误。此次只记录真实程序编译与资源生命周期，不在没有新的截图对照时重复宣称目视效果。
 
 提交前最终 `clean build` 通过：core 279 项全部通过；Halo 94 项中 93 项通过、1 项因未配置官方 YSM 2.6.5 验签 JAR 而按设计跳过，失败与错误为 0；core 平台边界、合包来源及旧锚点 API v2 调用方检查均通过。对应去特化开发产物 `build/libs/halo-1.20.1-fabric-2.1.1+adapter.1.dev.jar` 为 605,329 字节，SHA-256 `30ff9aada8d304f7f75781be6b340e6506c12e436a0400d3921a992023d99169`。
+
+## 2.1.2 源码收尾（2026-09-14）
+
+上述未发布的 lightmap、方向光与光影兼容改动统一作为 2.1.2 源码提交；adapter revision 保持 1，schema 1.1.0、存档、协议和锚点 API v2 均不变。按维护者要求仅提交并推送 HaloCore `main` 与 Halo `1.20.1-fabric` 源码分支，不创建标签或 GitHub Release。部分光影包仍可能选择自己的逐面法线策略；Halo 对空间不明确的程序保持不改写，以降低误适配和长期维护成本。
+
+2.1.2 提交前再次执行 Halo `clean build`：core 279 项全部通过，Halo 94 项中 93 项通过、1 项 YSM 外部验签按设计跳过，失败与错误为 0；开发产物 `halo-1.20.1-fabric-2.1.2+adapter.1.dev.jar` 为 605,357 字节，SHA-256 `3eadaa7b56de68e47cd8163cc0b67a33a59318e80891a044d72b0cfc76d5bc1f`。
