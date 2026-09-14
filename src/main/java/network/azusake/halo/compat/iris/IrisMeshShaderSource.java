@@ -25,6 +25,8 @@ public final class IrisMeshShaderSource {
         add(uniforms, "HaloMaskMode", "int", 0);
         add(uniforms, "HaloMaskThreshold", "float", .5f);
         add(uniforms, "HaloMaskOffset", "float", 0, 0);
+        add(uniforms, "HaloLightCoord", "int", 240, 240);
+        add(uniforms, "HaloLegacyAlphaCutoff", "int", 0);
         return json.toString();
     }
 
@@ -44,8 +46,16 @@ public final class IrisMeshShaderSource {
         if (!uv.find())
             throw new IllegalArgumentException("Iris mesh shader has no base UV attribute");
         String attribute = uv.group(1);
+        var light = Pattern.compile("\\bin\\s+ivec2\\s+(iris_UV2|UV2)\\s*;").matcher(source);
+        if (!light.find())
+            throw new IllegalArgumentException("Iris mesh shader has no lightmap UV attribute");
+        String lightAttribute = light.group(1);
+        int lightDeclarationEnd = light.end();
+        source = source.substring(0, lightDeclarationEnd)
+            + source.substring(lightDeclarationEnd).replaceAll("\\b" + Pattern.quote(lightAttribute) + "\\b",
+                "iris_HaloLightCoord");
         source = renameMain(source);
-        return declarations(source, "out vec2 halo_meshUV;\n")
+        return declarations(source, "out vec2 halo_meshUV;\nuniform ivec2 iris_HaloLightCoord;\n")
             + "\nvoid main() { halo_meshUV = " + attribute + "; halo_meshMain(); }\n";
     }
 
@@ -66,6 +76,7 @@ public final class IrisMeshShaderSource {
             uniform int iris_HaloMaskMode;
             uniform float iris_HaloMaskThreshold;
             uniform vec2 iris_HaloMaskOffset;
+            uniform int iris_HaloLegacyAlphaCutoff;
             float halo_maskAlpha() {
                 if (iris_HaloMaskEnabled == 0) return 1.0;
                 ivec2 dimensions = textureSize(iris_HaloMaskTexture, 0);
@@ -75,7 +86,7 @@ public final class IrisMeshShaderSource {
             }
             vec4 halo_material(vec4 color) {
                 color.a *= halo_maskAlpha();
-                if (color.a <= 0.0) discard;
+                if (color.a <= 0.0 || (iris_HaloLegacyAlphaCutoff != 0 && color.a < 0.1)) discard;
                 return color;
             }
             vec4 halo_texture(sampler2D tex, vec2 uv) { return halo_material(texture(tex, uv)); }

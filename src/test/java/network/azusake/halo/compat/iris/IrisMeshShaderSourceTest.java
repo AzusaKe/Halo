@@ -8,14 +8,26 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class IrisMeshShaderSourceTest {
     @Test void nativeAndIrisMasksUseOnlyTheMaskTextureNativeSize() throws IOException {
-        String nativeSource;
+        String nativeSource, nativeVertex, nativeJson;
         try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/mesh.fsh")) {
             assertNotNull(input);
             nativeSource = new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
+        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/mesh.vsh")) {
+            assertNotNull(input);
+            nativeVertex = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/mesh.json")) {
+            assertNotNull(input);
+            nativeJson = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
         assertTrue(nativeSource.contains("textureSize(Sampler1, 0)"));
         assertFalse(nativeSource.contains("textureSize(Sampler0"));
         assertTrue(nativeSource.contains("floor(fract(texCoord0 + MaskOffset) * vec2(dimensions))"));
+        assertTrue(nativeVertex.contains("texelFetch(Sampler2, LightCoord / 16, 0)"));
+        var nativeProgram = JsonParser.parseString(nativeJson).getAsJsonObject();
+        assertTrue(nativeProgram.getAsJsonArray("samplers").toString().contains("Sampler2"));
+        assertTrue(nativeProgram.getAsJsonArray("uniforms").toString().contains("LightCoord"));
 
         String iris = IrisMeshShaderSource.patch("test.fsh",
             "#version 330 core\nuniform sampler2D gtexture;\nin vec2 uv;\nout vec4 color;\nvoid main(){color=texture(gtexture,uv);}");
@@ -49,11 +61,12 @@ class IrisMeshShaderSourceTest {
     }
 
     @Test void uvVaryingUsesOriginalAttributeAndUniformsHavePerProgramDefaults() {
-        String vertex = IrisMeshShaderSource.patch("test.vsh", "#version 330 core\nin vec2 iris_UV0;\nvoid main(void) { gl_Position=vec4(0); }");
+        String vertex = IrisMeshShaderSource.patch("test.vsh", "#version 330 core\nin vec2 iris_UV0;\nin ivec2 iris_UV2;\nvoid main(void) { gl_Position=vec4(iris_UV2,0,1); }");
         assertTrue(vertex.contains("halo_meshUV = iris_UV0; halo_meshMain();"));
+        assertTrue(vertex.contains("vec4(iris_HaloLightCoord,0,1)"));
         var json = JsonParser.parseString(IrisMeshShaderSource.patch("test.json", "{\"uniforms\":[]}")).getAsJsonObject();
         var uniforms = json.getAsJsonArray("uniforms");
-        assertEquals(5, uniforms.size());
+        assertEquals(7, uniforms.size());
         assertEquals("iris_HaloMaskTexture", uniforms.get(0).getAsJsonObject().get("name").getAsString());
         assertEquals(1, uniforms.get(0).getAsJsonObject().getAsJsonArray("values").get(0).getAsInt());
     }
@@ -64,10 +77,12 @@ class IrisMeshShaderSourceTest {
     }
 
     @Test void irisFallbackKeepsMaskAndZeroOnlyAlphaCutoff() {
-        String vertex = IrisMeshShaderSource.patch("test.vsh", "#version 150 core\nin vec2 UV0;\nvoid main() { gl_Position=vec4(0); }");
+        String vertex = IrisMeshShaderSource.patch("test.vsh", "#version 150 core\nin vec2 UV0;\nin ivec2 UV2;\nvoid main() { gl_Position=vec4(UV2,0,1); }");
         assertTrue(vertex.contains("halo_meshUV = UV0;"));
+        assertTrue(vertex.contains("vec4(iris_HaloLightCoord,0,1)"));
         String fragment = IrisMeshShaderSource.patch("test.fsh", "#version 150 core\nuniform float AlphaTestValue;\nuniform sampler2D gtexture;\nin vec2 texCoord;\nout vec4 fragColor;\nvoid main() { fragColor = texture(gtexture, texCoord); if (fragColor.a <= AlphaTestValue) discard; }");
         assertTrue(fragment.contains("const float AlphaTestValue = 0.0;"));
         assertTrue(fragment.contains("halo_texture(gtexture, texCoord)"));
+        assertTrue(fragment.contains("iris_HaloLegacyAlphaCutoff != 0"));
     }
 }

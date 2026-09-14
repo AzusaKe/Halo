@@ -215,3 +215,23 @@ core 新增 `FrameOutput` / `MeshDraw` 轻量帧契约与兼容展开器。优�
 用户随后在约 130 模组的重度整合包中使用同一个约十万面模型完成实际复测：超平坦世界、4K 分辨率、关闭光影时为 70～80 FPS；启用软件光追光影，并通过 render-scale 模组以一半画质按约 1080p 渲染时约 60 FPS。单个高面数光环佩戴与去除前后的帧率几乎无波动。用户确认测试通过、优化效果符合预期，并授权将当前成果作为 2.1.0 正式版提交和推送。
 
 发布按双仓库锁定顺序执行：HaloCore 发布提交为 `dfc52feadb9c4121dff023770697e6d74716dd27`，集成分支 `main`，标签 `v2.1.0`；Halo 的发布提交为包含本节、GPU 适配及该 core gitlink 的 `1.20.1-fabric` 提交，平台标签为 `v2.1.0-fabric-1.20.1-adapter.1`。标签触发 CI 正式构建与 GitHub Release，远端结果以对应仓库 Actions 和 Release 页面为准。2.1.0 仍仅适配 Minecraft 1.20.1 Fabric，不迁移或改动冻结的 flash 分支。
+
+## 2.1.1 原生光照图采样（2026-09-14）
+
+本轮基于 Halo `0fc14036adf31e83bd4bee441de0d9ccff4043c5`（`1.20.1-fabric`）和 core `053da2589c4b83f2aa6884dc4abc4301f463d76d`（`main`，也是当前 gitlink）实施。此前 `glowing: false` 只把方块光和天空光取最大值并折算为 RGB；露天地表的原始天空光等级仍可为 15，所以仅把时间改为夜晚时光环不变暗。封闭无光源结构内的复测确认 mesh 并没有错误地强制自发光。
+
+core 新增可选的方块光/天空光二通道帧输入，并把采样结果随 `DrawBatch` / `MeshDraw` 传给适配器；旧构造器和缺少该能力的平台继续使用原有标量亮度路径。采样位置统一为光环根节点的世界位置，每个实例每帧采样一次，不改变 mesh 常驻 VBO。`glowing: true` 显式使用满亮光照坐标；`glowing: false` 交由原生 lightmap 同时处理方块光、天空光和昼夜天空亮度。
+
+1.20.1 Fabric 原生路径为 mesh 和有贴图旧图元绑定 lightmap；无贴图图元改用原版 position-color-lightmap 顶点格式。Iris 路径改从 particles 光照变体派生私有材质程序，把每实例的光照坐标作为 uniform 注入，保留现有遮罩、透明排序和深度提交行为。未加入基于法线的方向光照，因此模型各表面的差异仍来自贴图和游戏 lightmap，而不是新增的 Lambert 等表面明暗计算。
+
+core 独立 `build` 通过：274 项 JUnit 全部通过。Halo 联合 `build` 通过：91 项中 90 项通过、1 项跳过，失败和错误为 0；跳过项仍是未配置 `HALO_YSM_TEST_JAR` 时的官方 YSM 外部 JAR 签名检查。新增测试覆盖非自发光 mesh/旧图元保留独立方块光与天空光、自发光满亮、旧构造入口、原版 packed light 坐标，以及 Iris 源码改写后的 UV2 与 uniform 契约。合包、发行结构、core 边界和旧 API 调用方检查均通过。
+
+原生开发客户端成功进入 `halo-smoke` 世界并加载 Halo 2.1.1 开发资源；日志记录 12 个定义、1 个 mesh VBO、2 个静态 EBO、175 个唯一顶点和 288 个三角形，没有 Halo shader 编译或 mesh 绘制错误。日志位于 `.local/smoke-client/logs/latest.log`。该运行环境未安装 Iris；同时本次 Codex 会话无法读取或操作 Minecraft 原生窗口，因此没有把昼/夜/洞穴画面或 Iris 实际绘制记为验收通过，仍需用户在游戏内复测。
+
+用户对首个开发包进行目视复测后发现，原生模式下 `glowing:true` 与 `glowing:false` 图元均呈黑色。坐标测试和 shader 编译未覆盖该问题：Halo 在 AFTER_ENTITIES / AFTER_TRANSLUCENT 中直接提交 Tessellator 与 VBO，没有经过原版 RenderLayer 的 LIGHTMAP 状态阶段，因此 `Sampler2` 未绑定有效 lightmap 纹理；满亮坐标采样纹理 0 后同样为黑。修复在普通批次和延迟 mesh 批次提交前调用当前 `LightmapTextureManager.enable()`，并在完成后恢复原 texture 2 状态。修复后的联合 `build` 再次通过；新的原生及 Iris 目视结果仍等待用户复测，不把首次黑色画面记为光照功能通过。
+
+用户随后使用修复包复测并确认测试通过，满亮与环境光路径不再全黑，本轮原生光照目标获用户验收。复测同时确认高面数模型只采用一个位置 lightmap、没有表面法线方向光时会产生更明显的平面化失真；该现象记录为后续材质/法线设计议题，本轮不据此扩展到法线、阴影、LabPBR 或任意光影包兼容。
+
+用户验收的开发产物为 `build/libs/halo-1.20.1-fabric-2.1.1+adapter.1.dev.jar`，588,001 字节，SHA-256 `c969ab76f94dc48f11b0351dfee87515ebefad1ee8887ff1a4e172c2c10235ab`。版本为 2.1.1 未发布开发版 / schema 1.1.0 / adapter 1。
+
+按用户要求固定成果：先将 core 提交至 `0ac792b83862569af210692363efd191b08fc5bc`（`main`），再由包含本节、Fabric/Iris 实现和该 core gitlink 的 Halo 本地提交保存适配成果；Halo SHA 可在本文件的 Git 历史中查询。两个仓库均不推送，不创建标签或 Release。

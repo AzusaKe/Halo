@@ -87,7 +87,7 @@ has no effect and existing definitions retain independent per-axis size fitting.
 2. Unwrap every face and use a single PNG. Named objects/groups are combined under the JSON material.
 3. Triangulate on export. Planar convex quads are also supported; concave faces, nonplanar quads and larger polygons require triangulation before loading.
 4. Every corner needs a UV: `v/vt` or `v/vt/vn`. Positive/negative independent indices and UV seams are supported.
-5. Normals are accepted, but v1 uses Halo's existing uniform brightness. MTL, object/group names and smoothing groups do not alter the material. Bones, model animations and free-form geometry are unsupported.
+5. Normals are accepted, but v1 uses one lightmap sample for the whole halo and no directional normal shading. MTL, object/group names and smoothing groups do not alter the material. Bones, model animations and free-form geometry are unsupported.
 
 ### Blender and external OBJ files
 
@@ -145,15 +145,15 @@ the opposite direction. One offset unit is a full texture period. `linear` is `s
 `A*sin(omega*pi*t+phi)`, and `cos` is analogous; time is seconds and phi is radians. The existing idle clock
 freezes mask motion during startup/shutdown transitions and resumes it afterwards. Resource reload preserves ownership and instance time.
 
-`glowing`, `animation.glow` and existing inheritance still control brightness; v1 adds no PBR or directional
-normal lighting. Blended meshes use ordinary depth-tested transparency sorting, with the usual limitations
+When `glowing` is false, Halo samples separate block/sky levels at the halo root and lets Minecraft's current
+lightmap apply day/night, weather, dimension, gamma and vision effects. When it is true, full-bright plus
+`animation.glow` controls emission. This adds no PBR or directional normal lighting. Blended meshes use ordinary depth-tested transparency sorting, with the usual limitations
 for intersecting surfaces and intersections with world water/glass.
 
 Meshes submit after entity buffers have been flushed, so later entity draws cannot overwrite blended meshes
-that intentionally do not write depth. When Iris is active, Halo creates a private `gbuffers_textured` variant
+that intentionally do not write depth. When Iris is active, Halo creates a private lightmapped particle-program variant
 during shader loading. Mask alpha modifies the base sample before pack shading; Iris owns its world render
-targets and subsequent post-processing. Shared shaders used by old primitives remain unchanged, with no new
-Iris runtime dependency. In this Iris pass, surviving mesh fragments also write translucent depth (`depthtex0`),
+targets and subsequent post-processing, with no new Iris runtime dependency. In this Iris pass, surviving mesh fragments also write translucent depth (`depthtex0`),
 including linear masks. Packs need the mesh's own depth to reconstruct its position for compositing and fog;
 using glass/sky background depth can fade out a nearby mesh. The opaque depth copy (`depthtex1`) is already
 complete at this stage. Zero-alpha fragments are discarded, and alpha blending/sorting remain in effect.

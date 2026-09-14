@@ -6,6 +6,8 @@ in vec4 Color;
 
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
+uniform sampler2D Sampler2;
+uniform ivec2 LightCoord;
 
 out vec2 texCoord0;
 out vec4 vertexColor;
@@ -13,5 +15,5 @@ out vec4 vertexColor;
 void main() {
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
     texCoord0 = UV0;
-    vertexColor = Color;
+    vertexColor = Color * texelFetch(Sampler2, LightCoord / 16, 0);
 }

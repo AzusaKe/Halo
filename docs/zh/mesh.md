@@ -140,8 +140,9 @@ finalAlpha = baseTextureAlpha × groupAndAnimationAlpha × maskAlpha
 渐变透明使用深度测试和普通透明排序；相交网格及与原版水、玻璃交叠仍可能存在常规透明排序局限。
 
 mesh 在实体缓冲区完成后提交，避免不写深度的透明 mesh 被随后刷出的实体覆盖。
-开启 Iris 时，在光影加载阶段创建独立的 `gbuffers_textured` 材质变体，先处理基础贴图的遮罩 alpha，
-再交给光影包处理，写入 Iris 管理的世界缓冲区并参与后续后处理。不会修改旧图元共用的光影程序，不新增 Iris 运行时依赖。
+`glowing:false` 在光环根位置分别采样方块光和天空光，并使用 Minecraft 当前 lightmap；昼夜、天气、维度环境光、Gamma 与夜视等由游戏的 lightmap 统一处理。`glowing:true` 使用 full-bright，`animation.glow` 继续控制自身亮度。
+开启 Iris 时，在光影加载阶段从带 lightmap 坐标语义的粒子程序创建独立材质变体，先处理基础贴图的遮罩 alpha，
+再交给光影包处理，写入 Iris 管理的世界缓冲区并参与后续后处理。不新增 Iris 运行时依赖。
 Iris 路径中，未被丢弃的 mesh 片元也写入透明阶段深度 `depthtex0`，包括线性遮罩；
 光影包需要据此还原 mesh 的位置并计算合成和雾，沿用玻璃或天空背景的深度会让近处模型错误淡出。
 此时不透明深度 `depthtex1` 已复制完成。零 alpha 片元仍被丢弃，透明度混合和排序继续保留。

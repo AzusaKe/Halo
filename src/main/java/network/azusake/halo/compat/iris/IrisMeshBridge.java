@@ -24,7 +24,7 @@ public final class IrisMeshBridge {
             getManager = iris.getMethod("getPipelineManager");
             getPipeline = getManager.getReturnType().getMethod("getPipelineNullable");
             Class<?> keys = Class.forName("net.irisshaders.iris.pipeline.programs.ShaderKey", false, loader);
-            Object key = keys.getField("TEXTURED_COLOR").get(null);
+            Object key = keys.getField("PARTICLES").get(null);
             Object programId = keys.getMethod("getProgram").invoke(key);
             Field resolverField = pipeline.getClass().getDeclaredField("resolver");
             resolverField.setAccessible(true);
@@ -36,11 +36,12 @@ public final class IrisMeshBridge {
             ShaderProgram program;
             try { program = (ShaderProgram) create.invoke(pipeline, "halo_mesh_" + (++generation), source, key); }
             finally { building = false; }
-            for (String uniform : List.of("HaloMaskEnabled", "HaloMaskMode", "HaloMaskThreshold", "HaloMaskOffset", "HaloMaskTexture"))
+            for (String uniform : List.of("HaloMaskEnabled", "HaloMaskMode", "HaloMaskThreshold", "HaloMaskOffset",
+                    "HaloMaskTexture", "HaloLightCoord", "HaloLegacyAlphaCutoff"))
                 if (program.getUniform(uniform) == null && program.getUniform("iris_" + uniform) == null)
                     throw new IllegalStateException("Missing " + uniform);
             PROGRAMS.put(pipeline, program);
-            LoggerFactory.getLogger("HaloMeshShader").info("Prepared mesh material inside Iris gbuffers_textured pipeline");
+            LoggerFactory.getLogger("HaloMeshShader").info("Prepared lightmapped mesh material inside Iris particles pipeline");
         } catch (ReflectiveOperationException | RuntimeException error) {
             Throwable cause = error instanceof InvocationTargetException invocation ? invocation.getCause() : error;
             LoggerFactory.getLogger("HaloMeshShader").error("Could not prepare Iris mesh material; mesh is paused for this shader pipeline", cause);

@@ -3,6 +3,9 @@
 ## 2.1.1 — 未发布
 
 - 恢复按光环定义命名空间前缀搜索：`/halo show` 补全和光环权杖现在都可用 `hal`、`halo` 或 `halo:` 找到 `halo:*` 定义。
+- `glowing:false` 改为在光环位置保留方块光/天空光双通道，并通过 Minecraft 原生 lightmap 呈现；露天地表会随昼夜、天气、维度环境光及客户端视觉光照变化，不再把原始天空光 15 直接当作满亮灰度。
+- `glowing:true` 继续使用 full-bright 与 `animation.glow`；旧 core 单浮点亮度与构造器保留为未来未迁移适配器的兼容回退。
+- 1.20.1 Fabric 的普通与 mesh 图元接入原版 lightmap；两个直接绘制阶段显式绑定并恢复 lightmap 纹理槽，mesh 缓存继续只上传一次模型顶点，每实例光照通过 uniform 提交。Iris 私有材质改从带 lightmap 语义的粒子程序派生。
 - 保留按 path 前缀搜索、JSON schema 1.1.0、存档、网络协议和锚点 API v2。
 
 源码版本：`2.1.1+adapter.1`；本次不创建发布标签或 GitHub Release。

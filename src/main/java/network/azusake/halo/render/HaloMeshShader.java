@@ -8,6 +8,7 @@ import net.minecraft.client.gl.ShaderProgram;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.util.Identifier;
 import network.azusake.halo.core.render.DrawBatch;
+import network.azusake.halo.core.render.LightSample;
 import network.azusake.halo.core.render.MaterialState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +27,8 @@ public final class HaloMeshShader {
             program = null;
             try {
                 context.register(new Identifier("halo", "mesh"), VertexFormats.POSITION_TEXTURE_COLOR, loaded -> {
-                    for (String uniform : new String[]{"MaskEnabled", "MaskMode", "MaskThreshold", "MaskOffset"}) {
+                    for (String uniform : new String[]{"MaskEnabled", "MaskMode", "MaskThreshold", "MaskOffset",
+                            "LightCoord", "LegacyAlphaCutoff"}) {
                         if (loaded.getUniform(uniform) == null) {
                             LOG.error("Halo mesh shader is missing {}; mesh rendering disabled until resource reload", uniform);
                             return;
@@ -41,15 +43,19 @@ public final class HaloMeshShader {
     }
 
     public static boolean bind(MinecraftClient client, DrawBatch batch, MaterialState.Mesh material) {
-        return bind(client, batch.texture(), material) != null;
+        return bind(client, batch.texture(), material, batch.light(), false) != null;
+    }
+
+    public static boolean bindLegacy(MinecraftClient client, DrawBatch batch) {
+        return bind(client, batch.texture(), null, batch.light(), true) != null;
     }
 
     public static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.render.MeshDraw draw) {
-        return bind(client, draw.texture(), draw.material());
+        return bind(client, draw.texture(), draw.material(), draw.light(), false);
     }
 
     private static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.Identifier texture,
-                                      MaterialState.Mesh material) {
+                                      MaterialState.Mesh material, LightSample light, boolean legacyAlphaCutoff) {
         boolean iris = OptionalIrisPassDetector.hasShaderPack();
         ShaderProgram shader = iris ? IrisMeshBridge.currentProgram() : program;
         if (shader == null) return null;
@@ -61,7 +67,7 @@ public final class HaloMeshShader {
         // discarded by the shader. Core's sorted order is preserved. Native rendering
         // continues to use the batch's depthWrite flag.
         if (iris) RenderSystem.depthMask(true);
-        var mask = material.mask();
+        var mask = material == null ? null : material.mask();
         RenderSystem.setShader(() -> shader);
         RenderSystem.setShaderTexture(0, client.getTextureManager().getTexture(game(texture)).getGlId());
         RenderSystem.setShaderTexture(1, client.getTextureManager().getTexture(game(mask == null ? texture : mask.texture())).getGlId());
@@ -70,6 +76,9 @@ public final class HaloMeshShader {
         shader.getUniformOrDefault(prefix + "MaskMode").set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
         shader.getUniformOrDefault(prefix + "MaskThreshold").set(mask == null ? 0.5f : mask.threshold());
         shader.getUniformOrDefault(prefix + "MaskOffset").set(mask == null ? 0f : mask.offsetU(), mask == null ? 0f : mask.offsetV());
+        LightSample sample = light.available() ? light : LightSample.FULL_BRIGHT;
+        shader.getUniformOrDefault(prefix + "LightCoord").set(sample.block() << 4, sample.sky() << 4);
+        shader.getUniformOrDefault(prefix + "LegacyAlphaCutoff").set(legacyAlphaCutoff ? 1 : 0);
         return shader;
     }
 }
