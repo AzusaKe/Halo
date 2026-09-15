@@ -6,8 +6,8 @@
 - 世界与预览共享佩戴和显隐时钟；第一人称及世界模型未入镜不影响预览，打开界面不重播启动动画。正交预览中的 `face_camera` 使用平行相机方向。
 - 抽取公共 GPU 提交器，共享 mesh 缓存和材质。GUI 立即提交，使用原生着色器、满亮光照和 GUI 方向光，隔离世界延迟队列及 Iris 世界路径，并恢复调用方的绘制状态。
 - 增加默认启用的 `playerPreviewHaloEnabled` 客户端配置；增加 core `PreviewPort` / `PreviewSession` 和客户端 `HaloPreviewApi`，供后续兼容包或外部 UI 接入。
-- 原版预览捕获不进入世界头部缓存或 API v2；YSM／EMF 世界捕获在预览作用域内跳过。本阶段尚不提供它们的准确预览锚点、预览物理或独立第三方 UI 接入。
-- 目标版本 `2.2.0+adapter.1`；schema、存档、协议和 API v2 世界语义不变。验证范围见[玩家预览说明](docs/player-preview.md)。
+- 预览捕获不进入世界头部缓存或 API v2。`adapter.2` 增加 YSM／EMF 真实预览头部：YSM 复用 Head 定位器层级及局部偏移，EMF 复用动画后的命名头部及变换；沿用世界版本与 ABI 门槛。隐身允许显示时仍获取当帧姿态；嵌套实体不能覆盖佩戴者锚点。
+- 预览物理和不经现有作用域的独立第三方 UI 接入仍留待后续。目标版本 `2.2.0+adapter.2`；core 保持 `2.2.0`，schema、存档、协议和 API v2 世界语义不变。验证范围见[玩家预览说明](docs/player-preview.md)。
 
 ## 2.1.2 — 2026-09-14
 

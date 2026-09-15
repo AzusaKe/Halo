@@ -20,6 +20,7 @@ public abstract class EmfModelPartIntermediaryMixin {
             + Emf1201Symbols.RENDER_DESCRIPTOR_INTERMEDIARY,
         at = @At("HEAD"),
         remap = false,
+        cancellable = true,
         require = 0
     )
     private void halo$captureEmfHeadIntermediary(
@@ -34,5 +35,6 @@ public abstract class EmfModelPartIntermediaryMixin {
         CallbackInfo ci
     ) {
         EmfHeadCapture.capture(matrices, (net.minecraft.client.model.ModelPart) (Object) this);
+        if (EmfHeadCapture.isPreviewPoseOnly()) ci.cancel();
     }
 }

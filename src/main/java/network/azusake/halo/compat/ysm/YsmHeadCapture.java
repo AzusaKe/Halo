@@ -50,7 +50,10 @@ public final class YsmHeadCapture {
 
     /** Called by the optional YSM Mixin at the base model render pass. */
     public static void capture(Object animatedModel, MatrixStack matrices) {
-        if (network.azusake.halo.render.PlayerPreviewCapture.isActive()) return;
+        if (network.azusake.halo.render.PlayerPreviewCapture.isActive()) {
+            YsmPreviewCapture.capture(animatedModel, matrices);
+            return;
+        }
         if (!HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()) {
             infoOnce("feature-disabled",
                 "[YSM Compat] YSM render hook is active, but experimentalYsmAnchorEnabled=false; "

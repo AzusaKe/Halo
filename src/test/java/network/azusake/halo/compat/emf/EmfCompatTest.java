@@ -10,6 +10,10 @@ import org.joml.Quaternionf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import net.minecraft.client.model.ModelPart;
+import net.minecraft.client.util.math.MatrixStack;
+import java.util.List;
+import java.util.Map;
 
 import java.util.UUID;
 
@@ -22,6 +26,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EmfCompatTest {
 
     private static final double EPS = 1.0e-3;
+
+    @Test
+    void capturesPartTransformAndRestoresCallerStack() {
+        MatrixStack matrices = new MatrixStack();
+        matrices.translate(1, 2, 3);
+        Matrix4f before = new Matrix4f(matrices.peek().getPositionMatrix());
+        ModelPart part = new ModelPart(List.of(), Map.of());
+        part.setPivot(8, -4, 12);
+        part.xScale = 2;
+        part.yScale = 3;
+        part.zScale = 4;
+        Matrix4f capture = EmfHeadCapture.captureHeadMatrix(matrices, part);
+        assertTrue(new Matrix4f(before).translate(.5f, -.25f, .75f).scale(2,3,4).equals(capture, 1e-6f));
+        assertTrue(before.equals(matrices.peek().getPositionMatrix(), 0));
+    }
 
     @AfterEach
     void clearCapture() {

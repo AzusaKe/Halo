@@ -19,6 +19,7 @@ public abstract class EmfModelPartNamedMixin {
         method = Emf1201Symbols.RENDER_METHOD_NAMED + Emf1201Symbols.RENDER_DESCRIPTOR_NAMED,
         at = @At("HEAD"),
         remap = false,
+        cancellable = true,
         require = 0
     )
     private void halo$captureEmfHeadNamed(
@@ -33,5 +34,6 @@ public abstract class EmfModelPartNamedMixin {
         CallbackInfo ci
     ) {
         EmfHeadCapture.capture(matrices, (net.minecraft.client.model.ModelPart) (Object) this);
+        if (EmfHeadCapture.isPreviewPoseOnly()) ci.cancel();
     }
 }

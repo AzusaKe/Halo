@@ -42,6 +42,16 @@ public final class EmfHeadCapture {
     private EmfHeadCapture() {
     }
 
+    /** Invisible previews still need this frame's EMF animation before obtaining the head. */
+    public static void capturePreviewPose(LivingEntity entity, MatrixStack matrices, ModelPart head) {
+        var client = net.minecraft.client.MinecraftClient.getInstance();
+        if (entity.isInvisible() && client.player != null && entity.isInvisibleTo(client.player)
+                && !client.hasOutline(entity) && (Object) head instanceof EmfPartNameAccess)
+            EmfPreviewCapture.capturePose(matrices, head);
+    }
+
+    public static boolean isPreviewPoseOnly() { return EmfPreviewCapture.isPoseOnly(); }
+
     /**
      * Advance the EMF capture buffers at the same point as the vanilla and YSM
      * buffers.  A capture keeps the view matrix and camera position that
@@ -59,15 +69,19 @@ public final class EmfHeadCapture {
 
     /**
      * Called by the optional EMFModelPart mixin at the head of the render
-    * method.  The first named head part wins, preventing armor and feature
+     * method.  The first named head part wins, preventing armor and feature
      * passes from replacing the main-model transform.
      */
     public static void capture(MatrixStack matrices, ModelPart part) {
-        if (network.azusake.halo.render.PlayerPreviewCapture.isActive()) return;
         Object candidate = part;
         if (!(candidate instanceof EmfPartNameAccess namedPart)
             || !"head".equals(namedPart.halo$getEmfPartName())
             || !part.visible || part.hidden) {
+            return;
+        }
+
+        if (network.azusake.halo.render.PlayerPreviewCapture.isActive()) {
+            EmfPreviewCapture.capture(matrices, part);
             return;
         }
 
@@ -88,35 +102,40 @@ public final class EmfHeadCapture {
             // transform is applied.  Reproduce the exact vanilla operation on
             // a temporary stack; this also respects EMF's overridden rotate()
             // implementation without changing the real render stack.
-            matrices.push();
-            try {
-                part.rotate(matrices);
-                Matrix4f headMatrix = new Matrix4f(matrices.peek().getPositionMatrix());
-                if (!isFinite(headMatrix)) {
-                    warnOnce("non-finite-head",
-                        "[EMF Compat] rejected a non-finite EMF head matrix; using Halo fallback");
-                    return;
+            Matrix4f headMatrix = captureHeadMatrix(matrices, part);
+            if (!isFinite(headMatrix)) {
+                warnOnce("non-finite-head",
+                    "[EMF Compat] rejected a non-finite EMF head matrix; using Halo fallback");
+                return;
+            }
+            CapturedHead captured = new CapturedHead(
+                headMatrix,
+                new Matrix4f(frame.viewMatrix),
+                frame.cameraPos
+            );
+            if (CURRENT.putIfAbsent(uuid, captured) == null) {
+                AnchorPose pose = EmfHeadMath.toAnchorPose(captured);
+                if (pose != null) {
+                    EMF_SOURCE.submit(uuid, pose);
                 }
-                CapturedHead captured = new CapturedHead(
-                    headMatrix,
-                    new Matrix4f(frame.viewMatrix),
-                    frame.cameraPos
-                );
-                if (CURRENT.putIfAbsent(uuid, captured) == null) {
-                    AnchorPose pose = EmfHeadMath.toAnchorPose(captured);
-                    if (pose != null) {
-                        EMF_SOURCE.submit(uuid, pose);
-                    }
-                    infoOnce("head-captured",
-                        "[EMF Compat] head matrix captured from EMFModelPart.render");
-                }
-            } finally {
-                matrices.pop();
+                infoOnce("head-captured",
+                    "[EMF Compat] head matrix captured from EMFModelPart.render");
             }
         } catch (Throwable error) {
             warnOnce("capture-failure",
                 "[EMF Compat] EMF head capture failed; using Halo fallback: "
                     + error.getClass().getSimpleName() + ": " + error.getMessage());
+        }
+    }
+
+    /** Reproduce the model part's actual transform without changing the caller's stack. */
+    static Matrix4f captureHeadMatrix(MatrixStack matrices, ModelPart part) {
+        matrices.push();
+        try {
+            part.rotate(matrices);
+            return new Matrix4f(matrices.peek().getPositionMatrix());
+        } finally {
+            matrices.pop();
         }
     }
 

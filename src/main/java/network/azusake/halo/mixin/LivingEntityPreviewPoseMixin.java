@@ -20,7 +20,9 @@ public abstract class LivingEntityPreviewPoseMixin {
                                 VertexConsumerProvider vertices, int light, CallbackInfo ci) {
         if (!PlayerPreviewCapture.isActive()) return;
         var model = ((LivingEntityRenderer<?, ?>) (Object) this).getModel();
-        if (model instanceof PlayerEntityModel<?> player && !player.child)
+        if (model instanceof PlayerEntityModel<?> player && !player.child) {
             PlayerPreviewCapture.capturePosedHead(entity, matrices, player.getHead());
+            network.azusake.halo.compat.emf.EmfHeadCapture.capturePreviewPose(entity, matrices, player.getHead());
+        }
     }
 }

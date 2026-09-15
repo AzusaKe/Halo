@@ -1,0 +1,27 @@
+Optional player-model integrations
+
+Entity Model Features (EMF)
+Copyright (c) 2022 and its contributors.
+Project: https://github.com/Traben-0/Entity_Model_Features
+License: GNU Lesser General Public License version 3 or later.
+The accompanying EMF-LICENSE.txt contains the upstream notice and the GNU
+LGPL v3 / GPL v3 license texts.
+
+Halo's optional adapter calls and instruments the separately installed EMF
+at runtime. Halo does not bundle EMF's implementation or model resources.
+Users may replace EMF with an interface-compatible modified version; Halo
+does not prohibit modification or reverse engineering for debugging it.
+Halo's independently written code remains under Halo's own license.
+
+Yes Steve Model (YSM) 2.6.5-fabric+mc1.20.1
+Project: https://ysm.cfpa.team/
+This release is All Rights Reserved. It is installed separately and is not
+included in Halo. The version-pinned compatibility symbols and necessary
+Head-locator calculation are used under the limited permission reported by
+Halo's maintainer. That permission is not a general license to YSM source,
+binaries, models, textures, or other assets.
+
+The preview extension observes the completed model preparation using an
+additional method descriptor and Halo's own callback. It reuses the existing
+locator math; it does not reproduce YSM's preparation or animation method
+bodies. The original mod's preparation and animation execute in that mod.

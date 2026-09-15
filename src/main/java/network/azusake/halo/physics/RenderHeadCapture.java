@@ -97,7 +97,10 @@ public final class RenderHeadCapture {
 
     /** Open the source-neutral render scope used by API v2 submissions. */
     public static void beginEntityRender(Entity entity, MatrixStack matrices, float tickDelta) {
-        if (PlayerPreviewCapture.isActive()) return;
+        if (PlayerPreviewCapture.isActive()) {
+            PlayerPreviewCapture.beginEntityRender(entity);
+            return;
+        }
         Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
         boolean mainPass = entity instanceof LivingEntity living
             && matchesMainView(root)
@@ -119,7 +122,7 @@ public final class RenderHeadCapture {
     }
 
     public static void endEntityRender() {
-        if (PlayerPreviewCapture.isActive()) { end(); return; }
+        if (PlayerPreviewCapture.isActive()) { PlayerPreviewCapture.endEntityRender(); end(); return; }
         AnchorCaptureCoordinator.endEntityRender();
         end();
     }

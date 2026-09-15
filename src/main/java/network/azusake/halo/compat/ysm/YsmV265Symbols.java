@@ -26,6 +26,19 @@ public final class YsmV265Symbols {
     public static final String HEAD_BONES_DESCRIPTOR = "()Ljava/util/List;";
     public static final String BONE_FLOAT_GETTER_DESCRIPTOR = "()F";
 
+    /** Preparation applies model scale even when invisibility suppresses the material pass. */
+    public static final String PREPARE_DESCRIPTOR_INTERMEDIARY =
+        "(Lcom/elfmcys/yesstevemodel/o00oo00o000oo00o00OOooOO;"
+            + "Lcom/elfmcys/yesstevemodel/O0OOo00o00Oo0OO0oO0O0oOo;"
+            + "FLnet/minecraft/class_4587;Lnet/minecraft/class_4597;"
+            + "Lnet/minecraft/class_4588;IIFFFF)V";
+    public static final String PREPARE_DESCRIPTOR_NAMED =
+        "(Lcom/elfmcys/yesstevemodel/o00oo00o000oo00o00OOooOO;"
+            + "Lcom/elfmcys/yesstevemodel/O0OOo00o00Oo0OO0oO0O0oOo;"
+            + "FLnet/minecraft/client/util/math/MatrixStack;"
+            + "Lnet/minecraft/client/render/VertexConsumerProvider;"
+            + "Lnet/minecraft/client/render/VertexConsumer;IIFFFF)V";
+
     public static final String ROTATION_X = "OoOo0OooO0OOO0Oo00000o00";
     public static final String ROTATION_Y = "OoooO000OO0OoO0o0o0ooooO";
     public static final String ROTATION_Z = "o0OOoooO000O0O0oo0O0o00o";

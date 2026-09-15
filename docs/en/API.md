@@ -21,7 +21,9 @@ HaloPreviewApi.renderPlayer(context, player, () -> {
 The facade captures the actual head, flushes model buffers and immediately submits the halo. Its
 capture scope closes on exceptions too. The host still owns GUI projection, pixel placement, lighting
 and their cleanup. Missing/unsupported head captures produce no halo; no world anchor is reused.
-This stage does not supply YSM/EMF preview anchors.
+The built-in compat packages also supply YSM and EMF preview anchors within this scope, using the
+same version/ABI gates as world rendering. YSM uses its animated Head locator and configured local
+offset; EMF uses the animated named head. Physics is not enabled for previews.
 
 An integration with its own head capture can instead own a session:
 

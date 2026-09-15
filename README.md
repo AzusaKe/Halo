@@ -14,7 +14,9 @@ This branch targets **Minecraft 1.20.1 Fabric**. The source is **2.2.0 in develo
 Vanilla player previews now display the equipped halo, including survival and creative inventories.
 The preview follows the actual head without physics and shares all three primitives and visual animation
 with the world halo. `playerPreviewHaloEnabled` defaults to `true` in the client configuration (restart
-after editing). See the [preview API](docs/en/API.md#player-preview-api) and [implementation/verification record](docs/player-preview.md).
+after editing). Built-in compatibility also captures YSM 2.6.5 and EMF 3.1.1+ player preview heads,
+using the same version/ABI gates as world rendering. EMF requires a resource pack that replaces the
+player model. See the [preview API](docs/en/API.md#player-preview-api) and [implementation/verification record](docs/player-preview.md).
 
 For contributors and coding agents, the [development guide](DEVELOPMENT.md) covers feature development, debugging, porting to other game branches, and the two-repository commit and release workflow.
 

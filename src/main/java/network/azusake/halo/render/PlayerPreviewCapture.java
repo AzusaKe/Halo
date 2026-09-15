@@ -5,6 +5,7 @@ import java.util.Deque;
 import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.Entity;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.physics.RenderHeadCapture;
 import org.joml.Matrix4f;
@@ -17,6 +18,8 @@ public final class PlayerPreviewCapture implements AutoCloseable {
     private final RenderHeadCapture.Context previousContext;
     private AnchorPose head;
     private AnchorPose posedHead;
+    private AnchorPose modelHead;
+    private final Deque<Entity> entityRenders = new ArrayDeque<>();
     private boolean closed;
 
     private PlayerPreviewCapture(LivingEntity wearer, Matrix4f root) {
@@ -29,8 +32,30 @@ public final class PlayerPreviewCapture implements AutoCloseable {
         return new PlayerPreviewCapture(wearer, root);
     }
     public static boolean isActive() { return !SCOPES.get().isEmpty(); }
-    public AnchorPose head() { return head != null ? head : posedHead; }
+    public AnchorPose head() { return modelHead != null ? modelHead : head != null ? head : posedHead; }
     public Matrix4f root() { return new Matrix4f(root); }
+
+    /** Eligible model capture scope. Nested entity features cannot supply the wearer's head. */
+    public static PlayerPreviewCapture current() {
+        var scope = SCOPES.get().peek();
+        return scope != null && (scope.entityRenders.isEmpty() || scope.entityRenders.peek() == scope.wearer)
+            ? scope : null;
+    }
+    public static void beginEntityRender(Entity entity) {
+        var scope = SCOPES.get().peek();
+        if (scope != null) scope.entityRenders.push(entity);
+    }
+    public static void endEntityRender() {
+        var scope = SCOPES.get().peek();
+        if (scope != null) scope.entityRenders.poll();
+    }
+    public boolean hasModelHead() { return modelHead != null; }
+    /** First base-model capture wins over vanilla fallbacks and later material/armor passes. */
+    public boolean captureModelHead(AnchorPose pose) {
+        if (closed || current() != this || modelHead != null || pose == null) return false;
+        modelHead = pose;
+        return true;
+    }
 
     public static void capture(LivingEntity wearer, MatrixStack matrices, ModelPart part) {
         PlayerPreviewCapture scope = SCOPES.get().peek();
