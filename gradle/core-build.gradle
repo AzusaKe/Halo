@@ -90,6 +90,12 @@ tasks.register('verifyDistribution') {
             if (duplicates) throw new GradleException("Duplicate distribution entries: ${duplicates.keySet()}")
             def forbidden = names.findAll { it.startsWith('net/minecraft/') || it.startsWith('com/google/gson/') || it.startsWith('org/joml/') }
             if (forbidden) throw new GradleException('Distribution contains classes supplied by Minecraft: ' + forbidden.take(5))
+            if (names.any { it.startsWith('network/azusake/halo/api/client/preview/') }) {
+                throw new GradleException('Removed Minecraft-specific preview API remains in the distribution.')
+            }
+            if (names.any { it.startsWith('network/azusake/halo/api/preview/') }) {
+                throw new GradleException('Preview API must be integrated into api.v2, without an independent API package.')
+            }
             new java.util.zip.ZipFile(configurations.coreContents.singleFile).withCloseable { coreJar ->
                 Collections.list(coreJar.entries()).findAll { it.name.endsWith('.class') }.each {
                     if (!names.contains(it.name)) throw new GradleException('Missing flat core class: ' + it.name)

@@ -55,7 +55,7 @@ public class HaloModClient implements ClientModInitializer {
         // Register the halo renderer with Fabric's world-render pipeline
         HaloRenderListener.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
-            network.azusake.halo.api.client.preview.v1.HaloPreviewApi.clearAutomaticViews();
+            network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.render.HaloRenderer.getInstance().shutdown();
         });
 
@@ -123,7 +123,7 @@ public class HaloModClient implements ClientModInitializer {
         // Only the client replica is cleared; HaloLocalManager (persistent)
         // retains local halos so they survive reconnects to the same server.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            network.azusake.halo.api.client.preview.v1.HaloPreviewApi.clearAutomaticViews();
+            network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.platform.HaloClientState.get().clearAllClientHalos();
             network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
             AnchorCaptureCoordinator.clearCaptures();

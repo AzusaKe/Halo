@@ -5,26 +5,28 @@ import java.util.Deque;
 import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.Entity;
 import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
+import network.azusake.halo.api.v2.*;
+import network.azusake.halo.core.runtime.PreviewAnchorHost;
+import network.azusake.halo.core.runtime.PreviewAnchorScope;
 import network.azusake.halo.physics.RenderHeadCapture;
 import org.joml.Matrix4f;
 
 /** Render-call-local captures. They never enter API v2's world capture buffers. */
 public final class PlayerPreviewCapture implements AutoCloseable {
     private static final ThreadLocal<Deque<PlayerPreviewCapture>> SCOPES = ThreadLocal.withInitial(ArrayDeque::new);
+    private static final PreviewAnchorHost HOST = new PreviewAnchorHost();
     private final LivingEntity wearer;
     private final Matrix4f root;
     private final RenderHeadCapture.Context previousContext;
-    private AnchorPose head;
-    private AnchorPose posedHead;
-    private AnchorPose modelHead;
-    private final Deque<Entity> entityRenders = new ArrayDeque<>();
+    private final PreviewAnchorScope anchors;
     private boolean closed;
 
     private PlayerPreviewCapture(LivingEntity wearer, Matrix4f root) {
         this.wearer = wearer;
         this.root = new Matrix4f(root);
+        anchors = HOST.open(wearer.getUuid(), wearer.getId(), root.get(new float[16]));
         previousContext = RenderHeadCapture.suspendForPreview();
         SCOPES.get().push(this);
     }
@@ -32,54 +34,49 @@ public final class PlayerPreviewCapture implements AutoCloseable {
         return new PlayerPreviewCapture(wearer, root);
     }
     public static boolean isActive() { return !SCOPES.get().isEmpty(); }
-    public AnchorPose head() { return modelHead != null ? modelHead : head != null ? head : posedHead; }
+    public AnchorPose head() {
+        var pose = anchors.resolved();
+        return pose == null ? null : new AnchorPose(new AnchorVec3(pose.x(), pose.y(), pose.z()), pose.rotation());
+    }
     public Matrix4f root() { return new Matrix4f(root); }
+    public static void clearAnchorScopes() { HOST.clear(); }
 
     /** Eligible model capture scope. Nested entity features cannot supply the wearer's head. */
     public static PlayerPreviewCapture current() {
         var scope = SCOPES.get().peek();
-        return scope != null && (scope.entityRenders.isEmpty() || scope.entityRenders.peek() == scope.wearer)
+        return scope != null && HaloAnchorApi.currentPreviewContext() == scope.anchors.context()
             ? scope : null;
     }
-    public static void beginEntityRender(Entity entity) {
-        var scope = SCOPES.get().peek();
-        if (scope != null) scope.entityRenders.push(entity);
-    }
-    public static void endEntityRender() {
-        var scope = SCOPES.get().peek();
-        if (scope != null) scope.entityRenders.poll();
-    }
-    public boolean hasModelHead() { return modelHead != null; }
-    /** First base-model capture wins over vanilla fallbacks and later material/armor passes. */
-    public boolean captureModelHead(AnchorPose pose) {
-        if (closed || current() != this || modelHead != null || pose == null) return false;
-        modelHead = pose;
-        return true;
+    private static PreviewAnchorPose previewPose(AnchorPose pose) {
+        return pose == null ? null : new PreviewAnchorPose(pose.position().x(), pose.position().y(), pose.position().z(), pose.rotation());
     }
 
     public static void capture(LivingEntity wearer, MatrixStack matrices, ModelPart part) {
-        PlayerPreviewCapture scope = SCOPES.get().peek();
+        PlayerPreviewCapture scope = current();
         // Replaced model parts need their own compat provider. Do not guess their anchor.
         if (scope == null || scope.wearer != wearer || part.getClass() != ModelPart.class
-                || !part.visible || part.hidden || scope.head != null) return;
-        scope.head = PreviewHeadMath.toAnchor(scope.root, new RenderHeadCapture.CapturedHead(
+                || !part.visible || part.hidden || scope.anchors.hasFallback(PreviewAnchorScope.Fallback.RENDERED)) return;
+        var pose = PreviewHeadMath.toAnchor(scope.root, new RenderHeadCapture.CapturedHead(
             new Matrix4f(matrices.peek().getPositionMatrix()), part.pivotX, part.pivotY, part.pivotZ,
             part.pitch, part.yaw, part.roll, part.xScale, part.yScale, part.zScale));
+        scope.anchors.submitFallback(previewPose(pose), PreviewAnchorScope.Fallback.RENDERED);
     }
 
     /** Vanilla computes head angles even when invisibility suppresses the base-model draw. */
     public static void capturePosedHead(LivingEntity wearer, MatrixStack matrices, ModelPart part) {
-        PlayerPreviewCapture scope = SCOPES.get().peek();
+        PlayerPreviewCapture scope = current();
         if (scope == null || scope.wearer != wearer || part.getClass() != ModelPart.class
-                || !part.visible || part.hidden) return;
-        scope.posedHead = PreviewHeadMath.toAnchor(scope.root, new RenderHeadCapture.CapturedHead(
+                || !part.visible || part.hidden || scope.anchors.hasFallback(PreviewAnchorScope.Fallback.POSED)) return;
+        var pose = PreviewHeadMath.toAnchor(scope.root, new RenderHeadCapture.CapturedHead(
             new Matrix4f(matrices.peek().getPositionMatrix()), part.pivotX, part.pivotY, part.pivotZ,
             part.pitch, part.yaw, part.roll, part.xScale, part.yScale, part.zScale));
+        scope.anchors.submitFallback(previewPose(pose), PreviewAnchorScope.Fallback.POSED);
     }
 
     @Override public void close() {
         if (closed) return;
         if (SCOPES.get().peek() != this) throw new IllegalStateException("Preview scopes must close in reverse order");
+        anchors.close();
         closed = true;
         SCOPES.get().pop();
         if (SCOPES.get().isEmpty()) SCOPES.remove();

@@ -23,7 +23,7 @@ public interface YsmGeoRendererIntermediaryMixin {
     private void halo$capturePreparedPreview(@Coerce Object animatedModel, @Coerce Object animatable,
         float tickDelta, MatrixStack matrices, VertexConsumerProvider providers, VertexConsumer vertices,
         int light, int overlay, float red, float green, float blue, float alpha, CallbackInfo ci) {
-        if (network.azusake.halo.render.PlayerPreviewCapture.isActive())
+        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering())
             YsmHeadCapture.capture(animatedModel, matrices);
     }
 

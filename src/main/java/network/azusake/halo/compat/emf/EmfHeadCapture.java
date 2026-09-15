@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class EmfHeadCapture {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
-    private static final AnchorSource EMF_SOURCE = HaloAnchorApi.register("halo:emf");
+    static final AnchorSource EMF_SOURCE = HaloAnchorApi.register("halo:emf");
     private static final Map<UUID, CapturedHead> CURRENT = new ConcurrentHashMap<>();
     private static final Map<UUID, CapturedHead> PREVIOUS = new ConcurrentHashMap<>();
     private static final Set<String> EMITTED_DIAGNOSTICS = ConcurrentHashMap.newKeySet();
@@ -80,7 +80,7 @@ public final class EmfHeadCapture {
             return;
         }
 
-        if (network.azusake.halo.render.PlayerPreviewCapture.isActive()) {
+        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
             EmfPreviewCapture.capture(matrices, part);
             return;
         }

@@ -1,73 +1,62 @@
 # Halo Mod — Public API
 
-<a id="player-preview-api"></a>
+<a id="preview-anchor-provider-api"></a>
 
-## Player preview API (client only, since 2.2.0)
+## API v2: preview anchor submission (loader neutral, since 2.3.0)
 
-`network.azusake.halo.api.client.preview.v1.HaloPreviewApi` is the Minecraft 1.20.1 Fabric client facade.
-All calls run on the render thread. Player previews using `InventoryScreen.drawEntity` are integrated
-automatically; do not wrap that helper a second time. Visibility follows the real wearer's assignment
-and appearance state; this API does not assign an arbitrary halo to a preview.
-
-For a UI that directly uses the vanilla player renderer, wrap the actual render at its final GUI root,
-after setting up its projection and entity lighting:
+Core exposes `network.azusake.halo.api.v2.HaloAnchorApi` for both world and preview heads through one registered source. Its public signatures use only core/JDK types and are identical across integrated hosts.
+YSM and EMF preview compatibility use this public provider path.
 
 ```java
-HaloPreviewApi.renderPlayer(context, player, () -> {
-    renderMyVanillaPlayer(context, player);
-});
+AnchorSource source = HaloAnchorApi.register("example:model"); // once at initialization
+
+// In the model's render hook, after its actual head transform is ready:
+PreviewAnchorContext context = HaloAnchorApi.currentPreviewContext();
+if (context != null) source.submitPreview(context, capturedPreviewHead); // PreviewAnchorPose
+
+source.close(); // invalidates this source in both spaces; not a per-frame call
 ```
 
-The facade captures the actual head, flushes model buffers and immediately submits the halo. Its
-capture scope closes on exceptions too. The host still owns GUI projection, pixel placement, lighting
-and their cleanup. Missing/unsupported head captures produce no halo; no world anchor is reused.
-The built-in compat packages also supply YSM and EMF preview anchors within this scope, using the
-same version/ABI gates as world rendering. YSM uses its animated Head locator and configured local
-offset; EMF uses the animated named head.
+World-only integrations keep using `source.submit(uuid, worldPose)`. Preview-only integrations use
+`submitPreview`; the untouched space is unaffected. Register different IDs for independent disposal.
+Preview context and pose types also live in `api.v2`; there is no separate preview entry point.
+The preview extension requires Halo/core 2.3.0 or newer.
 
-Automatic previews use physics by default (`playerPreviewHaloPhysicsEnabled=true`). Set this client
-configuration field to `false` for rigid following and restart after editing. They reuse world physics parameters with their
-own per-view state. The original `openPreview()` still opens a rigid session. For a custom UI:
+Providers capture heads only; the host owns sessions, physics, resources and GPU submission. Contexts
+identify the real wearer, optional proxy render entity and this lexical draw invocation. The first
+valid model submission wins over vanilla fallbacks. Wrong-thread, unrelated-entity, stale, invalidated
+and suspended outer-view submissions are rejected. A context cannot be reused in later frames.
 
-```java
-PreviewSession view = HaloPreviewApi.openPreview(PreviewOptions.PHYSICS);
-// Keep this session across frames; the host prepares GUI transforms and lighting as before.
-HaloPreviewApi.renderPlayer(view, context, player, () -> renderMyVanillaPlayer(context, player));
-// On a discontinuous model/scene change: view.resetMotion(). On disposal: view.close().
-```
+Submit block-sized scene coordinates before `sceneToView`, with +Y head-up / +Z head-forward rotation;
+remove GUI transforms and convert model units/axes as needed. Do not submit world or pixel positions.
+`isPreviewRendering()` also covers unrelated entity draws and invalidated scopes still unwinding, so
+providers can keep these passes out of world capture. World anchor API v2 does not accept GUI submissions.
 
-Recreate a session when `isValid()` becomes false after a world/full-sync reset. For the explicit frame
-API, supply one increasing `frameNanos` per view sample. Physics is driven by scene-space head motion;
-GUI pixels, camera transforms and visual animation do not feed back into it. Automatic vanilla-helper
-views are separated by screen, wearer, placement/size and occurrence; a layout change starts fresh motion.
+Hosts integrate through core's `PreviewAnchorHost` / `PreviewAnchorScope`. See the [core contract](../../core/README.md#preview-anchor-providers-since-230)
+and [full integration specification](../preview-anchor-api.md). Frozen adapters are not migrated automatically.
 
-An integration with its own head capture can instead own a session:
+---
 
-```java
-PreviewSession session = HaloPreviewApi.openPreview(); // one per view
-// After flushing the model, with the host's GUI projection and lighting still active:
-HaloPreviewApi.draw(session, frame); // core PreviewFrame
-// On view close, world change or disconnect:
-session.close();
-```
+<a id="preview-host-integration"></a>
 
-`PreviewFrame` contains core/JDK values: wearer UUID/current entity ID, a block-sized scene head pose,
-camera, root matrix, clocks, light sample, texture lookup and visual resources. Local head axes are
-+Y up and +Z forward; GUI reflection and pixel scaling belong in the root. Camera position is
-subtracted in scene space before applying the root. Vanilla GUI uses a zero camera position and
-output-space up `(0,-1,0)`, right `(1,0,0)`. Orthographic projection is the default; perspective hosts
-select `Projection.PERSPECTIVE` explicitly. Resource generation must match the current world
-appearance frame. The 1.20.1 bridge exposes resources through `HaloMeshResources.snapshot().visuals()`;
-other game adapters supply their own resource bridge.
+## Preview host integration
 
-The regular world call updates appearance once per frame. Sessions consume its latest snapshot
-without restarting animation or changing world physics. `clear`, full-sync replacement and world
-changes invalidate old sessions; create new ones for the new scope. Closing is idempotent, and closed
-or invalidated sessions produce no draws. See the [neutral core contract](../../core/README.md#preview-contract-since-220).
+Model compatibility providers only submit a head through the preview anchor API above. UI calls to
+`InventoryScreen.drawEntity` already receive automatic capture, session management and drawing;
+do not wrap that helper again. Automatic physics is enabled by default. Set
+`playerPreviewHaloPhysicsEnabled=false` and restart to select rigid following.
 
-The facade honors `playerPreviewHaloEnabled` (default `true`). Anchor API v2 remains world-space only;
-never submit UI-space heads through v2. Model integrations provide captures and view scopes while
-sharing core primitives, animation, materials and the existing GPU submission.
+A separate preview UI needs integration by its platform adapter: open capture through core's
+`PreviewAnchorHost`, use `PreviewPort` / `PreviewSession` / `PreviewFrame` for shared appearance and
+physics, then submit the resulting `FrameOutput`. The host owns frame updates, view lifetime,
+GUI transforms, lighting and resources. Model providers do not own these responsibilities.
+See the [host specification](../preview-anchor-api.md#平台宿主接入) and
+[core session contract](../../core/README.md#preview-contract-since-220).
+
+The Minecraft-specific `HaloPreviewApi` is removed in 2.3.0 without a forwarding shim. Required
+vanilla integration lives in the internal `render.PlayerPreviewRenderer`; Java public visibility
+allows calls between adapter packages and does not make it a supported external API. Providers
+should not depend on it or copy its physics/geometry pipeline.
 
 ---
 
@@ -194,7 +183,7 @@ Halo dependency.
 
 ---
 
-## Head Anchor API v2
+## API v2: world anchor submission
 
 ### Developer quick start
 
@@ -202,12 +191,12 @@ Use the following sequence for an external renderer integration.
 
 #### Add Halo to the build and loader metadata
 
-Place the Halo 1.3.0 jar matching the Minecraft version and loader in the external mod's
+Place the Halo 2.3.0 jar matching the Minecraft version and loader in the external mod's
 `libs` directory. Compile against it, but do not bundle it into the external mod:
 
 ```groovy
 dependencies {
-    compileOnly files("libs/halo-<minecraft>-<loader>-1.3.0.jar")
+    compileOnly files("libs/halo-<minecraft>-<loader>-2.3.0.jar")
 }
 ```
 
@@ -217,7 +206,7 @@ dependency as well:
 ```json
 {
   "depends": {
-    "halo": ">=1.3.0"
+    "halo": ">=2.3.0"
   }
 }
 ```
@@ -227,7 +216,7 @@ dependency as well:
 [[dependencies.your_mod_id]]
 modId="halo"
 mandatory=true
-versionRange="[1.3.0,)"
+versionRange="[2.3.0,)"
 ordering="AFTER"
 side="CLIENT"
 
@@ -235,7 +224,7 @@ side="CLIENT"
 [[dependencies.your_mod_id]]
 modId="halo"
 type="required"
-versionRange="[1.3.0,)"
+versionRange="[2.3.0,)"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -340,23 +329,38 @@ an external entity submission.
 Before release, test third-person movement, shaders on/off, entity unload, world changes, live
 source close, and source re-registration.
 
-Halo 1.3.0 embeds the same push-based API v2 in all eight target jars. Add the matching Halo jar as a `compileOnly` or `provided` dependency; there is no separate API artifact. API v1 has been removed.
+World submission was introduced in Halo 1.3.0; 2.3.0 adds preview support to the same API v2 entry point. Preview methods require a host integrated with core 2.3.0. The current host is 1.20.1 Fabric; frozen branches do not acquire these methods automatically. Add the matching Halo jar as a `compileOnly` or `provided` dependency; do not bundle or install a separate API jar.
 
 The public package is `network.azusake.halo.api.v2` and uses only Java 17/JDK types:
 
 ```java
 public final class HaloAnchorApi {
     public static AnchorSource register(String sourceId);
+    public static PreviewAnchorContext currentPreviewContext();
+    public static boolean isPreviewRendering();
 }
 
 public interface AnchorSource extends AutoCloseable {
     boolean submit(UUID entityUuid, AnchorPose pose);
+    boolean submitPreview(PreviewAnchorContext context, PreviewAnchorPose pose);
     @Override void close();
 }
 
 public record AnchorPose(AnchorVec3 position, AnchorRotation rotation) {}
 public record AnchorVec3(double x, double y, double z) {}
 public record AnchorRotation(double x, double y, double z, double w) {}
+public record PreviewAnchorPose(double x, double y, double z, AnchorRotation rotation) {}
+
+public interface PreviewAnchorContext {
+    UUID wearer();
+    int runtimeId();
+    UUID renderedEntity();
+    int renderedRuntimeId();
+    long renderId();
+    float[] sceneToView();
+    boolean isActive();
+    boolean hasModelAnchor();
+}
 ```
 
 ### Registration and submission

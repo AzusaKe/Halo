@@ -1,69 +1,54 @@
 # Halo Mod — 公开 API
 
-<a id="player-preview-api"></a>
+<a id="preview-anchor-provider-api"></a>
 
-## 玩家预览 API（客户端，2.2.0 起）
+## API v2：预览锚点提交（跨平台，2.3.0 起）
 
-`network.azusake.halo.api.client.preview.v1.HaloPreviewApi` 是 Minecraft 1.20.1 Fabric 的客户端门面。
-所有调用在渲染线程执行。调用原版 `InventoryScreen.drawEntity` 的玩家预览已自动接入，无需再包一层。
-预览仍以真实佩戴状态为准，不能通过这个 API 给未佩戴的实体临时指定光环。
-
-### 使用原版玩家渲染器的 UI
-
-在 GUI 根矩阵、预览投影与实体方向光已经准备好的位置包装实际实体绘制：
+世界与预览统一使用 core 中的 `network.azusake.halo.api.v2.HaloAnchorApi`，注册一次即可选择世界提交、预览提交或两者都提交。
+在各版本和加载器上使用同一份接口，只包含 core/JDK 类型。YSM／EMF 的预览兼容已经使用此接口。
 
 ```java
-HaloPreviewApi.renderPlayer(context, player, () -> {
-    // 使用当前 DrawContext 的矩阵和缓冲区绘制玩家。
-    renderMyVanillaPlayer(context, player);
-});
+AnchorSource source = HaloAnchorApi.register("example:model"); // 初始化一次
+
+// 在自己模型完成头部准备/动画的渲染钩子中执行。
+PreviewAnchorContext context = HaloAnchorApi.currentPreviewContext();
+if (context != null) {
+    source.submitPreview(context, capturedPreviewHead); // PreviewAnchorPose，方块单位的预览场景姿态
+}
+
+source.close(); // 注销该来源在世界和预览中的捕获，不是每帧调用
 ```
 
-门面捕获本次真实头部，提交模型缓冲，然后立即提交光环；异常退出也会释放捕获作用域。
-它不设置界面投影、像素位置或灯光，调用方仍负责原有 GUI 准备与清理。
-无有效头部时不绘制，不读取旧世界锚点。内置 compat 包可在同一作用域提供 YSM／EMF 预览锚点，
-沿用世界渲染的版本与 ABI 门槛。YSM 使用当帧 Head 定位器及已有局部偏移配置；EMF 使用动画后的命名头部。
-自动预览默认开启物理（`playerPreviewHaloPhysicsEnabled=true`），可将该客户端配置设为 `false` 改为刚性随头，修改后重启。
-它复用世界参数，每个视图独立模拟。原有 `openPreview()` 继续创建刚性会话。自定义 UI 可显式选择：
+只修改世界的模组继续使用 `source.submit(uuid, worldPose)`；只修改预览的模组只需使用 `submitPreview`。
+未提交的一侧不受影响。需要独立注销时注册不同来源 ID。预览类型同样位于 `api.v2`，没有单独的预览 API 入口。
 
-```java
-PreviewSession view = HaloPreviewApi.openPreview(PreviewOptions.PHYSICS);
-// 跨帧保留会话；宿主先准备 GUI 变换和灯光。
-HaloPreviewApi.renderPlayer(view, context, player, () -> renderMyVanillaPlayer(context, player));
-// 模型/场景突变时：view.resetMotion()。视图销毁时：view.close()。
-```
+提供者只提交头部，不创建 `PreviewSession`、加载资源或提交绘制。上下文区分真实佩戴者、实际绘制实体和本次视图，
+支持 UI 代理实体。模型来源首次有效提交优先于原版回退；嵌套其他实体、失效/过期/错误线程提交会被拒绝。
+不得把 GUI 像素或世界坐标直接作为预览位置；需要去掉 GUI 根变换并换算模型轴向和单位。
 
-换世界或全量同步使 `isValid()` 返回 `false` 时，重新创建会话。显式帧 API 每个视图采样提供递增的
-`frameNanos`，相同时间戳的重复提交不再次推进阻尼。物理由预览场景中的头部运动驱动，GUI 像素、
-相机及视觉动画不反向驱动物理。原版 helper 的自动会话按界面、佩戴者、位置/尺寸和调用序号隔离；
-布局变化会重新初始化运动。
+上下文只在本次绘制有效。`isPreviewRendering()` 可用于阻止预览阶段进入世界捕获路径。合并后的预览能力要求 Halo/core 2.3.0 或更高版本。
+其他平台的宿主通过 core 的 `PreviewAnchorHost` / `PreviewAnchorScope` 接入自己的预览入口。
+完整字段、坐标、选择规则和生命周期见[预览锚点契约](../preview-anchor-api.md)。冻结分支不因接口新增而自动迁移。
 
-### 提供显式头部姿态的兼容包
+---
 
-```java
-// 一个视图一个会话；保存至视图关闭（或使用 try-with-resources 包围短期绘制）。
-PreviewSession session = HaloPreviewApi.openPreview();
+<a id="preview-host-integration"></a>
 
-// 每次绘制：调用方已提交玩家模型缓冲，且 GUI 投影、方向光仍生效。
-HaloPreviewApi.draw(session, frame); // frame 为 core PreviewFrame
+## 预览宿主接入
 
-// 视图关闭、换世界或断线时：
-session.close();
-```
+模型兼容包通过上方的预览锚点 API 提交头部即可。调用 `InventoryScreen.drawEntity` 的 UI
+已由 Halo 自动管理作用域、会话及绘制，不要重复包装。自动物理默认开启，可在配置中将
+`playerPreviewHaloPhysicsEnabled` 设为 `false` 并重启，切换到刚性随头。
 
-`PreviewFrame` 使用 core/JDK 类型：佩戴者 UUID 和当前实体 ID、以方块为单位的预览空间头部姿态、
-相机、根矩阵、时钟、光照、纹理查询及视觉资源。头部局部轴为 +Y 向上、+Z 向前；GUI 镜像与像素缩放
-放在根矩阵。相机位置先在场景空间减去，再乘根矩阵；原版 GUI 的相机位置为零，输出空间的 up 为
-`(0,-1,0)`、right 为 `(1,0,0)`。默认正交投影；透视 UI 明确选 `Projection.PERSPECTIVE`。
-视觉资源须与当前世界表现帧为同一 generation。1.20.1 的资源快照可由
-`HaloMeshResources.snapshot().visuals()` 获取；跨版本适配器应提供自己的资源桥接。
+完全独立的预览 UI 需要由对应平台适配器接入：用 core 的 `PreviewAnchorHost` 开放采集作用域，
+用 `PreviewPort` / `PreviewSession` / `PreviewFrame` 复用表现和物理，消费 `FrameOutput` 提交绘制。
+宿主负责帧更新、预览生命周期、GUI 矩阵、光照和资源；模型提供者不承担这些工作。
+完整职责与坐标契约见[预览宿主文档](../preview-anchor-api.md#平台宿主接入)和
+[core 会话契约](../../core/README.md#preview-contract-since-220)。
 
-世界管线每帧先更新佩戴表现；会话只消费最新快照，因此不会重播启动动画或改变世界物理。
-`clear`／完整同步替换／换世界会使旧会话失效；会话关闭或失效后返回空绘制，应在新作用域重新创建。
-显隐规则、坐标与失效条件的完整中立契约见 [HaloCore README](../../core/README.md#preview-contract-since-220)。
-
-该门面读取 `playerPreviewHaloEnabled`，默认启用。锚点 API v2 仍仅接受世界坐标，**不要**通过 v2 提交 GUI 头部。
-自定义模型包只需负责实际头部采集与会话作用域，图元、动画、材质和 GPU 提交继续复用。
+2.3.0 已移除 Minecraft 专用的 `HaloPreviewApi`，不提供兼容转发类。原版入口所需功能移至
+`render.PlayerPreviewRenderer` 内部实现；其 Java `public` 可见性仅用于适配器包间调用，
+不属于对外稳定 API。外部兼容包不应依赖它，也不需要复制它的物理或图元代码。
 
 ---
 
@@ -183,7 +168,7 @@ static String handle(String command)
 
 ---
 
-## 头部锚点 API v2
+## API v2：世界锚点提交
 
 ### 开发者快速接入
 
@@ -191,12 +176,12 @@ static String handle(String command)
 
 #### 添加 Halo 构建依赖和加载器依赖
 
-把与目标 Minecraft 版本及加载器匹配的 Halo 1.3.0 jar 放入外部模组的 `libs`
+把与目标 Minecraft 版本及加载器匹配的 Halo 2.3.0 jar 放入外部模组的 `libs`
 目录。只参与编译，不要把 Halo 打进外部模组自己的 jar：
 
 ```groovy
 dependencies {
-    compileOnly files("libs/halo-<minecraft>-<loader>-1.3.0.jar")
+    compileOnly files("libs/halo-<minecraft>-<loader>-2.3.0.jar")
 }
 ```
 
@@ -206,7 +191,7 @@ dependencies {
 ```json
 {
   "depends": {
-    "halo": ">=1.3.0"
+    "halo": ">=2.3.0"
   }
 }
 ```
@@ -216,7 +201,7 @@ dependencies {
 [[dependencies.your_mod_id]]
 modId="halo"
 mandatory=true
-versionRange="[1.3.0,)"
+versionRange="[2.3.0,)"
 ordering="AFTER"
 side="CLIENT"
 
@@ -224,7 +209,7 @@ side="CLIENT"
 [[dependencies.your_mod_id]]
 modId="halo"
 type="required"
-versionRange="[1.3.0,)"
+versionRange="[2.3.0,)"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -322,23 +307,38 @@ bridge.submit(entityUuid, worldX, worldY, worldZ,
 发布前应覆盖第三人称连续移动、开关光影、实体卸载、世界切换、运行时关闭 source，以及
 关闭后用同一 ID 重新注册。
 
-Halo 1.3.0 内置跨八分支一致的推送式 API v2。外部模组应把目标 Minecraft/加载器版本的 Halo jar 声明为 `compileOnly` 或 `provided`；无需也不应安装独立 API jar。API v1 已移除。
+API v2 的世界提交能力始于 Halo 1.3.0，2.3.0 将预览能力并入同一入口。本页的预览方法要求目标适配器采用 2.3.0 core；当前接入为 1.20.1 Fabric，不代表冻结分支已提供这些方法。外部模组应把匹配目标平台的 Halo jar 声明为 `compileOnly` 或 `provided`，不打包或安装独立 API jar。
 
 公共包 `network.azusake.halo.api.v2` 只依赖 Java 17/JDK 类型：
 
 ```java
 public final class HaloAnchorApi {
     public static AnchorSource register(String sourceId);
+    public static PreviewAnchorContext currentPreviewContext();
+    public static boolean isPreviewRendering();
 }
 
 public interface AnchorSource extends AutoCloseable {
     boolean submit(UUID entityUuid, AnchorPose pose);
+    boolean submitPreview(PreviewAnchorContext context, PreviewAnchorPose pose);
     @Override void close();
 }
 
 public record AnchorPose(AnchorVec3 position, AnchorRotation rotation) {}
 public record AnchorVec3(double x, double y, double z) {}
 public record AnchorRotation(double x, double y, double z, double w) {}
+public record PreviewAnchorPose(double x, double y, double z, AnchorRotation rotation) {}
+
+public interface PreviewAnchorContext {
+    UUID wearer();
+    int runtimeId();
+    UUID renderedEntity();
+    int renderedRuntimeId();
+    long renderId();
+    float[] sceneToView();
+    boolean isActive();
+    boolean hasModelAnchor();
+}
 ```
 
 ### 注册与提交

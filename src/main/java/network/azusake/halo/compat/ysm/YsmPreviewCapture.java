@@ -3,7 +3,7 @@ package network.azusake.halo.compat.ysm;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Vec3d;
 import network.azusake.halo.config.HaloModConfigStore;
-import network.azusake.halo.render.PlayerPreviewCapture;
+import network.azusake.halo.api.v2.*;
 import org.joml.Matrix4f;
 import org.slf4j.LoggerFactory;
 
@@ -14,16 +14,17 @@ final class YsmPreviewCapture {
     private YsmPreviewCapture() {}
 
     static void capture(Object model, MatrixStack matrices) {
-        var scope = PlayerPreviewCapture.current();
-        if (scope == null || scope.hasModelHead() || model == null || matrices == null
+        var scope = HaloAnchorApi.currentPreviewContext();
+        if (scope == null || scope.hasModelAnchor() || model == null || matrices == null
                 || !HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()) return;
         try {
             Matrix4f head = YsmV265Adapter.captureHeadMatrix(model,
                 new Matrix4f(matrices.peek().getPositionMatrix()));
             double[] offset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
             var pose = YsmHeadMath.toAnchorPose(head, new Vec3d(offset[0], offset[1], offset[2]),
-                Vec3d.ZERO, scope.root());
-            if (scope.captureModelHead(pose) && !reportedCapture) {
+                Vec3d.ZERO, new Matrix4f().set(scope.sceneToView()));
+            if (pose != null && YsmHeadCapture.YSM_SOURCE.submitPreview(scope, new PreviewAnchorPose(pose.position().x(), pose.position().y(),
+                    pose.position().z(), pose.rotation())) && !reportedCapture) {
                 reportedCapture = true;
                 LoggerFactory.getLogger("halo").info("[YSM Compat] preview Head locator captured in isolated GUI scope");
             }

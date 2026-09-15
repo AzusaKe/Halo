@@ -4,7 +4,8 @@ import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Vec3d;
-import network.azusake.halo.render.PlayerPreviewCapture;
+import network.azusake.halo.api.v2.*;
+import org.joml.Matrix4f;
 import org.slf4j.LoggerFactory;
 
 /** Consumes the actual EMF head after animation, never a vanilla height estimate or world cache. */
@@ -33,8 +34,8 @@ final class EmfPreviewCapture {
      * This uses the current posed model, including CEM animations, even with no visible body.
      */
     static void capturePose(MatrixStack matrices, ModelPart head) {
-        var scope = PlayerPreviewCapture.current();
-        if (scope == null || scope.hasModelHead() || isPoseOnly()) return;
+        var scope = HaloAnchorApi.currentPreviewContext();
+        if (scope == null || scope.hasModelAnchor() || isPoseOnly()) return;
         POSE_ONLY.set(true);
         matrices.push();
         try {
@@ -48,12 +49,13 @@ final class EmfPreviewCapture {
     }
 
     static void capture(MatrixStack matrices, ModelPart part) {
-        var scope = PlayerPreviewCapture.current();
-        if (scope == null || scope.hasModelHead() || matrices == null) return;
+        var scope = HaloAnchorApi.currentPreviewContext();
+        if (scope == null || scope.hasModelAnchor() || matrices == null) return;
         try {
             var pose = EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
-                EmfHeadCapture.captureHeadMatrix(matrices, part), scope.root(), Vec3d.ZERO));
-            if (scope.captureModelHead(pose) && !reportedCapture) {
+                EmfHeadCapture.captureHeadMatrix(matrices, part), new Matrix4f().set(scope.sceneToView()), Vec3d.ZERO));
+            if (pose != null && EmfHeadCapture.EMF_SOURCE.submitPreview(scope, new PreviewAnchorPose(pose.position().x(), pose.position().y(),
+                    pose.position().z(), pose.rotation())) && !reportedCapture) {
                 reportedCapture = true;
                 LoggerFactory.getLogger("halo").info("[EMF Compat] preview head captured in isolated GUI scope");
             }

@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class YsmHeadCapture {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
-    private static final AnchorSource YSM_SOURCE = HaloAnchorApi.register("halo:ysm");
+    static final AnchorSource YSM_SOURCE = HaloAnchorApi.register("halo:ysm");
 
     private static final Map<UUID, CapturedHead> CURRENT = new ConcurrentHashMap<>();
     private static final Map<UUID, CapturedHead> PREVIOUS = new ConcurrentHashMap<>();
@@ -50,7 +50,7 @@ public final class YsmHeadCapture {
 
     /** Called by the optional YSM Mixin at the base model render pass. */
     public static void capture(Object animatedModel, MatrixStack matrices) {
-        if (network.azusake.halo.render.PlayerPreviewCapture.isActive()) {
+        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
             YsmPreviewCapture.capture(animatedModel, matrices);
             return;
         }

@@ -46,9 +46,11 @@ flowchart TD
 
 ### 外部接入
 
-客户端最小门面为 `network.azusake.halo.api.client.preview.v1.HaloPreviewApi`，提供原版玩家绘制包装、会话创建及显式 `PreviewFrame` 提交。原版函数已自动接入，不要重复包装。见 [中文 API](zh/API.md#player-preview-api) / [English API](en/API.md#player-preview-api)。
-
-API v2 仍仅接受世界空间锚点。独立 UI 可提供自己的头部捕获、佩戴者映射及会话作用域；可选物理已在会话内独立模拟，复用世界算法。
+2.3.0 起，模型提供者使用 core 中跨平台统一的[预览锚点 API](preview-anchor-api.md)提交真实头部。
+此前 2.2.0 的 Minecraft 专用公开门面已移除，必要的原版入口逻辑收回内部 `PlayerPreviewRenderer`。
+世界与预览锚点已合并到 API v2，分别使用 `AnchorSource.submit` 和 `submitPreview`；独立 UI 的宿主接入使用 core 的 `PreviewAnchorHost` 和预览会话契约。
+调用原版预览函数的 UI 保持自动覆盖。见 [中文 API](zh/API.md#preview-host-integration) /
+[English API](en/API.md#preview-host-integration)。下文 adapter.1～3 的接口与验收说明为 2.2.0 历史记录。
 
 YSM 世界兼容门槛仍为精确匹配 `2.6.5-fabric+mc1.20.1`；EMF 仍为 `3.1.1+` 且通过现有 ABI 检查。此次修改未提高或降低门槛。
 

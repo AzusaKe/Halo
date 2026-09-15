@@ -83,7 +83,7 @@ public final class RenderHeadCapture {
      * associate their model pass with any living entity, not only players.
      */
     public static void beginYsmEntity(Entity entity, MatrixStack matrices) {
-        if (PlayerPreviewCapture.isActive()) return;
+        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) return;
         CURRENT_MODEL.remove();
         Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
         if (entity instanceof LivingEntity living && matchesMainView(root)) {
@@ -97,8 +97,8 @@ public final class RenderHeadCapture {
 
     /** Open the source-neutral render scope used by API v2 submissions. */
     public static void beginEntityRender(Entity entity, MatrixStack matrices, float tickDelta) {
-        if (PlayerPreviewCapture.isActive()) {
-            PlayerPreviewCapture.beginEntityRender(entity);
+        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
+            network.azusake.halo.core.runtime.PreviewAnchorHost.beginEntityRender(entity.getUuid(), entity.getId());
             return;
         }
         Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
@@ -122,7 +122,9 @@ public final class RenderHeadCapture {
     }
 
     public static void endEntityRender() {
-        if (PlayerPreviewCapture.isActive()) { PlayerPreviewCapture.endEntityRender(); end(); return; }
+        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
+            network.azusake.halo.core.runtime.PreviewAnchorHost.endEntityRender(); end(); return;
+        }
         AnchorCaptureCoordinator.endEntityRender();
         end();
     }
@@ -206,7 +208,7 @@ public final class RenderHeadCapture {
             return;
         }
         LivingEntity entity = CURRENT_ENTITY.get();
-        if (PlayerPreviewCapture.isActive()) {
+        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
             PlayerPreviewCapture.capture(entity, matrices, part);
             return;
         }
