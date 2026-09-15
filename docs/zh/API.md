@@ -1,5 +1,57 @@
 # Halo Mod — 公开 API
 
+<a id="player-preview-api"></a>
+
+## 玩家预览 API（客户端，2.2.0 起）
+
+`network.azusake.halo.api.client.preview.v1.HaloPreviewApi` 是 Minecraft 1.20.1 Fabric 的客户端门面。
+所有调用在渲染线程执行。调用原版 `InventoryScreen.drawEntity` 的玩家预览已自动接入，无需再包一层。
+预览仍以真实佩戴状态为准，不能通过这个 API 给未佩戴的实体临时指定光环。
+
+### 使用原版玩家渲染器的 UI
+
+在 GUI 根矩阵、预览投影与实体方向光已经准备好的位置包装实际实体绘制：
+
+```java
+HaloPreviewApi.renderPlayer(context, player, () -> {
+    // 使用当前 DrawContext 的矩阵和缓冲区绘制玩家。
+    renderMyVanillaPlayer(context, player);
+});
+```
+
+门面捕获本次真实头部，提交模型缓冲，然后立即提交光环；异常退出也会释放捕获作用域。
+它不设置界面投影、像素位置或灯光，调用方仍负责原有 GUI 准备与清理。
+无有效原版头部时不绘制，不读取旧世界锚点。当前阶段不支持 YSM／EMF 自定义预览锚点。
+
+### 提供显式头部姿态的兼容包
+
+```java
+// 一个视图一个会话；保存至视图关闭（或使用 try-with-resources 包围短期绘制）。
+PreviewSession session = HaloPreviewApi.openPreview();
+
+// 每次绘制：调用方已提交玩家模型缓冲，且 GUI 投影、方向光仍生效。
+HaloPreviewApi.draw(session, frame); // frame 为 core PreviewFrame
+
+// 视图关闭、换世界或断线时：
+session.close();
+```
+
+`PreviewFrame` 使用 core/JDK 类型：佩戴者 UUID 和当前实体 ID、以方块为单位的预览空间头部姿态、
+相机、根矩阵、时钟、光照、纹理查询及视觉资源。头部局部轴为 +Y 向上、+Z 向前；GUI 镜像与像素缩放
+放在根矩阵。相机位置先在场景空间减去，再乘根矩阵；原版 GUI 的相机位置为零，输出空间的 up 为
+`(0,-1,0)`、right 为 `(1,0,0)`。默认正交投影；透视 UI 明确选 `Projection.PERSPECTIVE`。
+视觉资源须与当前世界表现帧为同一 generation。1.20.1 的资源快照可由
+`HaloMeshResources.snapshot().visuals()` 获取；跨版本适配器应提供自己的资源桥接。
+
+世界管线每帧先更新佩戴表现；会话只消费最新快照，因此不会重播启动动画或改变世界物理。
+`clear`／完整同步替换／换世界会使旧会话失效；会话关闭或失效后返回空绘制，应在新作用域重新创建。
+显隐规则、坐标与失效条件的完整中立契约见 [HaloCore README](../../core/README.md#preview-contract-since-220)。
+
+该门面读取 `playerPreviewHaloEnabled`，默认启用。锚点 API v2 仍仅接受世界坐标，**不要**通过 v2 提交 GUI 头部。
+自定义模型包只需负责实际头部采集与会话作用域，图元、动画、材质和 GPU 提交继续复用。
+
+---
+
 ## `HaloCommandInterceptor`
 
 **包：** `network.azusake.halo.client`

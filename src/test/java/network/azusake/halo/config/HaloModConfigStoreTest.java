@@ -22,6 +22,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class HaloModConfigStoreTest {
 
+    @Test void playerPreviewDefaultsAreBackfilledAndExplicitFalseSurvives() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        Files.writeString(configFile(), "{\"futureOption\":42}");
+        assertTrue(HaloModConfigStore.load(configFile()).isPlayerPreviewHaloEnabled());
+        assertTrue(persistedJson().get("playerPreviewHaloEnabled").getAsBoolean());
+        assertEquals(42, persistedJson().get("futureOption").getAsInt());
+        Files.writeString(configFile(), "{\"playerPreviewHaloEnabled\":false,\"futureOption\":42}");
+        assertFalse(HaloModConfigStore.load(configFile()).isPlayerPreviewHaloEnabled());
+        assertFalse(persistedJson().get("playerPreviewHaloEnabled").getAsBoolean());
+        assertEquals(42, persistedJson().get("futureOption").getAsInt());
+    }
+
     @TempDir
     Path tempDir;
 

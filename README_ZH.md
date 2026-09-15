@@ -1,4 +1,6 @@
-本分支面向 **Minecraft 1.20.1 Fabric**。当前源码版本和最新带标签正式版均为 **2.1.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 1.20.1 Fabric**。当前源码为 **2.2.0 开发版**，最新带标签正式版仍为 **2.1.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+
+原版玩家预览现在会显示已佩戴光环，包括生存及创造物品栏。预览无物理、精准随头，共享世界光环的三种图元和视觉动画。客户端配置 `playerPreviewHaloEnabled` 默认 `true`，修改后重启生效。接入方法见[预览 API](docs/zh/API.md#player-preview-api)，范围与实测记录见[玩家预览说明](docs/player-preview.md)。
 
 人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
 

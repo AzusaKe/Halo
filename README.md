@@ -9,7 +9,12 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**. Its current source version and latest tagged release are **2.1.2**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.20.1 Fabric**. The source is **2.2.0 in development**; the latest tagged release remains **2.1.2**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+
+Vanilla player previews now display the equipped halo, including survival and creative inventories.
+The preview follows the actual head without physics and shares all three primitives and visual animation
+with the world halo. `playerPreviewHaloEnabled` defaults to `true` in the client configuration (restart
+after editing). See the [preview API](docs/en/API.md#player-preview-api) and [implementation/verification record](docs/player-preview.md).
 
 For contributors and coding agents, the [development guide](DEVELOPMENT.md) covers feature development, debugging, porting to other game branches, and the two-repository commit and release workflow.
 

@@ -60,28 +60,40 @@ public final class HaloMeshShader {
     }
 
     public static boolean bind(MinecraftClient client, DrawBatch batch, MaterialState.Mesh material) {
+        return bind(client, batch, material, RenderEnvironment.WORLD);
+    }
+
+    static boolean bind(MinecraftClient client, DrawBatch batch, MaterialState.Mesh material, RenderEnvironment environment) {
         ShaderProgram shader = bind(client, batch.texture(), material, batch.light(), false,
-            batch.directionalLighting(), false);
+            batch.directionalLighting(), false, environment);
         if (shader != null && batch.directionalLighting()) setNormalMatrix(shader, RenderSystem.getModelViewMatrix());
         return shader != null;
     }
 
     public static boolean bindLegacy(MinecraftClient client, DrawBatch batch) {
+        return bindLegacy(client, batch, RenderEnvironment.WORLD);
+    }
+
+    static boolean bindLegacy(MinecraftClient client, DrawBatch batch, RenderEnvironment environment) {
         ShaderProgram shader = bind(client, batch.texture(), null, batch.light(), true,
-            batch.directionalLighting(), false);
+            batch.directionalLighting(), false, environment);
         if (shader != null && batch.directionalLighting()) setNormalMatrix(shader, RenderSystem.getModelViewMatrix());
         return shader != null;
     }
 
     public static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.render.MeshDraw draw) {
+        return bind(client, draw, RenderEnvironment.WORLD);
+    }
+
+    static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.render.MeshDraw draw, RenderEnvironment environment) {
         return bind(client, draw.texture(), draw.material(), draw.light(), false,
-            draw.directionalLighting(), draw.blend());
+            draw.directionalLighting(), draw.blend(), environment);
     }
 
     private static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.Identifier texture,
                                       MaterialState.Mesh material, LightSample light, boolean legacyAlphaCutoff,
-                                      boolean directionalLighting, boolean translucent) {
-        boolean iris = OptionalIrisPassDetector.hasShaderPack();
+                                      boolean directionalLighting, boolean translucent, RenderEnvironment environment) {
+        boolean iris = environment == RenderEnvironment.WORLD && OptionalIrisPassDetector.hasShaderPack();
         ShaderProgram shader = iris ? IrisMeshBridge.currentProgram(directionalLighting, translucent)
             : directionalLighting ? litProgram : flatProgram;
         if (shader == null) return null;

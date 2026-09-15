@@ -1,5 +1,58 @@
 # Halo Mod — Public API
 
+<a id="player-preview-api"></a>
+
+## Player preview API (client only, since 2.2.0)
+
+`network.azusake.halo.api.client.preview.v1.HaloPreviewApi` is the Minecraft 1.20.1 Fabric client facade.
+All calls run on the render thread. Player previews using `InventoryScreen.drawEntity` are integrated
+automatically; do not wrap that helper a second time. Visibility follows the real wearer's assignment
+and appearance state; this API does not assign an arbitrary halo to a preview.
+
+For a UI that directly uses the vanilla player renderer, wrap the actual render at its final GUI root,
+after setting up its projection and entity lighting:
+
+```java
+HaloPreviewApi.renderPlayer(context, player, () -> {
+    renderMyVanillaPlayer(context, player);
+});
+```
+
+The facade captures the actual head, flushes model buffers and immediately submits the halo. Its
+capture scope closes on exceptions too. The host still owns GUI projection, pixel placement, lighting
+and their cleanup. Missing/unsupported head captures produce no halo; no world anchor is reused.
+This stage does not supply YSM/EMF preview anchors.
+
+An integration with its own head capture can instead own a session:
+
+```java
+PreviewSession session = HaloPreviewApi.openPreview(); // one per view
+// After flushing the model, with the host's GUI projection and lighting still active:
+HaloPreviewApi.draw(session, frame); // core PreviewFrame
+// On view close, world change or disconnect:
+session.close();
+```
+
+`PreviewFrame` contains core/JDK values: wearer UUID/current entity ID, a block-sized scene head pose,
+camera, root matrix, clocks, light sample, texture lookup and visual resources. Local head axes are
++Y up and +Z forward; GUI reflection and pixel scaling belong in the root. Camera position is
+subtracted in scene space before applying the root. Vanilla GUI uses a zero camera position and
+output-space up `(0,-1,0)`, right `(1,0,0)`. Orthographic projection is the default; perspective hosts
+select `Projection.PERSPECTIVE` explicitly. Resource generation must match the current world
+appearance frame. The 1.20.1 bridge exposes resources through `HaloMeshResources.snapshot().visuals()`;
+other game adapters supply their own resource bridge.
+
+The regular world call updates appearance once per frame. Sessions consume its latest snapshot
+without restarting animation or changing world physics. `clear`, full-sync replacement and world
+changes invalidate old sessions; create new ones for the new scope. Closing is idempotent, and closed
+or invalidated sessions produce no draws. See the [neutral core contract](../../core/README.md#preview-contract-since-220).
+
+The facade honors `playerPreviewHaloEnabled` (default `true`). Anchor API v2 remains world-space only;
+never submit UI-space heads through v2. Model integrations provide captures and view scopes while
+sharing core primitives, animation, materials and the existing GPU submission.
+
+---
+
 ## `HaloCommandInterceptor`
 
 **Package:** `network.azusake.halo.client`

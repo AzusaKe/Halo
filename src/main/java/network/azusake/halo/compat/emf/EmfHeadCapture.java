@@ -63,6 +63,7 @@ public final class EmfHeadCapture {
      * passes from replacing the main-model transform.
      */
     public static void capture(MatrixStack matrices, ModelPart part) {
+        if (network.azusake.halo.render.PlayerPreviewCapture.isActive()) return;
         Object candidate = part;
         if (!(candidate instanceof EmfPartNameAccess namedPart)
             || !"head".equals(namedPart.halo$getEmfPartName())

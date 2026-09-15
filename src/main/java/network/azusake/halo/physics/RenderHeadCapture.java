@@ -14,6 +14,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
+import network.azusake.halo.render.PlayerPreviewCapture;
 
 import java.util.Map;
 import java.util.UUID;
@@ -56,6 +57,21 @@ public final class RenderHeadCapture {
 
     private RenderHeadCapture() { /* utility class */ }
 
+    /** Saves platform capture context so nested or failed UI renders cannot corrupt their caller. */
+    public record Context(LivingEntity entity, PlayerEntityModel<?> model, boolean auxiliary) {}
+    public static Context suspendForPreview() {
+        Context previous = new Context(CURRENT_ENTITY.get(), CURRENT_MODEL.get(), AUXILIARY_YSM_PASS.get());
+        CURRENT_ENTITY.remove();
+        CURRENT_MODEL.remove();
+        AUXILIARY_YSM_PASS.set(true);
+        return previous;
+    }
+    public static void restoreContext(Context context) {
+        if (context.entity() == null) CURRENT_ENTITY.remove(); else CURRENT_ENTITY.set(context.entity());
+        if (context.model() == null) CURRENT_MODEL.remove(); else CURRENT_MODEL.set(context.model());
+        AUXILIARY_YSM_PASS.set(context.auxiliary());
+    }
+
     /** Called at the HEAD of {@code PlayerEntityRenderer.render}. */
     public static void begin(AbstractClientPlayerEntity entity, PlayerEntityModel<?> model) {
         CURRENT_ENTITY.set(entity);
@@ -67,6 +83,7 @@ public final class RenderHeadCapture {
      * associate their model pass with any living entity, not only players.
      */
     public static void beginYsmEntity(Entity entity, MatrixStack matrices) {
+        if (PlayerPreviewCapture.isActive()) return;
         CURRENT_MODEL.remove();
         Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
         if (entity instanceof LivingEntity living && matchesMainView(root)) {
@@ -80,6 +97,7 @@ public final class RenderHeadCapture {
 
     /** Open the source-neutral render scope used by API v2 submissions. */
     public static void beginEntityRender(Entity entity, MatrixStack matrices, float tickDelta) {
+        if (PlayerPreviewCapture.isActive()) return;
         Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
         boolean mainPass = entity instanceof LivingEntity living
             && matchesMainView(root)
@@ -101,6 +119,7 @@ public final class RenderHeadCapture {
     }
 
     public static void endEntityRender() {
+        if (PlayerPreviewCapture.isActive()) { end(); return; }
         AnchorCaptureCoordinator.endEntityRender();
         end();
     }
@@ -184,6 +203,10 @@ public final class RenderHeadCapture {
             return;
         }
         LivingEntity entity = CURRENT_ENTITY.get();
+        if (PlayerPreviewCapture.isActive()) {
+            PlayerPreviewCapture.capture(entity, matrices, part);
+            return;
+        }
         Vec3d frameCameraPos = cameraPos;
         Matrix4f frameViewMatrix = viewMatrix;
         if (entity == null || frameCameraPos == null || frameViewMatrix == null) {
