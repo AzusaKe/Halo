@@ -23,7 +23,23 @@ capture scope closes on exceptions too. The host still owns GUI projection, pixe
 and their cleanup. Missing/unsupported head captures produce no halo; no world anchor is reused.
 The built-in compat packages also supply YSM and EMF preview anchors within this scope, using the
 same version/ABI gates as world rendering. YSM uses its animated Head locator and configured local
-offset; EMF uses the animated named head. Physics is not enabled for previews.
+offset; EMF uses the animated named head.
+
+Automatic previews use physics by default (`playerPreviewHaloPhysicsEnabled=true`). Set this client
+configuration field to `false` for rigid following and restart after editing. They reuse world physics parameters with their
+own per-view state. The original `openPreview()` still opens a rigid session. For a custom UI:
+
+```java
+PreviewSession view = HaloPreviewApi.openPreview(PreviewOptions.PHYSICS);
+// Keep this session across frames; the host prepares GUI transforms and lighting as before.
+HaloPreviewApi.renderPlayer(view, context, player, () -> renderMyVanillaPlayer(context, player));
+// On a discontinuous model/scene change: view.resetMotion(). On disposal: view.close().
+```
+
+Recreate a session when `isValid()` becomes false after a world/full-sync reset. For the explicit frame
+API, supply one increasing `frameNanos` per view sample. Physics is driven by scene-space head motion;
+GUI pixels, camera transforms and visual animation do not feed back into it. Automatic vanilla-helper
+views are separated by screen, wearer, placement/size and occurrence; a layout change starts fresh motion.
 
 An integration with its own head capture can instead own a session:
 

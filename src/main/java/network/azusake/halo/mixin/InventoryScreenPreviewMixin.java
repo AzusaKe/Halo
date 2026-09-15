@@ -16,6 +16,6 @@ public abstract class InventoryScreenPreviewMixin {
         at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;runAsFancy(Ljava/lang/Runnable;)V"))
     private static void halo$renderPreview(Runnable render, DrawContext context, int x, int y, int size,
                                            Quaternionf rotation, Quaternionf cameraRotation, LivingEntity entity) {
-        HaloPreviewApi.renderPlayer(context, entity, () -> RenderSystem.runAsFancy(render));
+        HaloPreviewApi.renderPlayer(context, entity, java.util.List.of(x, y, size), () -> RenderSystem.runAsFancy(render));
     }
 }

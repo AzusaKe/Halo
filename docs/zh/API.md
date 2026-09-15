@@ -23,7 +23,20 @@ HaloPreviewApi.renderPlayer(context, player, () -> {
 它不设置界面投影、像素位置或灯光，调用方仍负责原有 GUI 准备与清理。
 无有效头部时不绘制，不读取旧世界锚点。内置 compat 包可在同一作用域提供 YSM／EMF 预览锚点，
 沿用世界渲染的版本与 ABI 门槛。YSM 使用当帧 Head 定位器及已有局部偏移配置；EMF 使用动画后的命名头部。
-预览尚未启用物理。
+自动预览默认开启物理（`playerPreviewHaloPhysicsEnabled=true`），可将该客户端配置设为 `false` 改为刚性随头，修改后重启。
+它复用世界参数，每个视图独立模拟。原有 `openPreview()` 继续创建刚性会话。自定义 UI 可显式选择：
+
+```java
+PreviewSession view = HaloPreviewApi.openPreview(PreviewOptions.PHYSICS);
+// 跨帧保留会话；宿主先准备 GUI 变换和灯光。
+HaloPreviewApi.renderPlayer(view, context, player, () -> renderMyVanillaPlayer(context, player));
+// 模型/场景突变时：view.resetMotion()。视图销毁时：view.close()。
+```
+
+换世界或全量同步使 `isValid()` 返回 `false` 时，重新创建会话。显式帧 API 每个视图采样提供递增的
+`frameNanos`，相同时间戳的重复提交不再次推进阻尼。物理由预览场景中的头部运动驱动，GUI 像素、
+相机及视觉动画不反向驱动物理。原版 helper 的自动会话按界面、佩戴者、位置/尺寸和调用序号隔离；
+布局变化会重新初始化运动。
 
 ### 提供显式头部姿态的兼容包
 

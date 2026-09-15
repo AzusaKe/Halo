@@ -1,10 +1,10 @@
-# 玩家预览光环（2.2.0 开发版）
+# 玩家预览光环（2.2.0）
 
 ## 行为与责任
 
 所有调用 Minecraft 1.20.1 `InventoryScreen.drawEntity` 的玩家预览自动显示当前佩戴的光环，包括生存物品栏、创造模式的生存物品栏页。显示依据是共享佩戴及显隐状态；第一人称、世界模型不在镜头内不会抑制预览。打开 UI 不重播启动动画。
 
-预览底座无物理、无阻尼。FREE／LOCKED／SYNC 使用同一刚性随头规则，在中立头部空间确定静态相对姿态，再跟随当前头部；保留定义偏移、缩放、静态变换和视觉动画。`face_camera` 使用正交预览相机的平行方向。billboard、ring、mesh 及其分组、材质、透明、遮罩由共享实现产生。
+自动预览默认开启物理，各视图独立复用世界物理算法和 FREE／LOCKED／SYNC 行为。配置关闭物理后，底座无阻尼，在中立头部空间确定静态相对姿态，再精准跟随当前头部；此刚性模式忽略朝向模式差异。两种模式都保留定义偏移、缩放、静态变换和视觉动画。`face_camera` 使用正交预览相机的平行方向。billboard、ring、mesh 及其分组、材质、透明、遮罩由共享实现产生。
 
 ```mermaid
 flowchart TD
@@ -48,7 +48,7 @@ flowchart TD
 
 客户端最小门面为 `network.azusake.halo.api.client.preview.v1.HaloPreviewApi`，提供原版玩家绘制包装、会话创建及显式 `PreviewFrame` 提交。原版函数已自动接入，不要重复包装。见 [中文 API](zh/API.md#player-preview-api) / [English API](en/API.md#player-preview-api)。
 
-API v2 仍仅接受世界空间锚点。独立 UI 可提供自己的头部捕获、佩戴者映射及会话作用域；后续物理应在会话内独立模拟，复用世界算法。预览物理尚未实现。
+API v2 仍仅接受世界空间锚点。独立 UI 可提供自己的头部捕获、佩戴者映射及会话作用域；可选物理已在会话内独立模拟，复用世界算法。
 
 YSM 世界兼容门槛仍为精确匹配 `2.6.5-fabric+mc1.20.1`；EMF 仍为 `3.1.1+` 且通过现有 ABI 检查。此次修改未提高或降低门槛。
 
@@ -61,6 +61,19 @@ YSM 世界兼容门槛仍为精确匹配 `2.6.5-fabric+mc1.20.1`；EMF 仍为 `3
 - 没有有效 Head 定位器、头部被模型隐藏或矩阵非法时跳过。此适配不承诺任意自定义骨架或不经原版预览函数/API 门面的第三方 UI；YSM 模型选择界面的既有实测结果见下方。
 
 ## 验证记录（2026-09-15）
+
+### adapter.3：可选物理的契约
+
+客户端配置新增 `playerPreviewHaloPhysicsEnabled`，正式版默认 `true`，旧文件缺失该项时自动补齐为 `true`；显式 `false` 保留刚性随头，修改后重启生效。已有测试配置若写明 `false`，升级不会覆盖该选择。`playerPreviewHaloEnabled=false` 仍关闭所有预览光环。
+
+- core `openPreview()` 与 `PreviewOptions.RIGID` 保持既有行为；`openPreview(PreviewOptions.PHYSICS)` 显式启用物理。新增接口方法有默认实现，不要求旧适配器实现它们。
+- 每个会话拥有自己的 `PreviewMotion`、`AnchorFrameCalculator` 和 `FrameDelta`。世界与预览使用同一个姿态算法、参数合并、EMA 时间平滑、线性/角度阻尼、角动量和 FREE／LOCKED／SYNC 行为；随后进入同一个表现/几何函数。
+- 物理输入为 GUI 根变换之前、以方块为单位的预览头部。GUI 位置/缩放/相机不驱动物理；物理不消费世界实例、瞬移标记或表现时钟。SYNC 的物理初始相对朝向按世界规则捕获，默认刚性模式仍使用中立头部基准。
+- 相同 `frameNanos` 的重复提交复用已求出的底座；新时间戳推进一次。时间倒退、佩戴实例/实体 ID/定义切换、表现或资源代失效时重置运动。暂停后继续沿用世界时间钳制；宿主可在场景突变时主动 `resetMotion()`。
+- 原版函数按当前界面、世界、佩戴者及预览位置/尺寸分配跨帧会话；同位置的重复/嵌套调用再用序号区分。布局变动、视图消失、关闭界面、断线/换世界后释放旧会话。全量同步使 core 会话失效时自动重建。
+- 外部 UI 可自行持有物理会话并调用新增 `renderPlayer(session, context, player, callback)` 重载；显式帧提交保持可用。宿主负责模型突变时重置和视图销毁时关闭，完整契约见 core README 和中英文 API。
+
+该实现没有新增 YSM／EMF 符号、算法或反编译代码；复用 adapter.2 已验收的真实头部输入。
 
 ### adapter.1 用户验收结论（后续修改前）
 
@@ -111,12 +124,36 @@ YSM 发布包的元数据不适合当前 Loom 1.5.8 的开发重映射，组合�
 - 截图和捕获计数分别在 `evidence-ysm/`、`evidence-emf/`，完整日志为 `runtime-ysm.log`、`runtime-emf.log`。新版本仍需用户用自己的模型和资源包验收；物理、其他独立 UI、实际睡眠，以及第三方兼容与光影同时启用的完整组合不计为本轮通过项。
 - 同一成品再执行原版回归及 YSM + EMF + ETF 同装回归，各 16 阶段通过，截图在 `evidence-vanilla/`、`evidence-both/`。同装环境也启用 CEM 测试包，实际玩家由 YSM 接管；EMF 的独立接管结论来自前述单独环境。共四组 64 阶段，测试进程均正常退出。
 
+### adapter.3 验证记录
+
+中间文件、隔离启动器、测试模组、测试资源包和截图位于 `F:/codex-cache/halo-preview-physics/`，均不进入 Halo 成品。
+
+- core 独立构建、Halo 联合构建通过；core 295 项、Halo 103 项测试无失败、错误或跳过。构建日志为 `core-build.log`、`halo-build.log`。
+- 三种朝向模式逐帧比较世界与物理预览输出，覆盖三种图元、分组、材质、不同时间间隔、偏移、缩放和角动量参数；验证同时间戳重复提交不推进运动、多预览不改变世界状态、资源恢复及时间倒退重置、GUI 根变换/相机不驱动物理。
+- 覆盖默认值及旧配置补齐、旧预览提供方的默认方法、core/JDK 依赖边界、旧 `ClientPort` 与 API v2 消费方链接运行。会话池覆盖跨帧保留、同玩家重复视图、界面/世界/配置变化、失效会话替换、消失视图释放及中断帧清理。正式版按用户要求将自动物理默认值改为 `true`，配置测试验证缺失项补齐和显式 `false` 保留。
+- 普通启动环境为 Minecraft 1.20.1 / Fabric Loader 0.19.3 / Java 17。开启物理分别执行原版、YSM 2.6.5、EMF 3.1.1 + ETF 7.1、YSM + EMF + ETF 同装四组，每组 16 个阶段。EMF 环境启用实际接管玩家头部并施加平移/翻滚动画的 CEM 资源包；同装环境由 YSM 接管，EMF 独立接管结论来自单独环境。
+- 沿用 adapter.2 的 16 阶段，增加持续鼠标运动、实际会话身份跟踪、同帧重复求值一致性、有限顶点检查，以及与每帧新建会话的输出比较。四组首阶段各保留一个会话，分别取得 237、235、237、233 个与新会话不同的运动历史样本，确认跨帧阻尼确实生效。截图及报告分别在 `evidence-vanilla/`、`evidence-ysm/`、`evidence-emf/`、`evidence-both/`。
+- 关闭物理再执行原版 16 阶段，所有阶段与每帧新建刚性会话的输出一致，没有运动历史差异；证据在 `evidence-vanilla-rigid/`。五组共 80 个阶段，均无 GL 错误、残留预览作用域或断言失败，进程正常退出。
+- 本轮未重跑物理与 Iris 同时开启、专用服双客户端、真实睡眠及反复重连的完整游戏组合；不能将此前刚性模式的结果写成这些物理场景通过。随后用户确认物理效果符合要求，并授权正式发布。
+
+### 最终工程检查
+
+- **薄适配器**：core 负责佩戴表现、时间、物理、动画、材质和图元分派；Halo 负责 Minecraft/第三方真实头部输入、GUI 根变换、宿主会话寿命及 GPU 提交。新增公开输入为 core/JDK 类型，core 字节码及依赖检查排除 Minecraft、Fabric、Mixin 和图形 API。以后适配器可提供同一契约，无需复制物理或新增图元分支。
+- **向后兼容**：与 2.1.2 相比，`ClientPort`、`FrameScene`、`FrameOutput` 和 API v2 源码未改变；旧消费方在新成品上链接运行。预览为独立能力，新增重载和会话方法有兼容默认实现。无参 `openPreview()` 继续刚性模式，自动 GUI 采用配置中的默认物理。schema 1.1.0、存档和网络协议不变。
+- **运行开销**：佩戴/分组表现每逻辑帧生成一次，多个预览读取同一快照；物理仅为实际提交的视图求值，同帧重复采样不推进运动。会话跨帧复用、消失视图逐帧释放；世界和预览共用已加载资源及 GPU mesh 缓存，不在逐帧路径解析 OBJ、读写配置或重新解析兼容符号。
+- **性能边界**：每个额外可见视图仍需姿态计算、视觉变换与绘制；透明 mesh 仍有原有排序成本。为支持镜头外预览，已加载佩戴者的表现采样发生在世界距离裁剪前；几何和物理仍按实际绘制需求执行。不将结构检查或单机测试表述为任意整合包的固定 FPS 保证。
+- **本机 CPU 抽样**：Java 17，以嵌套动画、billboard、12 段 ring 及单三角形遮罩 mesh 的小型混合样例，预热 16,000 帧后测量 5 × 12,000 帧。世界单独、世界加 1 个物理预览、世界加 4 个物理预览的每帧 CPU 中位数分别为 7.813、9.115、22.135 微秒；线程分配量分别约 20、36、82 KB/帧。输入提前生成，输出由实际 core 管线产生，未包含 GPU、Minecraft 或第三方模型开销，也不是与旧版本比较的 FPS 基准。探针及完整结果在发布缓存目录的 `PreviewPerf.java`、`performance.log`，不进入成品。
+
 ### 交付与发布状态
 
 从锁定基线建立两个工作分支：Halo `codex/player-preview-1.20.1`（基线 `ffefd071faf228f33dc1bb68a3e866a8e0ce6b13`），core `codex/player-preview`（基线 `f8c35bf39b2b38a9c31942bba80013e988e4debd`）。
 
-第一阶段功能版本为 core `2.2.0`、Halo `2.2.0+adapter.1`。schema 1.1.0、存档、网络协议和 API v2 保持不变。发布另行进行；提交时先提交 core 源码，再由 Halo 锁定该提交，推送同样 core 在前。
+第一阶段功能版本为 core `2.2.0`、Halo `2.2.0+adapter.1`。schema 1.1.0、存档、网络协议和 API v2 保持不变。提交时先提交 core 源码，再由 Halo 锁定该提交，推送同样 core 在前。
 
 用户验收后已按顺序提交第一阶段本地检查点：core `57c9b8637637d2b1561e7aa31f78a04e5b63854e`，Halo `7493b0c2815baa0b34e43c7074f4cde7dd20583e`，gitlink 匹配。尚未推送或创建发布标签。此前开发 JAR 的 `halo-build.json` 记录基线 SHA 与 `development=true`。
 
-兼容改动版本为 Halo `2.2.0+adapter.2`，仍锁定同一 core `2.2.0` 提交。用户已再次确认测试通过、完全符合要求；按维护者描述的授权范围完成[兼容代码核对](preview-compat-license-review.md)，记录边界并附带 EMF 许可告知后提交本地检查点。未推送或发布。
+兼容改动版本为 Halo `2.2.0+adapter.2`，仍锁定同一 core `2.2.0` 提交。用户已再次确认测试通过、完全符合要求；按维护者描述的授权范围完成[兼容代码核对](preview-compat-license-review.md)，记录边界并附带 EMF 许可告知后提交本地检查点 `8dc5c9f0a0c1bdb90946720b846e9484f8ba6758`。未推送或发布。
+
+物理开发包 `F:/codex-cache/halo-preview-physics/deliverables/halo-1.20.1-fabric-2.2.0+adapter.3.dev.jar` 已获得用户验收；用户进一步要求物理默认启用且保留配置关闭能力，并授权提交、推送正式版。
+
+最终交付版本为 core `2.2.0` / Halo `2.2.0+adapter.3`，对应 core `v2.2.0` 与 Halo `v2.2.0-fabric-1.20.1-adapter.3`。正式构建使用 `-Prelease=true`，要求两个工作树干净、gitlink 与 core HEAD 相同且精确提交能从远端获取；成品 `halo-build.json` 记录最终 SHA 并标记 `development=false`。发布日志和成品放在 `F:/codex-cache/halo-2.2.0-release/`。当前发布仅面向 `1.20.1-fabric`，其他平台及冻结分支不随本次升级。

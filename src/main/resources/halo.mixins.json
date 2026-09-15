@@ -8,6 +8,7 @@
     ],
     "client": [
         "InventoryScreenPreviewMixin",
+        "PreviewFrameLifecycleMixin",
         "LivingEntityPreviewPoseMixin",
         "MeshShaderResourceMixin",
         "VertexBufferAccessor",
