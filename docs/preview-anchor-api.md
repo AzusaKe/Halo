@@ -131,7 +131,7 @@ Minecraft 1.20.1 Fabric 已在实体 dispatcher 中接入上述钩子。使用 `
 - 删除无人使用的公开 `openPreview` / `draw` / 显式会话包装重载，以及 `PlayerPreviewCapture` 的旧模型提交桥接。模型兼容统一使用 core 公开锚点来源。
 - core 的 `PreviewPort`、`PreviewSession`、`PreviewFrame` 是平台宿主的计算接入层，继续使用。自动预览物理默认启用，无参 core `openPreview()` 仍创建刚性会话。
 - 模型兼容包无需接触内部绘制器；已有原版函数调用保持自动覆盖。独立 UI 不再有 Minecraft 专用公开快捷门面，由其平台适配器提供宿主接入。
-- 新版本为 core `2.3.0` / Halo `2.3.0+adapter.1` 开发版。定义 schema、存档、网络和物理算法不变。2.2.0 的提交及发布标签保持不变。
+- 正式版本为 core `2.3.0` / Halo `2.3.0+adapter.1`。定义 schema、存档、网络和物理算法不变。2.2.0 的提交及发布标签保持不变。
 
 ## 验证与交付记录
 
@@ -179,4 +179,15 @@ Minecraft 1.20.1 Fabric 已在实体 dispatcher 中接入上述钩子。使用 `
 
 本轮日志、测试入口、隔离客户端、阶段报告和截图位于 `F:/codex-cache/halo-anchor-api-v2/`。开发包为 `deliverables/halo-1.20.1-fabric-2.3.0+adapter.1.dev.jar`，SHA-256：`7400fa2071f5bb4d571070c2252c9d73b0c92eb2d5aa35a6e86d673d3e026f29`。同目录含 sources JAR、`verification.json` 和校验文件。
 
-上述开发包在提交前构建，内嵌提交号仍是两仓库基线，`.dev` 标记表示包含当时工作树中的修改。源码按 core 在前、Halo gitlink 在后分别提交；最终提交号另记于本轮 `deliverables/commits.json`。本次仅作本地提交，不推送或发布，不移动既有 2.2.0 标签；正式发布仍需从最终锁定提交构建并记录正式包校验值。
+上述开发包在提交前构建，内嵌提交号仍是两仓库基线，`.dev` 标记表示包含当时工作树中的修改。源码按 core 在前、Halo gitlink 在后分别提交；最终提交号另记于本轮 `deliverables/commits.json`。该阶段仅作本地提交，未推送或发布。后续正式发布见下方记录；既有 2.2.0 标签保持不变。
+
+
+## 2.3.0 正式发布验收（2026-09-15）
+
+- 维护者已验收统一 API v2 预览接入，以及生存物品栏首次打开时的 snap 修复，授权正式提交、推送和补齐 Release。
+- 生存物品栏首帧使用默认鼠标坐标，结束后才保存真实鼠标坐标。适配层仅在首次绘制结束后调用既有 `PreviewSession.resetMotion()`，让下一帧重新 snap，后续继续正常模拟。core、API、世界物理、创造物品栏和独立 YSM 窗口的接入未改变。
+- snap 修复前后使用固定鼠标输入，各打开两次生存物品栏：修复前第二帧存在物理追赶，修复后第二帧与新会话的 snap 输出一致；之后主动转头仍有惯性。证据位于 `F:/codex-cache/halo-preview-first-snap/`，用户验收的开发包 SHA-256 为 `235dde6bbd712ae7a0cd22bb0361e623f3d5797b74ec52fddf9c1ff540655565`。
+- 统一 API 阶段已有 411 项单元测试及 65 个游戏内自动测试阶段通过，详见上方分轮记录。最后的 snap 修复经过联合构建和原版定向验证；未据此宣称重新完成全套第三方、Iris 或专用服双客户端验收。
+- 正式包从最终干净工作树与已推送的精确 core gitlink 构建，要求 `-Prelease=true`、`development=false`；提交来源、成品校验值和 CI/Release 结果保存在 `F:/codex-cache/halo-release-2.3.0/`，不以开发包改名代替正式构建。
+
+发布入口：[Halo 2.3.0（Minecraft 1.20.1 Fabric）](https://github.com/AzusaKe/Halo/releases/tag/v2.3.0-fabric-1.20.1-adapter.1)、[HaloCore 2.3.0](https://github.com/AzusaKe/HaloCore/releases/tag/v2.3.0)。其他版本和加载器未在本次迁移，冻结 flash 分支保持不变。

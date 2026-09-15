@@ -9,7 +9,7 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**. The source is **2.3.0 in development**; the latest tagged release is **2.2.0+adapter.3**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.20.1 Fabric**. The current release is **2.3.0+adapter.1**, using HaloCore **2.3.0**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 2.3.0 extends core's loader-neutral anchor API v2 with preview submission; YSM and EMF use that same public
 interface. Providers only capture heads; Halo owns preview physics and drawing. See the

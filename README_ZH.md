@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 1.20.1 Fabric**，当前源码为 **2.3.0 开发版**，最新带标签正式版为 **2.2.0+adapter.3**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 1.20.1 Fabric**，当前正式版为 **2.3.0+adapter.1**，使用 HaloCore **2.3.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 2.3.0 将预览锚点纳入 core 跨平台统一的 API v2，YSM／EMF 共用这条公开提交路径。兼容包只需提供真实头部，预览物理和绘制继续由 Halo 管理。见[锚点提供者 API](docs/zh/API.md#preview-anchor-provider-api)与[完整契约](docs/preview-anchor-api.md)。
 
@@ -314,7 +314,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.1.2+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.3.0+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 

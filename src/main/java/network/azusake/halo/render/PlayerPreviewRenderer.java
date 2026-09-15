@@ -22,6 +22,7 @@ public final class PlayerPreviewRenderer {
         VIEWS.beginFrame(client.currentScreen, client.world, motionOptions(), System.nanoTime());
     }
     public static void endFrame() { VIEWS.endFrame(); }
+    public static void resetAutomaticMotion() { VIEWS.resetMotion(); }
     public static void clearAutomaticViews() { VIEWS.close(); PlayerPreviewCapture.clearAnchorScopes(); }
     private static PreviewOptions motionOptions() {
         return HaloModConfigStore.get().isPlayerPreviewHaloPhysicsEnabled() ? PreviewOptions.PHYSICS : PreviewOptions.RIGID;

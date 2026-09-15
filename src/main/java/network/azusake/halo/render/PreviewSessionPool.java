@@ -49,6 +49,7 @@ public final class PreviewSessionPool implements AutoCloseable {
     }
 
     public long frameNanos() { return active ? nanos : System.nanoTime(); }
+    public void resetMotion() { views.values().forEach(entry -> entry.session.resetMotion()); }
     public void endFrame() {
         views.values().removeIf(entry -> {
             if (entry.frame == frame) return false;
