@@ -63,10 +63,7 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
                                   net.minecraft.command.CommandRegistryAccess registryAccess) {
 
         var haloNode = ClientCommandManager.literal("halo")
-            .then(ClientCommandManager.literal("renderer")
-                .executes(ctx -> renderer(ctx.getSource(), null))
-                .then(ClientCommandManager.literal("compatibility").executes(ctx -> renderer(ctx.getSource(), "compatibility")))
-                .then(ClientCommandManager.literal("cached").executes(ctx -> renderer(ctx.getSource(), "cached"))))
+            .then(RendererCommandTree.command(FabricHaloCommandInterceptor::renderer))
             .executes(ctx -> executeLocal("halo"))
             .then(ClientCommandManager.literal("list")
                 .executes(ctx -> executeLocal("halo list"))
