@@ -193,7 +193,7 @@ public final class HaloRenderer {
         }
         final double dt = smoothedDt;
 
-        // 26.2: the level-render pose stack is rooted at the world origin;
+        // 26.3: the level-render pose stack is rooted at the world origin;
         // translate by -camera position to reach camera-relative world space
         // (the camera view rotation is applied by the GPU at draw time).
         matrices.pushPose();

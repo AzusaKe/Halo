@@ -4,7 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.geom.ModelPart;
 import network.azusake.halo.physics.RenderHeadCapture;
 
-/** Captures the EMF head through Halo's 26.2 deferred-submit pipeline. */
+/** Captures the EMF head through Halo's 26.3 deferred-submit pipeline. */
 public final class EmfHeadCapture {
 
     private EmfHeadCapture() {

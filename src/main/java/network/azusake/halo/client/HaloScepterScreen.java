@@ -1,5 +1,6 @@
 package network.azusake.halo.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -94,6 +95,10 @@ public final class HaloScepterScreen extends Screen {
 
     private void choose(Identifier definitionId) {
         HaloNetworkClient.sendScepterSelection(definitionId);
+    }
+
+    static boolean isPrimaryClick(MouseButtonEvent event) {
+        return event.button() == InputConstants.MOUSE_BUTTON_LEFT;
     }
 
     @Override
@@ -247,7 +252,7 @@ public final class HaloScepterScreen extends Screen {
 
         @Override
         public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-            if (event.button() != 0) {
+            if (!isPrimaryClick(event)) {
                 return false;
             }
             haloList.setSelected(this);

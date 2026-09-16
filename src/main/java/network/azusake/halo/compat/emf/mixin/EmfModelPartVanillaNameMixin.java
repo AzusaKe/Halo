@@ -1,6 +1,6 @@
 package network.azusake.halo.compat.emf.mixin;
 
-import network.azusake.halo.compat.emf.Emf262Symbols;
+import network.azusake.halo.compat.emf.Emf263Symbols;
 import network.azusake.halo.compat.emf.EmfPartNameAccess;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.Shadow;
 
 /** Exposes EMFModelPartVanilla.name without a compile-time EMF dependency. */
 @Pseudo
-@Mixin(targets = Emf262Symbols.VANILLA_MODEL_PART, remap = false)
+@Mixin(targets = Emf263Symbols.VANILLA_MODEL_PART, remap = false)
 public abstract class EmfModelPartVanillaNameMixin implements EmfPartNameAccess {
 
     @Shadow

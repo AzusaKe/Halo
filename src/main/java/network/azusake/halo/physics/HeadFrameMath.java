@@ -10,7 +10,7 @@ import org.joml.Quaternionf;
  * <p>All angles are degrees and follow the Minecraft convention (yaw = head
  * yaw, pitch = head pitch, roll = head/camera roll).  The camera/head
  * orientation quaternion used by the anchor frame is
- * {@code rotateY(-yaw) * rotateX(pitch) * rotateZ(roll)}.  Minecraft 26.2's
+ * {@code rotateY(-yaw) * rotateX(pitch) * rotateZ(roll)}.  Minecraft 26.3's
  * {@code Camera} stores the equivalent view-facing orientation with a flipped
  * basis as {@code rotationYXZ(PI - yaw, -pitch, roll)}; see
  * {@link #recoverRollDeg}.</p>
@@ -70,7 +70,7 @@ public final class HeadFrameMath {
     /**
      * Recover the roll (degrees) folded into a Minecraft camera/head rotation.
      *
-     * <p>The 26.2 {@code Camera} has no {@code getRoll()}; a non-zero roll
+     * <p>The 26.3 {@code Camera} has no {@code getRoll()}; a non-zero roll
      * (e.g. injected by a camera mod) is folded into
      * {@code Camera.rotation()} as
      * {@code rotationYXZ(PI - yaw, -pitch, roll)}.  This strips that version's

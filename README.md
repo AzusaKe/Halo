@@ -4,7 +4,7 @@
 </h1>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC Version](https://img.shields.io/badge/Minecraft-26.2-green.svg)
+![MC Version](https://img.shields.io/badge/Minecraft-26.3-green.svg)
 ![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 English | [中文](README_ZH.md)
@@ -16,7 +16,6 @@ English | [中文](README_ZH.md)
 - [Features](#features)
 - [Planned Features](#planned-features)
 - [Installation](#installation)
-  - [NeoForge](#neoforge)
 - [Usage](#usage)
   - [Commands](#commands)
   - [Custom Halo Definitions](#custom-halo-definitions)
@@ -34,7 +33,7 @@ English | [中文](README_ZH.md)
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-Currently available for Minecraft 26.2 with Fabric (NeoForge via [Sinytra Connector](https://modrinth.com/mod/connector) works — core features such as rendering and persistence have been tested).
+Currently available for Minecraft 26.3 with Fabric. This build supports Fabric only; NeoForge, Forge, and Sinytra Connector are not supported.
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
 
@@ -71,20 +70,13 @@ Currently available for Minecraft 26.2 with Fabric (NeoForge via [Sinytra Connec
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) 0.19.3+ for Minecraft 26.2.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for your Minecraft version.
+1. Install [Fabric Loader](https://fabricmc.net/use/) 0.19.5+ for Minecraft 26.3.
+2. Install [Fabric API](https://modrinth.com/mod/fabric-api) 0.160.6+26.3 or a newer stable 26.3 release.
 3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
 4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
 5. Launch Minecraft with the Fabric profile.
 
-### NeoForge
-
-This mod is natively built for Fabric, but can also run on **NeoForge** for the same Minecraft version via [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api). Core features (halo rendering, persistence) have been tested and work. Forge is not supported on modern Minecraft versions.
-
-1. Install NeoForge for Minecraft 26.2
-2. Install [Sinytra Connector](https://modrinth.com/mod/connector)
-3. Install [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
-4. Place the Halo mod JAR into the `mods` folder
+Runtime validation for this build used Iris 1.11.6 with Sodium 0.9.2 and Complementary Reimagined r5.9.3. The combined EMF 3.3.6 + ETF 7.2.2 + Iris environment also passed version/ABI detection, hook injection, resource reload, world entry, multiplayer synchronization, dimension changes, and persistence checks. Pixel-level visual comparison and custom-EMF-model following still require manual validation with a suitable model resource pack. EMF is optional; when absent, Halo skips its model hook safely.
 
 <a id="usage"></a>
 
@@ -259,7 +251,7 @@ Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`
 
 ### Prerequisites
 
-- **JDK 25** — Required for Minecraft 26.2
+- **JDK 25** — Required for Minecraft 26.3
 - Internet connection (Gradle downloads dependencies from Maven repositories)
 
 <a id="build"></a>
@@ -272,7 +264,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR file will be at `build/libs/halo-26.2-fabric-1.2.1.jar`.
+The compiled JAR file will be at `build/libs/halo-26.3-fabric-1.3.1.jar`.
 
 <a id="run-tests"></a>
 
@@ -331,7 +323,7 @@ src/main/
 
 Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please submit an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
 
-- **Development Environment**: Minecraft 26.2 + Fabric Loader 0.19.3+
+- **Development Environment**: Minecraft 26.3 + Fabric Loader 0.19.5+
 - **IDE**: Recommended IntelliJ IDEA (with Minecraft Development plugin) or VS Code
 
 <a id="license"></a>

@@ -55,7 +55,7 @@ public final class HaloRenderListener {
             RenderHeadCapture.setFrameTickDelta(lastTickDelta);
         });
 
-        // Keep 26.2's native collection point. Each primitive is submitted as
+        // Keep 26.3's native collection point. Each primitive is submitted as
         // ordered custom entity geometry, so Minecraft and Iris own upload,
         // translucent ordering, reverse-Z depth, shader and framebuffer state.
         LevelRenderEvents.COLLECT_SUBMITS.register(context -> {

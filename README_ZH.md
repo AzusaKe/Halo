@@ -4,7 +4,7 @@
 </h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-26.2-green.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-26.3-green.svg)
 ![模组加载器](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 中文 | [English](README.md)
@@ -16,7 +16,6 @@
 - [特性](#特性)
 - [未来将会添加的特性](#未来将会添加的特性)
 - [安装](#安装)
-  - [NeoForge](#neoforge)
 - [使用方法](#使用方法)
   - [命令](#命令)
   - [自定义光环定义](#自定义光环定义)
@@ -34,7 +33,7 @@
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-目前支持 Minecraft 26.2 的 Fabric 环境（NeoForge 可通过 [Sinytra Connector](https://modrinth.com/mod/connector) 运行，渲染、持久化等核心功能已实测可用）。
+目前支持 Minecraft 26.3 的 Fabric 环境。此版本仅支持 Fabric，不支持 NeoForge、Forge 或 Sinytra Connector。
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
 
@@ -71,20 +70,13 @@
 
 ## 安装
 
-1. 为 Minecraft 26.2 安装 [Fabric Loader](https://fabricmc.net/use/) 0.19.3+。
-2. 下载对应版本的 [Fabric API](https://modrinth.com/mod/fabric-api)。
+1. 为 Minecraft 26.3 安装 [Fabric Loader](https://fabricmc.net/use/) 0.19.5+。
+2. 安装 [Fabric API](https://modrinth.com/mod/fabric-api) 0.160.6+26.3 或更新的 26.3 稳定版。
 3. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载最新的 **Halo** 模组 JAR 文件。
 4. 将两个 JAR 文件放入 Minecraft 安装目录的 `mods` 文件夹中。
 5. 使用 Fabric 配置文件启动 Minecraft。
 
-### NeoForge
-
-本模组为 Fabric 原生模组，但可通过 [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api) 在 **NeoForge**（相同 Minecraft 版本）上运行。核心功能（光环渲染、持久化）已实测可用；高版本 Minecraft 不推荐使用 Forge。
-
-1. 安装 NeoForge（Minecraft 26.2）
-2. 安装 [Sinytra Connector](https://modrinth.com/mod/connector)
-3. 安装 [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
-4. 将 Halo 模组 JAR 放入 `mods` 文件夹
+此版本已在 Iris 1.11.6 + Sodium 0.9.2 + Complementary Reimagined r5.9.3 环境中完成运行验证；EMF 3.3.6 + ETF 7.2.2 + Iris 联合环境也已通过版本/ABI 检测、钩子注入、资源重载、进入世界、多人同步、跨维度和持久化检查。像素级视觉对照及自定义 EMF 模型跟随仍需配合相应模型资源包人工验证。EMF 不是必需前置；未安装时 Halo 会安全跳过模型钩子。
 
 <a id="使用方法"></a>
 
@@ -259,7 +251,7 @@
 
 ### 前置条件
 
-- **JDK 25** — Minecraft 26.2 所需
+- **JDK 25** — Minecraft 26.3 所需
 - 互联网连接（Gradle 从 Maven 仓库下载依赖）
 
 <a id="构建"></a>
@@ -272,7 +264,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/halo-26.2-fabric-1.2.1.jar`。
+编译好的 JAR 文件位于 `build/libs/halo-26.3-fabric-1.3.1.jar`。
 
 <a id="运行测试"></a>
 
@@ -331,7 +323,7 @@ src/main/
 
 欢迎对 Halo 进行贡献！如果你有想法、建议或想报告 Bug，请在 [GitHub 仓库](https://github.com/AzusaKe/Halo) 提交 Issue。如果你想贡献代码，请 Fork 仓库并提交 Pull Request。
 
-- **开发环境**：Minecraft 26.2 + Fabric Loader 0.19.3+
+- **开发环境**：Minecraft 26.3 + Fabric Loader 0.19.5+
 - **IDE**：推荐 IntelliJ IDEA（配合 Minecraft Development 插件）或 VS Code
 
 <a id="许可证"></a>

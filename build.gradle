@@ -1,5 +1,5 @@
 plugins {
-    id 'net.fabricmc.fabric-loom' version '1.17.19'
+    id 'net.fabricmc.fabric-loom' version '1.17.21'
     id 'maven-publish'
 }
 
@@ -81,6 +81,9 @@ loom {
             inherit client
             programArgs("--username", "Dev2")
             runDir = "run2"
+        }
+        server {
+            runDir = "runServer"
         }
     }
 }

@@ -1,15 +1,31 @@
-# Halo Mod 跨版本兼容性测试方案
+# Halo Mod 兼容性与验收记录
 
-> 兼容范围：**1.19.4 ~ 1.20.4**（Fabric，已确认）
+> `26.3-fabric-flash` 仅支持 Minecraft 26.3 + Fabric，不声明其他加载器兼容性。
+
+## 26.3 Fabric Flash 验收记录（2026-09-16）
+
+| 环境 | 版本 | 结果 | 已验证范围 |
+|------|------|------|------------|
+| 基础 Fabric | Minecraft 26.3 / Loader 0.19.5 / Fabric API 0.160.6+26.3 / Java 25 | 通过 | 客户端、集成服务端、独立服务端启动，世界加载，命令注册，7 个内置定义加载 |
+| Iris | Iris 1.11.6 / Sodium 0.9.2 / Complementary Reimagined r5.9.3 | 通过（运行时） | 光影包启用，Overworld/Nether 管线切换，79 个资源包定义加载，光环显示/隐藏与跨维度期间无 Halo/Iris 渲染异常 |
+| EMF + ETF + Iris | EMF 3.3.6 / ETF 7.2.2 / Iris 1.11.6 / Sodium 0.9.2 | 通过（ABI/启动） | EMF 版本门、named ABI 检测、`EMFModelPart.render` 捕获钩子注入、ETF 重载和 Iris 管线联合运行 |
+| 两客户端 + 独立服务端 | Dev1（Iris/EMF/ETF）+ Dev2（基础 Fabric） | 通过（协议/生命周期） | 同时在线、`show`/`hide` 广播、传送、跨维度、隐身、服务器重启后持久化恢复、死亡重生 |
+
+自动化验证：Java 25 下 `build`/JUnit、访问扩展器处理与 JAR 元数据检查均已通过。
+
+由于当前自动化环境无法读取 Minecraft 原生窗口画面，以下项目不记为已验收：与 1.20.1 的像素级视觉对照、遮挡/透明排序/阴影阶段的目视判定、睡眠/潜行/游泳/鞘翅姿态目视判定，以及缺少 EMF 自定义模型资源包时的实际模型跟随。
+
+---
+
+## 历史 Fabric 跨版本测试记录
+
+> 历史兼容范围：**1.19.4 ~ 1.20.4**（Fabric，已确认）
 > - 下界 **1.19.4**（已确认）：1.19.3 缺少 `ClientPlayNetworkHandler.getConnection()` 方法
 > - 上界 **1.20.4**（已确认）：1.20.5 起 Fabric API 移除 `ServerPlayNetworking$PlayChannelHandler`，启动即崩
 > - **已实测通过**：1.19.4、1.20.1（构建目标）、1.20.2、1.20.4
 > - **已实测通过**：1.20.1（构建目标）、1.20.2、**1.20.4**（全部 13 项通过）
 > - 1.20 系列共 6 个版本：1.20 / 1.20.1 / 1.20.2 / 1.20.3 / 1.20.4 / 1.20.5 / 1.20.6
 > - 1.20.5 和 1.20.6 确认不可用（Fabric API 网络层不兼容）
->
-> 跨加载器：**1.20.1 NeoForge / Forge** 通过 **Sinytra Connector（信雅互联）** 已实测通过
-> - 单人/多人均正常，光影兼容
 
 ---
 
@@ -28,20 +44,7 @@
 | P2 | **1.19.2** | 1.19.1 的修复版 |
 | P2 | **1.19.1** | 理论下界 |
 
-### 跨加载器测试（Sinytra Connector / 信雅互联）
-
-| 优先级 | 平台 | 版本 | 测试理由 |
-|--------|------|------|----------|
-| P1 | **NeoForge** | 1.20.1 | 已实测通过，抽样复验 + 光影兼容性 |
-| P1 | **Forge** | 1.20.1 | 已实测通过，抽样复验 |
-| P2 | **NeoForge** | 1.20.2~1.20.6 | 如 Fabric 版本全部通过，可尝试扩展 |
-
-Sinytra Connector 依赖：
-- **Sinytra Connector**（Fabric→Forge/NeoForge 翻译层）
-- **Forgified Fabric API**（Fabric API 的 Forge 移植版）
-- 安装顺序：先装 Sinytra Connector + Forgified Fabric API，再放 Halo Mod
-
-每个版本需要安装对应的 **Fabric Loader (>=0.15.0)** 和 **Fabric API**（Fabric 平台），或 **Sinytra Connector + Forgified Fabric API**（NeoForge/Forge 平台）。
+每个历史版本需要安装对应的 **Fabric Loader (>=0.15.0)** 和 **Fabric API**。
 
 ---
 
@@ -304,55 +307,6 @@ Sinytra Connector 依赖：
 
 ---
 
-### T14 — Sinytra Connector 跨加载器加载（NeoForge / Forge）
-
-**目标**：验证模组通过 Sinytra Connector 在 NeoForge/Forge 上能正常加载和运行
-
-**步骤**：
-1. 安装 NeoForge 或 Forge 1.20.1
-2. 安装 **Sinytra Connector** + **Forgified Fabric API**
-3. 放入 Halo Mod jar
-4. 放入光环定义资源包
-5. 启动游戏，进入单人世界（创造模式）
-
-**观察**：
-- [ ] 游戏不崩溃，启动日志无 Sinytra 翻译错误
-- [ ] 模组列表中 Halo Mod 正常显示
-- [ ] `/halo list` 指令可用
-- [ ] `/halo show` 能正常附着光环并渲染
-- [ ] 光环纹理/颜色/动画正常
-
-**风险点**：
-- Sinytra Connector 对 Fabric API 的翻译覆盖度——如果模组用了 Connector 未翻译的 Fabric API，会报 `NoSuchMethodError`
-- Mixin 注入在 Forge/NeoForge 的 Mixin 环境下行为可能不同
-- `@Environment(EnvType.CLIENT)` 注解在非 Fabric 加载器上的处理
-
----
-
-### T15 — 光影兼容性（NeoForge/Forge + Shader）
-
-**目标**：验证光环渲染与主流光影包兼容
-
-**步骤**：
-1. 承接 T14，在 NeoForge 1.20.1 上安装一个光影包（如 Iris/OptiFine Shaders 或 Complementary Shaders）
-2. 启用光影
-3. 对实体附着光环
-4. 观察光环在光影模式下的渲染效果
-
-**观察**：
-- [ ] 光环在光影模式下可见（不被光影管线剔除）
-- [ ] 光环颜色/亮度在光影下合理（不过曝、不过暗）
-- [ ] 光环的半透明效果正常（无黑色方块、无穿透错误）
-- [ ] 光影切换（开关）时游戏不崩溃
-- [ ] 光环的发光（glow）层在光影下效果正常
-
-**风险点**：
-- `RenderSystem.setShader()` 使用的 shader program 可能被光影包替换
-- 光环使用自定义 blend mode（`SRC_ALPHA / ONE` for glow），光影管线可能不支持
-- `RenderSystem.disableCull()` / `depthMask` 状态在光影管线中可能被覆盖
-
----
-
 ## 各版本测试重点
 
 | 版本 | 重点测试项 | 特别关注 |
@@ -365,8 +319,6 @@ Sinytra Connector 依赖：
 | **1.19.4** | T4, T6, T8, T9 | 渲染 API 应一致；`PersistentStateManager` 签名需验证 |
 | **1.19.2** | T1, T4, T8, T9 | 验证 1.19.1 API 在修复版上的稳定性 |
 | **1.19.1** | T1, T4, T9 | 理论下界，重点验证 `CommandExecutionC2SPacket` 和 JOML |
-| **NeoForge 1.20.1** | T1, T4, T14, T15 | Sinytra Connector 翻译 + 光影兼容（待测） |
-| **Forge 1.20.1** | T1, T4, T14 | Sinytra Connector 翻译（待测） |
 
 ### 已确认不可用的版本
 

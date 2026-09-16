@@ -2,6 +2,7 @@ package network.azusake.halo.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.component.SwingAnimation;
 import network.azusake.halo.item.HaloItems;
 import network.azusake.halo.network.HaloNetworkClient;
 
@@ -25,7 +26,7 @@ public final class HaloScepterClientInput {
         if (!attackHeld) {
             attackHeld = true;
             HaloNetworkClient.sendScepterRemoveSelf();
-            client.player.swing(InteractionHand.MAIN_HAND);
+            client.player.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT, false);
         }
         return true;
     }

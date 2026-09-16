@@ -5,7 +5,7 @@ import net.fabricmc.loader.api.ModContainer;
 
 import java.util.Optional;
 
-/** Applies the 3.1.1 lower bound without imposing an upper version limit. */
+/** Applies the verified 3.3.6 lower bound without imposing an upper version limit. */
 public final class EmfVersionGate {
 
     private EmfVersionGate() {
@@ -13,7 +13,7 @@ public final class EmfVersionGate {
 
     public static boolean isSupportedVersion(String version) {
         int[] actual = parseCore(version);
-        int[] minimum = parseCore(Emf262Symbols.MIN_SUPPORTED_VERSION);
+        int[] minimum = parseCore(Emf263Symbols.MIN_SUPPORTED_VERSION);
         if (actual == null || minimum == null) {
             return false;
         }
@@ -27,7 +27,7 @@ public final class EmfVersionGate {
 
     public static Optional<String> installedVersion() {
         return FabricLoader.getInstance()
-            .getModContainer(Emf262Symbols.MOD_ID)
+            .getModContainer(Emf263Symbols.MOD_ID)
             .map(ModContainer::getMetadata)
             .map(metadata -> metadata.getVersion().getFriendlyString());
     }

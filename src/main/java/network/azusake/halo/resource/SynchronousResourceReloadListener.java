@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * 26.2 移除了 Fabric v0 的 {@code ResourceManagerHelper} /
+ * 新版本已移除 Fabric v0 的 {@code ResourceManagerHelper} /
  * {@code SimpleSynchronousResourceReloadListener}。本适配器基于原版
  * {@link PreparableReloadListener} 复刻旧 v0 API 的语义：
  * 准备阶段等待（barrier）后，在游戏线程同步执行加载。

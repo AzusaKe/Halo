@@ -24,17 +24,17 @@ public final class EmfAbiDetector {
      * references are remapped in production.
      */
     public static Result inspect() {
-        Optional<ClassNode> modelPart = readClass(Emf262Symbols.MODEL_PART);
+        Optional<ClassNode> modelPart = readClass(Emf263Symbols.MODEL_PART);
         if (modelPart.isEmpty()) {
-            return Result.incompatible("目标类不存在: " + Emf262Symbols.MODEL_PART);
+            return Result.incompatible("目标类不存在: " + Emf263Symbols.MODEL_PART);
         }
 
         boolean hasNamedRender = modelPart.get().methods.stream()
-            .anyMatch(method -> Emf262Symbols.RENDER_METHOD_NAMED.equals(method.name)
-                && Emf262Symbols.RENDER_DESCRIPTOR_NAMED.equals(method.desc));
+            .anyMatch(method -> Emf263Symbols.RENDER_METHOD_NAMED.equals(method.name)
+                && Emf263Symbols.RENDER_DESCRIPTOR_NAMED.equals(method.desc));
         boolean hasIntermediaryRender = modelPart.get().methods.stream()
-            .anyMatch(method -> Emf262Symbols.RENDER_METHOD_INTERMEDIARY.equals(method.name)
-                && Emf262Symbols.RENDER_DESCRIPTOR_INTERMEDIARY.equals(method.desc));
+            .anyMatch(method -> Emf263Symbols.RENDER_METHOD_INTERMEDIARY.equals(method.name)
+                && Emf263Symbols.RENDER_DESCRIPTOR_INTERMEDIARY.equals(method.desc));
 
         Optional<Namespace> namespace;
         if (hasNamedRender) {
@@ -44,16 +44,16 @@ public final class EmfAbiDetector {
         } else {
             return Result.incompatible(
                 "目标渲染方法不存在: "
-                    + Emf262Symbols.RENDER_METHOD_NAMED
-                    + Emf262Symbols.RENDER_DESCRIPTOR_NAMED
+                    + Emf263Symbols.RENDER_METHOD_NAMED
+                    + Emf263Symbols.RENDER_DESCRIPTOR_NAMED
                     + " 或 "
-                    + Emf262Symbols.RENDER_METHOD_INTERMEDIARY
-                    + Emf262Symbols.RENDER_DESCRIPTOR_INTERMEDIARY);
+                    + Emf263Symbols.RENDER_METHOD_INTERMEDIARY
+                    + Emf263Symbols.RENDER_DESCRIPTOR_INTERMEDIARY);
         }
 
-        Optional<ClassNode> vanillaPart = readClass(Emf262Symbols.VANILLA_MODEL_PART);
+        Optional<ClassNode> vanillaPart = readClass(Emf263Symbols.VANILLA_MODEL_PART);
         if (vanillaPart.isEmpty()) {
-            return Result.incompatible("目标类不存在: " + Emf262Symbols.VANILLA_MODEL_PART);
+            return Result.incompatible("目标类不存在: " + Emf263Symbols.VANILLA_MODEL_PART);
         }
         boolean hasNameField = vanillaPart.get().fields.stream()
             .anyMatch(field -> "name".equals(field.name)
@@ -63,9 +63,9 @@ public final class EmfAbiDetector {
         }
 
         String signature = namespace.get() == Namespace.NAMED
-            ? Emf262Symbols.RENDER_METHOD_NAMED + Emf262Symbols.RENDER_DESCRIPTOR_NAMED
-            : Emf262Symbols.RENDER_METHOD_INTERMEDIARY
-                + Emf262Symbols.RENDER_DESCRIPTOR_INTERMEDIARY;
+            ? Emf263Symbols.RENDER_METHOD_NAMED + Emf263Symbols.RENDER_DESCRIPTOR_NAMED
+            : Emf263Symbols.RENDER_METHOD_INTERMEDIARY
+                + Emf263Symbols.RENDER_DESCRIPTOR_INTERMEDIARY;
         return Result.compatible(namespace.get(), signature);
     }
 
