@@ -29,8 +29,17 @@ final class HaloRenderState implements AutoCloseable {
     private final int activeTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
     private final int[] shaderTextures = new int[4];
     private final int[] boundTextures = new int[4];
+    private final float[][] genericColors;
 
     HaloRenderState() {
+        this(false);
+    }
+    HaloRenderState(boolean constantVertexColor) {
+        genericColors = constantVertexColor ? new float[][]{new float[4], new float[4]} : null;
+        if (genericColors != null) {
+            GL20.glGetVertexAttribfv(1, GL20.GL_CURRENT_VERTEX_ATTRIB, genericColors[0]);
+            GL20.glGetVertexAttribfv(2, GL20.GL_CURRENT_VERTEX_ATTRIB, genericColors[1]);
+        }
         for (int slot = 0; slot < 4; slot++) {
             shaderTextures[slot] = RenderSystem.getShaderTexture(slot);
             RenderSystem.activeTexture(GL13.GL_TEXTURE0 + slot);
@@ -40,6 +49,10 @@ final class HaloRenderState implements AutoCloseable {
     }
 
     @Override public void close() {
+        if (genericColors != null) {
+            GL20.glVertexAttrib4fv(1, genericColors[0]);
+            GL20.glVertexAttrib4fv(2, genericColors[1]);
+        }
         GlStateManager._glBindVertexArray(vao);
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, arrayBuffer);
         GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, elementBuffer);

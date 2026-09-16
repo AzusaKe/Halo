@@ -129,6 +129,10 @@ public final class HaloMeshShader {
         float determinant = matrix.determinant();
         if (Float.isFinite(determinant) && Math.abs(determinant) > 1.0e-8f) matrix.invert().transpose();
         else matrix.identity();
+        setNormalMatrix(shader, matrix);
+    }
+
+    static void setNormalMatrix(ShaderProgram shader, Matrix3f matrix) {
         String name = shader.getUniform("HaloNormalMat") != null ? "HaloNormalMat"
             : shader.getUniform("iris_HaloNormalMat") != null ? "iris_HaloNormalMat" : "NormalMat";
         shader.getUniformOrDefault(name).set(matrix);

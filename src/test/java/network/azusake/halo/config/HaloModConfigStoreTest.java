@@ -21,6 +21,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * loader (FabricLoader) dependency is touched.</p>
  */
 class HaloModConfigStoreTest {
+    @Test void backendSwitchPersistsWithoutDiscardingUnknownOrUnrelatedSettings() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        Files.writeString(configFile(), "{\"futureOption\":{\"nested\":42},\"playerPreviewHaloEnabled\":false}");
+        HaloModConfig config = HaloModConfigStore.load(configFile());
+        config.setPrimitiveRenderBackend("cached");
+        HaloModConfigStore.save(config, configFile());
+        assertEquals(42, persistedJson().getAsJsonObject("futureOption").get("nested").getAsInt());
+        assertFalse(HaloModConfigStore.load(configFile()).isPlayerPreviewHaloEnabled());
+        assertEquals("cached", HaloModConfigStore.get().getPrimitiveRenderBackend());
+    }
 
     @Test void playerPreviewDefaultsAreBackfilledAndExplicitFalseSurvives() throws Exception {
         Files.createDirectories(configFile().getParent());

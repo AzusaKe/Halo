@@ -8,6 +8,16 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class GenerationMeshCacheTest {
+    @Test void aFailedUploadIsNotRetriedEveryRefreshButANewGenerationCanRecover() {
+        var attempts = new java.util.concurrent.atomic.AtomicInteger();
+        var failed = GenerationMeshCache.<Resource>empty().updated(1, Map.of(A,FIRST), (id,mesh) -> {
+            attempts.incrementAndGet(); throw new IllegalStateException("upload failed");
+        },(id,error) -> {}).cache();
+        var same = failed.updated(1,Map.of(A,FIRST),(id,mesh) -> { attempts.incrementAndGet(); return new Resource(); },fail()).cache();
+        assertEquals(1,attempts.get()); assertNull(same.get(A));
+        var recovered = same.updated(2,Map.of(A,FIRST),(id,mesh) -> { attempts.incrementAndGet(); return new Resource(); },fail()).cache();
+        assertEquals(2,attempts.get()); assertNotNull(recovered.get(A)); recovered.close();
+    }
     private static final Identifier A = new Identifier("halo:a"), B = new Identifier("halo:b");
     private static final TriangleMesh FIRST = mesh(0), SECOND = mesh(1);
 

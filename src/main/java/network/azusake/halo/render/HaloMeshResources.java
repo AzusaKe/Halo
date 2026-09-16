@@ -22,12 +22,14 @@ public final class HaloMeshResources {
     private static volatile Snapshot published = new Snapshot(HaloJsonLoader.snapshot(), VisualResources.EMPTY);
     private static VisualAssetLoader loader;
     private static long generation;
+    private static final java.util.Set<Identifier> warmed = new java.util.HashSet<>();
     private HaloMeshResources() {}
 
     public static Snapshot snapshot() { return published; }
 
     /** Called by the client definition reload listener on the resource apply/client thread. */
     public static void reload(ResourceManager manager, DefinitionSnapshot definitions) {
+        warmed.clear();
         loader = new VisualAssetLoader(++generation, new VisualAssetLoader.Source() {
             @Override public String model(Identifier id) throws IOException {
                 var resource = manager.getResource(game(id)).orElseThrow(() -> new IOException("Missing model resource"));
@@ -54,7 +56,19 @@ public final class HaloMeshResources {
         }, problem -> LOG.warn("Skipping mesh asset {}: {}", problem.resource(), problem.message()));
         VisualResources visuals = loader.load(definitions.assets());
         HaloRenderer.getInstance().reloadMeshBuffers(visuals);
-        published = new Snapshot(definitions, visuals);
+        preloadLegacy(definitions);
+        Snapshot next = new Snapshot(definitions, visuals);
+        HaloRenderer.getInstance().reloadPrimitiveBuffers(next, false);
+        published = next;
+    }
+
+    private static void preloadLegacy(DefinitionSnapshot definitions) {
+        definitions.primitiveGeometries();
+        for (Identifier id : definitions.legacyTextures()) {
+            if (!warmed.add(id)) continue;
+            try { MinecraftClient.getInstance().getTextureManager().getTexture(game(id)); }
+            catch (RuntimeException error) { LOG.warn("Could not preload legacy texture {}", id, error); }
+        }
     }
 
     /** Data-pack/integrated definition changes are reconciled during tick, outside the render path. */
@@ -67,6 +81,9 @@ public final class HaloMeshResources {
             visuals = loader.load(definitions.assets());
             HaloRenderer.getInstance().reloadMeshBuffers(visuals);
         }
-        published = new Snapshot(definitions, visuals);
+        preloadLegacy(definitions);
+        Snapshot next = new Snapshot(definitions, visuals);
+        HaloRenderer.getInstance().reloadPrimitiveBuffers(next, false);
+        published = next;
     }
 }

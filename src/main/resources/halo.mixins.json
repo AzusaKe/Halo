@@ -12,6 +12,7 @@
         "LivingEntityPreviewPoseMixin",
         "MeshShaderResourceMixin",
         "VertexBufferAccessor",
+        "BufferBuilderStorageAccessor",
         "EntityRenderContextMixin",
         "MinecraftClientAttackMixin",
         "PlayerEntityRendererHeadCaptureMixin",

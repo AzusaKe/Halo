@@ -20,8 +20,8 @@ import java.util.List;
  *
  * <p>Registers a client-side {@code /halo} command tree via
  * {@link ClientCommandRegistrationCallback}.  The executor checks the current
- * phase and either handles the command locally (LOCAL phase) or forwards it
- * to the server (MULTIPLAYER phase / singleplayer).</p>
+ * phase and either handles ownership commands locally (LOCAL phase) or forwards them
+ * to the server (MULTIPLAYER phase / singleplayer). Renderer selection always stays local.</p>
  *
  * <p>Single-threaded: all command executors run on the render thread.</p>
  */
@@ -63,6 +63,10 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
                                   net.minecraft.command.CommandRegistryAccess registryAccess) {
 
         var haloNode = ClientCommandManager.literal("halo")
+            .then(ClientCommandManager.literal("renderer")
+                .executes(ctx -> renderer(ctx.getSource(), null))
+                .then(ClientCommandManager.literal("compatibility").executes(ctx -> renderer(ctx.getSource(), "compatibility")))
+                .then(ClientCommandManager.literal("cached").executes(ctx -> renderer(ctx.getSource(), "cached"))))
             .executes(ctx -> executeLocal("halo"))
             .then(ClientCommandManager.literal("list")
                 .executes(ctx -> executeLocal("halo list"))
@@ -189,14 +193,18 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
     // Phase-aware dispatch
     // ------------------------------------------------------------------
 
-    /**
-     * Execute a command locally or forward it to the server, depending on
-     * the current phase.
-     *
-     * @param command the reconstructed command string without leading slash
-     *                (e.g. {@code "halo list"})
-     * @return {@code 0}
-     */
+    /** Renderer preferences belong to this client, regardless of ownership phase or permission. */
+    private static int renderer(FabricClientCommandSource source, String backend) {
+        var config = network.azusake.halo.config.HaloModConfigStore.get();
+        if (backend != null) {
+            config.setPrimitiveRenderBackend(backend);
+            network.azusake.halo.config.HaloModConfigStore.save(config);
+        }
+        source.sendFeedback(Text.translatable("halo.renderer.current", config.getPrimitiveRenderBackend()));
+        return 1;
+    }
+
+    /** Execute an ownership command locally or forward it according to the current phase. */
     private static int executeLocal(String command) {
         MinecraftClient client = MinecraftClient.getInstance();
 

@@ -17,6 +17,7 @@ public final class PlayerPreviewRenderer {
     private PlayerPreviewRenderer() {}
 
     public static void beginFrame() {
+        HaloRenderer.getInstance().beginFrame();
         var client = net.minecraft.client.MinecraftClient.getInstance();
         if (!HaloModConfigStore.get().isPlayerPreviewHaloEnabled()) { VIEWS.close(); return; }
         VIEWS.beginFrame(client.currentScreen, client.world, motionOptions(), System.nanoTime());
@@ -51,7 +52,8 @@ public final class PlayerPreviewRenderer {
                 draw(lease.session(), new PreviewFrame(entity.getUuid(), entity.getId(), head,
                     new FrameScene.CameraSample(new Vec3d(0, 0, 0), new Vec3d(0, -1, 0), new Vec3d(1, 0, 0)),
                     capture.root().get(new float[16]), System.currentTimeMillis(), VIEWS.frameNanos(),
-                    LightSample.FULL_BRIGHT, id -> true, assets.visuals()));
+                    LightSample.FULL_BRIGHT, id -> true, assets.visuals(), PreviewFrame.Projection.ORTHOGRAPHIC,
+                    HaloRenderer.getInstance().primitiveMode()));
             }
         }
     }

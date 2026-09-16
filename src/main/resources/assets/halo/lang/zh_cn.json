@@ -18,5 +18,6 @@
   "message.halo.halo_scepter.applied": "已将 %s 赋予 %s",
   "message.halo.halo_scepter.too_far": "目标距离过远",
   "message.halo.halo_scepter.no_halo": "%s 没有可移除的光环",
-  "message.halo.halo_scepter.removed": "已移除 %s 的光环"
+  "message.halo.halo_scepter.removed": "已移除 %s 的光环",
+  "halo.renderer.current": "billboard/ring 渲染方式：%s（仅本客户端）"
 }

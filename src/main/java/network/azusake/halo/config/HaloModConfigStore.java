@@ -102,7 +102,16 @@ public final class HaloModConfigStore {
             if (file.getParent() != null) {
                 Files.createDirectories(file.getParent());
             }
-            Files.writeString(file, network.azusake.halo.core.ModConfigCodec.encode(config));
+            JsonObject saved = new JsonObject();
+            if (Files.exists(file)) {
+                try {
+                    JsonElement previous = JsonParser.parseString(Files.readString(file));
+                    if (previous.isJsonObject()) saved = previous.getAsJsonObject();
+                } catch (RuntimeException ignored) { /* Repair an invalid file using the current values. */ }
+            }
+            var updated = JsonParser.parseString(network.azusake.halo.core.ModConfigCodec.encode(config)).getAsJsonObject();
+            for (var entry : updated.entrySet()) saved.add(entry.getKey(), entry.getValue());
+            Files.writeString(file, GSON.toJson(saved));
         } catch (IOException e) {
             HaloMod.LOGGER.warn("Failed to save Halo mod config {}: {}", file, e.getMessage());
         }

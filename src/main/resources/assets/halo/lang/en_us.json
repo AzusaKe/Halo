@@ -18,5 +18,6 @@
   "message.halo.halo_scepter.applied": "Applied %s to %s",
   "message.halo.halo_scepter.too_far": "That target is too far away",
   "message.halo.halo_scepter.no_halo": "%s has no halo to remove",
-  "message.halo.halo_scepter.removed": "Removed the halo from %s"
+  "message.halo.halo_scepter.removed": "Removed the halo from %s",
+  "halo.renderer.current": "Billboard/ring renderer: %s (client only)"
 }

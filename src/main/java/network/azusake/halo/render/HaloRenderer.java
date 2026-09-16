@@ -28,6 +28,34 @@ public final class HaloRenderer {
                                   Matrix4f modelView, Matrix4f projection, VertexSorter sorting) {}
     private DeferredMeshes deferredMeshes;
     private HaloMeshBufferCache meshBuffers = HaloMeshBufferCache.empty();
+    private HaloMeshBufferCache primitiveBuffers = HaloMeshBufferCache.empty();
+    private PrimitiveRenderMode primitiveMode = PrimitiveRenderMode.COMPATIBILITY;
+    public PrimitiveRenderMode primitiveMode() { return primitiveMode; }
+
+    /** Called at GameRenderer.render HEAD, also while a GUI is open/paused. */
+    public void beginFrame() {
+        PrimitiveRenderMode requested = "cached".equals(network.azusake.halo.config.HaloModConfigStore.get().getPrimitiveRenderBackend())
+            ? PrimitiveRenderMode.CACHED : PrimitiveRenderMode.COMPATIBILITY;
+        if (requested == primitiveMode) return;
+        primitiveMode = requested;
+        reloadPrimitiveBuffers(HaloMeshResources.snapshot(), true);
+    }
+
+    public void reloadPrimitiveBuffers(HaloMeshResources.Snapshot snapshot, boolean force) {
+        RenderSystem.assertOnRenderThread();
+        if (force || primitiveMode == PrimitiveRenderMode.COMPATIBILITY) {
+            primitiveBuffers.close(); primitiveBuffers = HaloMeshBufferCache.empty();
+        }
+        if (primitiveMode == PrimitiveRenderMode.CACHED) {
+            var meshes = new LinkedHashMap<network.azusake.halo.core.Identifier, TriangleMesh>();
+            var quads = new java.util.HashSet<network.azusake.halo.core.Identifier>();
+            snapshot.definitions().primitiveGeometries().forEach((id, geometry) -> {
+                meshes.put(id, geometry.mesh());
+                if (geometry.topology() == DrawBatch.Topology.QUADS) quads.add(id);
+            });
+            primitiveBuffers = primitiveBuffers.updated(new VisualResources(snapshot.visuals().generation(), meshes, Map.of()), quads);
+        }
+    }
     public void clearWorld() { previousWorld = null; deferredMeshes = null; }
     public void reloadMeshBuffers(VisualResources resources) {
         Runnable reload = () -> {
@@ -46,6 +74,7 @@ public final class HaloRenderer {
             HaloMeshBufferCache previous = meshBuffers;
             meshBuffers = HaloMeshBufferCache.empty().updated(HaloMeshResources.snapshot().visuals());
             previous.close();
+            reloadPrimitiveBuffers(HaloMeshResources.snapshot(), true);
         };
         if (RenderSystem.isOnRenderThread()) rebuild.run();
         else RenderSystem.recordRenderCall(rebuild::run);
@@ -56,6 +85,7 @@ public final class HaloRenderer {
             HaloMeshBufferCache previous = meshBuffers;
             meshBuffers = HaloMeshBufferCache.empty();
             previous.close();
+            primitiveBuffers.close(); primitiveBuffers = HaloMeshBufferCache.empty();
         };
         if (RenderSystem.isOnRenderThread()) close.run();
         else RenderSystem.recordRenderCall(close::run);
@@ -108,7 +138,7 @@ public final class HaloRenderer {
                 return new LightSample(
                     client.world.getLightLevel(LightType.BLOCK, block),
                     client.world.getLightLevel(LightType.SKY, block));
-            });
+            }, primitiveMode);
         FrameOutput output = runtime.renderFrame(scene);
         boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
         List<MeshDraw> solidLitMeshes = new ArrayList<>();
@@ -120,6 +150,7 @@ public final class HaloRenderer {
         Matrix4f meshProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
         VertexSorter meshSorting = RenderSystem.getVertexSorting();
         submitBatches(client, output.legacyBatches());
+        HaloDrawSubmitter.submitPrimitives(client, output, primitiveBuffers, RenderEnvironment.WORLD);
         if (!solidLitMeshes.isEmpty()) {
             // Solid entity shaders write deferred G-buffer data. Submit these while
             // Iris is still before beginTranslucents(), which consumes that data.
@@ -173,6 +204,7 @@ public final class HaloRenderer {
     public void submitPreview(FrameOutput output, VisualResources visuals) {
         MinecraftClient client = MinecraftClient.getInstance();
         HaloDrawSubmitter.submitBatches(client, output.legacyBatches(), RenderEnvironment.GUI);
+        HaloDrawSubmitter.submitPrimitives(client, output, primitiveBuffers, RenderEnvironment.GUI);
         HaloDrawSubmitter.submitMeshes(client, new HaloDrawSubmitter.Submission(output.visualGeneration(),
             visuals, output.meshes(), new Matrix4f(RenderSystem.getModelViewMatrix()),
             new Matrix4f(RenderSystem.getProjectionMatrix())), meshBuffers, RenderEnvironment.GUI);

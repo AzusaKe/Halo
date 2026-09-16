@@ -1,5 +1,14 @@
 # 更新记录
 
+## 2.3.1 — 2026-09-16
+
+- 默认 `compatibility` 模式共用预生成 billboard/ring 几何，复用共享顶点计算，仅合并连续且绘制状态相同的批次；每次渲染调用内去重纹理查询。
+- 新增持久化客户端设置 `primitiveRenderBackend` 和 `/halo renderer [compatibility|cached]`。命令不需要服务器权限、不转发到服务器；在下一帧同时切换世界与预览，不重置佩戴、动画或物理。
+- 可选 `cached` 模式复用现有 mesh 缓冲设施，保留旧图元材质、源顺序、透明截断、颜色量化、深度/剔除及提交阶段；OBJ mesh 保持原行为。失败或代次不匹配时从同一帧命令展开回退。
+- 在资源加载/定义刷新时准备旧图元几何与纹理；按资源代次及光影顶点格式管理 GPU 缓存，切回兼容模式释放旧图元缓冲。
+- 保留 Iris 受光 billboard 的四角切线/UV 中点生成；为共用上传缓冲明确释放原生暂存内存，避免反复切换和重载累积。
+- 保留旧 core 构造器、API v2、定义、存档和网络协议。版本为 `2.3.1+adapter.1`，仅 1.20.1 Fabric 主线；模式说明及实测边界见[渲染优化验收记录](docs/render-optimization-verification.md)。
+
 ## 2.3.0 — 2026-09-15
 
 - 将预览锚点纳入 core 统一的 `api.v2`：共用 `HaloAnchorApi.register` 和 `AnchorSource`，新增 `submitPreview` 与当前预览上下文查询，所有采用统一 core 的平台共用同一份签名与坐标/生命周期契约；冻结 flash 分支不迁移。

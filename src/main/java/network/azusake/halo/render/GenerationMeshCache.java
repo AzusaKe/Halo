@@ -16,14 +16,16 @@ final class GenerationMeshCache<T extends GenerationMeshCache.Owned> implements 
 
     private final long generation;
     private final Map<Identifier, Entry<T>> entries;
+    private final Map<Identifier, TriangleMesh> failed;
 
-    private GenerationMeshCache(long generation, Map<Identifier, Entry<T>> entries) {
+    private GenerationMeshCache(long generation, Map<Identifier, Entry<T>> entries, Map<Identifier, TriangleMesh> failed) {
         this.generation = generation;
         this.entries = entries;
+        this.failed = failed;
     }
 
     static <T extends Owned> GenerationMeshCache<T> empty() {
-        return new GenerationMeshCache<>(Long.MIN_VALUE, Map.of());
+        return new GenerationMeshCache<>(Long.MIN_VALUE, Map.of(), Map.of());
     }
 
     Update<T> updated(long nextGeneration, Map<Identifier, TriangleMesh> meshes,
@@ -32,8 +34,13 @@ final class GenerationMeshCache<T extends GenerationMeshCache.Owned> implements 
         Objects.requireNonNull(factory);
         Objects.requireNonNull(failure);
         var next = new HashMap<Identifier, Entry<T>>();
+        var nextFailed = new HashMap<Identifier, TriangleMesh>();
         int created = 0;
         for (var source : meshes.entrySet()) {
+            if (generation == nextGeneration && failed.get(source.getKey()) == source.getValue()) {
+                nextFailed.put(source.getKey(), source.getValue());
+                continue;
+            }
             Entry<T> retained = generation == nextGeneration ? entries.get(source.getKey()) : null;
             if (retained != null && retained.mesh() == source.getValue()) {
                 next.put(source.getKey(), retained);
@@ -43,10 +50,11 @@ final class GenerationMeshCache<T extends GenerationMeshCache.Owned> implements 
                 next.put(source.getKey(), new Entry<>(source.getValue(), factory.create(source.getKey(), source.getValue())));
                 created++;
             } catch (RuntimeException | OutOfMemoryError error) {
+                nextFailed.put(source.getKey(), source.getValue());
                 failure.accept(source.getKey(), error);
             }
         }
-        var replacement = new GenerationMeshCache<T>(nextGeneration, Map.copyOf(next));
+        var replacement = new GenerationMeshCache<T>(nextGeneration, Map.copyOf(next), Map.copyOf(nextFailed));
         closeExcept(replacement);
         return new Update<>(replacement, created);
     }

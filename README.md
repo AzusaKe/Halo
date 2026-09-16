@@ -9,7 +9,12 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**. The current release is **2.3.0+adapter.1**, using HaloCore **2.3.0**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.20.1 Fabric**. The current source version is **2.3.1+adapter.1**, using HaloCore **2.3.1**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+
+Billboard/ring rendering defaults to `compatibility`, with adjacent batching and shared geometry.
+Use `/halo renderer` to query, or `/halo renderer compatibility|cached` to select and save a client-only
+backend. Switching applies to the world and inventory preview at the next frame, without resetting
+animation or physics. OBJ meshes are unaffected. See the [verification record](docs/render-optimization-verification.md).
 
 2.3.0 extends core's loader-neutral anchor API v2 with preview submission; YSM and EMF use that same public
 interface. Providers only capture heads; Halo owns preview physics and drawing. See the
@@ -113,7 +118,7 @@ This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.
 
 ### Commands
 
-All commands require permission level 2 (operator) by default. The required level can be changed in `config/halo-azusake/halo_mod_config.json` (0–4; restart the server/game for changes to take effect). This mod-level config file is separate from the runtime `/halo config` parameters. Use `/halo` with tab completion to explore available subcommands.
+Server commands require permission level 2 (operator) by default. `/halo renderer` is client-only and requires no server permission. The required level can be changed in `config/halo-azusake/halo_mod_config.json` (0–4; restart the server/game for changes to take effect). This mod-level config file is separate from the runtime `/halo config` parameters. Use `/halo` with tab completion to explore available subcommands.
 
 | Command                                            | Description                                                                      |
 | -------------------------------------------------- | -------------------------------------------------------------------------------- |
