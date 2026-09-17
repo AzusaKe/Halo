@@ -101,8 +101,11 @@ tasks.register('verifyDistribution') {
                     if (!names.contains(it.name)) throw new GradleException('Missing flat core class: ' + it.name)
                 }
             }
-            if (!names.contains('halo-build.json') || !names.contains('network/azusake/halo/api/v2/HaloAnchorApi.class')) {
-                throw new GradleException('Provenance or directly visible anchor API missing from final jar.')
+            if (!names.contains('halo-build.json')
+                    || !names.contains('network/azusake/halo/api/v2/HaloAnchorApi.class')
+                    || !names.contains('network/azusake/halo/api/v2/HaloApi.class')
+                    || !names.contains('network/azusake/halo/api/v2/HaloSource.class')) {
+                throw new GradleException('Provenance or directly visible API v2 classes missing from final jar.')
             }
             logger.lifecycle("Verified flat core packaging and provenance: ${jarFile.name}")
         }

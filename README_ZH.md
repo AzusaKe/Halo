@@ -108,7 +108,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ### 命令
 
-服务器命令默认需要 2 级权限（管理员）。`/halo renderer` 为纯客户端命令，无需服务器权限。可在 `config/halo-azusake/halo_mod_config.json` 中修改所需权限等级（0-4，修改后需重启服务器/游戏生效）；该文件是模组级配置文件，与 `/halo config` 的运行时参数无关。使用 `/halo` 配合 Tab 补全探索可用的子命令。
+服务器命令默认需要 2 级权限（管理员）。`/halo renderer` 为纯客户端命令，无需服务器权限。可在 `config/halo-azusake/halo_mod_config.json` 中修改所需权限等级（0-4，修改后需重启服务器/游戏生效）；该文件是模组级配置文件，与 `/halo config` 的运行时参数无关。外部佩戴来源的优先级保存在 `halo_source_priorities.json`，可用 `/halo priority list|set|reload` 运行时查看和调整。使用 `/halo` 配合 Tab 补全探索可用的子命令。
 
 | 命令                                               | 描述                                         |
 | -------------------------------------------------- | -------------------------------------------- |

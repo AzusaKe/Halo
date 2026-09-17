@@ -57,6 +57,7 @@ public final class HaloServerEvents {
             );
             network.azusake.halo.network.HaloNetwork.sendFullSync(handler.getPlayer());
             network.azusake.halo.network.HaloNetwork.sendHello(handler.getPlayer());
+            HaloManager.getInstance().notifyPriorityConflicts(handler.getPlayer());
         });
 
         // Player disconnect → clear runtime halo and reported definitions.

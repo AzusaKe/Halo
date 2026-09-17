@@ -52,6 +52,7 @@ public class HaloMod implements ModInitializer {
         // Load the file-backed mod config (permission level etc.) before the
         // /halo command tree registers, so the permission gate reads it.
         HaloModConfigStore.load();
+        network.azusake.halo.config.HaloSourcePriorityStore.load();
 
         // Register the halo scepter and its server-authoritative interactions.
         HaloItems.register();

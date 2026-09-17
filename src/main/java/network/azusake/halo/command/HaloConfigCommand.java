@@ -12,6 +12,7 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
@@ -26,6 +27,7 @@ import net.minecraft.text.Text;
 import network.azusake.halo.core.Identifier;
 
 import java.util.LinkedHashSet;
+import java.util.TreeSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -126,6 +128,16 @@ public final class HaloConfigCommand {
             )
         );
 
+        var priorityNode = literal("priority");
+        priorityNode.then(literal("list").executes(HaloConfigCommand::listPriorities));
+        priorityNode.then(literal("set")
+            .then(argument("source", IdentifierArgumentType.identifier())
+                .suggests(HaloConfigCommand::suggestSources)
+                .then(argument("priority", IntegerArgumentType.integer())
+                    .executes(HaloConfigCommand::setPriority))));
+        priorityNode.then(literal("reload").executes(HaloConfigCommand::reloadPriorities));
+        haloNode.then(priorityNode);
+
         // --- /halo config <param> <value> ---
         var configNode = literal("config");
 
@@ -193,6 +205,62 @@ public final class HaloConfigCommand {
     // ------------------------------------------------------------------
     // Command executors
     // ------------------------------------------------------------------
+
+    private static CompletableFuture<Suggestions> suggestSources(
+        CommandContext<ServerCommandSource> ctx, SuggestionsBuilder builder
+    ) {
+        HaloManager.getInstance().prioritySnapshot().persistedPriorities().keySet().stream()
+            .filter(id -> id.startsWith(builder.getRemaining().toLowerCase(java.util.Locale.ROOT)))
+            .forEach(builder::suggest);
+        return builder.buildFuture();
+    }
+
+    private static int listPriorities(CommandContext<ServerCommandSource> ctx) {
+        var snapshot = HaloManager.getInstance().prioritySnapshot();
+        var ids = new TreeSet<>(snapshot.persistedPriorities().keySet());
+        ids.addAll(snapshot.entries().keySet());
+        ctx.getSource().sendFeedback(() -> Text.literal("§aHalo sources (§f" + ids.size() + "§a):"), false);
+        for (String id : ids) {
+            var entry = snapshot.entries().get(id);
+            int configured = snapshot.persistedPriorities().getOrDefault(id, entry == null ? 0 : entry.defaultPriority());
+            String line = entry == null
+                ? "  §7- §f" + id + " §8configured=§7" + configured + " §8status=§7not-registered"
+                : "  §7- §f" + id + " §8default=§7" + entry.defaultPriority()
+                    + " §8configured=§7" + configured
+                    + " §8effective=§7" + (entry.effectivePriority() == null ? "disabled" : entry.effectivePriority())
+                    + " §8order=§7" + entry.registrationOrder() + " §8status=§7"
+                    + entry.status().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+            ctx.getSource().sendFeedback(() -> Text.literal(line), false);
+        }
+        return ids.size();
+    }
+
+    private static int setPriority(CommandContext<ServerCommandSource> ctx) {
+        String id = IdentifierArgumentType.getIdentifier(ctx, "source").toString();
+        int priority = IntegerArgumentType.getInteger(ctx, "priority");
+        HaloManager.getInstance().setPriority(id, priority);
+        var entry = HaloManager.getInstance().prioritySnapshot().entries().get(id);
+        if (entry == null) {
+            ctx.getSource().sendFeedback(() -> Text.literal("§aSaved priority §f" + priority + "§a for §f" + id
+                + "§a; it will apply when that source registers."), true);
+        } else {
+            ctx.getSource().sendFeedback(() -> Text.literal("§aPriority updated without restart: §f" + id
+                + " §8configured=§7" + priority + " §8effective=§7"
+                + (entry.effectivePriority() == null ? "disabled-conflict" : entry.effectivePriority())), true);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int reloadPriorities(CommandContext<ServerCommandSource> ctx) {
+        var result = HaloManager.getInstance().reloadPriorities();
+        if (!result.success()) {
+            ctx.getSource().sendError(Text.literal("Failed to reload halo source priorities; the last valid runtime values remain: "
+                + result.message()));
+            return 0;
+        }
+        ctx.getSource().sendFeedback(() -> Text.literal("§aHalo source priorities reloaded without restart."), true);
+        return Command.SINGLE_SUCCESS;
+    }
 
     /**
      * /halo list — show a compact listing of all server-loaded halo definitions
@@ -329,6 +397,11 @@ public final class HaloConfigCommand {
         HaloManager.getInstance().showHaloOn(living, resolvedId);
 
         source.sendFeedback(() -> Text.literal("§aHalo §f" + resolvedId + "§a shown on §f" + living.getDisplayName().getString()), true);
+        var selected = HaloManager.getInstance().selection(living.getUuid());
+        if (selected != null && !HaloManager.WORLD_DATA_SOURCE_ID.equals(selected.sourceId())) {
+            source.sendFeedback(() -> Text.literal("§eWorldData was saved, but source §f" + selected.sourceId()
+                + "§e remains selected at priority §f" + selected.priority()), false);
+        }
         return Command.SINGLE_SUCCESS;
     }
 
@@ -388,8 +461,13 @@ public final class HaloConfigCommand {
         }
 
         HaloManager.getInstance().hideHaloOn(living);
-
-        source.sendFeedback(() -> Text.literal("§aHalo hidden from §f" + living.getDisplayName().getString()), true);
+        var selected = HaloManager.getInstance().selection(living.getUuid());
+        if (selected == null) {
+            source.sendFeedback(() -> Text.literal("§aHalo hidden from §f" + living.getDisplayName().getString()), true);
+        } else {
+            source.sendFeedback(() -> Text.literal("§aWorldData halo removed from §f" + living.getDisplayName().getString()
+                + "§a; source §f" + selected.sourceId() + "§a remains selected"), true);
+        }
         return Command.SINGLE_SUCCESS;
     }
 
@@ -460,12 +538,15 @@ public final class HaloConfigCommand {
             String status = instance.isActive() ? "§aactive" : "§cdead";
             String nbt = persisted ? "§a✓persist" : "§c✗persist";
             String tp = teleporting ? " §etp" : "";
+            var selection = HaloManager.getInstance().selection(uuid);
+            String selectedSource = selection == null ? "<none>" : selection.sourceId() + "@" + selection.priority();
 
             final String name = entityName;
             source.sendFeedback(() -> Text.literal(
                 "  §7- §f" + name +
                     " §8uuid=§7" + uuid.toString().substring(0, 8) + "..." +
                     " §8def=§7" + instance.getDefinitionId() +
+                    " §8source=§7" + selectedSource +
                     " §8age=§7" + (ageMs / 1000) + "s" +
                     " " + status + " " + nbt + tp
             ), false);
@@ -541,6 +622,14 @@ public final class HaloConfigCommand {
         source.sendFeedback(() -> Text.literal(
             "  §8Definition: §f" + instance.getDefinitionId()), false
         );
+        var selection = HaloManager.getInstance().selection(uuid);
+        if (selection != null) source.sendFeedback(() -> Text.literal(
+            "  §8Source:     §f" + selection.sourceId() + " §8Priority: §7" + selection.priority()), false);
+        var candidates = HaloManager.getInstance().candidates(uuid);
+        if (!candidates.isEmpty()) source.sendFeedback(() -> Text.literal(
+            "  §8Candidates: §7" + candidates.stream().map(candidate -> candidate.sourceId() + "@"
+                + (candidate.priority() == null ? "disabled-conflict" : candidate.priority()) + "="
+                + candidate.definition()).collect(java.util.stream.Collectors.joining(", "))), false);
         source.sendFeedback(() -> Text.literal(
             "  §8Status:    " + (isActive ? "§aactive" : "§cdeactivated") +
             "  §8Age: §7" + (ageMs / 1000) + "s" +

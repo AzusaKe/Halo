@@ -2,8 +2,8 @@
 
 ## 从这里开始：接入 API v2
 
-本文以 **Halo 2.3.0、Minecraft 1.20.1 Fabric、Java 17** 为基准。其他已接入宿主可以复用中立接口，但旧版／冻结适配器不因此自动拥有预览能力。
-API v2 为**已经佩戴的光环提供头部锚点**，不负责佩戴光环或绘制任意几何。先用 `/halo list` 查找定义，再用 `/halo show @s <定义ID>` 佩戴一个光环。
+本文以 **Halo 2.4.0、Minecraft 1.20.1 Fabric、Java 17** 为基准。其他已接入宿主可以复用中立接口，但旧版／冻结适配器不因此自动拥有预览能力。
+API v2 为光环提供**头部锚点和服务端佩戴来源**，不负责动态注册物品或绘制任意几何。先用 `/halo list` 查找定义，再用 `/halo show @s <定义ID>` 佩戴一个由 Halo 管理的光环。
 
 阅读顺序：[1. 依赖配置](#dependency-setup) → [2. 模型提供者](#provider-routing) → [3. 预览面板](#preview-host-integration) → [4. 接口参考](#api-v2-reference) → [5. 验证排错](#integration-checks)。[其他接口](#other-interfaces)位于 API v2 指南之后。
 
@@ -20,35 +20,35 @@ API v2 为**已经佩戴的光环提供头部锚点**，不负责佩戴光环或
 
 ## 1. 依赖配置与客户端初始化
 
-把与目标 Minecraft 版本及加载器匹配的 Halo 2.3.0 jar 放入自己模组的 `libs` 目录。编译时引用，不要把 Halo 打进自己的模组：
+把与目标 Minecraft 版本及加载器匹配的 Halo 2.4.0 jar 放入自己模组的 `libs` 目录。编译时引用，不要把 Halo 打进自己的模组：
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/halo-1.20.1-fabric-2.3.0+adapter.1.jar")
-    modLocalRuntime files("libs/halo-1.20.1-fabric-2.3.0+adapter.1.jar")
+    modCompileOnly files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
+    modLocalRuntime files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
 }
 ```
 
-这是 Fabric Loom 配置：将生产模组 jar 重映射到开发环境，`modLocalRuntime` 还会在 `runClient` 中加载它。文件名替换为实际下载名称。仅使用中立 API 类型的普通 Java 工程可用 `compileOnly files(...)`；其他加载器使用相应工具链的重映射配置。不要 `include` 或 shade Halo/core，也不安装独立 API jar。当前受支持发布为 [1.20.1 Fabric 的 2.3.0](https://github.com/AzusaKe/Halo/releases/tag/v2.3.0-fabric-1.20.1-adapter.1)。
+这是 Fabric Loom 配置：将生产模组 jar 重映射到开发环境，`modLocalRuntime` 还会在 `runClient` 中加载它。文件名替换为实际下载名称。仅使用中立 API 类型的普通 Java 工程可用 `compileOnly files(...)`；其他加载器使用相应工具链的重映射配置。不要 `include`、shade Halo/core 或安装独立 API jar。佩戴来源 API 自 2.4.0 起可用；正式发布前使用仓库构建产物测试，发布后改用对应正式产物。
 
 运行时仍须把 Halo 作为独立模组安装。若该适配是必需功能，在 `fabric.mod.json` 添加以下依赖：
 
 ```json
 {
   "depends": {
-    "halo": ">=2.3.0"
+    "halo": ">=2.4.0"
   }
 }
 ```
 
-以下元数据仅供**未来／匹配的 Forge、NeoForge 适配器**参考，不表示这些平台已有 2.3.0 成品：
+以下元数据仅供**未来／匹配的 Forge、NeoForge 适配器**参考，不表示这些平台已有 2.4.0 成品：
 
 ```toml
 # Forge 1.20.1：META-INF/mods.toml
 [[dependencies.your_mod_id]]
 modId="halo"
 mandatory=true
-versionRange="[2.3.0,)"
+versionRange="[2.4.0,)"
 ordering="AFTER"
 side="CLIENT"
 
@@ -56,12 +56,12 @@ side="CLIENT"
 [[dependencies.your_mod_id]]
 modId="halo"
 type="required"
-versionRange="[2.3.0,)"
+versionRange="[2.4.0,)"
 ordering="AFTER"
 side="CLIENT"
 ```
 
-若 Halo 是可选依赖，应先通过加载器检查 Halo 是否存在，并把所有直接 API 引用隔离在专用兼容类中；Halo 不存在或版本低于所调用 API 时不得加载该类。Fabric 可使用 `FabricLoader.getInstance().isModLoaded("halo")` 加版本检查（或可选的 `"suggests": {"halo": ">=2.3.0"}` 配合 `"breaks": {"halo": "<2.3.0"}`）。仅在客户端入口注册，服务端类加载不得初始化 bridge。
+若 Halo 是可选依赖，应先通过加载器检查 Halo 是否存在，并把所有直接 API 引用隔离在专用兼容类中；Halo 不存在或版本低于所调用 API 时不得加载该类。Fabric 可使用 `FabricLoader.getInstance().isModLoaded("halo")` 加版本检查（或可选的 `"suggests": {"halo": ">=2.4.0"}` 配合 `"breaks": {"halo": "<2.4.0"}`）。按功能从通用端或客户端入口注册；专用服务端类加载不得初始化客户端 bridge。
 
 <a id="preview-anchor-provider-api"></a>
 <a id="provider-routing"></a>
@@ -312,6 +312,34 @@ public interface PreviewAnchorContext {
 ---
 
 <a id="other-interfaces"></a>
+
+## 6. 服务端佩戴来源 API
+
+需要把饰品、职业或其他模组状态转换为光环时，在通用初始化阶段注册一次来源：
+
+```java
+import network.azusake.halo.api.v2.HaloApi;
+import network.azusake.halo.api.v2.HaloSource;
+
+HaloSource source = HaloApi.registerSource("example:accessory", 20);
+
+// 在逻辑服务端线程的装备/恢复事件中：
+source.set(player.getUuid(), "example:angel_halo");
+source.clear(player.getUuid());
+source.clearAll();
+source.close(); // 幂等；之后可重新注册同一 ID
+```
+
+- 来源和定义 ID 必须是完整小写 `namespace:path`。同一来源 ID 在关闭前只能注册一次；句柄应保留到集成永久停用时再关闭，不能每 tick 重注册。
+- `set`、`clear`、`clearAll` 必须在逻辑服务端线程调用。返回值表示活动宿主是否接受候选变更，不表示该来源已经赢得仲裁；没有活动服务端会话时返回 `false`／`0`，也不会保留候选。
+- 每个来源对每个实体只有一个候选。Halo 比较当前实例的实际优先级，只把唯一胜者通过原协议发给客户端。
+- 优先级是完整的有符号 32 位整数，数值越大越优先；负数合法。开发者默认值不受硬性倍数限制，但**应采用 `10n` 间隔**（例如 `-20、-10、0、10、20`），为整合包覆写和自动降一级留下空间。
+- `config/halo-azusake/halo_source_priorities.json` 可以覆写开发者默认值。管理员可用 `/halo priority list`、`set`、`reload` 查看、持久化和热重载，无需重启。
+- 同级来源按注册顺序先来先得；第二个来源自动降一级并写回配置。该位置仍冲突或已是 `Integer.MIN_VALUE` 时，来源暂时禁用并通知管理员，直到配置被修正并 reload/restart。
+- 来源注册可以保留，但候选不会跨服务端会话。新世界/新服务端启动后，应在实体加载、登录或装备恢复事件中重新 `set`。
+- 外部模组必须把对应定义、纹理和模型作为客户端资源随自身分发，并在加载器元数据中声明 Halo 2.4.0 或更高版本；不要复制或打包 Halo/core API 类。
+
+Halo 自有的 `halo:world_data` 默认优先级为 `0`。`/halo show`、`/halo hide` 和权杖只修改这个来源，不会强制覆盖或移除外部来源。胜者来源改变但定义相同时不会重启动画。
 
 ## 其他接口
 

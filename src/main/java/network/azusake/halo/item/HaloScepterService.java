@@ -13,6 +13,7 @@ import network.azusake.halo.core.Identifier;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.network.HaloNetwork;
+import network.azusake.halo.lifecycle.HaloWorldSaveData;
 
 import java.util.UUID;
 
@@ -52,15 +53,20 @@ public final class HaloScepterService {
 
     public static void remove(ServerPlayerEntity player, Entity requestedTarget, boolean selfTarget) {
         Entity resolved=selfTarget?player:requestedTarget;
+        boolean hasWorldData = resolved != null && player.getServer() != null
+            && HaloWorldSaveData.get(player.getServer().getOverworld()).contains(resolved.getUuid());
         var failure=network.azusake.halo.core.runtime.ScepterPolicy.remove(hasPermission(player),
             player.getMainHandStack().isOf(HaloItems.HALO_SCEPTER),resolved instanceof LivingEntity && resolved.isAlive(),
             selfTarget,resolved==null?Double.POSITIVE_INFINITY:player.squaredDistanceTo(resolved),
-            resolved!=null && HaloManager.getInstance().getHaloInstance(resolved.getUuid())!=null);
+            hasWorldData);
         if(failure!=null){deny(player,failure,resolved);return;}
         LivingEntity target=(LivingEntity)resolved;
 
         HaloManager.getInstance().hideHaloOn(target);
         feedback(player, "message.halo.halo_scepter.removed", target.getDisplayName());
+        var selected = HaloManager.getInstance().selection(target.getUuid());
+        if (selected != null) player.sendMessage(Text.literal("[Halo] Source '" + selected.sourceId()
+            + "' remains selected at priority " + selected.priority()), true);
     }
 
     public static void close(UUID playerUuid) {

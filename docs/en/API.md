@@ -2,7 +2,7 @@
 
 ## Start here: integrate API v2
 
-This guide targets **Halo 2.3.0, Minecraft 1.20.1 Fabric, Java 17**. Other integrated hosts can reuse the neutral API; older/frozen adapters do not automatically provide previews. API v2 supplies **head anchors for equipped halos**, not equipment or arbitrary geometry. First use `/halo list` and `/halo show @s <definition-id>` to equip a halo.
+This guide targets **Halo 2.4.0, Minecraft 1.20.1 Fabric, Java 17**. Other integrated hosts can reuse the neutral API; older/frozen adapters do not automatically provide previews. API v2 supplies **head anchors and server ownership sources**, not dynamic items or arbitrary geometry. First use `/halo list` and `/halo show @s <definition-id>` to equip a Halo-owned halo.
 
 Read in order: [1. Dependencies](#dependency-setup) → [2. Model provider](#provider-routing) → [3. Preview panel](#preview-host-integration) → [4. API reference](#api-v2-reference) → [5. Verification](#integration-checks). [Other interfaces](#other-interfaces) follow the API v2 guide.
 
@@ -19,35 +19,35 @@ Providers need only `network.azusake.halo.api.v2`; hosts also use `core.runtime`
 
 ## 1. Dependencies and client initialization
 
-Place the Halo 2.3.0 jar matching the Minecraft version and loader in your mod's `libs` directory. Compile against it without bundling it into your mod:
+Place the Halo 2.4.0 jar matching the Minecraft version and loader in your mod's `libs` directory. Compile against it without bundling it into your mod:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/halo-1.20.1-fabric-2.3.0+adapter.1.jar")
-    modLocalRuntime files("libs/halo-1.20.1-fabric-2.3.0+adapter.1.jar")
+    modCompileOnly files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
+    modLocalRuntime files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
 }
 ```
 
-This is Fabric Loom syntax: the production mod jar is remapped for development, and `modLocalRuntime` also loads it in `runClient`. Use the actual downloaded filename. A plain Java project using only neutral API types can use `compileOnly files(...)`; other loader toolchains need their own remapping setup. Do not use `include` or shade Halo/core, or install a separate API jar. The current supported release is [2.3.0 for 1.20.1 Fabric](https://github.com/AzusaKe/Halo/releases/tag/v2.3.0-fabric-1.20.1-adapter.1).
+This is Fabric Loom syntax: the production mod jar is remapped for development, and `modLocalRuntime` also loads it in `runClient`. Use the actual downloaded filename. A plain Java project using only neutral API types can use `compileOnly files(...)`; other loader toolchains need their own remapping setup. Do not use `include` or shade Halo/core, or install a separate API jar. The ownership-source API starts in 2.4.0; before release, test against the repository artifact, then use its corresponding release artifact.
 
 Halo must be installed separately at runtime. For a required integration, add this dependency to `fabric.mod.json`:
 
 ```json
 {
   "depends": {
-    "halo": ">=2.3.0"
+    "halo": ">=2.4.0"
   }
 }
 ```
 
-The following metadata is only a reference for **future/matching Forge or NeoForge adapters**, not a claim that a 2.3.0 build exists for them:
+The following metadata is only a reference for **future/matching Forge or NeoForge adapters**, not a claim that a 2.4.0 build exists for them:
 
 ```toml
 # Forge 1.20.1: META-INF/mods.toml
 [[dependencies.your_mod_id]]
 modId="halo"
 mandatory=true
-versionRange="[2.3.0,)"
+versionRange="[2.4.0,)"
 ordering="AFTER"
 side="CLIENT"
 
@@ -55,12 +55,12 @@ side="CLIENT"
 [[dependencies.your_mod_id]]
 modId="halo"
 type="required"
-versionRange="[2.3.0,)"
+versionRange="[2.4.0,)"
 ordering="AFTER"
 side="CLIENT"
 ```
 
-For an optional integration, first use the loader's mod-presence check and isolate all direct API references in a compatibility-only class. Do not load that class when Halo is absent or older than the API you call. On Fabric, use `FabricLoader.getInstance().isModLoaded("halo")` plus a version check (or an optional `"suggests": {"halo": ">=2.3.0"}` with `"breaks": {"halo": "<2.3.0"}`). Register only from your client entrypoint; server-side class loading must not initialize the bridge.
+For an optional integration, first use the loader's mod-presence check and isolate all direct API references in a compatibility-only class. Do not load that class when Halo is absent or older than the API you call. On Fabric, use `FabricLoader.getInstance().isModLoaded("halo")` plus a version check (or an optional `"suggests": {"halo": ">=2.4.0"}` with `"breaks": {"halo": "<2.4.0"}`). Register only from the appropriate common/client entrypoint; dedicated-server class loading must not initialize client bridges.
 
 <a id="preview-anchor-provider-api"></a>
 <a id="provider-routing"></a>
@@ -312,6 +312,48 @@ Built-in sources are `halo:vanilla`, `halo:emf` and, for supported YSM versions,
 ---
 
 <a id="other-interfaces"></a>
+
+## 6. Server ownership source API
+
+Register one source during common initialization when an accessory, class or another mod owns the
+wear state:
+
+```java
+import network.azusake.halo.api.v2.HaloApi;
+import network.azusake.halo.api.v2.HaloSource;
+
+HaloSource source = HaloApi.registerSource("example:accessory", 20);
+
+// From equip/restore events on the logical server thread:
+source.set(player.getUuid(), "example:angel_halo");
+source.clear(player.getUuid());
+source.clearAll();
+source.close(); // idempotent; the same ID can then be registered again
+```
+
+- Source and definition IDs are full lowercase `namespace:path` identifiers. Keep one handle for the
+  integration lifetime; do not register per tick.
+- Call `set`, `clear` and `clearAll` on the logical server thread. Their return values mean that the
+  active host accepted a candidate change, not that the source won arbitration. With no active
+  server session they return `false`/`0` and retain no candidate.
+- Each source has at most one candidate per entity. Halo selects one winner using the instance's
+  effective priorities and sends only that definition over the existing protocol.
+- Priorities use the full signed 32-bit range; larger values win and negative values are valid. The
+  API accepts any integer, but provider defaults **should use `10n` spacing** such as
+  `-20, -10, 0, 10, 20` so packs and the one-step collision fallback have room.
+- `config/halo-azusake/halo_source_priorities.json` overrides provider defaults. Operators can inspect,
+  persist and hot-reload it with `/halo priority list`, `set` and `reload`; no restart is required.
+- Registration order wins an equal slot. The next source is demoted by one and persisted. If that slot
+  also conflicts, or the requested value is `Integer.MIN_VALUE`, the source is disabled and operators
+  are notified until they correct and reload/restart the configuration.
+- Registrations may outlive a server, but candidates never cross server sessions. Re-submit them from
+  entity-load, login or equipment-restoration events after a new server/world starts.
+- The provider mod must ship every referenced definition, texture and model as client resources and
+  declare Halo 2.4.0+ in loader metadata. Do not bundle duplicate Halo/core API classes.
+
+Halo's `halo:world_data` source defaults to priority `0`. `/halo show`, `/halo hide` and the scepter
+modify only that source; they never force or remove an external source. Switching sources without
+changing the resolved definition does not restart presentation.
 
 ## Other interfaces
 

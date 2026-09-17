@@ -307,24 +307,14 @@ public final class EntityHaloTracker {
     private static void onPlayerRespawn(ServerPlayerEntity player) {
         UUID uuid = player.getUuid();
 
-        // Idempotency guard: if ENTITY_LOAD already restored the halo during
-        // the respawn, don't broadcast a second attach.
-        if (HaloManager.getInstance().getHaloInstance(uuid) != null) {
-            return;
-        }
-
         MinecraftServer server = player.getServer();
         if (server == null) {
             return;
         }
 
         Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(uuid);
-        if (defId == null) {
-            return;
-        }
-
         HaloManager.getInstance().restore(player);
-        HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on player {} after respawn", defId, uuid);
+        if (defId != null) HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on player {} after respawn", defId, uuid);
     }
 
     /**
@@ -339,14 +329,8 @@ public final class EntityHaloTracker {
         }
 
         Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(entity.getUuid());
-        if (defId == null) {
-            return;
-        }
-
-        // Re-create the halo instance via HaloManager
         HaloManager.getInstance().restore(entity);
-
-        HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on entity {} from world save",
+        if (defId != null) HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on entity {} from world save",
             defId, entity.getUuid());
     }
 

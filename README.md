@@ -118,7 +118,7 @@ This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.
 
 ### Commands
 
-Server commands require permission level 2 (operator) by default. `/halo renderer` is client-only and requires no server permission. The required level can be changed in `config/halo-azusake/halo_mod_config.json` (0–4; restart the server/game for changes to take effect). This mod-level config file is separate from the runtime `/halo config` parameters. Use `/halo` with tab completion to explore available subcommands.
+Server commands require permission level 2 (operator) by default. `/halo renderer` is client-only and requires no server permission. The required level can be changed in `config/halo-azusake/halo_mod_config.json` (0–4; restart the server/game for changes to take effect). This mod-level config file is separate from the runtime `/halo config` parameters. External ownership priorities live in `halo_source_priorities.json` and can be inspected or changed at runtime with `/halo priority list|set|reload`. Use `/halo` with tab completion to explore available subcommands.
 
 | Command                                            | Description                                                                      |
 | -------------------------------------------------- | -------------------------------------------------------------------------------- |
