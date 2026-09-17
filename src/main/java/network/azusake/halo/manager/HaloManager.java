@@ -13,6 +13,7 @@ import network.azusake.halo.data.*;
 import network.azusake.halo.lifecycle.HaloWorldSaveData;
 import network.azusake.halo.network.HaloNetwork;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.Entity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -25,6 +26,7 @@ public final class HaloManager {
     private static final HaloManager INSTANCE = new HaloManager();
     private final HaloSource worldDataSource = HaloApi.registerSource(WORLD_DATA_SOURCE_ID, 0);
     private final Set<String> reportedConflicts = new HashSet<>();
+    private final Map<UUID, Entity> pendingUnloads = new LinkedHashMap<>();
     private MinecraftServer server;
     private ServerRuntime runtime;
     private HaloSourceHost sourceHost;
@@ -39,6 +41,7 @@ public final class HaloManager {
         server = value;
         config = new HaloConfig();
         reportedConflicts.clear();
+        pendingUnloads.clear();
         network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
         runtime = new ServerRuntime(new ServerRuntime.OwnershipStore() {
             private HaloWorldSaveData data() { return HaloWorldSaveData.get(value.getOverworld()); }
@@ -64,6 +67,7 @@ public final class HaloManager {
     public void stop() {
         if (sourceHost != null) sourceHost.close();
         sourceHost = null; runtime = null; server = null; reportedConflicts.clear();
+        pendingUnloads.clear();
         network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
     }
 
@@ -117,10 +121,31 @@ public final class HaloManager {
     public void removeHalo(UUID uuid, MinecraftServer ignored) {
         if (runtime != null && sourceHost != null) sourceHost.deactivate(uuid);
     }
+
+    /**
+     * Deactivate an unloaded entity, then immediately reactivate a replacement
+     * with the same UUID when dimension travel loaded it before unloading the
+     * old instance. If unload happens first, the normal ENTITY_LOAD callback
+     * performs the later activation instead.
+     */
+    public void entityUnloaded(Entity unloaded) {
+        UUID uuid = unloaded.getUuid();
+        if (runtime == null || sourceHost == null) return;
+        sourceHost.deactivate(uuid);
+        pendingUnloads.put(uuid, unloaded);
+    }
     public void forceRemoveHalo(UUID uuid) { if (runtime != null && sourceHost != null) sourceHost.deactivate(uuid); }
 
     public void tickAll(MinecraftServer server) {
         bind(server);
+        pendingUnloads.forEach((uuid, unloaded) -> {
+            LivingEntity replacement = findEntity(uuid, unloaded);
+            if (replacement != null) {
+                sourceHost.activate(uuid);
+                syncMirror(replacement);
+            }
+        });
+        pendingUnloads.clear();
         syncPriorityFileAndWarnings();
         for (UUID uuid : runtime.snapshot().keySet()) if (findEntity(uuid) == null) sourceHost.deactivate(uuid);
     }
@@ -197,10 +222,14 @@ public final class HaloManager {
     }
 
     private LivingEntity findEntity(UUID uuid) {
+        return findEntity(uuid, null);
+    }
+
+    private LivingEntity findEntity(UUID uuid, Entity excluded) {
         if (server == null) return null;
         for (var world : server.getWorlds()) {
             var entity = world.getEntity(uuid);
-            if (entity instanceof LivingEntity living && living.isAlive()) return living;
+            if (entity != excluded && entity instanceof LivingEntity living && living.isAlive()) return living;
         }
         return null;
     }

@@ -43,7 +43,7 @@ public final class HaloServerEvents {
                 "HaloServerEvents: entity unloaded – uuid={}, type={}",
                 entity.getUuid(), entity.getType().getName().getString()
             );
-            HaloManager.getInstance().removeHalo(entity.getUuid(), world.getServer());
+            HaloManager.getInstance().entityUnloaded(entity);
             HaloScepterService.invalidateTarget(world.getServer(), entity.getUuid());
         });
     }
