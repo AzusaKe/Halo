@@ -9,7 +9,7 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**. The current source version is **2.3.1+adapter.1**, using HaloCore **2.3.1**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.20.1 Fabric**. The current source version is **2.3.2+adapter.1**, using HaloCore **2.3.2**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 Billboard/ring rendering defaults to `compatibility`, with adjacent batching and shared geometry.
 Use `/halo renderer` to query, or `/halo renderer compatibility|cached` to select and save a client-only
@@ -326,7 +326,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-1.20.1-fabric-2.1.2+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-1.20.1-fabric-2.3.2+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 

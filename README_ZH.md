@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 1.20.1 Fabric**，当前源码版本为 **2.3.1+adapter.1**，使用 HaloCore **2.3.1**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 1.20.1 Fabric**，当前源码版本为 **2.3.2+adapter.1**，使用 HaloCore **2.3.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo renderer` 查询当前模式，`/halo renderer compatibility|cached` 切换并保存；命令只在客户端执行，无需服务器权限。下一帧同时作用于世界与物品栏预览，不重启动画或物理，OBJ mesh 不受影响。配置项为 `primitiveRenderBackend`，缺失或非法值恢复默认。详见[模式与验收记录](docs/render-optimization-verification.md)。
 
@@ -316,7 +316,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.3.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.3.2+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 

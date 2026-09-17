@@ -6,7 +6,7 @@
 
 - core：`9990753efdb056c736bc05b9478be010bb7dc7db`，分支 `codex/mesh-submit-optimization`。
 - Halo：`0efffaba581a37bc61308b8733242a39d76117fe`，分支 `codex/mesh-submit-optimization-1.20.1`，gitlink 指向上述 core。
-- 顺序为 core 提交在前、Halo 在后。未合入主线、未推送、未打标签。优化完整矩阵仍未验收，详见 [mesh-submit-optimization.md](mesh-submit-optimization.md)。
+- 检查点阶段按 core 在前、Halo 在后的顺序提交，当时未合入主线、未推送、未打标签。后续用户确认本问题不属于本次优化引入，决定将本轮优化验收设为通过，并授权发布 2.3.2；实际测试范围仍保留，详见 [mesh-submit-optimization.md](mesh-submit-optimization.md)。
 
 ## Release 来源与隔离环境
 
