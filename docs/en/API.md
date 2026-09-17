@@ -4,31 +4,34 @@
 
 This guide targets **Halo 2.4.0, Minecraft 1.20.1 Fabric, Java 17**. Other integrated hosts can reuse the neutral API; older/frozen adapters do not automatically provide previews. API v2 supplies **head anchors and server ownership sources**, not dynamic items or arbitrary geometry. First use `/halo list` and `/halo show @s <definition-id>` to equip a Halo-owned halo.
 
-Read in order: [1. Dependencies](#dependency-setup) → [2. Model provider](#provider-routing) → [3. Preview panel](#preview-host-integration) → [4. API reference](#api-v2-reference) → [5. Verification](#integration-checks). [Other interfaces](#other-interfaces) follow the API v2 guide.
+Start with [1. Dependencies](#dependency-setup). For accessories, classes or other ownership state, continue directly to [6. Server ownership sources](#server-ownership-source-api). For model anchors, continue through [2. Model provider](#provider-routing) → [3. Preview panel](#preview-host-integration) → [4. API reference](#api-v2-reference) → [5. Verification](#integration-checks). [Other interfaces](#other-interfaces) follow the API v2 guide.
 
 | Your integration | Route |
 | --- | --- |
+| Accessory, class, ability or other server-owned wear state | Register a [server ownership source](#server-ownership-source-api) and submit a definition ID when state is restored or changes |
 | A world entity/model renderer | [World submission](#world-anchor-api), after the shared setup |
 | A renderer also used in previews | Reuse its source and [route each invocation](#provider-routing) |
 | A panel drawing the real player with `InventoryScreen.drawEntity` | Call the vanilla helper; Halo automatically handles the player preview |
 | Proxy entities, direct model draws or a custom camera | Implement an [independent preview host](#independent-preview-host) |
 
-Providers need only `network.azusake.halo.api.v2`; hosts also use `core.runtime` and `core.render`. Preview-only integrations also start with the [shared dependency setup](#dependency-setup).
+Ownership and model providers need only `network.azusake.halo.api.v2`; preview hosts also use `core.runtime` and `core.render`. Integrations using only one capability still start with the [shared dependency setup](#dependency-setup).
 
 <a id="dependency-setup"></a>
 
-## 1. Dependencies and client initialization
+## 1. Dependencies and initialization
 
-Place the Halo 2.4.0 jar matching the Minecraft version and loader in your mod's `libs` directory. Compile against it without bundling it into your mod:
+When calling only `network.azusake.halo.api.v2`, download `halo-core-2.4.0.jar` from the [HaloCore 2.4.0 release](https://github.com/AzusaKe/HaloCore/releases/tag/v2.4.0), place it in your mod's `libs` directory, and use it only as a compile dependency. Its public API contains Java 17/JDK types and needs no Minecraft mappings:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
+    compileOnly files("libs/halo-core-2.4.0.jar")
+
+    // Optional Fabric Loom development runtime; never bundle this file.
     modLocalRuntime files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
 }
 ```
 
-This is Fabric Loom syntax: the production mod jar is remapped for development, and `modLocalRuntime` also loads it in `runClient`. Use the actual downloaded filename. A plain Java project using only neutral API types can use `compileOnly files(...)`; other loader toolchains need their own remapping setup. Do not use `include` or shade Halo/core, or install a separate API jar. The ownership-source API starts in 2.4.0; before release, test against the repository artifact, then use its corresponding release artifact.
+`modLocalRuntime` is optional Fabric Loom test configuration; use the actual downloaded filename. Other loaders install the matching Halo adapter and loader bridge in their development runtime, while the neutral API can still use plain `compileOnly`. Use the toolchain's remap/deobf dependency only when referencing Minecraft adapter types. Do not `include`, shade, jar-in-jar or republish Halo/core: the separately installed Halo mod provides these classes at runtime. Ownership sources require Halo 2.4.0+.
 
 Halo must be installed separately at runtime. For a required integration, add this dependency to `fabric.mod.json`:
 
@@ -49,7 +52,7 @@ modId="halo"
 mandatory=true
 versionRange="[2.4.0,)"
 ordering="AFTER"
-side="CLIENT"
+side="BOTH" # CLIENT is sufficient only for a client-side model-anchor provider
 
 # NeoForge: META-INF/neoforge.mods.toml
 [[dependencies.your_mod_id]]
@@ -57,7 +60,7 @@ modId="halo"
 type="required"
 versionRange="[2.4.0,)"
 ordering="AFTER"
-side="CLIENT"
+side="BOTH" # CLIENT is sufficient only for a client-side model-anchor provider
 ```
 
 For an optional integration, first use the loader's mod-presence check and isolate all direct API references in a compatibility-only class. Do not load that class when Halo is absent or older than the API you call. On Fabric, use `FabricLoader.getInstance().isModLoaded("halo")` plus a version check (or an optional `"suggests": {"halo": ">=2.4.0"}` with `"breaks": {"halo": "<2.4.0"}`). Register only from the appropriate common/client entrypoint; dedicated-server class loading must not initialize client bridges.
@@ -311,49 +314,179 @@ Built-in sources are `halo:vanilla`, `halo:emf` and, for supported YSM versions,
 
 ---
 
-<a id="other-interfaces"></a>
+<a id="server-ownership-source-api"></a>
 
 ## 6. Server ownership source API
 
-Register one source during common initialization when an accessory, class or another mod owns the
-wear state:
+Accessory, class, ability and quest mods do not need Halo to register dynamic items. The external mod
+continues to own its items and saved state and submits only “which definition should this entity use
+now?” Halo arbitrates one server-side winner and keeps sending the existing `UUID -> definition ID`
+payload.
+
+### 6.1 Choose a source ID and ship client resources
+
+Choose a stable source ID for one independent ownership rule, for example
+`example:accessory_head`. A source ID identifies **who owns the state**; a definition ID identifies
+**what to render**. They need not match, and one source may submit different definitions for different
+entities.
+
+Definitions and assets must be in mod resources visible to each player's client. A definition named
+`example:angel_halo` has this minimum layout; its JSON `id` should also be
+`example:angel_halo`:
+
+```text
+src/main/resources/
+└─ assets/example/
+   ├─ halo_definitions/angel_halo.json
+   ├─ textures/halo/angel_halo.png
+   └─ models/halo/angel_halo.obj       # only when the definition uses a mesh
+```
+
+Halo transmits only the definition ID, never the JSON, texture or model. A mod supplying a custom
+definition should normally be installed on the server and every client and declare Halo `>=2.4.0`
+in loader metadata. Server logic and a client resource pack may be distributed separately, but both
+must agree on the exact definition ID. See the [first definition guide](quickstart.md) and
+[definition reference](reference.md).
+
+### 6.2 Register once and retain the handle
+
+Register during common mod initialization and retain the handle until the integration is permanently
+disabled. Do not register once per player, world or tick:
 
 ```java
+import java.util.UUID;
 import network.azusake.halo.api.v2.HaloApi;
 import network.azusake.halo.api.v2.HaloSource;
 
-HaloSource source = HaloApi.registerSource("example:accessory", 20);
+public final class AccessoryHaloBridge implements AutoCloseable {
+    private static final String ANGEL_HALO = "example:angel_halo";
 
-// From equip/restore events on the logical server thread:
-source.set(player.getUuid(), "example:angel_halo");
-source.clear(player.getUuid());
-source.clearAll();
-source.close(); // idempotent; the same ID can then be registered again
+    // Suggested priority 20; operators can override it for this instance.
+    private final HaloSource source =
+        HaloApi.registerSource("example:accessory_head", 20);
+
+    /** Called by loader/accessory events on the logical server thread. */
+    public void sync(UUID entityUuid, boolean angelHaloEquipped) {
+        if (angelHaloEquipped) {
+            source.set(entityUuid, ANGEL_HALO);
+        } else {
+            source.clear(entityUuid);
+        }
+    }
+
+    /** Only when permanently uninstalling this integration, not on player logout. */
+    @Override
+    public void close() {
+        source.close();
+    }
+}
 ```
 
-- Source and definition IDs are full lowercase `namespace:path` identifiers. Keep one handle for the
-  integration lifetime; do not register per tick.
-- Call `set`, `clear` and `clearAll` on the logical server thread. Their return values mean that the
-  active host accepted a candidate change, not that the source won arbitration. With no active
-  server session they return `false`/`0` and retain no candidate.
-- Each source has at most one candidate per entity. Halo selects one winner using the instance's
-  effective priorities and sends only that definition over the existing protocol.
-- Priorities use the full signed 32-bit range; larger values win and negative values are valid. The
-  API accepts any integer, but provider defaults **should use `10n` spacing** such as
-  `-20, -10, 0, 10, 20` so packs and the one-step collision fallback have room.
-- `config/halo-azusake/halo_source_priorities.json` overrides provider defaults. Operators can inspect,
-  persist and hot-reload it with `/halo priority list`, `set` and `reload`; no restart is required.
-- Registration order wins an equal slot. The next source is demoted by one and persisted. If that slot
-  also conflicts, or the requested value is `Integer.MIN_VALUE`, the source is disabled and operators
-  are notified until they correct and reload/restart the configuration.
-- Registrations may outlive a server, but candidates never cross server sessions. Re-submit them from
-  entity-load, login or equipment-restoration events after a new server/world starts.
-- The provider mod must ship every referenced definition, texture and model as client resources and
-  declare Halo 2.4.0+ in loader metadata. Do not bundle duplicate Halo/core API classes.
+`registerSource` validates immediately: IDs must be complete lowercase `namespace:path` identifiers,
+and registering an active ID again throws `IllegalStateException`. `close()` is idempotent, removes
+all candidates from that source and unregisters it; only then may the same ID be registered again.
+Registration normally happens before a server host exists. Registration performed while a server is
+already active must also run on the logical server thread.
 
-Halo's `halo:world_data` source defaults to priority `0`. `/halo show`, `/halo hide` and the scepter
-modify only that source; they never force or remove an external source. Switching sources without
-changing the resolved definition does not restart presentation.
+### 6.3 Synchronize equipment and restoration events
+
+Convert the accessory API or your saved data's **final state** into an idempotent `set`/`clear`:
+
+| Event | Action |
+| --- | --- |
+| Player login, entity load, equipment capability/component restoration | Read the current slot or saved state and call `sync`; submitting the same definition again is safe |
+| Equip, slot replacement, class or ability change | Read final state after the mutation commits, then call `sync` |
+| Unequip callback fires before the slot is updated | Schedule the final-state read at the end of the current server event so a replacement is not mistaken for the old item |
+| Logout, temporary unload, death/respawn or dimension travel | Do not clear merely for lifecycle; read authoritative equipment and `sync` when the entity becomes available again |
+| Item really removed or state deleted | Call `clear(entityUuid)` |
+| Whole integration reload | `clearAll()` may precede rebuilding from authoritative equipment; do not use it as a per-tick refresh |
+
+Call `set`, `clear` and `clearAll` only on the logical server thread. Route callbacks from networking,
+async capabilities or worker threads through the loader/server executor first. A wrong-thread call in
+an active session throws a state exception; catching it and continuing asynchronously is not a valid
+fallback.
+
+Return values report whether the active host's candidate changed. Re-submitting the same value,
+clearing an absent candidate, a closed handle, or no active server session can return `false`
+(`clearAll` returns `0`). They **do not report whether the source won arbitration** and must not drive a
+retry loop. During login/entity restoration, an idempotent `set` may reactivate the same candidate even
+when it returns `false`. Use `/halo inspect <entity>` to diagnose the resolved winner.
+
+### 6.4 Multiple accessories or definitions
+
+One source retains at most one candidate per entity. If one integration exposes several halo-bearing
+slots, select one result inside your mod and submit it through one source:
+
+```java
+public void sync(UUID uuid, EquippedHalos equipped) {
+    String definition = equipped.crown() ? "example:crown_halo"
+        : equipped.angel() ? "example:angel_halo"
+        : null;
+    if (definition == null) source.clear(uuid);
+    else source.set(uuid, definition); // atomically replaces this source's old candidate
+}
+```
+
+Register multiple sources only when operators need to order or disable the states independently, for
+example `example:quest_reward` and `example:accessory_head`. Do not create one source per item or
+entity.
+
+### 6.5 Priority, WorldData and operator overrides
+
+- Priorities use the complete signed 32-bit range. Larger values win and negative priorities are
+  valid. The API accepts every integer, but provider defaults **should use `10n` spacing** such as
+  `-20, -10, 0, 10, 20`, leaving room for pack overrides and one-step collision demotion.
+- Halo's `halo:world_data` source defaults to `0`. Explicit equipment commonly uses `20`; a fallback
+  intended only when no other ownership exists may use `-10`. These are suggestions, not reserved
+  ranges.
+- `config/halo-azusake/halo_source_priorities.json` records registered sources and overrides defaults.
+  Operators can inspect, persist and hot-reload values with `/halo priority list`,
+  `/halo priority set <source> <priority>` and `/halo priority reload`, without restarting.
+- Registration order wins an equal priority. The next source is demoted to `P-1` and persisted. If
+  `P-1` is also occupied or `P == Integer.MIN_VALUE`, that source retains candidates but is excluded
+  from arbitration until an operator fixes it with set/reload or on restart.
+- `/halo show`, `/halo hide` and the scepter modify only `halo:world_data`; they never clear, suppress
+  or rewrite an external source. If an external source has higher priority, show still persists
+  WorldData; after hide, an external winner remains visible.
+- Changing the source without changing the resolved definition sends no update and does not restart
+  presentation. A definition change follows the existing attach path; removing the last candidate
+  follows the existing remove/shutdown animation.
+
+### 6.6 Sessions and troubleshooting
+
+Source registrations belong to the current JVM and may survive dedicated or integrated server
+sessions. Candidates belong to the active server session and are all discarded when it stops. Every
+new session must re-submit from login, entity-load or equipment-restoration events. External mods do
+not clear candidates merely for ordinary logout, but must synchronize whenever their authoritative
+state changes.
+
+| Symptom | Check |
+| --- | --- |
+| `set` causes no visual change | Candidate/winner in `/halo inspect`, effective priority/status in `/halo priority list`, and whether the client has the definition |
+| Server reports the correct ID but the client reports a missing definition | Resource path, JSON `id`, namespace and client installation; the server never sends definition files |
+| Source is `disabled-conflict` | Assign a free value with `priority set`, or edit JSON and run `priority reload`; no restart is needed |
+| Halo disappears after login | Login/entity restoration did not re-submit, or ran before equipment data was restored |
+| Halo remains after unequip | The callback read the pre-change slot or omitted `clear`; defer synchronization until slot mutation completes |
+| `IllegalStateException` | An active source ID was registered twice, or registration/mutation ran on the wrong thread in an active session |
+
+The complete signatures are below. Do not copy these interface declarations into your mod:
+
+```java
+public final class HaloApi {
+    public static HaloSource registerSource(String sourceId, int defaultPriority);
+}
+
+public interface HaloSource extends AutoCloseable {
+    String sourceId();
+    int defaultPriority();
+    boolean set(UUID entityUuid, String definitionId);
+    boolean clear(UUID entityUuid);
+    int clearAll();
+    @Override void close();
+}
+```
+
+<a id="other-interfaces"></a>
 
 ## Other interfaces
 

@@ -5,31 +5,34 @@
 本文以 **Halo 2.4.0、Minecraft 1.20.1 Fabric、Java 17** 为基准。其他已接入宿主可以复用中立接口，但旧版／冻结适配器不因此自动拥有预览能力。
 API v2 为光环提供**头部锚点和服务端佩戴来源**，不负责动态注册物品或绘制任意几何。先用 `/halo list` 查找定义，再用 `/halo show @s <定义ID>` 佩戴一个由 Halo 管理的光环。
 
-阅读顺序：[1. 依赖配置](#dependency-setup) → [2. 模型提供者](#provider-routing) → [3. 预览面板](#preview-host-integration) → [4. 接口参考](#api-v2-reference) → [5. 验证排错](#integration-checks)。[其他接口](#other-interfaces)位于 API v2 指南之后。
+阅读顺序：先完成[1. 依赖配置](#dependency-setup)。要接入饰品／职业等佩戴状态，直接阅读[6. 服务端佩戴来源](#server-ownership-source-api)；要接入模型锚点，继续阅读[2. 模型提供者](#provider-routing) → [3. 预览面板](#preview-host-integration) → [4. 接口参考](#api-v2-reference) → [5. 验证排错](#integration-checks)。[其他接口](#other-interfaces)位于 API v2 指南之后。
 
 | 你要实现什么 | 接入路线 |
 | --- | --- |
+| 饰品、职业、能力或其他服务端佩戴状态 | 注册[服务端佩戴来源](#server-ownership-source-api)，在状态恢复／变化时提交定义 ID |
 | 世界中的自定义实体／模型渲染器 | 完成共用配置后，接入[世界提交](#world-anchor-api) |
 | 同时用于物品栏／预览的模型渲染器 | 复用来源句柄，[按每次绘制的空间分流](#provider-routing) |
 | 可以通过 `InventoryScreen.drawEntity` 绘制真实玩家的面板 | 调用原版 helper，Halo 自动管理玩家预览 |
 | 使用代理实体、直接绘制模型或自定义相机的面板 | 实现[独立预览宿主](#independent-preview-host) |
 
-模型提供者只需要 `network.azusake.halo.api.v2`；宿主另需 `core.runtime` 和 `core.render` 契约。即使只接预览，也先完成[共用依赖配置](#dependency-setup)。
+佩戴来源和模型提供者只需要 `network.azusake.halo.api.v2`；预览宿主另需 `core.runtime` 和 `core.render` 契约。即使只接其中一项，也先完成[共用依赖配置](#dependency-setup)。
 
 <a id="dependency-setup"></a>
 
-## 1. 依赖配置与客户端初始化
+## 1. 依赖配置与初始化
 
-把与目标 Minecraft 版本及加载器匹配的 Halo 2.4.0 jar 放入自己模组的 `libs` 目录。编译时引用，不要把 Halo 打进自己的模组：
+只调用 `network.azusake.halo.api.v2` 时，推荐从 [HaloCore 2.4.0 Release](https://github.com/AzusaKe/HaloCore/releases/tag/v2.4.0) 下载 `halo-core-2.4.0.jar` 放入自己模组的 `libs` 目录，并仅作为编译依赖。它的公开 API 只使用 Java 17/JDK 类型，不需要 Minecraft mappings：
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
+    compileOnly files("libs/halo-core-2.4.0.jar")
+
+    // Fabric Loom 本地联调可另外加载正式 Halo 模组；不要把它打入成品。
     modLocalRuntime files("libs/halo-1.20.1-fabric-2.4.0+adapter.1.jar")
 }
 ```
 
-这是 Fabric Loom 配置：将生产模组 jar 重映射到开发环境，`modLocalRuntime` 还会在 `runClient` 中加载它。文件名替换为实际下载名称。仅使用中立 API 类型的普通 Java 工程可用 `compileOnly files(...)`；其他加载器使用相应工具链的重映射配置。不要 `include`、shade Halo/core 或安装独立 API jar。佩戴来源 API 自 2.4.0 起可用；正式发布前使用仓库构建产物测试，发布后改用对应正式产物。
+`modLocalRuntime` 是 Fabric Loom 的可选测试配置；文件名替换为实际下载名称。其他加载器在开发运行环境中安装对应 Halo 适配器及其加载器桥接，但编译中立 API 时仍可直接使用 `compileOnly`。需要引用 Minecraft 适配层类型时，才改为相应工具链的 remap/deobf 依赖。不要 `include`、shade、jar-in-jar 或重新发布 Halo/core；运行时由独立安装的 Halo 模组提供这些类。佩戴来源 API 自 2.4.0 起可用。
 
 运行时仍须把 Halo 作为独立模组安装。若该适配是必需功能，在 `fabric.mod.json` 添加以下依赖：
 
@@ -50,7 +53,7 @@ modId="halo"
 mandatory=true
 versionRange="[2.4.0,)"
 ordering="AFTER"
-side="CLIENT"
+side="BOTH" # 仅客户端模型锚点提供者可改为 CLIENT
 
 # NeoForge：META-INF/neoforge.mods.toml
 [[dependencies.your_mod_id]]
@@ -58,7 +61,7 @@ modId="halo"
 type="required"
 versionRange="[2.4.0,)"
 ordering="AFTER"
-side="CLIENT"
+side="BOTH" # 仅客户端模型锚点提供者可改为 CLIENT
 ```
 
 若 Halo 是可选依赖，应先通过加载器检查 Halo 是否存在，并把所有直接 API 引用隔离在专用兼容类中；Halo 不存在或版本低于所调用 API 时不得加载该类。Fabric 可使用 `FabricLoader.getInstance().isModLoaded("halo")` 加版本检查（或可选的 `"suggests": {"halo": ">=2.4.0"}` 配合 `"breaks": {"halo": "<2.4.0"}`）。按功能从通用端或客户端入口注册；专用服务端类加载不得初始化客户端 bridge。
@@ -311,35 +314,136 @@ public interface PreviewAnchorContext {
 
 ---
 
-<a id="other-interfaces"></a>
+<a id="server-ownership-source-api"></a>
 
 ## 6. 服务端佩戴来源 API
 
-需要把饰品、职业或其他模组状态转换为光环时，在通用初始化阶段注册一次来源：
+饰品、职业、能力或任务模组不需要让 Halo 动态注册物品。外部模组继续拥有自己的物品和存档，只把“这个实体现在应使用哪个定义”提交给 Halo；Halo 在服务端仲裁唯一胜者，并继续用原有协议同步 `UUID → 定义 ID`。
+
+### 6.1 准备来源 ID 与客户端资源
+
+先为一条独立的佩戴规则选择稳定来源 ID，例如 `example:accessory_head`。来源 ID 表示**谁提供状态**，定义 ID 表示**画什么**，两者不需要相同；同一来源可以为不同实体提交不同定义。
+
+定义和素材必须位于玩家客户端能加载的模组资源中。定义 `example:angel_halo` 的最小目录形状如下；JSON 内的 `id` 也应为 `example:angel_halo`：
+
+```text
+src/main/resources/
+└─ assets/example/
+   ├─ halo_definitions/angel_halo.json
+   ├─ textures/halo/angel_halo.png
+   └─ models/halo/angel_halo.obj       # 仅在定义使用 mesh 时需要
+```
+
+Halo 只从服务端发送定义 ID，不发送 JSON、纹理或模型。提供自定义定义的模组通常应安装在服务端和所有客户端，并在加载器元数据中声明 Halo `>=2.4.0`。也可以让服务端逻辑模组与客户端资源包分开分发，但双方必须约定完全相同的定义 ID。定义格式见[快速入门](quickstart.md)和[完整参考](reference.md)。
+
+### 6.2 注册一次并保留句柄
+
+在通用模组初始化阶段注册来源，并把句柄保留到集成永久停用。不要按玩家、世界或 tick 重复注册：
 
 ```java
+import java.util.UUID;
 import network.azusake.halo.api.v2.HaloApi;
 import network.azusake.halo.api.v2.HaloSource;
 
-HaloSource source = HaloApi.registerSource("example:accessory", 20);
+public final class AccessoryHaloBridge implements AutoCloseable {
+    private static final String ANGEL_HALO = "example:angel_halo";
 
-// 在逻辑服务端线程的装备/恢复事件中：
-source.set(player.getUuid(), "example:angel_halo");
-source.clear(player.getUuid());
-source.clearAll();
-source.close(); // 幂等；之后可重新注册同一 ID
+    // 默认优先级 20；管理员仍可在当前实例覆写。
+    private final HaloSource source =
+        HaloApi.registerSource("example:accessory_head", 20);
+
+    /** 由加载器/饰品库事件在逻辑服务端线程调用。 */
+    public void sync(UUID entityUuid, boolean angelHaloEquipped) {
+        if (angelHaloEquipped) {
+            source.set(entityUuid, ANGEL_HALO);
+        } else {
+            source.clear(entityUuid);
+        }
+    }
+
+    /** 仅在整个兼容集成永久注销时调用，不要在玩家下线时调用。 */
+    @Override
+    public void close() {
+        source.close();
+    }
+}
 ```
 
-- 来源和定义 ID 必须是完整小写 `namespace:path`。同一来源 ID 在关闭前只能注册一次；句柄应保留到集成永久停用时再关闭，不能每 tick 重注册。
-- `set`、`clear`、`clearAll` 必须在逻辑服务端线程调用。返回值表示活动宿主是否接受候选变更，不表示该来源已经赢得仲裁；没有活动服务端会话时返回 `false`／`0`，也不会保留候选。
-- 每个来源对每个实体只有一个候选。Halo 比较当前实例的实际优先级，只把唯一胜者通过原协议发给客户端。
-- 优先级是完整的有符号 32 位整数，数值越大越优先；负数合法。开发者默认值不受硬性倍数限制，但**应采用 `10n` 间隔**（例如 `-20、-10、0、10、20`），为整合包覆写和自动降一级留下空间。
-- `config/halo-azusake/halo_source_priorities.json` 可以覆写开发者默认值。管理员可用 `/halo priority list`、`set`、`reload` 查看、持久化和热重载，无需重启。
-- 同级来源按注册顺序先来先得；第二个来源自动降一级并写回配置。该位置仍冲突或已是 `Integer.MIN_VALUE` 时，来源暂时禁用并通知管理员，直到配置被修正并 reload/restart。
-- 来源注册可以保留，但候选不会跨服务端会话。新世界/新服务端启动后，应在实体加载、登录或装备恢复事件中重新 `set`。
-- 外部模组必须把对应定义、纹理和模型作为客户端资源随自身分发，并在加载器元数据中声明 Halo 2.4.0 或更高版本；不要复制或打包 Halo/core API 类。
+`registerSource`、来源 ID 校验和重复注册会立即报告错误：ID 必须匹配完整小写 `namespace:path`；活动 ID 重复注册抛出 `IllegalStateException`。`close()` 幂等，会清除该来源的全部候选并注销它；关闭后才能用同一 ID 注册新句柄。注册通常发生在服务端宿主创建前；若在服务器已经运行时注册，也必须处于逻辑服务端线程。
 
-Halo 自有的 `halo:world_data` 默认优先级为 `0`。`/halo show`、`/halo hide` 和权杖只修改这个来源，不会强制覆盖或移除外部来源。胜者来源改变但定义相同时不会重启动画。
+### 6.3 从装备与恢复事件同步
+
+把饰品库或自己存档中的**最终状态**转换为一次幂等 `set`／`clear`。建议接入点：
+
+| 时机 | 应执行的操作 |
+| --- | --- |
+| 玩家登录、实体加载、装备能力／组件恢复完成 | 读取当前槽位或存档并调用 `sync`；即使定义没变也可以安全重提 |
+| 装备、换槽、职业／能力改变 | 在变化提交完成后读取最终状态并调用 `sync` |
+| 卸下事件发生在槽位写入之前 | 排到本次服务端事件结束后再读取最终槽位，避免把替换物误判为仍装备 |
+| 玩家下线、临时卸载、死亡／重生、换维度 | 不因生命周期事件本身调用 `clear`；实体重新可用时再次读取真实装备并 `sync` |
+| 物品确实卸下、状态被删除 | 调用 `clear(entityUuid)` |
+| 集成整体重新加载 | 可先 `clearAll()`，再从权威装备数据重建；不要把它作为每 tick 刷新方式 |
+
+`set`、`clear` 和 `clearAll` 必须在逻辑服务端线程调用。来自网络、异步能力或工作线程的回调，应先通过加载器／服务器执行器排回服务端线程。错误线程在活动会话中会抛出状态异常，不应通过捕获异常后继续异步调用来规避。
+
+调用返回值只表示是否改变了活动宿主中的候选：重复提交相同值、清除不存在的候选、关闭的句柄或没有活动服务端会话都可能返回 `false`（`clearAll` 返回 `0`）。它**不表示来源是否赢得仲裁**，也不应触发重试循环。登录／实体恢复时，即使 `set` 返回 `false`，相同候选仍可能已经被重新激活。需要诊断最终胜者时使用 `/halo inspect <实体>`。
+
+### 6.4 多种饰品或定义
+
+一个来源对每个实体最多保留一个候选。若同一个整合在多个槽位提供光环，优先在自己的模组内选出一个结果，再提交给一个来源：
+
+```java
+public void sync(UUID uuid, EquippedHalos equipped) {
+    String definition = equipped.crown() ? "example:crown_halo"
+        : equipped.angel() ? "example:angel_halo"
+        : null;
+    if (definition == null) source.clear(uuid);
+    else source.set(uuid, definition); // 原子替换该来源的旧候选
+}
+```
+
+只有当这些状态需要让管理员分别排序或独立禁用时，才注册多个来源，例如 `example:quest_reward` 与 `example:accessory_head`。不要为每件物品或每个实体创建来源。
+
+### 6.5 优先级、WorldData 与管理员覆写
+
+- 优先级使用完整有符号 32 位整数，数值越大越优先，负数合法。API 接受任意整数，但开发者默认值**应采用 `10n` 间隔**（如 `-20、-10、0、10、20`），为整合包覆写和自动降一级留空间。
+- Halo 自有 `halo:world_data` 默认优先级为 `0`。显式装备通常可用 `20`；只应在没有其他佩戴状态时生效的回退可用 `-10`。这些是建议值，不是保留区间。
+- `config/halo-azusake/halo_source_priorities.json` 会记录已注册来源并覆写默认值。管理员可用 `/halo priority list`、`/halo priority set <source> <priority>` 和 `/halo priority reload` 查看、持久化和热重载，无需重启。
+- 同级来源按注册顺序先来先得；下一来源自动降到 `P-1` 并持久化。`P-1` 仍冲突或 `P == Integer.MIN_VALUE` 时，该来源保留候选但暂停参与仲裁，直到管理员 set/reload 或重启后修正。
+- `/halo show`、`/halo hide` 和权杖只修改 `halo:world_data`，不会清除、屏蔽或改写外部来源。外部来源优先级更高时，show 仍保存 WorldData；hide 后若外部来源获胜，光环继续显示。
+- 来源变化但最终定义 ID 相同时不发送更新，也不重启动画；胜者定义变化时沿用现有 attach，最后一个候选消失时沿用 remove／关闭动画。
+
+### 6.6 会话与故障排查
+
+来源注册属于当前 JVM，可以跨专用服世界或单人集成服会话保留；候选属于活动服务端会话，服务端停止后全部丢弃。每次新会话都必须从登录、实体加载或装备恢复事件重新提交。外部模组不需要为普通下线主动清候选，但自身权威数据改变时必须同步。
+
+| 现象 | 检查项 |
+| --- | --- |
+| `set` 后没有画面变化 | `/halo inspect` 的候选／胜者、`/halo priority list` 的实际优先级与状态，以及客户端是否拥有该定义 |
+| 服务端显示正确 ID，客户端提示缺少定义 | 资源目录、JSON `id`、命名空间和客户端是否安装提供资源的模组；服务端不会下发定义文件 |
+| 来源显示 `disabled-conflict` | 用 `priority set` 指定空闲值，或编辑 JSON 后执行 `priority reload`；不需要重启 |
+| 登录后光环消失 | 登录／实体恢复事件没有重新 `set`，或调用发生在装备数据恢复之前 |
+| 卸下后仍显示 | 卸下回调读取了变化前的槽位，或遗漏 `clear`；把同步排到槽位提交完成之后 |
+| `IllegalStateException` | 重复注册活动来源 ID，或在活动会话中从错误线程注册／修改 |
+
+完整接口签名如下；不要把这段接口源码复制进自己的模组：
+
+```java
+public final class HaloApi {
+    public static HaloSource registerSource(String sourceId, int defaultPriority);
+}
+
+public interface HaloSource extends AutoCloseable {
+    String sourceId();
+    int defaultPriority();
+    boolean set(UUID entityUuid, String definitionId);
+    boolean clear(UUID entityUuid);
+    int clearAll();
+    @Override void close();
+}
+```
+
+<a id="other-interfaces"></a>
 
 ## 其他接口
 
