@@ -62,11 +62,12 @@ final class HaloMeshBufferCache implements AutoCloseable {
     }
 
     boolean draw(long expectedGeneration, MeshDraw draw, Matrix4f outerModelView,
-                 Matrix4f projection, ShaderProgram shader) {
+                 Matrix4f projection, ShaderProgram shader, MeshDrawWorkspace workspace,
+                 HaloMeshShader.PreparedProgram prepared) {
         if (generation != expectedGeneration) return false;
         MeshBuffer buffer = buffers.get(draw.model());
         if (buffer == null) return false;
-        buffer.draw(draw, outerModelView, projection, shader);
+        buffer.draw(draw, outerModelView, projection, shader, workspace, prepared);
         return true;
     }
 
@@ -119,6 +120,8 @@ final class HaloMeshBufferCache implements AutoCloseable {
         private final int litNormalElements;
         private final int litMirroredElements;
         private final int litDynamicElements;
+        private final MeshIndexUpload flatUpload = new MeshIndexUpload();
+        private final MeshIndexUpload litUpload = new MeshIndexUpload();
         private long dynamicIndexUploads;
 
         private MeshBuffer(TriangleMesh mesh, boolean sourceQuad) {
@@ -235,27 +238,38 @@ final class HaloMeshBufferCache implements AutoCloseable {
             VertexBuffer.unbind();
         }
 
-        private void draw(MeshDraw draw, Matrix4f outerModelView, Matrix4f projection, ShaderProgram shader) {
+        private void draw(MeshDraw draw, Matrix4f outerModelView, Matrix4f projection, ShaderProgram shader,
+                          MeshDrawWorkspace workspace, HaloMeshShader.PreparedProgram prepared) {
             VertexBuffer selected = draw.directionalLighting() ? litVertices : flatVertices;
             boolean expanded = draw.directionalLighting();
             selected.bind();
             if (draw.blend()) {
-                indexInts.clear();
-                if (expanded) indices.writeExpanded(indexInts, draw, true);
-                else indices.write(indexInts, draw, true);
-                indexBytes.clear();
                 GlStateManager._glBindBuffer(ELEMENT_ARRAY_BUFFER,
                     expanded ? litDynamicElements : flatDynamicElements);
-                GlStateManager._glBufferData(ELEMENT_ARRAY_BUFFER, indexBytes, STREAM_DRAW);
-                dynamicIndexUploads++;
+                long revision = indices.prepareBackToFront(draw);
+                MeshIndexUpload upload = expanded ? litUpload : flatUpload;
+                if (!upload.matches(revision, draw.mirrored())) {
+                    indexInts.clear();
+                    if (expanded) indices.writeExpanded(indexInts, draw, true);
+                    else indices.write(indexInts, draw, true);
+                    indexBytes.clear();
+                    GlStateManager._glBufferData(ELEMENT_ARRAY_BUFFER, indexBytes, STREAM_DRAW);
+                    upload.uploaded(revision, draw.mirrored());
+                    dynamicIndexUploads++;
+                }
             } else {
                 GlStateManager._glBindBuffer(ELEMENT_ARRAY_BUFFER,
                     expanded
                         ? draw.mirrored() ? litMirroredElements : litNormalElements
                         : draw.mirrored() ? flatMirroredElements : flatNormalElements);
             }
-            Matrix4f modelView = new Matrix4f(outerModelView).mul(new Matrix4f().set(draw.localToView()));
-            if (draw.directionalLighting()) HaloMeshShader.setNormalMatrix(shader, modelView);
+            Matrix4f modelView = workspace == null
+                ? new Matrix4f(outerModelView).mul(new Matrix4f().set(draw.localToView()))
+                : workspace.modelView(outerModelView, draw);
+            if (draw.directionalLighting()) {
+                if (prepared == null) HaloMeshShader.setNormalMatrix(shader, modelView);
+                else prepared.normal(workspace.normal(modelView));
+            }
             selected.draw(modelView, projection, shader);
             VertexBuffer.unbind();
         }

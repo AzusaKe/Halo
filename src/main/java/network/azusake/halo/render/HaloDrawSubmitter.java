@@ -19,15 +19,22 @@ final class HaloDrawSubmitter {
             // Direct VBO submission does not pass through a vanilla RenderLayer,
             // so its LIGHTMAP render phase cannot bind Sampler2 for us.
             client.gameRenderer.getLightmapTextureManager().enable();
+            // A single draw cannot amortize either workspace or material lookup caches.
+            boolean reuse = pending.draws().size() > 1;
+            MeshDrawWorkspace workspace = reuse ? new MeshDrawWorkspace() : null;
+            HaloMeshShader.Submission materials = reuse ? new HaloMeshShader.Submission(client, environment) : null;
             for (MeshDraw draw : pending.draws()) {
                 applyState(draw.cull(), draw.blend(), draw.depthTest(), draw.depthWrite(),
                     draw.red(), draw.green(), draw.blue(), draw.alpha());
-                var shader = HaloMeshShader.bind(client, draw, environment);
+                var prepared = materials == null ? null : materials.bind(draw);
+                var shader = materials == null ? HaloMeshShader.bind(client, draw, environment)
+                    : prepared == null ? null : prepared.shader;
                 if (shader == null) continue;
-                if (!meshBuffers.draw(pending.generation(), draw, pending.modelView(), pending.projection(), shader)) {
+                if (!meshBuffers.draw(pending.generation(), draw, pending.modelView(), pending.projection(), shader, workspace, prepared)) {
                     var fallback = new FrameOutput(pending.generation(), List.of(), List.of(draw))
                         .expandedBatches(pending.visuals());
                     for (DrawBatch batch : fallback) submit(client, batch, environment);
+                    if (materials != null) materials.invalidate();
                 }
             }
         }
