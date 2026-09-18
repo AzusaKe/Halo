@@ -1,10 +1,10 @@
 package network.azusake.halo.compat.ysm;
 
+import net.minecraft.world.phys.Vec3;
 import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorRotation;
 import network.azusake.halo.api.v2.AnchorVec3;
-import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 
@@ -15,7 +15,7 @@ public final class YsmHeadMath {
     }
 
     /** Convert using the exact camera frame that produced this capture. */
-    public static AnchorPose toAnchorPose(YsmHeadCapture.CapturedHead captured, Vec3d localOffset) {
+    public static AnchorPose toAnchorPose(YsmHeadCapture.CapturedHead captured, Vec3 localOffset) {
         if (captured == null) {
             return null;
         }
@@ -29,8 +29,8 @@ public final class YsmHeadMath {
 
     public static AnchorPose toAnchorPose(
         Matrix4f viewSpace,
-        Vec3d localOffset,
-        Vec3d cameraPos,
+        Vec3 localOffset,
+        Vec3 cameraPos,
         Matrix4f viewMatrix
     ) {
         return network.azusake.halo.core.CapturedModelMath.resolve(

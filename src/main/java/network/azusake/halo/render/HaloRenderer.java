@@ -1,32 +1,39 @@
 package network.azusake.halo.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.VertexBuffer;
-import net.minecraft.client.render.*;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.LightType;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexSorting;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.*;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.LightLayer;
 import network.azusake.halo.api.v2.*;
 import network.azusake.halo.anchor.AnchorCaptureCoordinator;
+import network.azusake.halo.core.Vec3d;
 import network.azusake.halo.core.render.*;
+import network.azusake.halo.core.runtime.ClientRuntime;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.physics.*;
 import network.azusake.halo.platform.*;
+import network.azusake.halo.render.HaloMeshResources.Snapshot;
 import java.util.*;
 import org.joml.Matrix4f;
-import com.mojang.blaze3d.systems.VertexSorter;
+import org.joml.Vector3f;
+
 import static network.azusake.halo.platform.PlatformTypes.*;
 
-/** Fabric render adapter: capture world facts, then submit core-generated batches. */
+/** Forge render adapter: capture world facts, then submit core-generated batches. */
 public final class HaloRenderer {
     private static final HaloRenderer INSTANCE=new HaloRenderer();
     private Object previousWorld;
     private long worldToken;
-    private record DeferredMeshes(long generation, VisualResources visuals, List<MeshDraw> draws,
-                                  Matrix4f modelView, Matrix4f projection, VertexSorter sorting) {}
-    private DeferredMeshes deferredMeshes;
+    private record DeferredFrame(long generation, VisualResources visuals, List<DrawBatch> batches,
+                                 List<PrimitiveDraw> primitives, List<MeshDraw> meshes,
+                                 Matrix4f modelView, Matrix4f projection, VertexSorting sorting) {}
+    private DeferredFrame deferredFrame;
     private HaloMeshBufferCache meshBuffers = HaloMeshBufferCache.empty();
     private HaloMeshBufferCache primitiveBuffers = HaloMeshBufferCache.empty();
     private PrimitiveRenderMode primitiveMode = PrimitiveRenderMode.COMPATIBILITY;
@@ -56,10 +63,10 @@ public final class HaloRenderer {
             primitiveBuffers = primitiveBuffers.updated(new VisualResources(snapshot.visuals().generation(), meshes, Map.of()), quads);
         }
     }
-    public void clearWorld() { previousWorld = null; deferredMeshes = null; }
+    public void clearWorld() { previousWorld = null; deferredFrame = null; }
     public void reloadMeshBuffers(VisualResources resources) {
         Runnable reload = () -> {
-            deferredMeshes = null;
+            deferredFrame = null;
             HaloMeshBufferCache previous = meshBuffers;
             HaloMeshBufferCache replacement = previous.updated(resources);
             meshBuffers = replacement;
@@ -70,7 +77,7 @@ public final class HaloRenderer {
     /** Recreate vertex layouts after Iris enables its extended entity format. */
     public void rebuildMeshBuffersForShaderPipeline() {
         Runnable rebuild = () -> {
-            deferredMeshes = null;
+            deferredFrame = null;
             HaloMeshBufferCache previous = meshBuffers;
             meshBuffers = HaloMeshBufferCache.empty().updated(HaloMeshResources.snapshot().visuals());
             previous.close();
@@ -81,7 +88,7 @@ public final class HaloRenderer {
     }
     public void shutdown() {
         Runnable close = () -> {
-            deferredMeshes = null;
+            deferredFrame = null;
             HaloMeshBufferCache previous = meshBuffers;
             meshBuffers = HaloMeshBufferCache.empty();
             previous.close();
@@ -93,54 +100,67 @@ public final class HaloRenderer {
     public static HaloRenderer getInstance() { return INSTANCE; }
     public IdlePhaseTracker.RenderState readLastRenderState(UUID uuid) { return HaloClientState.get().renderer().readLastRenderState(uuid); }
     public void clearIdlePhases() { HaloClientState.get().renderer().clearIdlePhases(); }
-    public void renderHalos(MatrixStack matrices,Camera camera,float tickDelta) {
-        deferredMeshes = null;
-        MinecraftClient client=MinecraftClient.getInstance();
-        if(client.world==null) return;
-        if(previousWorld!=client.world) { previousWorld=client.world;worldToken++; }
+    public void renderHalos(PoseStack matrices,Camera camera,float tickDelta) {
+        deferredFrame = null;
+        Minecraft client=Minecraft.getInstance();
+        if(client.level==null) return;
+        if(previousWorld!=client.level) { previousWorld=client.level;worldToken++; }
         HaloClientManager.getInstance().restoreLocalOwnership();
         var runtime=HaloClientState.get();
         var assets = HaloMeshResources.snapshot();
         runtime.definitions(assets.definitions());
         Map<UUID,FrameScene.EntitySample> samples=new LinkedHashMap<>();
         var assignments=runtime.assignments();
-        for(var entity:client.world.getEntities()) {
+        for(var entity:client.level.entitiesForRendering()) {
             if(!(entity instanceof LivingEntity living))continue;
-            if(!assignments.containsKey(entity.getUuid()) && runtime.getInstance(entity.getUuid())==null)continue;
+            if(!assignments.containsKey(entity.getUUID()) && runtime.getInstance(entity.getUUID())==null)continue;
             var pos=new network.azusake.halo.core.Vec3d(
-                entity.prevX+(entity.getX()-entity.prevX)*tickDelta,
-                entity.prevY+(entity.getY()-entity.prevY)*tickDelta,
-                entity.prevZ+(entity.getZ()-entity.prevZ)*tickDelta);
-            AnchorPose fallback=living instanceof net.minecraft.entity.player.PlayerEntity
+                entity.xo+(entity.getX()-entity.xo)*tickDelta,
+                entity.yo+(entity.getY()-entity.yo)*tickDelta,
+                entity.zo+(entity.getZ()-entity.zo)*tickDelta);
+            AnchorPose fallback=living instanceof net.minecraft.world.entity.player.Player
                 ? PlayerAnchorProvider.getInstance().resolve(living,tickDelta)
                 : DefaultAnchorResolver.resolve(living,tickDelta);
-            boolean localFirstPerson=living==client.player && client.options.getPerspective().isFirstPerson();
+            boolean localFirstPerson=living==client.player && client.options.getCameraType().isFirstPerson();
             AnchorPose captured=localFirstPerson ? fallback : AnchorCaptureCoordinator.resolve(
-                entity.getUuid(),entity.getId(),client.world,new AnchorVec3(pos.x,pos.y,pos.z));
-            samples.put(entity.getUuid(),new FrameScene.EntitySample(entity.getUuid(),entity.getId(),pos,
+                entity.getUUID(),entity.getId(),client.level,new AnchorVec3(pos.x,pos.y,pos.z));
+            samples.put(entity.getUUID(),new FrameScene.EntitySample(entity.getUUID(),entity.getId(),pos,
                 entity.isAlive(),living.isSleeping(),entity.isInvisible(),captured==null?fallback:captured,fallback));
         }
-        var up=camera.getVerticalPlane();var right=camera.getDiagonalPlane();
+        var up=camera.getUpVector();var right=camera.getLeftVector();
         FrameScene scene=new FrameScene(worldToken,System.currentTimeMillis(),System.nanoTime(),
-            new FrameScene.CameraSample(core(camera.getPos()),
+            new FrameScene.CameraSample(core(camera.getPosition()),
                 new network.azusake.halo.core.Vec3d(up.x,up.y,up.z),
                 new network.azusake.halo.core.Vec3d(right.x,right.y,right.z)),
-            samples,matrices.peek().getPositionMatrix().get(new float[16]),
+            samples,matrices.last().pose().get(new float[16]),
             pos -> {
-                BlockPos block=BlockPos.ofFloored(pos.x,pos.y,pos.z);
-                return Math.max(client.world.getLightingProvider().get(LightType.BLOCK).getLightLevel(block),
-                    client.world.getLightingProvider().get(LightType.SKY).getLightLevel(block))/15f;
+                BlockPos block=BlockPos.containing(pos.x,pos.y,pos.z);
+                return Math.max(client.level.getLightEngine().getLayerListener(LightLayer.BLOCK).getLightValue(block),
+                    client.level.getLightEngine().getLayerListener(LightLayer.SKY).getLightValue(block))/15f;
             }, id -> {
                 try { client.getTextureManager().getTexture(game(id));return true; }
                 catch(RuntimeException ex) { return false; }
             }, assets.visuals(), pos -> {
-                BlockPos block=BlockPos.ofFloored(pos.x,pos.y,pos.z);
+                BlockPos block=BlockPos.containing(pos.x,pos.y,pos.z);
                 return new LightSample(
-                    client.world.getLightLevel(LightType.BLOCK, block),
-                    client.world.getLightLevel(LightType.SKY, block));
+                    client.level.getBrightness(LightLayer.BLOCK, block),
+                    client.level.getBrightness(LightLayer.SKY, block));
             }, primitiveMode);
         FrameOutput output = runtime.renderFrame(scene);
         boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
+        List<DrawBatch> solidBatches = new ArrayList<>();
+        List<DrawBatch> lateBatches = new ArrayList<>();
+        for (DrawBatch batch : output.legacyBatches()) {
+            (submitBeforeTranslucents(batch.directionalLighting(), batch.blend(), shaderPack)
+                ? solidBatches : lateBatches).add(batch);
+        }
+        List<PrimitiveDraw> solidPrimitives = new ArrayList<>();
+        List<PrimitiveDraw> latePrimitives = new ArrayList<>();
+        for (PrimitiveDraw draw : output.primitiveDraws()) {
+            DrawBatch state = draw.state();
+            (submitBeforeTranslucents(state.directionalLighting(), state.blend(), shaderPack)
+                ? solidPrimitives : latePrimitives).add(draw);
+        }
         List<MeshDraw> solidLitMeshes = new ArrayList<>();
         List<MeshDraw> lateMeshes = new ArrayList<>();
         for (MeshDraw draw : output.meshes()) {
@@ -148,18 +168,22 @@ public final class HaloRenderer {
         }
         Matrix4f meshModelView = new Matrix4f(RenderSystem.getModelViewMatrix());
         Matrix4f meshProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
-        VertexSorter meshSorting = RenderSystem.getVertexSorting();
-        submitBatches(client, output.legacyBatches());
-        HaloDrawSubmitter.submitPrimitives(client, output, primitiveBuffers, RenderEnvironment.WORLD);
+        VertexSorting meshSorting = RenderSystem.getVertexSorting();
+        submitBatches(client, solidBatches);
+        if (!solidPrimitives.isEmpty()) HaloDrawSubmitter.submitPrimitives(client,
+            new FrameOutput(output.visualGeneration(), List.of(), List.of(), solidPrimitives),
+            primitiveBuffers, RenderEnvironment.WORLD);
         if (!solidLitMeshes.isEmpty()) {
             // Solid entity shaders write deferred G-buffer data. Submit these while
             // Iris is still before beginTranslucents(), which consumes that data.
-            submitMeshes(client, new DeferredMeshes(output.visualGeneration(), assets.visuals(), solidLitMeshes,
-                meshModelView, meshProjection, meshSorting));
+            submitMeshes(client, output.visualGeneration(), assets.visuals(), solidLitMeshes,
+                meshModelView, meshProjection);
         }
-        if (!lateMeshes.isEmpty()) deferredMeshes = new DeferredMeshes(output.visualGeneration(), assets.visuals(),
-            lateMeshes, meshModelView, meshProjection, meshSorting);
-        if (client.isInSingleplayer()) IntegratedBridge.publishDiagnostics(runtime.diagnostics());
+        if (!lateBatches.isEmpty() || !latePrimitives.isEmpty() || !lateMeshes.isEmpty()) {
+            deferredFrame = new DeferredFrame(output.visualGeneration(), assets.visuals(), List.copyOf(lateBatches),
+                List.copyOf(latePrimitives), List.copyOf(lateMeshes), meshModelView, meshProjection, meshSorting);
+        }
+        if (client.isLocalServer()) IntegratedBridge.publishDiagnostics(runtime.diagnostics());
     }
 
     static boolean submitBeforeTranslucents(MeshDraw draw, boolean shaderPack) {
@@ -167,42 +191,53 @@ public final class HaloRenderer {
         // sorted late path for real alpha blending. Vanilla keeps its previous late
         // submission too; only an active pack's opaque lit geometry must precede
         // Iris beginTranslucents(), which consumes the solid/deferred entity buffer.
-        return shaderPack && draw.directionalLighting() && !draw.blend();
+        return submitBeforeTranslucents(draw.directionalLighting(), draw.blend(), shaderPack);
+    }
+
+    static boolean submitBeforeTranslucents(boolean directionalLighting, boolean blend, boolean shaderPack) {
+        return shaderPack && directionalLighting && !blend;
     }
 
     /** Submit after entity buffers have been flushed, while the world shader pipeline is still active. */
     public void submitDeferredMeshes() {
-        DeferredMeshes pending = deferredMeshes;
-        deferredMeshes = null;
-        if (pending == null || MinecraftClient.getInstance().world == null) return;
+        DeferredFrame pending = deferredFrame;
+        deferredFrame = null;
+        if (pending == null || Minecraft.getInstance().level == null) return;
         Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
         var sorting = RenderSystem.getVertexSorting();
         var modelView = RenderSystem.getModelViewStack();
-        modelView.push();
+        modelView.pushPose();
         try {
-            modelView.peek().getPositionMatrix().set(pending.modelView());
+            modelView.last().pose().set(pending.modelView());
             RenderSystem.applyModelViewMatrix();
             RenderSystem.setProjectionMatrix(pending.projection(), pending.sorting());
-            submitMeshes(MinecraftClient.getInstance(), pending);
+            Minecraft client = Minecraft.getInstance();
+            submitBatches(client, pending.batches());
+            if (!pending.primitives().isEmpty()) HaloDrawSubmitter.submitPrimitives(client,
+                new FrameOutput(pending.generation(), List.of(), List.of(), pending.primitives()),
+                primitiveBuffers, RenderEnvironment.WORLD);
+            submitMeshes(client, pending.generation(), pending.visuals(), pending.meshes(),
+                pending.modelView(), pending.projection());
         } finally {
-            modelView.pop();
+            modelView.popPose();
             RenderSystem.applyModelViewMatrix();
             RenderSystem.setProjectionMatrix(projection, sorting);
         }
     }
 
-    private void submitMeshes(MinecraftClient client, DeferredMeshes pending) {
-        HaloDrawSubmitter.submitMeshes(client, new HaloDrawSubmitter.Submission(pending.generation(),
-            pending.visuals(), pending.draws(), pending.modelView(), pending.projection()), meshBuffers, RenderEnvironment.WORLD);
+    private void submitMeshes(Minecraft client, long generation, VisualResources visuals, List<MeshDraw> draws,
+                              Matrix4f modelView, Matrix4f projection) {
+        HaloDrawSubmitter.submitMeshes(client, new HaloDrawSubmitter.Submission(generation,
+            visuals, draws, modelView, projection), meshBuffers, RenderEnvironment.WORLD);
     }
 
-    private static void submitBatches(MinecraftClient client, List<DrawBatch> batches) {
+    private static void submitBatches(Minecraft client, List<DrawBatch> batches) {
         HaloDrawSubmitter.submitBatches(client, batches, RenderEnvironment.WORLD);
     }
 
     /** Immediate GUI submission; never changes the pending world pass. */
     public void submitPreview(FrameOutput output, VisualResources visuals) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         HaloDrawSubmitter.submitBatches(client, output.legacyBatches(), RenderEnvironment.GUI);
         HaloDrawSubmitter.submitPrimitives(client, output, primitiveBuffers, RenderEnvironment.GUI);
         HaloDrawSubmitter.submitMeshes(client, new HaloDrawSubmitter.Submission(output.visualGeneration(),
@@ -211,9 +246,9 @@ public final class HaloRenderer {
     }
 
     static int packLight(LightSample light) { return HaloDrawSubmitter.packLight(light); }
-    static LivingEntity findEntityByUuid(MinecraftClient client,UUID uuid) {
-        if(client.world!=null) for(var entity:client.world.getEntities())
-            if(entity instanceof LivingEntity living && entity.getUuid().equals(uuid))return living;
+    static LivingEntity findEntityByUuid(Minecraft client,UUID uuid) {
+        if(client.level!=null) for(var entity:client.level.entitiesForRendering())
+            if(entity instanceof LivingEntity living && entity.getUUID().equals(uuid))return living;
         return null;
     }
 }

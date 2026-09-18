@@ -1,8 +1,8 @@
 package network.azusake.halo.compat.ysm;
 
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Vec3d;
 import network.azusake.halo.config.HaloModConfigStore;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.phys.Vec3;
 import network.azusake.halo.api.v2.*;
 import org.joml.Matrix4f;
 import org.slf4j.LoggerFactory;
@@ -13,16 +13,16 @@ final class YsmPreviewCapture {
     private static boolean reportedFailure;
     private YsmPreviewCapture() {}
 
-    static void capture(Object model, MatrixStack matrices) {
+    static void capture(Object model, PoseStack matrices) {
         var scope = HaloAnchorApi.currentPreviewContext();
         if (scope == null || scope.hasModelAnchor() || model == null || matrices == null
                 || !HaloModConfigStore.get().isExperimentalYsmAnchorEnabled()) return;
         try {
             Matrix4f head = YsmV265Adapter.captureHeadMatrix(model,
-                new Matrix4f(matrices.peek().getPositionMatrix()));
+                new Matrix4f(matrices.last().pose()));
             double[] offset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
-            var pose = YsmHeadMath.toAnchorPose(head, new Vec3d(offset[0], offset[1], offset[2]),
-                Vec3d.ZERO, new Matrix4f().set(scope.sceneToView()));
+            var pose = YsmHeadMath.toAnchorPose(head, new Vec3(offset[0], offset[1], offset[2]),
+                Vec3.ZERO, new Matrix4f().set(scope.sceneToView()));
             if (pose != null && YsmHeadCapture.YSM_SOURCE.submitPreview(scope, new PreviewAnchorPose(pose.position().x(), pose.position().y(),
                     pose.position().z(), pose.rotation())) && !reportedCapture) {
                 reportedCapture = true;

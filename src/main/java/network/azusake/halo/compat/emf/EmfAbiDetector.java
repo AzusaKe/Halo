@@ -17,25 +17,13 @@ public final class EmfAbiDetector {
     private EmfAbiDetector() {
     }
 
-    public static Result inspect(boolean namedRuntime) {
-        String methodName = namedRuntime
-            ? Emf1201Symbols.RENDER_METHOD_NAMED
-            : Emf1201Symbols.RENDER_METHOD_INTERMEDIARY;
-        String methodDescriptor = namedRuntime
-            ? Emf1201Symbols.RENDER_DESCRIPTOR_NAMED
-            : Emf1201Symbols.RENDER_DESCRIPTOR_INTERMEDIARY;
-
+    public static Result inspect() {
         Optional<ClassNode> modelPart = readClass(Emf1201Symbols.MODEL_PART);
         if (modelPart.isEmpty()) {
             return Result.incompatible("目标类不存在: " + Emf1201Symbols.MODEL_PART);
         }
-        boolean hasRenderMethod = modelPart.get().methods.stream()
-            .anyMatch(method -> methodName.equals(method.name)
-                && methodDescriptor.equals(method.desc));
-        if (!hasRenderMethod) {
-            return Result.incompatible(
-                "目标渲染方法不存在: " + methodName + methodDescriptor);
-        }
+        RenderSignature signature = findRenderSignature(modelPart.get());
+        if (signature == null) return Result.incompatible("目标渲染方法不存在: Forge/Mojmap render ABI");
 
         Optional<ClassNode> vanillaPart = readClass(Emf1201Symbols.VANILLA_MODEL_PART);
         if (vanillaPart.isEmpty()) {
@@ -47,7 +35,16 @@ public final class EmfAbiDetector {
             return Result.incompatible("EMFModelPartVanilla.name 字段不存在或类型不匹配");
         }
 
-        return Result.compatible(methodName + methodDescriptor);
+        return Result.compatible(signature);
+    }
+
+    private static RenderSignature findRenderSignature(ClassNode modelPart) {
+        List<RenderSignature> candidates = List.of(
+            new RenderSignature(Emf1201Symbols.RENDER_METHOD_NAMED, Emf1201Symbols.RENDER_DESCRIPTOR_NAMED),
+            new RenderSignature(Emf1201Symbols.RENDER_METHOD_NAMED, Emf1201Symbols.RENDER_DESCRIPTOR_FORGE),
+            new RenderSignature(Emf1201Symbols.RENDER_METHOD_FORGE, Emf1201Symbols.RENDER_DESCRIPTOR_FORGE),
+            new RenderSignature(Emf1201Symbols.RENDER_METHOD_FORGE, Emf1201Symbols.RENDER_DESCRIPTOR_NAMED));
+        return candidates.stream().filter(c -> modelPart.methods.stream().anyMatch(m -> c.name.equals(m.name) && c.descriptor.equals(m.desc))).findFirst().orElse(null);
     }
 
     private static Optional<ClassNode> readClass(String binaryName) {
@@ -80,14 +77,15 @@ public final class EmfAbiDetector {
         return Optional.empty();
     }
 
-    public record Result(boolean compatible, String detail) {
+    public record Result(boolean compatible, String detail, String renderMethod, String renderDescriptor) {
 
-        private static Result compatible(String detail) {
-            return new Result(true, detail);
+        private static Result compatible(RenderSignature signature) {
+            return new Result(true, signature.name + signature.descriptor, signature.name, signature.descriptor);
         }
 
         private static Result incompatible(String detail) {
-            return new Result(false, detail);
+            return new Result(false, detail, null, null);
         }
     }
+    private record RenderSignature(String name, String descriptor) {}
 }

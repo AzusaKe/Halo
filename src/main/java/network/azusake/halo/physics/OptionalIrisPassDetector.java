@@ -1,6 +1,6 @@
 package network.azusake.halo.physics;
 
-import net.fabricmc.loader.api.FabricLoader;
+import net.minecraftforge.fml.ModList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,7 +9,9 @@ import java.lang.reflect.Method;
 /** Optional Iris pass probe used as a hard safety gate for anchor captures. */
 public final class OptionalIrisPassDetector {
 
-    private static final String IRIS_MOD_ID = "iris";
+    private static boolean isShaderModLoaded() {
+        return ModList.get().isLoaded("oculus") || ModList.get().isLoaded("iris");
+    }
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
     private static volatile Probe probe;
     private static volatile boolean diagnosticEmitted;
@@ -18,7 +20,7 @@ public final class OptionalIrisPassDetector {
     }
 
     static boolean isMainPass() {
-        if (!FabricLoader.getInstance().isModLoaded(IRIS_MOD_ID)) {
+        if (!isShaderModLoaded()) {
             return true;
         }
         Probe current = probe;
@@ -58,7 +60,7 @@ public final class OptionalIrisPassDetector {
 
     /** Whether the adapter must use the shader-pack mesh program for this frame. */
     public static boolean hasShaderPack() {
-        if (!FabricLoader.getInstance().isModLoaded(IRIS_MOD_ID)) return false;
+        if (!isShaderModLoaded()) return false;
         isMainPass(); // Initialize the same cached public-API probe used for captures.
         try { return probe.hasShaderPack(); }
         catch (Exception error) { warnUnknown(error); return true; }

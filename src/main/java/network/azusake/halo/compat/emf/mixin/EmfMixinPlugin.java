@@ -4,8 +4,10 @@ import network.azusake.halo.compat.emf.Emf1201Symbols;
 import network.azusake.halo.compat.emf.EmfAbiDetector;
 import network.azusake.halo.compat.emf.EmfCompatDiagnostics;
 import network.azusake.halo.compat.emf.EmfVersionGate;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
@@ -25,18 +27,13 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
 
     private boolean apply;
-    private boolean namedRuntime;
-    private String runtimeNamespace = "unknown";
+    private String renderMethod;
 
     @Override
     public void onLoad(String mixinPackage) {
         Optional<String> installed = Optional.empty();
         try {
             installed = EmfVersionGate.installedVersion();
-            runtimeNamespace = net.fabricmc.loader.api.FabricLoader.getInstance()
-                .getMappingResolver().getCurrentRuntimeNamespace();
-            namedRuntime = "named".equals(runtimeNamespace);
-
             if (installed.isEmpty()) {
                 apply = false;
                 return;
@@ -52,15 +49,16 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
                 return;
             }
 
-            EmfAbiDetector.Result abi = EmfAbiDetector.inspect(namedRuntime);
+            EmfAbiDetector.Result abi = EmfAbiDetector.inspect();
             apply = abi.compatible();
+            renderMethod = abi.renderMethod();
             if (!apply) {
                 EmfCompatDiagnostics.reportIncompatible(abi.detail());
                 LOGGER.warn("[EMF Compat] EMF ABI is incompatible; capture disabled: {}", abi.detail());
             } else {
                 LOGGER.info(
-                    "[EMF Compat] verified EMF {} detected; head capture hook enabled for {} namespace",
-                    installed.orElse("unknown"), runtimeNamespace);
+                    "[EMF Compat] verified EMF {} detected; Forge head capture hook enabled for {}",
+                    installed.orElse("unknown"), renderMethod);
             }
         } catch (Throwable error) {
             apply = false;
@@ -86,12 +84,10 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith("EmfModelPartVanillaNameMixin")) {
             return true;
         }
-        if (mixinClassName.endsWith("EmfModelPartNamedMixin")) {
-            return namedRuntime;
-        }
-        if (mixinClassName.endsWith("EmfModelPartIntermediaryMixin")) {
-            return !namedRuntime;
-        }
+        if (mixinClassName.endsWith("EmfModelPartNamedMixin"))
+            return Emf1201Symbols.RENDER_METHOD_NAMED.equals(renderMethod);
+        if (mixinClassName.endsWith("EmfModelPartForgeMixin"))
+            return Emf1201Symbols.RENDER_METHOD_FORGE.equals(renderMethod);
         return false;
     }
 
@@ -112,18 +108,15 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
         if (!Emf1201Symbols.MODEL_PART.equals(targetClassName)
             || !mixinClassName.endsWith("EmfModelPartNamedMixin")
-                && !mixinClassName.endsWith("EmfModelPartIntermediaryMixin")) {
+                && !mixinClassName.endsWith("EmfModelPartForgeMixin")) {
             return;
         }
 
         boolean captureHookPresent = false;
-        String renderMethod = namedRuntime
-            ? Emf1201Symbols.RENDER_METHOD_NAMED
-            : Emf1201Symbols.RENDER_METHOD_INTERMEDIARY;
         search:
         for (var method : targetClass.methods) {
             if (!renderMethod.equals(method.name)
-                || !(Emf1201Symbols.RENDER_DESCRIPTOR_INTERMEDIARY.equals(method.desc)
+                || !(Emf1201Symbols.RENDER_DESCRIPTOR_FORGE.equals(method.desc)
                     || Emf1201Symbols.RENDER_DESCRIPTOR_NAMED.equals(method.desc))) {
                 continue;
             }

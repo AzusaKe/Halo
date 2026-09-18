@@ -1,17 +1,18 @@
 package network.azusake.halo.render;
 
+import com.mojang.blaze3d.shaders.AbstractUniform;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import java.io.IOException;
-import net.fabricmc.fabric.api.client.rendering.v1.CoreShaderRegistrationCallback;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.ShaderProgram;
-import net.minecraft.client.gl.Uniform;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.texture.AbstractTexture;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.resources.ResourceLocation;
+import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.render.DrawBatch;
 import network.azusake.halo.core.render.LightSample;
 import network.azusake.halo.core.render.MaterialState;
+import network.azusake.halo.core.render.MaterialState.AlphaMask;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -19,22 +20,24 @@ import org.slf4j.LoggerFactory;
 import static network.azusake.halo.platform.PlatformTypes.game;
 import network.azusake.halo.compat.iris.IrisMeshBridge;
 import network.azusake.halo.physics.OptionalIrisPassDetector;
+import net.minecraftforge.client.event.RegisterShadersEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
 
 /** Version-specific shader adapter. GameRenderer owns registered programs and their reload/disposal. */
 public final class HaloMeshShader {
     private static final Logger LOG = LoggerFactory.getLogger("HaloMeshShader");
     private static final network.azusake.halo.core.Identifier WHITE_TEXTURE =
         new network.azusake.halo.core.Identifier("minecraft:textures/misc/white.png");
-    private static ShaderProgram flatProgram;
-    private static ShaderProgram litProgram;
+    private static ShaderInstance flatProgram;
+    private static ShaderInstance litProgram;
     private HaloMeshShader() {}
 
-    public static void register() {
-        CoreShaderRegistrationCallback.EVENT.register(context -> {
+    public static void register(IEventBus modBus) {
+        modBus.addListener((RegisterShadersEvent context) -> {
             flatProgram = null;
             litProgram = null;
             try {
-                context.register(new Identifier("halo", "mesh"), VertexFormats.POSITION_TEXTURE_COLOR, loaded -> {
+                context.registerShader(new ShaderInstance(context.getResourceProvider(), new ResourceLocation("halo", "mesh"), DefaultVertexFormat.POSITION_TEX_COLOR), loaded -> {
                     for (String uniform : new String[]{"MaskEnabled", "MaskMode", "MaskThreshold", "MaskOffset",
                             "LightCoord", "LegacyAlphaCutoff"}) {
                         if (loaded.getUniform(uniform) == null) {
@@ -44,8 +47,8 @@ public final class HaloMeshShader {
                     }
                     flatProgram = loaded;
                 });
-                context.register(new Identifier("halo", "mesh_lit"),
-                    VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL, loaded -> {
+                context.registerShader(new ShaderInstance(context.getResourceProvider(), new ResourceLocation("halo", "mesh_lit"),
+                    DefaultVertexFormat.NEW_ENTITY), loaded -> {
                     for (String uniform : new String[]{"MaskEnabled", "MaskMode", "MaskThreshold", "MaskOffset",
                             "LightCoord", "LegacyAlphaCutoff", "NormalMat"}) {
                         if (loaded.getUniform(uniform) == null) {
@@ -61,51 +64,51 @@ public final class HaloMeshShader {
         });
     }
 
-    public static boolean bind(MinecraftClient client, DrawBatch batch, MaterialState.Mesh material) {
+    public static boolean bind(Minecraft client, DrawBatch batch, MaterialState.Mesh material) {
         return bind(client, batch, material, RenderEnvironment.WORLD);
     }
 
-    static boolean bind(MinecraftClient client, DrawBatch batch, MaterialState.Mesh material, RenderEnvironment environment) {
-        ShaderProgram shader = bind(client, batch.texture(), material, batch.light(), false,
+    static boolean bind(Minecraft client, DrawBatch batch, MaterialState.Mesh material, RenderEnvironment environment) {
+        ShaderInstance shader = bind(client, batch.texture(), material, batch.light(), false,
             batch.directionalLighting(), false, environment);
         if (shader != null && batch.directionalLighting()) setNormalMatrix(shader, RenderSystem.getModelViewMatrix());
         return shader != null;
     }
 
-    public static boolean bindLegacy(MinecraftClient client, DrawBatch batch) {
+    public static boolean bindLegacy(Minecraft client, DrawBatch batch) {
         return bindLegacy(client, batch, RenderEnvironment.WORLD);
     }
 
-    static boolean bindLegacy(MinecraftClient client, DrawBatch batch, RenderEnvironment environment) {
-        ShaderProgram shader = bind(client, batch.texture(), null, batch.light(), true,
+    static boolean bindLegacy(Minecraft client, DrawBatch batch, RenderEnvironment environment) {
+        ShaderInstance shader = bind(client, batch.texture(), null, batch.light(), true,
             batch.directionalLighting(), false, environment);
         if (shader != null && batch.directionalLighting()) setNormalMatrix(shader, RenderSystem.getModelViewMatrix());
         return shader != null;
     }
 
-    public static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.render.MeshDraw draw) {
+    public static ShaderInstance bind(Minecraft client, network.azusake.halo.core.render.MeshDraw draw) {
         return bind(client, draw, RenderEnvironment.WORLD);
     }
 
-    static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.render.MeshDraw draw, RenderEnvironment environment) {
+    static ShaderInstance bind(Minecraft client, network.azusake.halo.core.render.MeshDraw draw, RenderEnvironment environment) {
         return bind(client, draw.texture(), draw.material(), draw.light(), false,
             draw.directionalLighting(), draw.blend(), environment);
     }
 
     /** One lexical OBJ submission. All state setters and ShaderProgram apply/clear still run. */
     static final class Submission {
-        private final MinecraftClient client;
+        private final Minecraft client;
         private final RenderEnvironment environment;
         private boolean iris;
         private final MeshSubmissionCache<PreparedProgram, AbstractTexture> cache;
 
-        Submission(MinecraftClient client, RenderEnvironment environment) {
+        Submission(Minecraft client, RenderEnvironment environment) {
             this.client = client;
             this.environment = environment;
             iris = environment == RenderEnvironment.WORLD && OptionalIrisPassDetector.hasShaderPack();
             cache = new MeshSubmissionCache<>(variant -> {
                 boolean lit = variant != 0;
-                ShaderProgram shader = iris ? IrisMeshBridge.currentProgram(lit, variant == 2)
+                ShaderInstance shader = iris ? IrisMeshBridge.currentProgram(lit, variant == 2)
                     : lit ? litProgram : flatProgram;
                 return shader == null ? null : new PreparedProgram(shader, iris, lit);
             }, id -> client.getTextureManager().getTexture(game(id)));
@@ -118,10 +121,10 @@ public final class HaloMeshShader {
             var mask = draw.material().mask();
             var base = draw.texture();
             RenderSystem.setShader(program);
-            RenderSystem.setShaderTexture(0, cache.base(base).getGlId());
+            RenderSystem.setShaderTexture(0, cache.base(base).getId());
             int maskSlot = iris && draw.directionalLighting() ? 3 : 1;
-            if (iris && draw.directionalLighting()) client.gameRenderer.getOverlayTexture().setupOverlayColor();
-            RenderSystem.setShaderTexture(maskSlot, cache.mask(mask == null ? base : mask.texture()).getGlId());
+            if (iris && draw.directionalLighting()) client.gameRenderer.overlayTexture().setupOverlayColor();
+            RenderSystem.setShaderTexture(maskSlot, cache.mask(mask == null ? base : mask.texture()).getId());
             program.maskEnabled.set(mask == null ? 0 : 1);
             program.maskMode.set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
             program.maskThreshold.set(mask == null ? 0.5f : mask.threshold());
@@ -138,34 +141,34 @@ public final class HaloMeshShader {
         }
     }
 
-    static final class PreparedProgram implements java.util.function.Supplier<ShaderProgram> {
-        final ShaderProgram shader;
-        private final Uniform maskEnabled, maskMode, maskThreshold, maskOffset, lightCoord, legacyAlphaCutoff;
-        private final Uniform normalMatrix;
+    static final class PreparedProgram implements java.util.function.Supplier<ShaderInstance> {
+        final ShaderInstance shader;
+        private final AbstractUniform maskEnabled, maskMode, maskThreshold, maskOffset, lightCoord, legacyAlphaCutoff;
+        private final AbstractUniform normalMatrix;
 
-        PreparedProgram(ShaderProgram shader, boolean iris, boolean lit) {
+        PreparedProgram(ShaderInstance shader, boolean iris, boolean lit) {
             this.shader = shader;
             String prefix = iris ? (shader.getUniform("HaloMaskEnabled") != null ? "Halo" : "iris_Halo") : "";
-            maskEnabled = shader.getUniformOrDefault(prefix + "MaskEnabled");
-            maskMode = shader.getUniformOrDefault(prefix + "MaskMode");
-            maskThreshold = shader.getUniformOrDefault(prefix + "MaskThreshold");
-            maskOffset = shader.getUniformOrDefault(prefix + "MaskOffset");
-            lightCoord = shader.getUniformOrDefault(prefix + "LightCoord");
-            legacyAlphaCutoff = shader.getUniformOrDefault(prefix + "LegacyAlphaCutoff");
+            maskEnabled = shader.safeGetUniform(prefix + "MaskEnabled");
+            maskMode = shader.safeGetUniform(prefix + "MaskMode");
+            maskThreshold = shader.safeGetUniform(prefix + "MaskThreshold");
+            maskOffset = shader.safeGetUniform(prefix + "MaskOffset");
+            lightCoord = shader.safeGetUniform(prefix + "LightCoord");
+            legacyAlphaCutoff = shader.safeGetUniform(prefix + "LegacyAlphaCutoff");
             String name = !lit ? "" : shader.getUniform("HaloNormalMat") != null ? "HaloNormalMat"
                 : shader.getUniform("iris_HaloNormalMat") != null ? "iris_HaloNormalMat" : "NormalMat";
-            normalMatrix = lit ? shader.getUniformOrDefault(name) : null;
+            normalMatrix = lit ? shader.safeGetUniform(name) : null;
         }
 
-        @Override public ShaderProgram get() { return shader; }
+        @Override public ShaderInstance get() { return shader; }
         void normal(Matrix3f matrix) { normalMatrix.set(matrix); }
     }
 
-    private static ShaderProgram bind(MinecraftClient client, network.azusake.halo.core.Identifier texture,
+    private static ShaderInstance bind(Minecraft client, network.azusake.halo.core.Identifier texture,
                                       MaterialState.Mesh material, LightSample light, boolean legacyAlphaCutoff,
                                       boolean directionalLighting, boolean translucent, RenderEnvironment environment) {
         boolean iris = environment == RenderEnvironment.WORLD && OptionalIrisPassDetector.hasShaderPack();
-        ShaderProgram shader = iris ? IrisMeshBridge.currentProgram(directionalLighting, translucent)
+        ShaderInstance shader = iris ? IrisMeshBridge.currentProgram(directionalLighting, translucent)
             : directionalLighting ? litProgram : flatProgram;
         if (shader == null) return null;
         // A shader pack may store translucent color separately and reconstruct its position
@@ -179,23 +182,23 @@ public final class HaloMeshShader {
         var mask = material == null ? null : material.mask();
         var baseTexture = texture == null ? WHITE_TEXTURE : texture;
         RenderSystem.setShader(() -> shader);
-        RenderSystem.setShaderTexture(0, client.getTextureManager().getTexture(game(baseTexture)).getGlId());
+        RenderSystem.setShaderTexture(0, client.getTextureManager().getTexture(game(baseTexture)).getId());
         int maskSlot = iris && directionalLighting ? 3 : 1;
-        if (iris && directionalLighting) client.gameRenderer.getOverlayTexture().setupOverlayColor();
+        if (iris && directionalLighting) client.gameRenderer.overlayTexture().setupOverlayColor();
         RenderSystem.setShaderTexture(maskSlot,
-            client.getTextureManager().getTexture(game(mask == null ? baseTexture : mask.texture())).getGlId());
+            client.getTextureManager().getTexture(game(mask == null ? baseTexture : mask.texture())).getId());
         String prefix = iris ? (shader.getUniform("HaloMaskEnabled") != null ? "Halo" : "iris_Halo") : "";
-        shader.getUniformOrDefault(prefix + "MaskEnabled").set(mask == null ? 0 : 1);
-        shader.getUniformOrDefault(prefix + "MaskMode").set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
-        shader.getUniformOrDefault(prefix + "MaskThreshold").set(mask == null ? 0.5f : mask.threshold());
-        shader.getUniformOrDefault(prefix + "MaskOffset").set(mask == null ? 0f : mask.offsetU(), mask == null ? 0f : mask.offsetV());
+        shader.safeGetUniform(prefix + "MaskEnabled").set(mask == null ? 0 : 1);
+        shader.safeGetUniform(prefix + "MaskMode").set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
+        shader.safeGetUniform(prefix + "MaskThreshold").set(mask == null ? 0.5f : mask.threshold());
+        shader.safeGetUniform(prefix + "MaskOffset").set(mask == null ? 0f : mask.offsetU(), mask == null ? 0f : mask.offsetV());
         LightSample sample = light.available() ? light : LightSample.FULL_BRIGHT;
-        shader.getUniformOrDefault(prefix + "LightCoord").set(sample.block() << 4, sample.sky() << 4);
-        shader.getUniformOrDefault(prefix + "LegacyAlphaCutoff").set(legacyAlphaCutoff ? 1 : 0);
+        shader.safeGetUniform(prefix + "LightCoord").set(sample.block() << 4, sample.sky() << 4);
+        shader.safeGetUniform(prefix + "LegacyAlphaCutoff").set(legacyAlphaCutoff ? 1 : 0);
         return shader;
     }
 
-    static void setNormalMatrix(ShaderProgram shader, Matrix4f transform) {
+    static void setNormalMatrix(ShaderInstance shader, Matrix4f transform) {
         Matrix3f matrix = new Matrix3f(transform);
         float determinant = matrix.determinant();
         if (Float.isFinite(determinant) && Math.abs(determinant) > 1.0e-8f) matrix.invert().transpose();
@@ -203,9 +206,9 @@ public final class HaloMeshShader {
         setNormalMatrix(shader, matrix);
     }
 
-    static void setNormalMatrix(ShaderProgram shader, Matrix3f matrix) {
+    static void setNormalMatrix(ShaderInstance shader, Matrix3f matrix) {
         String name = shader.getUniform("HaloNormalMat") != null ? "HaloNormalMat"
             : shader.getUniform("iris_HaloNormalMat") != null ? "iris_HaloNormalMat" : "NormalMat";
-        shader.getUniformOrDefault(name).set(matrix);
+        shader.safeGetUniform(name).set(matrix);
     }
 }

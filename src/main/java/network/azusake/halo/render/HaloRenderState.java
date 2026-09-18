@@ -2,7 +2,7 @@ package network.azusake.halo.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.gl.ShaderProgram;
+import net.minecraft.client.renderer.ShaderInstance;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
@@ -12,7 +12,7 @@ import org.lwjgl.opengl.GL30;
 
 /** Restores caller-owned state after immediate submission, including exceptional exits. */
 final class HaloRenderState implements AutoCloseable {
-    private final ShaderProgram shader = RenderSystem.getShader();
+    private final ShaderInstance shader = RenderSystem.getShader();
     private final float[] color = RenderSystem.getShaderColor().clone();
     private final boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
     private final boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);

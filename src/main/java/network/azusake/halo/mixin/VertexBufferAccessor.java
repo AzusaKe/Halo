@@ -1,8 +1,8 @@
 package network.azusake.halo.mixin;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.gl.VertexBuffer;
-import net.minecraft.client.render.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -11,6 +11,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 public interface VertexBufferAccessor {
     @Accessor("indexCount") void halo$setIndexCount(int value);
     @Accessor("indexType") void halo$setIndexType(VertexFormat.IndexType value);
-    @Accessor("sharedSequentialIndexBuffer")
-    void halo$setSharedSequentialIndexBuffer(RenderSystem.ShapeIndexBuffer value);
+    @Accessor("sequentialIndices")
+    void halo$setSharedSequentialIndexBuffer(RenderSystem.AutoStorageIndexBuffer value);
 }

@@ -1,9 +1,9 @@
 package network.azusake.halo.mixin;
 
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import network.azusake.halo.lifecycle.EntityHaloTracker;
 import network.azusake.halo.manager.HaloManager;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -52,12 +52,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Entity.class)
 public abstract class EntityTeleportMixin {
 
-    @Inject(method = "refreshPositionAfterTeleport(DDD)V", at = @At("TAIL"))
+    @Inject(method = "moveTo(DDD)V", at = @At("TAIL"))
     private void halo$afterTeleport(double x, double y, double z, CallbackInfo ci) {
         markIfHasHalo();
     }
 
-    @Inject(method = "requestTeleport(DDD)V", at = @At("HEAD"))
+    @Inject(method = "teleportTo(DDD)V", at = @At("HEAD"))
     private void halo$onRequestTeleport(double x, double y, double z, CallbackInfo ci) {
         markIfHasHalo();
     }

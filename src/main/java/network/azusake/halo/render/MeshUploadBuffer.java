@@ -1,6 +1,6 @@
 package network.azusake.halo.render;
 
-import net.minecraft.client.render.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import network.azusake.halo.mixin.BufferBuilderStorageAccessor;
 import org.lwjgl.system.MemoryUtil;
 

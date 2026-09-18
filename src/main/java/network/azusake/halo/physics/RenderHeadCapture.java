@@ -5,20 +5,19 @@ import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorSource;
 import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.api.v2.HaloAnchorApi;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.Frustum;
-import net.minecraft.client.render.entity.model.PlayerEntityModel;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import network.azusake.halo.render.PlayerPreviewCapture;
-
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Per-frame capture of the player head's rendered transform.
@@ -39,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class RenderHeadCapture {
 
     private static final ThreadLocal<LivingEntity> CURRENT_ENTITY = new ThreadLocal<>();
-    private static final ThreadLocal<PlayerEntityModel<?>> CURRENT_MODEL = new ThreadLocal<>();
+    private static final ThreadLocal<PlayerModel<?>> CURRENT_MODEL = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> AUXILIARY_YSM_PASS =
         ThreadLocal.withInitial(() -> false);
     private static final AnchorSource VANILLA_SOURCE = HaloAnchorApi.register("halo:vanilla");
@@ -51,14 +50,14 @@ public final class RenderHeadCapture {
      * positions and angles.
      */
     private static volatile Matrix4f viewMatrix;
-    private static volatile Vec3d cameraPos;
+    private static volatile Vec3 cameraPos;
     private static volatile Frustum mainFrustum;
     private static volatile float frameTickDelta;
 
     private RenderHeadCapture() { /* utility class */ }
 
     /** Saves platform capture context so nested or failed UI renders cannot corrupt their caller. */
-    public record Context(LivingEntity entity, PlayerEntityModel<?> model, boolean auxiliary) {}
+    public record Context(LivingEntity entity, PlayerModel<?> model, boolean auxiliary) {}
     public static Context suspendForPreview() {
         Context previous = new Context(CURRENT_ENTITY.get(), CURRENT_MODEL.get(), AUXILIARY_YSM_PASS.get());
         CURRENT_ENTITY.remove();
@@ -73,7 +72,7 @@ public final class RenderHeadCapture {
     }
 
     /** Called at the HEAD of {@code PlayerEntityRenderer.render}. */
-    public static void begin(AbstractClientPlayerEntity entity, PlayerEntityModel<?> model) {
+    public static void begin(AbstractClientPlayer entity, PlayerModel<?> model) {
         CURRENT_ENTITY.set(entity);
         CURRENT_MODEL.set(model);
     }
@@ -82,10 +81,10 @@ public final class RenderHeadCapture {
      * Bracket an entity-dispatcher render so optional renderer integrations can
      * associate their model pass with any living entity, not only players.
      */
-    public static void beginYsmEntity(Entity entity, MatrixStack matrices) {
+    public static void beginYsmEntity(Entity entity, PoseStack matrices) {
         if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) return;
         CURRENT_MODEL.remove();
-        Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
+        Matrix4f root = matrices == null ? null : matrices.last().pose();
         if (entity instanceof LivingEntity living && matchesMainView(root)) {
             CURRENT_ENTITY.set(living);
             AUXILIARY_YSM_PASS.set(false);
@@ -96,20 +95,20 @@ public final class RenderHeadCapture {
     }
 
     /** Open the source-neutral render scope used by API v2 submissions. */
-    public static void beginEntityRender(Entity entity, MatrixStack matrices, float tickDelta) {
+    public static void beginEntityRender(Entity entity, PoseStack matrices, float tickDelta) {
         if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
-            network.azusake.halo.core.runtime.PreviewAnchorHost.beginEntityRender(entity.getUuid(), entity.getId());
+            network.azusake.halo.core.runtime.PreviewAnchorHost.beginEntityRender(entity.getUUID(), entity.getId());
             return;
         }
-        Matrix4f root = matrices == null ? null : matrices.peek().getPositionMatrix();
+        Matrix4f root = matrices == null ? null : matrices.last().pose();
         boolean mainPass = entity instanceof LivingEntity living
             && matchesMainView(root)
             && isVisibleToMainCamera(living)
             && OptionalIrisPassDetector.isMainPass();
         if (entity instanceof LivingEntity living) {
-            Vec3d position = interpolatedPosition(living, tickDelta);
+            Vec3 position = interpolatedPosition(living, tickDelta);
             AnchorCaptureCoordinator.beginEntityRender(
-                living.getUuid(), living.getId(), living.getWorld(),
+                living.getUUID(), living.getId(), living.level(),
                 new AnchorVec3(position.x, position.y, position.z), mainPass);
             if (mainPass) {
                 CURRENT_ENTITY.set(living);
@@ -167,7 +166,7 @@ public final class RenderHeadCapture {
         CAPTURES.clear();
     }
 
-    public static void beginFrame(Matrix4f frameViewMatrix, Vec3d frameCameraPos,
+    public static void beginFrame(Matrix4f frameViewMatrix, Vec3 frameCameraPos,
                                   Frustum frustum, float tickDelta, Object worldIdentity) {
         clearFrame();
         viewMatrix = frameViewMatrix == null ? null : new Matrix4f(frameViewMatrix);
@@ -202,8 +201,8 @@ public final class RenderHeadCapture {
      * player is rendering.  Only the head part of the current player model is
      * snapshotted.
      */
-    public static void capture(MatrixStack matrices, ModelPart part) {
-        PlayerEntityModel<?> model = CURRENT_MODEL.get();
+    public static void capture(PoseStack matrices, ModelPart part) {
+        PlayerModel<?> model = CURRENT_MODEL.get();
         if (model == null || part != model.getHead()) {
             return;
         }
@@ -212,21 +211,21 @@ public final class RenderHeadCapture {
             PlayerPreviewCapture.capture(entity, matrices, part);
             return;
         }
-        Vec3d frameCameraPos = cameraPos;
+        Vec3 frameCameraPos = cameraPos;
         Matrix4f frameViewMatrix = viewMatrix;
         if (entity == null || frameCameraPos == null || frameViewMatrix == null) {
             return;
         }
         CapturedHead captured = new CapturedHead(
-            new Matrix4f(matrices.peek().getPositionMatrix()),
-            part.pivotX, part.pivotY, part.pivotZ,
-            part.pitch, part.yaw, part.roll,
+            new Matrix4f(matrices.last().pose()),
+            part.x, part.y, part.z,
+            part.xRot, part.yRot, part.zRot,
             part.xScale, part.yScale, part.zScale
         );
-        CAPTURES.put(entity.getUuid(), captured);
+        CAPTURES.put(entity.getUUID(), captured);
         try {
             AnchorPose pose = RenderHeadMath.toAnchorPose(captured, network.azusake.halo.platform.PlatformTypes.core(frameCameraPos), frameViewMatrix);
-            VANILLA_SOURCE.submit(entity.getUuid(), pose);
+            VANILLA_SOURCE.submit(entity.getUUID(), pose);
         } catch (RuntimeException ignored) {
             // Invalid capture data is a normal safe-fallback condition.
         }
@@ -242,14 +241,14 @@ public final class RenderHeadCapture {
 
     private static boolean isVisibleToMainCamera(LivingEntity entity) {
         Frustum frustum = mainFrustum;
-        return frustum != null && frustum.isVisible(entity.getVisibilityBoundingBox());
+        return frustum != null && frustum.isVisible(entity.getBoundingBoxForCulling());
     }
 
-    private static Vec3d interpolatedPosition(LivingEntity entity, float tickDelta) {
-        return new Vec3d(
-            entity.prevX + (entity.getX() - entity.prevX) * tickDelta,
-            entity.prevY + (entity.getY() - entity.prevY) * tickDelta,
-            entity.prevZ + (entity.getZ() - entity.prevZ) * tickDelta
+    private static Vec3 interpolatedPosition(LivingEntity entity, float tickDelta) {
+        return new Vec3(
+            entity.xo + (entity.getX() - entity.xo) * tickDelta,
+            entity.yo + (entity.getY() - entity.yo) * tickDelta,
+            entity.zo + (entity.getZ() - entity.zo) * tickDelta
         );
     }
 

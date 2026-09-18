@@ -1,7 +1,6 @@
 package network.azusake.halo.compat.ysm;
 
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
+import net.minecraftforge.fml.loading.LoadingModList;
 
 import java.util.Optional;
 
@@ -16,10 +15,14 @@ public final class YsmVersionGate {
     }
 
     public static Optional<String> installedVersion() {
-        return FabricLoader.getInstance()
-            .getModContainer(YsmV265Symbols.MOD_ID)
-            .map(ModContainer::getMetadata)
-            .map(metadata -> metadata.getVersion().getFriendlyString());
+        LoadingModList loadingMods = LoadingModList.get();
+        if (loadingMods == null) return Optional.empty();
+        var modFile = loadingMods.getModFileById(YsmV265Symbols.MOD_ID);
+        if (modFile == null) return Optional.empty();
+        return modFile.getMods().stream()
+            .filter(mod -> YsmV265Symbols.MOD_ID.equals(mod.getModId()))
+            .map(mod -> mod.getVersion().toString())
+            .findFirst();
     }
 
     public static boolean isSupportedInstalledVersion() {

@@ -2,20 +2,21 @@ package network.azusake.halo.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
-import net.minecraft.client.gl.ShaderProgram;
-import net.minecraft.client.gl.VertexBuffer;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import network.azusake.halo.core.render.MeshDraw;
 import network.azusake.halo.core.render.MeshIndexWriter;
 import network.azusake.halo.core.render.TriangleMesh;
 import network.azusake.halo.core.render.VisualResources;
 import network.azusake.halo.mixin.VertexBufferAccessor;
+import network.azusake.halo.render.GenerationMeshCache.Update;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +63,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
     }
 
     boolean draw(long expectedGeneration, MeshDraw draw, Matrix4f outerModelView,
-                 Matrix4f projection, ShaderProgram shader, MeshDrawWorkspace workspace,
+                 Matrix4f projection, ShaderInstance shader, MeshDrawWorkspace workspace,
                  HaloMeshShader.PreparedProgram prepared) {
         if (generation != expectedGeneration) return false;
         MeshBuffer buffer = buffers.get(draw.model());
@@ -76,7 +77,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
     }
 
     void drawPrimitive(long expectedGeneration, network.azusake.halo.core.render.PrimitiveDraw draw,
-                       Matrix4f modelView, Matrix4f projection, ShaderProgram shader) {
+                       Matrix4f modelView, Matrix4f projection, ShaderInstance shader) {
         if (!contains(expectedGeneration, draw.geometry().id()))
             throw new IllegalStateException("Primitive buffer was not prepared for this frame");
         buffers.get(draw.geometry().id()).drawPrimitive(draw, modelView, projection, shader);
@@ -178,11 +179,11 @@ final class HaloMeshBufferCache implements AutoCloseable {
 
         private void uploadFlatVertices(TriangleMesh mesh) {
             try (var builder = new MeshUploadBuffer(Math.max(256,
-                Math.multiplyExact(mesh.vertexCount(), VertexFormats.POSITION_TEXTURE_COLOR.getVertexSizeByte())))) {
-                builder.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR);
+                Math.multiplyExact(mesh.vertexCount(), DefaultVertexFormat.POSITION_TEX_COLOR.getVertexSize())))) {
+                builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
                 for (int vertex = 0; vertex < mesh.vertexCount(); vertex++) {
                     builder.vertex(mesh.x(vertex), mesh.y(vertex), mesh.z(vertex))
-                        .texture(mesh.u(vertex), mesh.v(vertex)).color(255, 255, 255, 255).next();
+                        .uv(mesh.u(vertex), mesh.v(vertex)).color(255, 255, 255, 255).endVertex();
                 }
                 flatVertices.bind();
                 flatVertices.upload(builder.end());
@@ -192,10 +193,10 @@ final class HaloMeshBufferCache implements AutoCloseable {
         }
 
         private void uploadLitVertices(TriangleMesh mesh) {
-            var format = VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL;
+            var format = DefaultVertexFormat.NEW_ENTITY;
             try (var builder = new MeshUploadBuffer(Math.max(256,
-                Math.multiplyExact(indices.indexCount(), format.getVertexSizeByte())))) {
-                builder.begin(sourceQuad ? VertexFormat.DrawMode.QUADS : VertexFormat.DrawMode.TRIANGLES, format);
+                Math.multiplyExact(indices.indexCount(), format.getVertexSize())))) {
+                builder.begin(sourceQuad ? VertexFormat.Mode.QUADS : VertexFormat.Mode.TRIANGLES, format);
                 // Iris derives extended entity attributes such as tangents from each
                 // consecutive triangle while BufferBuilder ends. An indexed unique-
                 // vertex stream does not preserve those triangle boundaries, so the
@@ -207,11 +208,11 @@ final class HaloMeshBufferCache implements AutoCloseable {
                     int vertex = sourceQuad ? corner : mesh.index(corner);
                     builder.vertex(mesh.x(vertex), mesh.y(vertex), mesh.z(vertex))
                         .color(255, 255, 255, 255)
-                        .texture(mesh.u(vertex), mesh.v(vertex))
-                        .overlay(OverlayTexture.DEFAULT_UV)
-                        .light(LightmapTextureManager.MAX_LIGHT_COORDINATE)
+                        .uv(mesh.u(vertex), mesh.v(vertex))
+                        .overlayCoords(OverlayTexture.NO_OVERLAY)
+                        .uv2(LightTexture.FULL_BRIGHT)
                         .normal(mesh.normalX(vertex), mesh.normalY(vertex), mesh.normalZ(vertex))
-                        .next();
+                        .endVertex();
                 }
                 litVertices.bind();
                 litVertices.upload(builder.end());
@@ -238,7 +239,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
             VertexBuffer.unbind();
         }
 
-        private void draw(MeshDraw draw, Matrix4f outerModelView, Matrix4f projection, ShaderProgram shader,
+        private void draw(MeshDraw draw, Matrix4f outerModelView, Matrix4f projection, ShaderInstance shader,
                           MeshDrawWorkspace workspace, HaloMeshShader.PreparedProgram prepared) {
             VertexBuffer selected = draw.directionalLighting() ? litVertices : flatVertices;
             boolean expanded = draw.directionalLighting();
@@ -270,12 +271,12 @@ final class HaloMeshBufferCache implements AutoCloseable {
                 if (prepared == null) HaloMeshShader.setNormalMatrix(shader, modelView);
                 else prepared.normal(workspace.normal(modelView));
             }
-            selected.draw(modelView, projection, shader);
+            selected.drawWithShader(modelView, projection, shader);
             VertexBuffer.unbind();
         }
 
         private void drawPrimitive(network.azusake.halo.core.render.PrimitiveDraw draw, Matrix4f outer,
-                                   Matrix4f projection, ShaderProgram shader) {
+                                   Matrix4f projection, ShaderInstance shader) {
             boolean lit = draw.state().directionalLighting();
             VertexBuffer selected = lit ? litVertices : flatVertices;
             selected.bind();
@@ -297,7 +298,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
             float color = HaloDrawSubmitter.quantizedColor(draw.brightness());
             org.lwjgl.opengl.GL20.glDisableVertexAttribArray(colorAttribute);
             org.lwjgl.opengl.GL20.glVertexAttrib4f(colorAttribute, color, color, color, 1);
-            try { selected.draw(modelView, projection, shader); }
+            try { selected.drawWithShader(modelView, projection, shader); }
             finally {
                 org.lwjgl.opengl.GL20.glEnableVertexAttribArray(colorAttribute);
                 VertexBuffer.unbind();

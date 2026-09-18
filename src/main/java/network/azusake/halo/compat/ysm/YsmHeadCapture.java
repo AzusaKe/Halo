@@ -5,18 +5,17 @@ import network.azusake.halo.api.v2.AnchorSource;
 import network.azusake.halo.api.v2.HaloAnchorApi;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.physics.RenderHeadCapture;
-import net.minecraft.client.render.Frustum;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 /** Per-frame YSM Head locator captures, isolated from the vanilla path. */
 public final class YsmHeadCapture {
@@ -40,7 +39,7 @@ public final class YsmHeadCapture {
      * material passes do not need the context once the UUID-keyed matrix has
      * been stored.
      */
-    public static void captureAndReleaseEntity(Object animatedModel, MatrixStack matrices) {
+    public static void captureAndReleaseEntity(Object animatedModel, PoseStack matrices) {
         try {
             capture(animatedModel, matrices);
         } finally {
@@ -49,7 +48,7 @@ public final class YsmHeadCapture {
     }
 
     /** Called by the optional YSM Mixin at the base model render pass. */
-    public static void capture(Object animatedModel, MatrixStack matrices) {
+    public static void capture(Object animatedModel, PoseStack matrices) {
         if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
             YsmPreviewCapture.capture(animatedModel, matrices);
             return;
@@ -89,7 +88,7 @@ public final class YsmHeadCapture {
             return;
         }
 
-        UUID uuid = entity.getUuid();
+        UUID uuid = entity.getUUID();
         if (CURRENT.containsKey(uuid)) {
             return;
         }
@@ -97,7 +96,7 @@ public final class YsmHeadCapture {
         try {
             Matrix4f headMatrix = YsmV265Adapter.captureHeadMatrix(
                 animatedModel,
-                new Matrix4f(matrices.peek().getPositionMatrix())
+                new Matrix4f(matrices.last().pose())
             );
             if (headMatrix == null) {
                 warnOnce("unusable-head",
@@ -112,7 +111,7 @@ public final class YsmHeadCapture {
             if (CURRENT.putIfAbsent(uuid, captured) == null) {
                 double[] rawOffset = HaloModConfigStore.get().getExperimentalYsmHeadLocalOffset();
                 AnchorPose pose = YsmHeadMath.toAnchorPose(
-                    captured, new Vec3d(rawOffset[0], rawOffset[1], rawOffset[2]));
+                    captured, new Vec3(rawOffset[0], rawOffset[1], rawOffset[2]));
                 if (pose != null) {
                     YSM_SOURCE.submit(uuid, pose);
                 } else {
@@ -134,7 +133,7 @@ public final class YsmHeadCapture {
      * by every capture. Previous-frame matrices must be restored with the
      * camera transform from the frame that produced them, not the current one.
      */
-    public static void beginFrame(Matrix4f viewMatrix, Vec3d cameraPos, Frustum frustum) {
+    public static void beginFrame(Matrix4f viewMatrix, Vec3 cameraPos, Frustum frustum) {
         PREVIOUS.clear();
         PREVIOUS.putAll(CURRENT);
         CURRENT.clear();
@@ -186,14 +185,14 @@ public final class YsmHeadCapture {
     }
 
     static void recordForTests(UUID uuid, Matrix4f matrix) {
-        CURRENT.put(uuid, new CapturedHead(new Matrix4f(matrix), new Matrix4f(), Vec3d.ZERO));
+        CURRENT.put(uuid, new CapturedHead(new Matrix4f(matrix), new Matrix4f(), Vec3.ZERO));
     }
 
     static void recordForTests(
         UUID uuid,
         Matrix4f matrix,
         Matrix4f viewMatrix,
-        Vec3d cameraPos
+        Vec3 cameraPos
     ) {
         CURRENT.put(uuid, new CapturedHead(
             new Matrix4f(matrix), new Matrix4f(viewMatrix), cameraPos));
@@ -207,7 +206,7 @@ public final class YsmHeadCapture {
 
     private static boolean isVisible(CaptureFrame frame, LivingEntity entity) {
         try {
-            return frame.frustum.isVisible(entity.getVisibilityBoundingBox());
+            return frame.frustum.isVisible(entity.getBoundingBoxForCulling());
         } catch (Throwable error) {
             warnOnce("frustum-check-failure",
                 "[YSM Compat] main-camera frustum check failed; rejecting auxiliary capture: "
@@ -228,9 +227,9 @@ public final class YsmHeadCapture {
         }
     }
 
-    public record CapturedHead(Matrix4f headMatrix, Matrix4f viewMatrix, Vec3d cameraPos) {
+    public record CapturedHead(Matrix4f headMatrix, Matrix4f viewMatrix, Vec3 cameraPos) {
     }
 
-    private record CaptureFrame(Matrix4f viewMatrix, Vec3d cameraPos, Frustum frustum) {
+    private record CaptureFrame(Matrix4f viewMatrix, Vec3 cameraPos, Frustum frustum) {
     }
 }

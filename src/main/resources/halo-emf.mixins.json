@@ -6,8 +6,8 @@
   "plugin": "network.azusake.halo.compat.emf.mixin.EmfMixinPlugin",
   "client": [
     "EmfModelPartVanillaNameMixin",
-    "EmfModelPartIntermediaryMixin",
-    "EmfModelPartNamedMixin"
+    "EmfModelPartNamedMixin",
+    "EmfModelPartForgeMixin"
   ],
   "injectors": {
     "defaultRequire": 0
