@@ -51,6 +51,7 @@ Halo 保留三种运行模式：单人游戏；Forge 服务端和客户端都安
 - [x] **持久化**：通过实体 NBT 和世界持久状态，光环在世界重载和服务器重启后依然保留。实体加载时自动恢复。
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
 - [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
+- [ ] **LabPBR 材质**：此原生 Forge flash 构建不支持 LabPBR 附加贴图；游戏内 A/B 实测已确认 `_n.png`／`_s.png` 不会产生材质效果。如需在 Forge 1.20.1 使用 LabPBR，可改用信雅互联运行 **Halo 2.4.0 的 Minecraft 1.20.1 Fabric 构建**，但此替代方案将无法使用 Halo 的 YSM 兼容功能。
 - [x] **动画支持**：光环定义支持位置动画曲线（振荡、线性、恒定）和旋转动画曲线（持续旋转等）。**此功能仍在规划中，预计将添加模型支持和更多动画**
 - [x] **运行时配置**：衰减因子、最大距离、缩放、位置偏移和旋转偏移均可通过 `/halo config` 实时修改。**注意，目前尚无法针对特定个体和光环配置上述参数，如有需求请前往单个光环定义文件（json格式）手动调整**
 - [x] **资源包友好**：光环定义为 JSON 文件，存放在 `assets/<namespace>/halo_definitions/` 目录下。通过资源包或数据包添加新光环，运行 `/reload` 即可生效。**数据包和资源包的结构尚未确定**
@@ -78,6 +79,8 @@ Halo 保留三种运行模式：单人游戏；Forge 服务端和客户端都安
 3. 将 Halo JAR 放入 `mods` 文件夹，使用 Forge 配置启动。
 
 请勿为此 JAR 安装 Fabric API、Sinytra Connector 或 Forgified Fabric API。需要多人同步时，服务端和客户端都安装 Halo；仅客户端安装时，连入无 Halo 服务端将使用 LOCAL 模式；仅服务端安装也可接受无 Halo 客户端，但这些客户端不会接收或渲染 Halo 数据。
+
+**LabPBR 替代安装方式：**不要同时安装此原生 Forge Halo JAR。请改为安装信雅互联（Sinytra Connector）和 Forgified Fabric API，再使用 **Halo 2.4.0 的 Minecraft 1.20.1 Fabric** JAR。该方式可在 Forge 1.20.1 获得 Fabric 构建的 LabPBR 支持，但 Halo 的 YSM 兼容功能将不可用。
 
 <a id="使用方法"></a>
 

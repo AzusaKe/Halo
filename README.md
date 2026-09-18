@@ -51,6 +51,7 @@ Halo supports three operating modes: singleplayer; multiplayer where both the Fo
 - [x] **Persistent**: Halos survive world reloads and server restarts through entity NBT and world persistent state. Automatically restored on entity load.
 - [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
 - [x] **Glow Effects**: The `animation.glow` channel drives each primitive's own self-illumination brightness (fullbright); set `glowing: false` on a group to make its primitives follow ambient light instead.
+- [ ] **LabPBR Materials**: This native Forge flash build does not support LabPBR companion textures; in-game A/B testing confirmed that `_n.png`/`_s.png` have no material effect. To obtain LabPBR on Forge 1.20.1, run the **Minecraft 1.20.1 Fabric build of Halo 2.4.0** through Sinytra Connector instead. That alternative does **not** provide Halo's YSM compatibility.
 - [x] **Animation Support**: Halo definitions support position animation curves (oscillate, linear, constant) and rotation animation curves (continuous spin, etc.). **This feature is still in planning, with model support and more animations to be added.**
 - [x] **Runtime Configuration**: Damping factors, maximum distance, scale, position offset, and rotation offset can all be modified live via `/halo config`. **Note: Currently cannot configure these parameters for specific individuals and halos. Please manually adjust the individual halo definition file (JSON format) if needed.**
 - [x] **Resource Pack Friendly**: Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`. Add new halos via resource packs or data packs and run `/reload` to take effect. **The structure of data packs and resource packs is not yet finalized.**
@@ -78,6 +79,8 @@ Halo supports three operating modes: singleplayer; multiplayer where both the Fo
 3. Place the Halo JAR into the `mods` folder and launch the Forge profile.
 
 Do not install Fabric API, Sinytra Connector, or Forgified Fabric API for this JAR. Install Halo on both server and clients for synchronized multiplayer. Installing it only on the client enables LOCAL mode on servers without Halo; installing it only on the server is also allowed, but clients without Halo will not receive or render Halo data.
+
+**LabPBR alternative:** Do not install this native Forge Halo JAR at the same time. Instead, install Sinytra Connector and Forgified Fabric API, then use the **Halo 2.4.0 Minecraft 1.20.1 Fabric** JAR. This route provides the Fabric build's LabPBR support on Forge 1.20.1, but Halo's YSM integration will be unavailable.
 
 <a id="usage"></a>
 
