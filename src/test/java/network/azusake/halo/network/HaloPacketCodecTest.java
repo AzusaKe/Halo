@@ -1,8 +1,8 @@
 package network.azusake.halo.network;
 
 import java.util.*;
+import net.minecraft.network.FriendlyByteBuf;
 import io.netty.buffer.Unpooled;
-import net.minecraft.network.PacketByteBuf;
 import network.azusake.halo.core.Identifier;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,7 +21,7 @@ class HaloPacketCodecTest {
             var bytes = new byte[encoded.readableBytes()]; encoded.readBytes(bytes);
             assertArrayEquals(expected, bytes);
         } finally { encoded.release(); }
-        var old = new PacketByteBuf(Unpooled.wrappedBuffer(expected));
+        var old = new FriendlyByteBuf(Unpooled.wrappedBuffer(expected));
         try { assertEquals(Map.of(ENTITY, ID), HaloPacketCodec.decodeSnapshot(old)); assertEquals(0, old.readableBytes()); }
         finally { old.release(); }
     }

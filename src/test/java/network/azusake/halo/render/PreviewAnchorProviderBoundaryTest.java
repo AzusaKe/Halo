@@ -1,5 +1,6 @@
 package network.azusake.halo.render;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;

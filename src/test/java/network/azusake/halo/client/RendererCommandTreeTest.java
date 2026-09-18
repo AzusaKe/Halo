@@ -2,6 +2,7 @@ package network.azusake.halo.client;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.tree.LiteralCommandNode;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ class RendererCommandTreeTest {
         for (int refresh = 0; refresh < 2; refresh++) {
             var tree = new CommandDispatcher<Object>();
             RendererCommandTree.addSuggestions(tree);
-            assertNull(tree.getRoot().getChild("halo"), "Do not preempt Fabric's complete client root");
+            assertNull(tree.getRoot().getChild("halo"), "Do not preempt Forge's complete client root");
             tree.register(LiteralArgumentBuilder.<Object>literal("halo")
                 .then(LiteralArgumentBuilder.<Object>literal("list"))
                 .then(RendererCommandTree.command((source, backend) -> 0)));

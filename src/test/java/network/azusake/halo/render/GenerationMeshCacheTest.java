@@ -2,6 +2,7 @@ package network.azusake.halo.render;
 
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.render.TriangleMesh;
 import org.junit.jupiter.api.Test;

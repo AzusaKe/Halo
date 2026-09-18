@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.4.0 Forge 适配器 — 2026-09-18
+
+- 新增 Minecraft 1.20.1 Forge 原生适配层，使用 ForgeGradle 6、Mojmap、Java 17 与 Forge 47.4.x；不依赖 Fabric Loader、Fabric API 或 Connector。
+- 服务端生命周期、资源重载、实体事件、命令、权杖与可选对端网络迁移到 Forge 事件总线、注册表和 `SimpleChannel`，保持 2.4.0 的存档、配置、定义及逻辑负载契约。
+- 世界与物品栏预览继续共用 HaloCore 2.4.0 的锚点、物理、动画和缓存几何；受光路径使用 Forge 实体 RenderType/`NEW_ENTITY` 状态，透明与自发光内容在透明阶段后提交。
+- YSM 精确适配目标改为 `2.6.5-forge+mc1.20.1`；EMF 使用 Forge 1.20.1 ABI 检测并支持 3.1.1 及以上；Oculus 桥复用实体 solid/translucent 程序与 LabPBR 采样契约。
+- 分支成品名为 `halo-1.20.1-forge-2.4.0+adapter.1.jar`；本迁移不创建标签或 Release。
+
 ## 2.4.0 — 2026-09-17
 
 - 新增 core `api.v2` 服务端光环来源 API；饰品等外部模组可按 UUID 提交定义，Halo 仍只同步并渲染唯一胜者。
