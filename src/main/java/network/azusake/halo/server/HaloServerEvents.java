@@ -4,17 +4,19 @@ import network.azusake.halo.HaloMod;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
 import network.azusake.halo.item.HaloScepterService;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 
 import java.util.UUID;
 
 /**
- * Central registry for all server-side Fabric API event callbacks.
+ * Central registry for all server-side Forge event callbacks.
  *
  * <p>Each static {@code register()} method wires one category of events.
- * Call {@link #registerAll()} from {@link HaloMod#onInitialize()} to
+ * Call {@link #registerAll()} from the mod constructor to
  * activate all server-side behaviour in one shot.</p>
  */
 public final class HaloServerEvents {
@@ -38,26 +40,29 @@ public final class HaloServerEvents {
     // ---------------------------------------------------------------
 
     static void registerEntityEvents() {
-        ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
+        MinecraftForge.EVENT_BUS.addListener((EntityLeaveLevelEvent event) -> {
+            if (!(event.getLevel() instanceof ServerLevel world)) return;
+            var entity = event.getEntity();
             HaloMod.LOGGER.debug(
                 "HaloServerEvents: entity unloaded – uuid={}, type={}",
-                entity.getUuid(), entity.getType().getName().getString()
+                entity.getUUID(), entity.getType().getDescription().getString()
             );
             HaloManager.getInstance().entityUnloaded(entity);
-            HaloScepterService.invalidateTarget(world.getServer(), entity.getUuid());
+            HaloScepterService.invalidateTarget(world.getServer(), entity.getUUID());
         });
     }
 
     static void registerConnectionEvents() {
         // Player join → send full halo state snapshot
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
+            if (!(event.getEntity() instanceof ServerPlayer player)) return;
             HaloMod.LOGGER.debug(
                 "HaloServerEvents: player joined – uuid={}, name={}",
-                handler.getPlayer().getUuid(), handler.getPlayer().getName().getString()
+                player.getUUID(), player.getName().getString()
             );
-            network.azusake.halo.network.HaloNetwork.sendFullSync(handler.getPlayer());
-            network.azusake.halo.network.HaloNetwork.sendHello(handler.getPlayer());
-            HaloManager.getInstance().notifyPriorityConflicts(handler.getPlayer());
+            network.azusake.halo.network.HaloNetwork.sendFullSync(player);
+            network.azusake.halo.network.HaloNetwork.sendHello(player);
+            HaloManager.getInstance().notifyPriorityConflicts(player);
         });
 
         // Player disconnect → clear runtime halo and reported definitions.
@@ -65,13 +70,14 @@ public final class HaloServerEvents {
         // (HaloWorldSaveData) — a player keeps their halo across a reconnect,
         // just as they keep it across a respawn.  Only /halo show and /halo hide
         // may modify ownership.
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            UUID uuid = handler.getPlayer().getUuid();
+        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> {
+            if (!(event.getEntity() instanceof ServerPlayer player)) return;
+            UUID uuid = player.getUUID();
             HaloMod.LOGGER.debug(
                 "HaloServerEvents: player disconnected – uuid={}, name={}",
-                uuid, handler.getPlayer().getName().getString()
+                uuid, player.getName().getString()
             );
-            HaloManager.getInstance().removeHalo(uuid, server);
+            HaloManager.getInstance().removeHalo(uuid, player.getServer());
             HaloJsonLoader.removeClientReportedDefs(uuid);
             HaloScepterService.close(uuid);
         });

@@ -1,13 +1,14 @@
 package network.azusake.halo.config;
 
 import com.google.gson.*;
-import net.fabricmc.loader.api.FabricLoader;
+import net.minecraftforge.fml.loading.FMLPaths;
 import network.azusake.halo.HaloMod;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.*;
 import java.util.*;
+import java.util.Map.Entry;
 
 /** Persistent, instance-wide overrides for registered halo-source priorities. */
 public final class HaloSourcePriorityStore {
@@ -22,7 +23,7 @@ public final class HaloSourcePriorityStore {
     public record LoadResult(boolean success, String message) {}
 
     public static Path defaultFile() {
-        return FabricLoader.getInstance().getConfigDir().resolve("halo-azusake").resolve(FILE_NAME);
+        return FMLPaths.CONFIGDIR.get().resolve("halo-azusake").resolve(FILE_NAME);
     }
 
     public static synchronized LoadResult load() { return load(defaultFile()); }

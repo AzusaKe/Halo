@@ -7,28 +7,32 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.Vec3d;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.*;
 
 /**
- * Fabric resource reload listener that scans {@code entity_anchors/} in all
+ * Forge resource reload listener that scans {@code entity_anchors/} in all
  * datapacks (server) and resource packs (client), parses every {@code .json}
  * file into an {@link EntityAnchorProfile}, and exposes them through a static
  * registry.
  *
  * <p>Loaded profiles are stored in a static {@link LinkedHashMap} keyed by
  * entity type {@link Identifier}.  Client-pack entries override server-pack
- * entries with the same entity key, matching the Fabric resource-loading
- * convention.</p>
+ * entries with the same entity key, preserving the established resource-loading
+ * precedence.</p>
  *
  * <p>Mirrors {@link HaloJsonLoader} in registration pattern, scan path
  * convention (both {@code SERVER_DATA} and {@code CLIENT_RESOURCES}), and
@@ -64,21 +68,21 @@ public final class EntityAnchorLoader {
             return;
         }
         serverRegistered = true;
-        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
-            .registerReloadListener(new ServerListener());
+        MinecraftForge.EVENT_BUS.addListener((AddReloadListenerEvent event) ->
+            event.addListener(new ServerListener()));
         LOG.info("EntityAnchorLoader registered for SERVER_DATA");
     }
 
     /**
      * Register the client (resource-pack) listener.  Safe to call more than once.
      */
-    public static void registerClientResources() {
+    public static void registerClientResources(IEventBus modBus) {
         if (clientRegistered) {
             return;
         }
         clientRegistered = true;
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
-            .registerReloadListener(new ClientListener());
+        modBus.addListener((RegisterClientReloadListenersEvent event) ->
+            event.registerReloadListener(new ClientListener()));
         LOG.info("EntityAnchorLoader registered for CLIENT_RESOURCES");
     }
 
@@ -99,16 +103,16 @@ public final class EntityAnchorLoader {
 
     private static void reload(ResourceManager manager, Set<Identifier> sourceSet) {
         Map<Identifier, EntityAnchorProfile> loaded = new LinkedHashMap<>();
-        Map<net.minecraft.util.Identifier, net.minecraft.resource.Resource> resources = manager.findResources(
+        Map<net.minecraft.resources.ResourceLocation, net.minecraft.server.packs.resources.Resource> resources = manager.listResources(
             PROFILES_PATH,
             id -> id.getPath().endsWith(".json")
         );
 
         LOG.info("Found {} entity anchor profile(s) to load", resources.size());
 
-        for (Map.Entry<net.minecraft.util.Identifier, net.minecraft.resource.Resource> entry : resources.entrySet()) {
+        for (Map.Entry<net.minecraft.resources.ResourceLocation, net.minecraft.server.packs.resources.Resource> entry : resources.entrySet()) {
             var fileId = entry.getKey();
-            try (var input = entry.getValue().getInputStream()) {
+            try (var input = entry.getValue().open()) {
                 EntityAnchorProfile profile = EntityAnchorParser.parse(new String(
                     input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
 
@@ -135,26 +139,16 @@ public final class EntityAnchorLoader {
     // Resource listeners
     // ------------------------------------------------------------------
 
-    private static class ServerListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public net.minecraft.util.Identifier getFabricId() {
-            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "entity_anchors");
-        }
-
-        @Override
-        public void reload(ResourceManager manager) {
+    private static class ServerListener extends SimplePreparableReloadListener<Void> {
+        @Override protected Void prepare(ResourceManager manager, ProfilerFiller profiler) { return null; }
+        @Override protected void apply(Void ignored, ResourceManager manager, ProfilerFiller profiler) {
             EntityAnchorLoader.reload(manager, serverLoadedIds);
         }
     }
 
-    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public net.minecraft.util.Identifier getFabricId() {
-            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "entity_anchors_client");
-        }
-
-        @Override
-        public void reload(ResourceManager manager) {
+    private static class ClientListener extends SimplePreparableReloadListener<Void> {
+        @Override protected Void prepare(ResourceManager manager, ProfilerFiller profiler) { return null; }
+        @Override protected void apply(Void ignored, ResourceManager manager, ProfilerFiller profiler) {
             EntityAnchorLoader.reload(manager, clientLoadedIds);
         }
     }

@@ -2,6 +2,7 @@ package network.azusake.halo.command;
 
 import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.config.HaloModConfigStore;
+import network.azusake.halo.config.HaloSourcePriorityStore.LoadResult;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.json.HaloJsonLoader;
@@ -13,29 +14,35 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.command.argument.IdentifierArgumentType;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 import network.azusake.halo.core.Identifier;
-
+import network.azusake.halo.core.runtime.HaloSourceHost.PriorityEntry;
+import network.azusake.halo.core.runtime.HaloSourceHost.PrioritySnapshot;
+import network.azusake.halo.core.runtime.ServerRuntime.Selection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.TreeSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import network.azusake.halo.util.HaloIdMatcher;
 
-import static net.minecraft.server.command.CommandManager.argument;
-import static net.minecraft.server.command.CommandManager.literal;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
 
 /**
  * Brigadier command tree for {@code /halo}.
@@ -67,9 +74,9 @@ public final class HaloConfigCommand {
      *
      * @param dispatcher the Brigadier command dispatcher
      */
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         var haloNode = literal("halo")
-            .requires(source -> source.hasPermissionLevel(HaloModConfigStore.getPermissionLevel()));
+            .requires(source -> source.hasPermission(HaloModConfigStore.getPermissionLevel()));
 
         // --- /halo list ---
         haloNode.then(literal("list")
@@ -105,7 +112,7 @@ public final class HaloConfigCommand {
 
         // --- /halo inspect <entity> (detailed halo status) ---
         haloNode.then(literal("inspect")
-            .then(argument("target", EntityArgumentType.entity())
+            .then(argument("target", EntityArgument.entity())
                 .executes(HaloConfigCommand::inspectHalo)
             )
         );
@@ -113,8 +120,8 @@ public final class HaloConfigCommand {
         // --- /halo show <entity> <definition> ---
         // Use IdentifierArgumentType which allows ':' in unquoted input, unlike word()/string()
         haloNode.then(literal("show")
-            .then(argument("target", EntityArgumentType.entity())
-                .then(argument("definition", IdentifierArgumentType.identifier())
+            .then(argument("target", EntityArgument.entity())
+                .then(argument("definition", ResourceLocationArgument.id())
                     .suggests(HaloConfigCommand::suggestDefinitions)
                     .executes(HaloConfigCommand::showHalo)
                 )
@@ -123,7 +130,7 @@ public final class HaloConfigCommand {
 
         // --- /halo hide <entity> ---
         haloNode.then(literal("hide")
-            .then(argument("target", EntityArgumentType.entity())
+            .then(argument("target", EntityArgument.entity())
                 .executes(HaloConfigCommand::hideHalo)
             )
         );
@@ -131,7 +138,7 @@ public final class HaloConfigCommand {
         var priorityNode = literal("priority");
         priorityNode.then(literal("list").executes(HaloConfigCommand::listPriorities));
         priorityNode.then(literal("set")
-            .then(argument("source", IdentifierArgumentType.identifier())
+            .then(argument("source", ResourceLocationArgument.id())
                 .suggests(HaloConfigCommand::suggestSources)
                 .then(argument("priority", IntegerArgumentType.integer())
                     .executes(HaloConfigCommand::setPriority))));
@@ -207,7 +214,7 @@ public final class HaloConfigCommand {
     // ------------------------------------------------------------------
 
     private static CompletableFuture<Suggestions> suggestSources(
-        CommandContext<ServerCommandSource> ctx, SuggestionsBuilder builder
+        CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder
     ) {
         HaloManager.getInstance().prioritySnapshot().persistedPriorities().keySet().stream()
             .filter(id -> id.startsWith(builder.getRemaining().toLowerCase(java.util.Locale.ROOT)))
@@ -215,11 +222,11 @@ public final class HaloConfigCommand {
         return builder.buildFuture();
     }
 
-    private static int listPriorities(CommandContext<ServerCommandSource> ctx) {
+    private static int listPriorities(CommandContext<CommandSourceStack> ctx) {
         var snapshot = HaloManager.getInstance().prioritySnapshot();
         var ids = new TreeSet<>(snapshot.persistedPriorities().keySet());
         ids.addAll(snapshot.entries().keySet());
-        ctx.getSource().sendFeedback(() -> Text.literal("§aHalo sources (§f" + ids.size() + "§a):"), false);
+        ctx.getSource().sendSuccess(() -> Component.literal("§aHalo sources (§f" + ids.size() + "§a):"), false);
         for (String id : ids) {
             var entry = snapshot.entries().get(id);
             int configured = snapshot.persistedPriorities().getOrDefault(id, entry == null ? 0 : entry.defaultPriority());
@@ -230,35 +237,35 @@ public final class HaloConfigCommand {
                     + " §8effective=§7" + (entry.effectivePriority() == null ? "disabled" : entry.effectivePriority())
                     + " §8order=§7" + entry.registrationOrder() + " §8status=§7"
                     + entry.status().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
-            ctx.getSource().sendFeedback(() -> Text.literal(line), false);
+            ctx.getSource().sendSuccess(() -> Component.literal(line), false);
         }
         return ids.size();
     }
 
-    private static int setPriority(CommandContext<ServerCommandSource> ctx) {
-        String id = IdentifierArgumentType.getIdentifier(ctx, "source").toString();
+    private static int setPriority(CommandContext<CommandSourceStack> ctx) {
+        String id = ResourceLocationArgument.getId(ctx, "source").toString();
         int priority = IntegerArgumentType.getInteger(ctx, "priority");
         HaloManager.getInstance().setPriority(id, priority);
         var entry = HaloManager.getInstance().prioritySnapshot().entries().get(id);
         if (entry == null) {
-            ctx.getSource().sendFeedback(() -> Text.literal("§aSaved priority §f" + priority + "§a for §f" + id
+            ctx.getSource().sendSuccess(() -> Component.literal("§aSaved priority §f" + priority + "§a for §f" + id
                 + "§a; it will apply when that source registers."), true);
         } else {
-            ctx.getSource().sendFeedback(() -> Text.literal("§aPriority updated without restart: §f" + id
+            ctx.getSource().sendSuccess(() -> Component.literal("§aPriority updated without restart: §f" + id
                 + " §8configured=§7" + priority + " §8effective=§7"
                 + (entry.effectivePriority() == null ? "disabled-conflict" : entry.effectivePriority())), true);
         }
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int reloadPriorities(CommandContext<ServerCommandSource> ctx) {
+    private static int reloadPriorities(CommandContext<CommandSourceStack> ctx) {
         var result = HaloManager.getInstance().reloadPriorities();
         if (!result.success()) {
-            ctx.getSource().sendError(Text.literal("Failed to reload halo source priorities; the last valid runtime values remain: "
+            ctx.getSource().sendFailure(Component.literal("Failed to reload halo source priorities; the last valid runtime values remain: "
                 + result.message()));
             return 0;
         }
-        ctx.getSource().sendFeedback(() -> Text.literal("§aHalo source priorities reloaded without restart."), true);
+        ctx.getSource().sendSuccess(() -> Component.literal("§aHalo source priorities reloaded without restart."), true);
         return Command.SINGLE_SUCCESS;
     }
 
@@ -267,13 +274,13 @@ public final class HaloConfigCommand {
      * plus any definition IDs currently in use that the server doesn't know about
      * (provided by client resource packs).
      */
-    private static int listDefinitions(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
+    private static int listDefinitions(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
         Set<Identifier> clientIds = HaloJsonLoader.getClientReportedDefIds();
 
         // Current player's own reported IDs — highlighted in green
-        UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUuid() : null;
+        UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUUID() : null;
         Set<Identifier> myDefs = playerUuid != null
             ? HaloJsonLoader.getClientReportedDefs(playerUuid) : Set.of();
 
@@ -287,19 +294,19 @@ public final class HaloConfigCommand {
 
         int total = defs.size() + clientOnlyIds.size();
         if (total == 0) {
-            source.sendFeedback(() -> Text.literal("§eNo halo definitions loaded."), false);
+            source.sendSuccess(() -> Component.literal("§eNo halo definitions loaded."), false);
             return Command.SINGLE_SUCCESS;
         }
 
-        source.sendFeedback(() -> Text.literal("§aLoaded halo definitions (" + total + "):"), false);
+        source.sendSuccess(() -> Component.literal("§aLoaded halo definitions (" + total + "):"), false);
         for (Identifier id : defs.keySet()) {
-            source.sendFeedback(() -> Text.literal("  §7- §f" + id), false);
+            source.sendSuccess(() -> Component.literal("  §7- §f" + id), false);
         }
         for (Identifier id : clientOnlyIds) {
             if (myDefs.contains(id)) {
-                source.sendFeedback(() -> Text.literal("  §7- §a" + id + " §8(client-side, installed locally)"), false);
+                source.sendSuccess(() -> Component.literal("  §7- §a" + id + " §8(client-side, installed locally)"), false);
             } else {
-                source.sendFeedback(() -> Text.literal("  §7- §d" + id + " §8(client-side)"), false);
+                source.sendSuccess(() -> Component.literal("  §7- §d" + id + " §8(client-side)"), false);
             }
         }
         return total;
@@ -308,22 +315,22 @@ public final class HaloConfigCommand {
     /**
      * /halo dump — detailed dump of all loaded definitions with shape/animation/damping info.
      */
-    private static int dumpDefinitions(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
+    private static int dumpDefinitions(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
 
-        UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUuid() : null;
+        UUID playerUuid = source.getPlayer() != null ? source.getPlayer().getUUID() : null;
         Set<Identifier> myDefs = playerUuid != null
             ? HaloJsonLoader.getClientReportedDefs(playerUuid) : Set.of();
 
         if (defs.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("§eNo halo definitions loaded. Run §f/reload§e first."), false);
+            source.sendSuccess(() -> Component.literal("§eNo halo definitions loaded. Run §f/reload§e first."), false);
             return Command.SINGLE_SUCCESS;
         }
 
-        source.sendFeedback(() -> Text.literal("§a=== Loaded Halo Definitions (" + defs.size() + ") ==="), false);
+        source.sendSuccess(() -> Component.literal("§a=== Loaded Halo Definitions (" + defs.size() + ") ==="), false);
         for (HaloDefinition def : defs.values()) {
-            source.sendFeedback(() -> Text.literal(
+            source.sendSuccess(() -> Component.literal(
                 "§7  - §f" + def.id() +
                     " §8v=§7" + def.schemaVersion() +
                     " §8layers=§7" + def.model().groups().size() +
@@ -341,13 +348,13 @@ public final class HaloConfigCommand {
             }
         }
         if (!clientOnlyIds.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("§d=== Client-side definitions in use (" + clientOnlyIds.size() + ") ===\n"
+            source.sendSuccess(() -> Component.literal("§d=== Client-side definitions in use (" + clientOnlyIds.size() + ") ===\n"
                 + "§8(JSON not installed on server — provided by client resource packs)"), false);
             for (Identifier id : clientOnlyIds) {
                 if (myDefs.contains(id)) {
-                    source.sendFeedback(() -> Text.literal("  §7- §a" + id + " §8(installed locally)"), false);
+                    source.sendSuccess(() -> Component.literal("  §7- §a" + id + " §8(installed locally)"), false);
                 } else {
-                    source.sendFeedback(() -> Text.literal("  §7- §d" + id), false);
+                    source.sendSuccess(() -> Component.literal("  §7- §d" + id), false);
                 }
             }
         }
@@ -357,9 +364,9 @@ public final class HaloConfigCommand {
     /**
      * /halo reload — convenience hint directing the player to use /reload.
      */
-    private static int reloadHint(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
-        source.sendFeedback(() -> Text.literal("§eUse §f/reload§e to reload all resources including halo definitions."), false);
+    private static int reloadHint(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        source.sendSuccess(() -> Component.literal("§eUse §f/reload§e to reload all resources including halo definitions."), false);
         return Command.SINGLE_SUCCESS;
     }
 
@@ -370,23 +377,23 @@ public final class HaloConfigCommand {
      * the definition JSON to be installed locally.  Clients are responsible for
      * providing the actual halo definition via their own resource packs.</p>
      */
-    private static int showHalo(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
+    private static int showHalo(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         Entity target;
 
         try {
-            target = EntityArgumentType.getEntity(ctx, "target");
+            target = EntityArgument.getEntity(ctx, "target");
         } catch (Exception e) {
-            source.sendError(Text.literal("Invalid entity selector."));
+            source.sendFailure(Component.literal("Invalid entity selector."));
             return 0;
         }
 
         if (!(target instanceof LivingEntity living)) {
-            source.sendError(Text.literal("Target must be a living entity."));
+            source.sendFailure(Component.literal("Target must be a living entity."));
             return 0;
         }
 
-        Identifier defId = network.azusake.halo.platform.PlatformTypes.core(IdentifierArgumentType.getIdentifier(ctx, "definition"));
+        Identifier defId = network.azusake.halo.platform.PlatformTypes.core(ResourceLocationArgument.getId(ctx, "definition"));
 
         // (no namespace fallback — the server is a thin authority that accepts any
         // valid identifier; the namespace comes directly from tab-completion)
@@ -396,10 +403,10 @@ public final class HaloConfigCommand {
 
         HaloManager.getInstance().showHaloOn(living, resolvedId);
 
-        source.sendFeedback(() -> Text.literal("§aHalo §f" + resolvedId + "§a shown on §f" + living.getDisplayName().getString()), true);
-        var selected = HaloManager.getInstance().selection(living.getUuid());
+        source.sendSuccess(() -> Component.literal("§aHalo §f" + resolvedId + "§a shown on §f" + living.getDisplayName().getString()), true);
+        var selected = HaloManager.getInstance().selection(living.getUUID());
         if (selected != null && !HaloManager.WORLD_DATA_SOURCE_ID.equals(selected.sourceId())) {
-            source.sendFeedback(() -> Text.literal("§eWorldData was saved, but source §f" + selected.sourceId()
+            source.sendSuccess(() -> Component.literal("§eWorldData was saved, but source §f" + selected.sourceId()
                 + "§e remains selected at priority §f" + selected.priority()), false);
         }
         return Command.SINGLE_SUCCESS;
@@ -423,7 +430,7 @@ public final class HaloConfigCommand {
      * @return a future resolving to the filtered suggestions
      */
     private static CompletableFuture<Suggestions> suggestDefinitions(
-        CommandContext<ServerCommandSource> ctx, SuggestionsBuilder builder
+        CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder
     ) {
         String remaining = builder.getRemaining().toLowerCase();
         Set<Identifier> allIds = HaloJsonLoader.getAllKnownDefinitionIds();
@@ -444,28 +451,28 @@ public final class HaloConfigCommand {
     /**
      * /halo hide &lt;entity&gt; — remove a halo from a living entity.
      */
-    private static int hideHalo(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
+    private static int hideHalo(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         Entity target;
 
         try {
-            target = EntityArgumentType.getEntity(ctx, "target");
+            target = EntityArgument.getEntity(ctx, "target");
         } catch (Exception e) {
-            source.sendError(Text.literal("Invalid entity selector."));
+            source.sendFailure(Component.literal("Invalid entity selector."));
             return 0;
         }
 
         if (!(target instanceof LivingEntity living)) {
-            source.sendError(Text.literal("Target must be a living entity."));
+            source.sendFailure(Component.literal("Target must be a living entity."));
             return 0;
         }
 
         HaloManager.getInstance().hideHaloOn(living);
-        var selected = HaloManager.getInstance().selection(living.getUuid());
+        var selected = HaloManager.getInstance().selection(living.getUUID());
         if (selected == null) {
-            source.sendFeedback(() -> Text.literal("§aHalo hidden from §f" + living.getDisplayName().getString()), true);
+            source.sendSuccess(() -> Component.literal("§aHalo hidden from §f" + living.getDisplayName().getString()), true);
         } else {
-            source.sendFeedback(() -> Text.literal("§aWorldData halo removed from §f" + living.getDisplayName().getString()
+            source.sendSuccess(() -> Component.literal("§aWorldData halo removed from §f" + living.getDisplayName().getString()
                 + "§a; source §f" + selected.sourceId() + "§a remains selected"), true);
         }
         return Command.SINGLE_SUCCESS;
@@ -479,22 +486,22 @@ public final class HaloConfigCommand {
      * and {@code /halo hide}; this command simply forces a save-all (useful when
      * cheats are not enabled), it does not rebuild the record from the runtime map.</p>
      */
-    private static int saveHaloData(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
+    private static int saveHaloData(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         MinecraftServer server = source.getServer();
 
         // Touch the persistent state so it is (re)marked dirty, then save-all.
-        ServerWorld overworld = server.getOverworld();
+        ServerLevel overworld = server.overworld();
         if (overworld != null) {
             HaloWorldSaveData.get(overworld);
         }
 
         // Trigger save-all so the ownership record and entity NBT are written
-        server.saveAll(true, true, true);
+        server.saveEverything(true, true, true);
 
         int count = HaloManager.getInstance().getActiveCount();
-        source.sendFeedback(
-            () -> Text.literal("§aWorld saved. §f" + count + "§a active halo(s) persisted."),
+        source.sendSuccess(
+            () -> Component.literal("§aWorld saved. §f" + count + "§a active halo(s) persisted."),
             true
         );
         return Command.SINGLE_SUCCESS;
@@ -503,17 +510,17 @@ public final class HaloConfigCommand {
     /**
      * /halo active — list all entities that currently have an active halo.
      */
-    private static int listActiveHalos(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
+    private static int listActiveHalos(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         Map<UUID, HaloInstance> halos = HaloManager.getInstance().getActiveHalos();
 
         if (halos.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("§eNo active halos."), false);
+            source.sendSuccess(() -> Component.literal("§eNo active halos."), false);
             return Command.SINGLE_SUCCESS;
         }
 
-        source.sendFeedback(
-            () -> Text.literal("§aActive halos (§f" + halos.size() + "§a):"), false
+        source.sendSuccess(
+            () -> Component.literal("§aActive halos (§f" + halos.size() + "§a):"), false
         );
 
         MinecraftServer server = source.getServer();
@@ -523,7 +530,7 @@ public final class HaloConfigCommand {
 
             // Try to resolve entity name
             String entityName = "<unknown>";
-            for (var world : server.getWorlds()) {
+            for (var world : server.getAllLevels()) {
                 Entity e = world.getEntity(uuid);
                 if (e != null) {
                     entityName = e.getDisplayName().getString();
@@ -531,7 +538,7 @@ public final class HaloConfigCommand {
                 }
             }
 
-            boolean persisted = HaloWorldSaveData.get(server.getOverworld()).contains(uuid);
+            boolean persisted = HaloWorldSaveData.get(server.overworld()).contains(uuid);
             boolean teleporting = EntityHaloTracker.isTeleporting(uuid);
             long ageMs = System.currentTimeMillis() - instance.getCreatedAtTime();
 
@@ -542,7 +549,7 @@ public final class HaloConfigCommand {
             String selectedSource = selection == null ? "<none>" : selection.sourceId() + "@" + selection.priority();
 
             final String name = entityName;
-            source.sendFeedback(() -> Text.literal(
+            source.sendSuccess(() -> Component.literal(
                 "  §7- §f" + name +
                     " §8uuid=§7" + uuid.toString().substring(0, 8) + "..." +
                     " §8def=§7" + instance.getDefinitionId() +
@@ -559,54 +566,54 @@ public final class HaloConfigCommand {
      * Shows: UUID, definition, active flag, creation time, NBT persistence status,
      * teleport status, snap flag, position/rotation, and damping state.
      */
-    private static int inspectHalo(CommandContext<ServerCommandSource> ctx) {
-        ServerCommandSource source = ctx.getSource();
+    private static int inspectHalo(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
         Entity target;
 
         try {
-            target = EntityArgumentType.getEntity(ctx, "target");
+            target = EntityArgument.getEntity(ctx, "target");
         } catch (Exception e) {
-            source.sendError(Text.literal("Invalid entity selector."));
+            source.sendFailure(Component.literal("Invalid entity selector."));
             return 0;
         }
 
         if (!(target instanceof LivingEntity living)) {
-            source.sendError(Text.literal("Target must be a living entity."));
+            source.sendFailure(Component.literal("Target must be a living entity."));
             return 0;
         }
 
-        UUID uuid = living.getUuid();
+        UUID uuid = living.getUUID();
         HaloInstance instance = HaloManager.getInstance().getHaloInstance(uuid);
 
-        source.sendFeedback(
-            () -> Text.literal("§6===== Halo Inspect: §f" + living.getDisplayName().getString() + " §6====="),
+        source.sendSuccess(
+            () -> Component.literal("§6===== Halo Inspect: §f" + living.getDisplayName().getString() + " §6====="),
             false
         );
 
-        source.sendFeedback(
-            () -> Text.literal("  §8UUID:      §7" + uuid), false
+        source.sendSuccess(
+            () -> Component.literal("  §8UUID:      §7" + uuid), false
         );
 
         if (instance == null) {
-            source.sendFeedback(
-                () -> Text.literal("  §8Status:    §eNo halo attached"), false
+            source.sendSuccess(
+                () -> Component.literal("  §8Status:    §eNo halo attached"), false
             );
 
             // Check the world-level ownership record for a stale entry
             // (e.g. the owning entity died permanently and was not pruned).
             MinecraftServer server = source.getServer();
-            ServerWorld overworld = server.getOverworld();
+            ServerLevel overworld = server.overworld();
             Identifier persistedDef = overworld != null
                 ? HaloWorldSaveData.get(overworld).get(uuid)
                 : null;
             if (persistedDef != null) {
-                source.sendFeedback(
-                    () -> Text.literal("  §8Persist:    §eStale ownership found §7(def=" + persistedDef + ")"),
+                source.sendSuccess(
+                    () -> Component.literal("  §8Persist:    §eStale ownership found §7(def=" + persistedDef + ")"),
                     false
                 );
             } else {
-                source.sendFeedback(
-                    () -> Text.literal("  §8Persist:    §7No halo ownership"), false
+                source.sendSuccess(
+                    () -> Component.literal("  §8Persist:    §7No halo ownership"), false
                 );
             }
             return Command.SINGLE_SUCCESS;
@@ -615,43 +622,43 @@ public final class HaloConfigCommand {
         // --- Instance exists ---
         boolean isActive = instance.isActive();
         long ageMs = System.currentTimeMillis() - instance.getCreatedAtTime();
-        boolean persisted = HaloWorldSaveData.get(source.getServer().getOverworld()).contains(uuid);
+        boolean persisted = HaloWorldSaveData.get(source.getServer().overworld()).contains(uuid);
         boolean teleporting = EntityHaloTracker.isTeleporting(uuid);
         boolean needsSnap = instance.isNeedsSnap();
 
-        source.sendFeedback(() -> Text.literal(
+        source.sendSuccess(() -> Component.literal(
             "  §8Definition: §f" + instance.getDefinitionId()), false
         );
         var selection = HaloManager.getInstance().selection(uuid);
-        if (selection != null) source.sendFeedback(() -> Text.literal(
+        if (selection != null) source.sendSuccess(() -> Component.literal(
             "  §8Source:     §f" + selection.sourceId() + " §8Priority: §7" + selection.priority()), false);
         var candidates = HaloManager.getInstance().candidates(uuid);
-        if (!candidates.isEmpty()) source.sendFeedback(() -> Text.literal(
+        if (!candidates.isEmpty()) source.sendSuccess(() -> Component.literal(
             "  §8Candidates: §7" + candidates.stream().map(candidate -> candidate.sourceId() + "@"
                 + (candidate.priority() == null ? "disabled-conflict" : candidate.priority()) + "="
                 + candidate.definition()).collect(java.util.stream.Collectors.joining(", "))), false);
-        source.sendFeedback(() -> Text.literal(
+        source.sendSuccess(() -> Component.literal(
             "  §8Status:    " + (isActive ? "§aactive" : "§cdeactivated") +
             "  §8Age: §7" + (ageMs / 1000) + "s" +
             "  §8Created: §7" + instance.getCreatedAtTime()), false
         );
 
         // World-save ownership persistence
-        source.sendFeedback(() -> Text.literal(
+        source.sendSuccess(() -> Component.literal(
             "  §8Persist:   " + (persisted ? "§a✓ persisted" : "§c✗ not persisted")), false
         );
 
         // Teleport / snap
-        source.sendFeedback(() -> Text.literal(
+        source.sendSuccess(() -> Component.literal(
             "  §8Teleport:  " + (teleporting ? "§ein grace period" : "§7idle") +
             "  §8NeedsSnap: " + (needsSnap ? "§etrue" : "§7false")), false
         );
 
         // Entity anchor
-        var anchor = living instanceof net.minecraft.entity.player.PlayerEntity p
-            ? p.getEyePos()
-            : living.getPos().add(0, living.getHeight() * 0.85, 0);
-        source.sendFeedback(() -> Text.literal(
+        var anchor = living instanceof net.minecraft.world.entity.player.Player p
+            ? p.getEyePosition()
+            : living.position().add(0, living.getBbHeight() * 0.85, 0);
+        source.sendSuccess(() -> Component.literal(
             "  §8Anchor:    §7(" + fmt(anchor.x) + ", " + fmt(anchor.y) + ", " + fmt(anchor.z) + ")"
                 + "  §8(pose computed client-side)"), false
         );
@@ -668,13 +675,13 @@ public final class HaloConfigCommand {
      * When enabled, the server console prints a line every time a teleport is
      * detected and every time a snap correction is applied by the physics tick.
      */
-    private static int debugToggle(CommandContext<ServerCommandSource> ctx) {
+    private static int debugToggle(CommandContext<CommandSourceStack> ctx) {
         boolean enabled = BoolArgumentType.getBool(ctx, "enabled");
         EntityHaloTracker.setDebugMode(enabled);
 
         HaloManager.getInstance().publishConfig();
-        ctx.getSource().sendFeedback(
-            () -> Text.literal("§aHalo debug logging: " + (enabled ? "§eON" : "§7OFF")),
+        ctx.getSource().sendSuccess(
+            () -> Component.literal("§aHalo debug logging: " + (enabled ? "§eON" : "§7OFF")),
             true
         );
         return Command.SINGLE_SUCCESS;
@@ -683,17 +690,17 @@ public final class HaloConfigCommand {
     /**
      * /halo config &lt;param&gt; &lt;value&gt; — set a runtime configuration value.
      */
-    private static int configSet(CommandContext<ServerCommandSource> ctx, String param, double value) {
+    private static int configSet(CommandContext<CommandSourceStack> ctx, String param, double value) {
         HaloConfig config = HaloManager.getInstance().getConfig();
 
         if (!config.setNumber(param, value)) {
-            ctx.getSource().sendError(Text.literal("Unknown config parameter: " + param));
+            ctx.getSource().sendFailure(Component.literal("Unknown config parameter: " + param));
             return 0;
         }
 
         HaloManager.getInstance().publishConfig();
-        ctx.getSource().sendFeedback(
-            () -> Text.literal("§aSet §f" + param + "§a to §f" + value),
+        ctx.getSource().sendSuccess(
+            () -> Component.literal("§aSet §f" + param + "§a to §f" + value),
             true
         );
         return Command.SINGLE_SUCCESS;
@@ -702,20 +709,20 @@ public final class HaloConfigCommand {
     /**
      * /halo config &lt;param&gt; &lt;bool&gt; — set a boolean runtime configuration value.
      */
-    private static int configSetBool(CommandContext<ServerCommandSource> ctx, String param, boolean value) {
+    private static int configSetBool(CommandContext<CommandSourceStack> ctx, String param, boolean value) {
         HaloConfig config = HaloManager.getInstance().getConfig();
 
         switch (param) {
             case "allow-angular-momentum" -> config.setAllowAngularMomentum(value);
             default -> {
-                ctx.getSource().sendError(Text.literal("Unknown config parameter: " + param));
+                ctx.getSource().sendFailure(Component.literal("Unknown config parameter: " + param));
                 return 0;
             }
         }
 
         HaloManager.getInstance().publishConfig();
-        ctx.getSource().sendFeedback(
-            () -> Text.literal("§aSet §f" + param + "§a to §f" + value),
+        ctx.getSource().sendSuccess(
+            () -> Component.literal("§aSet §f" + param + "§a to §f" + value),
             true
         );
         return Command.SINGLE_SUCCESS;

@@ -1,128 +1,84 @@
 package network.azusake.halo;
 
-import network.azusake.halo.client.FabricHaloCommandInterceptor;
-import network.azusake.halo.client.HaloLocalManager;
+import network.azusake.halo.anchor.AnchorCaptureCoordinator;
+import network.azusake.halo.client.ForgeHaloCommandInterceptor;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.client.HaloScepterClientInput;
 import network.azusake.halo.compat.emf.EmfCompatChatNotifier;
-import network.azusake.halo.anchor.AnchorCaptureCoordinator;
-import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
 import network.azusake.halo.render.HaloClientManager;
 import network.azusake.halo.render.HaloRenderListener;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.GameShuttingDownEvent;
+import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HaloModClient implements ClientModInitializer {
-
+/** Physical-client initialization; never loaded on a dedicated server. */
+public final class HaloModClient {
     public static final Logger LOGGER = LoggerFactory.getLogger(HaloMod.MOD_ID);
+    private HaloModClient() {}
 
-    @Override
-    public void onInitializeClient() {
+    public static void init(IEventBus modBus) {
         LOGGER.info("Halo client initializing...");
         network.azusake.halo.platform.IntegratedBridge.config = snapshot ->
-            net.minecraft.client.MinecraftClient.getInstance().execute(() ->
+            Minecraft.getInstance().execute(() ->
                 network.azusake.halo.platform.HaloClientState.get().setConfig(snapshot.toConfig()));
         network.azusake.halo.platform.IntegratedBridge.teleport = uuid ->
-            net.minecraft.client.MinecraftClient.getInstance().execute(() ->
+            Minecraft.getInstance().execute(() ->
                 network.azusake.halo.platform.HaloClientState.get().teleport(uuid));
+
         EmfCompatChatNotifier.register();
-
-        // Force initialisation of the phase tracker singleton.  The client
-        // starts in LOCAL phase and transitions to MULTIPLAYER when
-        // halo:hello is received from a modded server.
         HaloPhaseTracker.getInstance();
-
-        // Register halo-definition resource loader on the client side so
-        // definitions are available for rendering in single-player and when
-        // definitions are bundled in a client resource pack.
-        HaloJsonLoader.registerClientResources();
-        network.azusake.halo.render.HaloMeshShader.register();
-
-        // Register entity-anchor profile loader on the client side
-        network.azusake.halo.json.EntityAnchorLoader.registerClientResources();
-
-        // Register the halo renderer with Fabric's world-render pipeline
+        network.azusake.halo.json.HaloJsonLoader.registerClientResources(modBus);
+        network.azusake.halo.json.EntityAnchorLoader.registerClientResources(modBus);
+        network.azusake.halo.render.HaloMeshShader.register(modBus);
         HaloRenderListener.register();
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+        HaloClientManager.getInstance();
+        new ForgeHaloCommandInterceptor().register();
+        HaloNetworkClient.registerReceivers();
+
+        MinecraftForge.EVENT_BUS.addListener((GameShuttingDownEvent event) -> {
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.render.HaloRenderer.getInstance().shutdown();
         });
+        modBus.addListener((RegisterClientReloadListenersEvent event) -> event.registerReloadListener(
+            new SimplePreparableReloadListener<Void>() {
+                @Override protected Void prepare(ResourceManager manager, ProfilerFiller profiler) { return null; }
+                @Override protected void apply(Void ignored, ResourceManager manager, ProfilerFiller profiler) {
+                    Minecraft.getInstance().execute(HaloNetworkClient::sendDefsReport);
+                }
+            }));
 
-        // Initialise the client-side halo visibility manager
-        HaloClientManager.getInstance();
-
-        // Input polling belongs to the client tick; scene facts are sampled once per render frame.
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+            if (event.phase != TickEvent.Phase.END) return;
             network.azusake.halo.render.HaloMeshResources.refreshDefinitions();
-            HaloScepterClientInput.tick(client);
+            HaloScepterClientInput.tick(Minecraft.getInstance());
         });
-
-        // Clean up entity cache when entities are unloaded from the client world
-        ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
-            if (entity != null) {
-                var runtime = network.azusake.halo.platform.HaloClientState.get();
-                if (entity instanceof net.minecraft.entity.LivingEntity living && !living.isAlive()) {
-                    runtime.died(entity.getUuid(), entity instanceof net.minecraft.entity.player.PlayerEntity);
-                } else {
-                    runtime.unload(entity.getUuid());
-                }
-                AnchorCaptureCoordinator.clearEntity(entity.getUuid());
+        MinecraftForge.EVENT_BUS.addListener((EntityLeaveLevelEvent event) -> {
+            if (!(event.getLevel() instanceof net.minecraft.client.multiplayer.ClientLevel)) return;
+            var entity = event.getEntity();
+            var runtime = network.azusake.halo.platform.HaloClientState.get();
+            if (entity instanceof net.minecraft.world.entity.LivingEntity living && !living.isAlive()) {
+                runtime.died(entity.getUUID(), entity instanceof net.minecraft.world.entity.player.Player);
+            } else {
+                runtime.unload(entity.getUUID());
             }
+            AnchorCaptureCoordinator.clearEntity(entity.getUUID());
         });
-
-        // Register the command interceptor — the Fabric implementation hooks
-        // into ClientCommandRegistrationCallback and dispatches /halo commands
-        // either locally (LOCAL phase) or to the server (MULTIPLAYER / singleplayer).
-        new FabricHaloCommandInterceptor().register();
-
-        // Register networking packet receivers for multiplayer halo sync.
-        // Received messages update only the client core runtime.
-        HaloNetworkClient.registerReceivers();
-
-        // Send local definition IDs to the server on join and on resource reloads.
-        // This listener fires on the initial load cycle AND every /reload, so it
-        // covers both bootstrap and incremental updates.  The sendDefsReport()
-        // method safely no-ops when not connected to a server world.
-        ResourceManagerHelper
-            .get(ResourceType.CLIENT_RESOURCES)
-            .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
-                @Override
-                public Identifier getFabricId() {
-                    return new Identifier(HaloMod.MOD_ID, "defs_report_trigger");
-                }
-                @Override
-                public void reload(ResourceManager manager) {
-                    net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
-                        HaloNetworkClient.sendDefsReport();
-                    });
-                }
-            });
-
-        // Reset phase to LOCAL on every join, BEFORE the server can send
-        // halo:hello.  This prevents state pollution from a previous session
-        // (e.g. exiting singleplayer → joining a vanilla server — phase was
-        // still MULTIPLAYER because integrated-server disconnect doesn't fire
-        // DISCONNECT callback, and no hello arrives from the vanilla server).
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+        MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> {
             HaloPhaseTracker.getInstance().resetToLocal();
             HaloNetworkClient.sendDefsReport();
         });
-
-        // Clear runtime halo state when disconnecting from a server.
-        // Only the client replica is cleared; HaloLocalManager (persistent)
-        // retains local halos so they survive reconnects to the same server.
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+        MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> {
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.platform.HaloClientState.get().clearAllClientHalos();
             network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
@@ -130,7 +86,6 @@ public class HaloModClient implements ClientModInitializer {
             network.azusake.halo.render.HaloRenderer.getInstance().clearWorld();
             HaloPhaseTracker.getInstance().resetToLocal();
         });
-
         LOGGER.info("Halo client initialized");
     }
 }

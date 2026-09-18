@@ -18,12 +18,11 @@ public final class RendererCommandTree {
     }
 
     public static <S> void addSuggestions(CommandDispatcher<S> dispatcher) {
-        // If Fabric has not run yet and the server has no /halo, let Fabric attach
-        // its complete client tree. Creating a root here would hide its other children.
+        // If Forge has not merged a /halo root, the client command dispatcher owns
+        // the complete local tree. Creating a partial root here would hide children.
         if (dispatcher.getRoot().getChild("halo") == null) return;
-        // Build descendants before merging: Fabric API 0.92's recursive copy attaches
-        // an empty root first, losing newly copied children if a server /halo exists.
-        // This tree is only used for completion; Fabric's client dispatcher executes it.
+        // Build descendants before merging so a colliding server /halo root gains
+        // the renderer-only client suggestions without losing server children.
         dispatcher.register(LiteralArgumentBuilder.<S>literal("halo")
             .then(command((source, backend) -> 0)));
     }

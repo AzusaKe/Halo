@@ -1,154 +1,222 @@
-plugins {
-    id 'fabric-loom' version '1.5.8'
-    id 'maven-publish'
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+    }
+    dependencies { classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT' }
 }
+
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+apply plugin: 'org.spongepowered.mixin'
 
 java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
 }
 
-archivesBaseName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
+base { archivesName = "${project.archives_base_name}-${project.minecraft_version}-forge" }
+
 def coreProperties = new Properties()
 file('core/gradle.properties').withInputStream { coreProperties.load(it) }
 ext.coreVersion = coreProperties.getProperty('version')
 version = "${coreVersion}+adapter.${project.adapter_revision}"
 group = project.maven_group
 
-configurations {
-    coreContents { transitive = false }
+configurations { coreContents { transitive = false } }
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'info'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+        client { args '--width', '2560', '--height', '1600' }
+        client2 {
+            parent minecraft.runs.client
+            workingDirectory project.file('run2')
+            args '--username', 'Dev2'
+        }
+        server {
+            workingDirectory project.file("runServer/${project.minecraft_version}-forge")
+            args '--nogui'
+        }
+        smokeClient {
+            parent minecraft.runs.client
+            workingDirectory project.file('.local/smoke-client')
+            if (project.hasProperty('smokeServerAddress')) args '--quickPlayMultiplayer', project.property('smokeServerAddress')
+            if (project.hasProperty('smokeWorldName')) args '--quickPlaySingleplayer', project.property('smokeWorldName')
+        }
+        smokeClient2 {
+            parent minecraft.runs.smokeClient
+            workingDirectory project.file('.local/smoke-client2')
+            args '--username', 'Dev2'
+        }
+        smokeClientOculus {
+            parent minecraft.runs.smokeClient
+            workingDirectory project.file('.local/smoke-client-oculus')
+        }
+        smokeClientEmf {
+            parent minecraft.runs.smokeClient
+            workingDirectory project.file('.local/smoke-client-emf')
+        }
+        smokeServer {
+            parent minecraft.runs.server
+            workingDirectory project.file('.local/smoke-server')
+        }
+    }
 }
 
+mixin {
+    add sourceSets.main, 'halo.refmap.json'
+    config 'halo.mixins.json'
+    config 'halo-ysm.mixins.json'
+    config 'halo-emf.mixins.json'
+    config 'halo-iris.mixins.json'
+}
+
+def ysmDevJarPath = System.getenv('HALO_YSM_DEV_JAR')
+def ysmDevFixtureEnabled = ysmDevJarPath != null && !ysmDevJarPath.isBlank()
+def oculusDevVersion = System.getenv('HALO_OCULUS_DEV_VERSION')
+def oculusDevFixtureEnabled = oculusDevVersion != null && !oculusDevVersion.isBlank()
+def embeddiumDevVersion = System.getenv('HALO_EMBEDDIUM_DEV_VERSION')
+def emfDevFileId = System.getenv('HALO_EMF_DEV_FILE_ID')
+def emfDevFixtureEnabled = emfDevFileId != null && !emfDevFileId.isBlank()
+def etfDevVersion = System.getenv('HALO_ETF_DEV_VERSION')
+
 repositories {
-    // Add repositories to retrieve artifacts from in here.
-    // For LSPDFR or other non-Maven repos, add their URLs here.
+    exclusiveContent {
+        forRepository { mavenCentral() }
+        filter {
+            includeGroupByRegex 'org\\.junit(\\..*)?'
+            includeGroup 'org.opentest4j'
+            includeGroup 'org.apiguardian'
+        }
+    }
+    if (ysmDevFixtureEnabled) { flatDir { dirs file(ysmDevJarPath).parentFile } }
+    if (oculusDevFixtureEnabled) {
+        maven {
+            url = 'https://api.modrinth.com/maven'
+            content { includeGroup 'maven.modrinth' }
+        }
+    }
+    if (emfDevFixtureEnabled) {
+        maven {
+            url = 'https://www.cursemaven.com'
+            content { includeGroup 'curse.maven' }
+        }
+        maven {
+            url = 'https://api.modrinth.com/maven'
+            content { includeGroup 'maven.modrinth' }
+        }
+    }
 }
 
 dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     implementation "network.azusake:halo-core:${coreVersion}"
     coreContents "network.azusake:halo-core:${coreVersion}"
-    // To change the versions see the gradle.properties file
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-    // Fabric API. This is technically optional, but you probably want it anyway.
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-    // Test dependencies
-    testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
-    testImplementation "com.google.code.gson:gson:2.10"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    if (ysmDevFixtureEnabled) {
+        runtimeOnly fg.deobf('halo.fixture:ysm:2.6.5-forge+mc1.20.1-release')
+    }
+    if (oculusDevFixtureEnabled) {
+        runtimeOnly fg.deobf("maven.modrinth:oculus:${oculusDevVersion}")
+        if (embeddiumDevVersion != null && !embeddiumDevVersion.isBlank()) {
+            runtimeOnly fg.deobf("maven.modrinth:sk9rgfiA:${embeddiumDevVersion}")
+        }
+    }
+    if (emfDevFixtureEnabled) {
+        runtimeOnly fg.deobf("curse.maven:entity-model-features-844662:${emfDevFileId}")
+        if (etfDevVersion != null && !etfDevVersion.isBlank()) {
+            runtimeOnly fg.deobf("maven.modrinth:BVzZfTc1:${etfDevVersion}")
+        }
+    }
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
 }
 
-processResources {
-    inputs.property "version", providers.provider { project.version.toString() }
-    filteringCharset "UTF-8"
+def unpackedCore = layout.buildDirectory.dir('classes/java/main')
+tasks.register('unpackCore', Copy) {
+    dependsOn configurations.coreContents
+    mustRunAfter 'compileJava'
+    from({ configurations.coreContents.collect { zipTree(it) } }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+    into unpackedCore
+}
+tasks.named('classes') { dependsOn 'unpackCore' }
 
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
+apply from: 'gradle/core-build.gradle'
+
+tasks.named('processResources', ProcessResources).configure {
+    def replaceProperties = [
+        minecraft_version: minecraft_version,
+        minecraft_version_range: minecraft_version_range,
+        forge_version: forge_version,
+        forge_version_range: forge_version_range,
+        loader_version_range: loader_version_range,
+        mod_id: mod_id,
+        mod_name: mod_name,
+        mod_license: mod_license,
+        mod_version: project.version.toString(),
+        mod_authors: mod_authors,
+        mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    filteringCharset = 'UTF-8'
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // Minecraft 1.20.1 (23w16a) and above require Java 17.
-    it.options.release = 17
-    it.options.encoding = "UTF-8"
+    options.encoding = 'UTF-8'
+    options.release = 17
 }
 
-java {
-    // Loom will use this to set up access wideners and remap mods correctly
-    withSourcesJar()
-}
-
-jar {
-    dependsOn configurations.coreContents
-    from({ configurations.coreContents.collect { zipTree(it) } }) {
-        exclude 'META-INF/MANIFEST.MF'
+tasks.named('jar', Jar).configure {
+    dependsOn 'unpackCore'
+    manifest {
+        attributes([
+            'Specification-Title': mod_id,
+            'Specification-Vendor': mod_authors,
+            'Specification-Version': '1',
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.jar.archiveVersion,
+            'Implementation-Vendor': mod_authors,
+            'MixinConfigs': 'halo.mixins.json,halo-ysm.mixins.json,halo-emf.mixins.json,halo-iris.mixins.json'
+        ])
     }
-    from("LICENSE") {
-        rename { "${it}_${project.archivesBaseName}" }
-    }
+    from('LICENSE') { rename { "${it}_${archives_base_name}" } }
+    finalizedBy 'reobfJar'
 }
 
 test {
     useJUnitPlatform()
-    testLogging {
-        events "passed", "skipped", "failed"
-    }
+    testLogging { events 'passed', 'skipped', 'failed' }
 }
 
 tasks.named('check') { dependsOn gradle.includedBuild('core').task(':check') }
 
-// Client run configuration: 2560x1600 window, non-fullscreen
-loom {
-    runs {
-        client {
-            programArgs("--width", "2560")
-            programArgs("--height", "1600")
-            programArgs("--username", "Dev1")
-        }
-        // Second client for local multiplayer testing — launch with:
-        //   ./gradlew runClient2
-        client2 {
-            inherit client
-            programArgs("--username", "Dev2")
-            runDir = "run2"
-        }
-        server {
-            // Separate both the logical side and game version from existing development worlds.
-            runDir = "runServer/${project.minecraft_version}-fabric"
-            programArgs("nogui")
-        }
-        smokeServer {
-            inherit server
-            runDir = ".local/smoke-server"
-            vmArg "-Xlog:class+load=info:file=loaded-classes.log"
-        }
-        smokeClient {
-            inherit client
-            runDir = ".local/smoke-client"
-            programArgs("--width", "1280", "--height", "720")
-            if (project.hasProperty('smokeServerAddress')) programArgs("--quickPlayMultiplayer", project.property('smokeServerAddress'))
-            if (project.hasProperty('smokeWorldName')) programArgs("--quickPlaySingleplayer", project.property('smokeWorldName'))
-        }
-        smokeClient2 {
-            inherit smokeClient
-            programArgs("--username", "Dev2")
-            runDir = ".local/smoke-client2"
-        }
-    }
-}
-
-['runServer', 'runSmokeServer'].each { runTask ->
-    tasks.named(runTask) { standardInput = System.in }
-}
-
-// Force fullscreen:false before each runClient launch
-tasks.named('runClient') {
-    doFirst {
-        def optionsFile = file('run/options.txt')
-        if (optionsFile.exists()) {
-            def lines = optionsFile.readLines()
-            def modified = lines.collect { line ->
-                line.startsWith('fullscreen:') ? 'fullscreen:false' : line
-            }
-            optionsFile.text = modified.join('\n') + '\n'
-        }
-    }
-}
-
-// configure the maven publication
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            from components.java
+            artifact jar
+            artifact sourcesJar
         }
     }
-
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-    repositories {
-        // Add repositories to publish to here.
-    }
 }
-
-apply from: "gradle/core-build.gradle"

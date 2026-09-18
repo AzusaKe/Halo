@@ -5,14 +5,15 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.fabricmc.loader.api.FabricLoader;
+import net.minecraftforge.fml.loading.FMLPaths;
 import network.azusake.halo.HaloMod;
-
+import network.azusake.halo.core.ModConfigCodec.Result;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map.Entry;
 
 /**
  * Loads and saves the file-backed {@link HaloModConfig} from
@@ -47,8 +48,7 @@ public final class HaloModConfigStore {
 
     /** Resolve the default config file: {@code config/halo-azusake/halo_mod_config.json}. */
     private static Path defaultFile() {
-        return FabricLoader.getInstance()
-            .getConfigDir()
+        return FMLPaths.CONFIGDIR.get()
             .resolve(CONFIG_DIR_NAME)
             .resolve(CONFIG_FILE_NAME);
     }

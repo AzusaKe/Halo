@@ -1,6 +1,6 @@
 package network.azusake.halo.client;
 
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import network.azusake.halo.item.HaloItems;
 import network.azusake.halo.network.HaloNetworkClient;
 
@@ -15,22 +15,22 @@ public final class HaloScepterClientInput {
     /**
      * @return true when vanilla attack/mining must be cancelled
      */
-    public static boolean interceptSneakingAttack(MinecraftClient client) {
+    public static boolean interceptSneakingAttack(Minecraft client) {
         if (client.player == null
-            || !client.player.isSneaking()
-            || !client.player.getMainHandStack().isOf(HaloItems.HALO_SCEPTER)) {
+            || !client.player.isShiftKeyDown()
+            || !client.player.getMainHandItem().is(HaloItems.HALO_SCEPTER.get())) {
             return false;
         }
         if (!attackHeld) {
             attackHeld = true;
             HaloNetworkClient.sendScepterRemoveSelf();
-            client.player.swingHand(net.minecraft.util.Hand.MAIN_HAND);
+            client.player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
         }
         return true;
     }
 
-    public static void tick(MinecraftClient client) {
-        if (!client.options.attackKey.isPressed()) {
+    public static void tick(Minecraft client) {
+        if (!client.options.keyAttack.isDown()) {
             attackHeld = false;
         }
     }

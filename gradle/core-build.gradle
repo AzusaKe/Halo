@@ -79,17 +79,29 @@ sourceSets.main.resources.srcDir(generatedProvenance)
 tasks.named('processResources') { dependsOn 'generateCoreProvenance' }
 tasks.named('sourcesJar') { dependsOn 'generateCoreProvenance'; from('core/src/main/java') }
 
+def finalJarTaskName = tasks.names.contains('remapJar') ? 'remapJar' : 'reobfJar'
+def finalJarArchive = tasks.named('jar').flatMap { it.archiveFile }
+
 tasks.register('verifyDistribution') {
     group = 'verification'
-    dependsOn 'remapJar'
+    dependsOn finalJarTaskName
     doLast {
-        def jarFile = tasks.named('remapJar').get().archiveFile.get().asFile
+        def jarFile = finalJarArchive.get().asFile
         new java.util.zip.ZipFile(jarFile).withCloseable { archive ->
             def names = Collections.list(archive.entries()).collect { it.name }
             def duplicates = names.countBy { it }.findAll { key, count -> count > 1 }
             if (duplicates) throw new GradleException("Duplicate distribution entries: ${duplicates.keySet()}")
             def forbidden = names.findAll { it.startsWith('net/minecraft/') || it.startsWith('com/google/gson/') || it.startsWith('org/joml/') }
             if (forbidden) throw new GradleException('Distribution contains classes supplied by Minecraft: ' + forbidden.take(5))
+            def fabricEntries = names.findAll { it == 'fabric.mod.json' || it.startsWith('net/fabricmc/') }
+            if (fabricEntries) throw new GradleException('Forge distribution contains Fabric loader/API entries: ' + fabricEntries.take(5))
+            if (!names.contains('META-INF/mods.toml') || !names.contains('halo.refmap.json')) {
+                throw new GradleException('Forge metadata or Mixin refmap is missing from the final jar.')
+            }
+            def modsToml = archive.getInputStream(archive.getEntry('META-INF/mods.toml')).getText('UTF-8')
+            if (!modsToml.contains('versionRange="[47.4.10,48)"') || !modsToml.contains('displayTest="IGNORE_ALL_VERSION"')) {
+                throw new GradleException('Forge compatibility metadata does not preserve the optional-peer/version contract.')
+            }
             if (names.any { it.startsWith('network/azusake/halo/api/client/preview/') }) {
                 throw new GradleException('Removed Minecraft-specific preview API remains in the distribution.')
             }
@@ -130,11 +142,29 @@ tasks.register('compileLegacyAnchorConsumer', JavaCompile) {
 }
 tasks.register('verifyLegacyAnchorApi', JavaExec) {
     group = 'verification'
-    dependsOn 'compileLegacyAnchorConsumer', 'remapJar'
+    dependsOn 'compileLegacyAnchorConsumer', finalJarTaskName
     classpath = files(tasks.named('compileLegacyAnchorConsumer').flatMap { it.destinationDirectory },
-        tasks.named('remapJar').flatMap { it.archiveFile })
+        finalJarArchive)
     mainClass = 'compat.LegacyAnchorConsumer'
 }
+
+// A fresh third-party caller compiles and executes against only the final Forge artifact.
+tasks.register('compileForgeApiConsumer', JavaCompile) {
+    dependsOn finalJarTaskName
+    source = fileTree('src/testFixtures/forge-api-consumer') { include '**/*.java' }
+    classpath = files(finalJarArchive)
+    destinationDirectory = layout.buildDirectory.dir('compat/forge-api-consumer')
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+tasks.register('verifyForgeApiConsumer', JavaExec) {
+    group = 'verification'
+    dependsOn 'compileForgeApiConsumer', finalJarTaskName
+    classpath = files(tasks.named('compileForgeApiConsumer').flatMap { it.destinationDirectory },
+        finalJarArchive)
+    mainClass = 'compat.ForgeApiConsumer'
+}
+tasks.named('check') { dependsOn 'verifyForgeApiConsumer' }
 
 tasks.withType(AbstractArchiveTask).configureEach {
     preserveFileTimestamps = false
