@@ -44,7 +44,7 @@ jobs:
         run: ./gradlew check
 
       - name: Verify minimum supported Forge
-        run: ./gradlew clean build '-Pforge_version=47.4.10'
+        run: ./gradlew clean build '-Pforge_version=47.4.0'
 
       - name: Build target adapter and verify distribution
         env:

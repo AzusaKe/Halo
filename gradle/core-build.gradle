@@ -107,7 +107,7 @@ tasks.register('verifyDistribution') {
                 }
             }
             def modsToml = archive.getInputStream(archive.getEntry('META-INF/mods.toml')).getText('UTF-8')
-            if (!modsToml.contains('versionRange="[47.4.10,48)"') || !modsToml.contains('displayTest="IGNORE_ALL_VERSION"')) {
+            if (!modsToml.contains('versionRange="[47.4.0,48)"') || !modsToml.contains('displayTest="IGNORE_ALL_VERSION"')) {
                 throw new GradleException('Forge compatibility metadata does not preserve the optional-peer/version contract.')
             }
             if (names.any { it.startsWith('network/azusake/halo/api/client/preview/') }) {
