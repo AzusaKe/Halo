@@ -184,6 +184,27 @@ Java 代码或 core 改动后，重新构建并重启相关游戏进程。每次
 
 按改动选择有意义的用例，不要求每次文档或低影响修复重跑所有游戏场景；行为接口变化和首次平台接入应做完整相关验证。缺少外部 YSM 发布包时，`YsmReleaseSignatureTest` 会跳过，可通过 `HALO_YSM_TEST_JAR` 指定测试包。记录跳过和未验证项，不能把“可编译”写成“游戏验证通过”。
 
+<a id="labpbr-gate"></a>
+
+### 3.4 LabPBR 兼容门禁
+
+Halo 不自行解析 LabPBR `_n`/`_s` 贴图；世界渲染中的兼容性来自一条必须保持完整的适配契约：`glowing:false` 让 core 输出受光图元，平台层保留基础纹理 ID、UV 与几何法线，以带法线的实体顶点格式把基础纹理绑定到 Iris 可追踪的纹理槽，并提交到 Iris 的实体 solid/translucent G-buffer 程序。Iris 再按基础纹理位置发现同目录、同名的 `_n.png`/`_s.png`，最终由光影包解释材质通道。`billboard`、`ring` 和 OBJ `mesh` 三种图元都必须满足这条契约。
+
+这是一项外部渲染集成能力，不由“代码中出现 LabPBR API”或“项目能够编译”证明。修改渲染后端、顶点格式、纹理绑定、提交时机、Iris 桥接或移植到其他 Minecraft/Iris 版本时，按以下层次重新验收：
+
+| 层次 | 必须保持或验证的内容 |
+| --- | --- |
+| core/绘制契约 | 三种图元在 `glowing:false` 时都输出受光状态、原始基础纹理 ID、UV 与有效几何法线；`glowing:true` 仍是独立的全亮路径，不纳入当前 LabPBR 保证 |
+| 平台自动测试 | 基础纹理仍绑定到 Iris 可追踪的槽 0；受光提交仍使用包含 normal/light/overlay 的实体格式；Halo 对光影源码的私有改写只包装基础颜色采样，不删除或替换 `normals`、`specular` 等材质采样器 |
+| Iris 运行检查 | 目标 Iris 版本能建立 Halo 的 lit-solid/lit-translucent 实体程序，资源重载和光影切换后仍能重新发现伴生贴图；反射桥接失败、程序缺失和 shader 编译错误必须检查日志，不能因 Java 编译成功而忽略 |
+| 游戏视觉验收 | 使用固定的三图元诊断资源包和明确支持 entity LabPBR 的光影，对照验证 normal、smoothness/metalness 与 emission；记录 Minecraft、加载器、Iris 和光影包的精确版本以及截图/日志位置 |
+
+诊断资源应包含一个显式 `glowing:false` 的定义、三种图元、基础贴图和差异明显的 `_n`/`_s`，并在资源包的 `assets/minecraft/optifine/texture.properties` 中声明所用 LabPBR 格式。自动测试负责保护资源是否打包、纹理/UV/法线和提交契约；实际的材质响应仍须在游戏和光影中验证，不能用资源存在性测试代替。
+
+POM/视差必须作为附加能力单独记录。部分光影的实体程序会消费 normal、specular 和 emission，却不对实体启用 POM；因此“POM 无效”不能单独判定整条 LabPBR 通路失败，也不能在只验证其他材质通道后宣称 POM 已支持。GUI/物品栏预览当前绕过 Iris 世界 G-buffer，同样不属于本门禁的兼容范围。
+
+每个新平台分支和每次 Iris 大版本升级都要产生自己的兼容记录，不能沿用另一游戏版本的结论。只有目标版本完成上述自动检查和至少一个已知支持实体 LabPBR 的光影实测后，README、变更记录或发布说明才能标记该平台支持 LabPBR；未执行项目须明确写为未验证。
+
 <a id="publish-main"></a>
 
 ## 4. 提交和发布主线功能
@@ -302,7 +323,7 @@ git diff --submodule=short -- core
 2. 迁入新功能需要的内置 JSON、纹理、语言、配方及适配测试。这些内容保存在 Halo，更新 core 指针不会自动带来它们。
 3. 适配目标版本的 Minecraft、加载器、mappings、Mixin 和第三方 ABI。已有 1.21.1 旧分支使用 Java 21；不要把主线的 Java 17、Loom 1.5.8 和渲染 API 原样当作所有目标版本的配置。core 仍编译为 Java 17。
 4. 核对运行目录、版本/JAR 命名及 CI。当前主线 workflow 的分支过滤只包含 `1.20.1-fabric`，目标分支要显式配置自己的 push/PR 目标和 JDK，同时保留递归子模块检出、core 检查、合包与提交来源验证。
-5. 在目标环境执行独立 core 检查、联合构建、第 3 节中受影响的游戏验证及兼容验证，再提交该分支的指针和适配改动。
+5. 在目标环境执行独立 core 检查、联合构建、第 3 节中受影响的游戏验证及兼容验证；若该平台继续声明 LabPBR 兼容，还必须重新执行 [LabPBR 兼容门禁](#labpbr-gate)，再提交该分支的指针和适配改动。
 
 **不要整条合并 `1.20.1-fabric` 来获得功能，也不要把 core 的业务实现复制回目标 Halo 源码。** 可按内容选取确实通用的资源/文档/测试提交或补丁，平台相关代码必须针对目标 API 检查。编译错误消失仅表示接口已接通，还需验证坐标、时序、生命周期与视觉效果。
 
