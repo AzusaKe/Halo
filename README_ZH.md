@@ -1,4 +1,6 @@
-本分支面向 **Minecraft 1.20.1 Fabric**，当前源码版本为 **2.3.2+adapter.1**，使用 HaloCore **2.3.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 1.20.1 Fabric**，当前源码版本为 **2.4.0+adapter.1**，使用 HaloCore **2.4.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+
+2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
 billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo renderer` 查询当前模式，`/halo renderer compatibility|cached` 切换并保存；命令只在客户端执行，无需服务器权限。下一帧同时作用于世界与物品栏预览，不重启动画或物理，OBJ mesh 不受影响。配置项为 `primitiveRenderBackend`，缺失或非法值恢复默认。详见[模式与验收记录](docs/render-optimization-verification.md)。
 
@@ -26,7 +28,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 - [目录](#目录)
 - [简介](#简介)
 - [特性](#特性)
-- [未来将会添加的特性](#未来将会添加的特性)
+- [功能状态](#功能状态)
 - [安装](#安装)
   - [NeoForge / Forge](#neoforge--forge)
 - [使用方法](#使用方法)
@@ -64,22 +66,24 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
 - [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
 - [x] **LabPBR 兼容**：在世界渲染中，`billboard`、`ring` 和 OBJ `mesh` 三种图元均可使用由 Iris 收集的 LabPBR 附加贴图。将图元所在组设为 `glowing: false`，再在基础贴图同目录放置同名的 `_n.png` 和／或 `_s.png`。所用光影仍须在实体渲染阶段支持 LabPBR；自发光与视差／POM 等效果是否生效取决于光影实现。`_s.png` 中编码的 LabPBR 自发光属于静态材质属性：组的 `glowing` 为 `false` 时，`animation.glow` 不会生效。如需在保留非发光表面 PBR 效果的同时动态控制发光，请将 PBR 基础层放入 `glowing: false` 组，将仅包含发光部分的覆盖层放入独立的 `glowing: true` 组；重叠图元必要时应略微错开，以避免深度冲突。
-- [x] **动画支持**：光环定义支持位置动画曲线（振荡、线性、恒定）和旋转动画曲线（持续旋转等）。**此功能仍在规划中，预计将添加模型支持和更多动画**
-- [x] **运行时配置**：衰减因子、最大距离、缩放、位置偏移和旋转偏移均可通过 `/halo config` 实时修改。**注意，目前尚无法针对特定个体和光环配置上述参数，如有需求请前往单个光环定义文件（json格式）手动调整**
-- [x] **资源包友好**：光环定义为 JSON 文件，存放在 `assets/<namespace>/halo_definitions/` 目录下。通过资源包或数据包添加新光环，运行 `/reload` 即可生效。**数据包和资源包的结构尚未确定**
-- [x] **多层形状**：除了单个公告板，光环还可使用 `MultiBillboardShape` 实现分层四边形效果。**即将扩增更多自定义内容，敬请期待**
-- [x] **距离裁剪**：超过相机 1000 格外自动跳过渲染以优化性能。
-- [x] **多人游戏支持**：光环可在多人服务器上同步——挂载、移除和配置光环，所有连接的客户端都能实时看到效果。
+- [x] **动画支持**：光环定义支持位置、旋转、缩放、透明度和发光动画通道，以及彼此独立的启动与关闭过渡时间线。
+- [x] **运行时调试配置**：`/halo config` 提供阻尼、距离限制、角动量和统一缩放的会话级覆写，用于个人微调与调试。本地模式作用于当前客户端，整合单人游戏通过进程内桥接作用于配对客户端；专用服务器不会持久化或向玩家分发这些值。位置和旋转偏移等永久摆放修改应写入具体光环定义。
+- [x] **资源包友好**：负责渲染的客户端从资源包 `assets/<namespace>/halo_definitions/` 读取定义及视觉素材。服务端数据包可在 `data/<namespace>/halo_definitions/` 注册定义 JSON，供服务端列出和选择，但 Halo 不会下发这些 JSON、纹理或模型；每个渲染客户端仍须安装匹配的资源包。修改任一来源后运行 `/reload`。
+- [x] **分层场景结构**：每个组可包含多个图元和嵌套子组，并继承父组变换与动画；旧版多公告板定义仍可通过兼容解析加载。
+- [x] **距离裁剪**：世界中的实体距相机超过 256 格时，会在物理和几何提交前跳过其光环；另保留逐轴 ±1000 格的相机相对数值安全检查。
+- [x] **多人游戏支持**：玩家加入时接收完整佩戴快照，之后通过增量消息实时同步挂载和移除。客户端使用各自本地安装的定义及素材渲染；个人 `/halo config` 调试覆写不属于多人同步内容。
+- [x] **光环权杖**：可制作的光环权杖能为实体打开可搜索选择界面，在服务端权限和距离检查后写入或移除持久化的世界数据光环，并支持下蹲时选择自己。
+- [x] **多佩戴来源**：外部服务端模组可通过 API v2 注册候选，Halo 按可配置优先级仲裁唯一可见结果；命令和权杖不会覆盖优先级更高的外部状态。
 
-## 未来将会添加的特性
+## 功能状态
 
-- [ ] **在物品栏内可见** : 目前模组的光环不会在物品栏中的玩家模型头部渲染，等待后续加入
+- [x] **在物品栏内可见**：已佩戴光环会显示在生存和创造物品栏的玩家预览中，可选用独立预览物理，并支持原版、YSM 和 EMF 头部捕获。
 - [x] **更多动画** : 添加 `animation.alpha` 透明度 / `animation.glow` 发光强度动画、缩放动画、以及"启动动画"
 - [x] **OBJ mesh 图元**：三维 size、保留导出原点、灰度透明遮罩与 U/V 动画；参见 [mesh 作者指南](docs/zh/mesh.md)。
 - [ ] **更多的layer字段** : 将加入thickness，采用精灵图挤出的方法使billboard拥有厚度，但可能在材质较大的情况下影响性能
 - [ ] **更完善的自发光** : 兼容更多光影、质感更强
 - [ ] **更多实体和姿态适配** : 目前光环的显示位置和动画在部分实体上存在问题，等待修复
-- [x] **单人游戏 `/halo hide` 关闭动画** : 单人游戏中关闭（淡出）动画无法播放，光环会瞬间消失。此为已知问题，多人游戏下关闭动画正常工作，修复中
+- [x] **单人游戏 `/halo hide` 关闭动画**：本地与整合单人游戏的移除会进入正常关闭过渡；定义存在显式关闭时间线时使用它，否则反向播放启动时间线。
 - [ ] 其他各项bug修复，欢迎提交issue
 
 <a id="安装"></a>
@@ -94,7 +98,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ### NeoForge / Forge
 
-本模组为 Fabric 原生模组，但可通过 [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api) 在 **NeoForge / Forge 1.20.1** 上运行，兼容光影。
+本模组原生面向 Fabric，不提供原生 Forge 或 NeoForge 适配器。Fabric JAR 可通过 [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api) 在兼容的 **Forge / NeoForge 1.20.1** 环境运行。2.4.0 流程已实际检查 Forge 专用服与 Connector 客户端；客户端渲染及光影表现仍取决于具体 Connector、Iris 兼容栈与光影包版本。
 
 1. 安装 NeoForge 或 Forge（Minecraft 1.20.1）
 2. 安装 [Sinytra Connector](https://modrinth.com/mod/connector)
@@ -109,7 +113,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ### 命令
 
-服务器命令默认需要 2 级权限（管理员）。`/halo renderer` 为纯客户端命令，无需服务器权限。可在 `config/halo-azusake/halo_mod_config.json` 中修改所需权限等级（0-4，修改后需重启服务器/游戏生效）；该文件是模组级配置文件，与 `/halo config` 的运行时参数无关。外部佩戴来源的优先级保存在 `halo_source_priorities.json`，可用 `/halo priority list|set|reload` 运行时查看和调整。使用 `/halo` 配合 Tab 补全探索可用的子命令。
+服务器命令默认需要 2 级权限（管理员）。`/halo renderer` 为纯客户端命令，无需服务器权限。可在 `config/halo-azusake/halo_mod_config.json` 中修改所需权限等级（0-4，修改后需重启服务器/游戏生效）；该文件是模组级配置文件，与会话级 `/halo config` 调试覆写无关。后者只作用于当前本地运行时或整合单人客户端，不持久化，专用服务器也不会将其同步给玩家。外部佩戴来源的优先级保存在 `halo_source_priorities.json`，可用 `/halo priority list|set|reload` 运行时查看和调整。使用 `/halo` 配合 Tab 补全探索可用的子命令。
 
 | 命令                                               | 描述                                         |
 | -------------------------------------------------- | -------------------------------------------- |
@@ -119,14 +123,18 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 | `/halo hide <实体>`                                | 移除实体的光环                               |
 | `/halo active`                                     | 列出所有当前佩戴光环的实体                   |
 | `/halo inspect <实体>`                             | 查看指定实体的光环运行时状态详情             |
-| `/halo config linear-damping <0-1>`                | 设置线性跟随速度（0 = 不跟随，1 = 瞬间跟随） |
-| `/halo config angular-damping <0-1>`               | 设置角度跟随速度                             |
-| `/halo config max-linear-distance <n>`             | 设置硬夹断前最大距离（格）                   |
-| `/halo config max-angular-degrees <n>`             | 设置最大角度偏差（度）                       |
-| `/halo config allow-angular-momentum <true/false>` | 开关角动量惯性效果                           |
-| `/halo config angular-momentum-factor <0-1>`       | 设置角动量阻尼系数（0 = 冻结，1 = 无惯性）   |
-| `/halo config max-angular-momentum-degrees <n>`    | 设置最大角动量偏差角度（度）                 |
-| `/halo config scale <0.1+>`                        | 设置统一缩放倍率                             |
+| `/halo config linear-damping <0-1>`                | 调试覆写线性跟随速度（0 = 不跟随，1 = 瞬间跟随） |
+| `/halo config angular-damping <0-1>`               | 调试覆写角度跟随速度                         |
+| `/halo config max-linear-distance <n>`             | 调试覆写硬夹断前最大距离（格）               |
+| `/halo config max-angular-degrees <n>`             | 调试覆写最大角度偏差（度）                   |
+| `/halo config allow-angular-momentum <true/false>` | 调试覆写角动量惯性开关                       |
+| `/halo config angular-momentum-factor <0-1>`       | 调试覆写角动量阻尼系数（0 = 冻结，1 = 无惯性） |
+| `/halo config max-angular-momentum-degrees <n>`    | 调试覆写最大角动量偏差角度（度）             |
+| `/halo config scale <0.1+>`                        | 调试覆写统一缩放倍率                         |
+| `/halo priority list`                              | 列出已注册佩戴来源及其实际优先级             |
+| `/halo priority set <来源> <优先级>`               | 持久化并立即应用一个 32 位有符号整数优先级   |
+| `/halo priority reload`                            | 重新加载来源优先级；失败时保留最后有效值     |
+| `/halo renderer [compatibility\|cached]`           | 查询或保存仅客户端使用的 billboard/ring 渲染后端 |
 | `/halo save`                                       | 同步光环数据到世界持久化存储并触发 save-all  |
 | `/halo debug <true/false>`                         | 开关传送/吸附调试日志输出到聊天栏            |
 | `/halo reload`                                     | 提示使用 `/reload` 来重新加载光环定义        |
@@ -185,7 +193,7 @@ Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的�
 
 ### 自定义光环定义
 
-光环定义是存放在 `assets/<namespace>/halo_definitions/`（资源包）下的 JSON 文件。服务器不读取任何光环定义——它只记录"哪个实体拥有哪个光环"并广播给客户端；客户端用自己的本地资源包定义来渲染光环。
+用于渲染的定义 JSON 存放在资源包 `assets/<namespace>/halo_definitions/`。服务器还可从数据包 `data/<namespace>/halo_definitions/` 读取定义 JSON，使其 ID 可用于服务端列表、补全和选择。服务器只同步佩戴标识，不会发送定义 JSON、纹理或 OBJ 文件；因此每个负责渲染的客户端都必须拥有包含相应定义与视觉素材的资源包。
 
 > **完整的分步教程和字段参考请见文档：**
 > [快速上手](docs/zh/quickstart.md) · [字段参考](docs/zh/reference.md)
@@ -280,10 +288,11 @@ Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的�
 | `layers[].primitives`               | 该组内的渲染图元数组（见下方）                                    |
 | `layers[].primitive`                | 向后兼容的单图元对象（等价于 `primitives: [...]`）                |
 | `layers[].children`                 | 可选的嵌套子组数组，继承该组的变换                                |
-| `primitive.type`                    | `billboard`（单个带纹理的四边形）或 `ring`（圆柱形圆环）          |
+| `primitive.type`                    | `billboard`（带纹理四边形）、`ring`（圆柱形圆环）或 `mesh`（OBJ 模型） |
 | `primitive.texture`                 | 纹理路径，如 `halo:textures/halo/ring_00.png`                     |
+| `primitive.model`                   | 仅 mesh：OBJ 模型资源路径                                         |
 | `primitive.inner_texture`           | 仅 ring：内表面纹理（可选，省略时使用 `texture`）                 |
-| `layers[].primitive.size`           | `billboard`：`[宽度, 深度]`；`ring`：`[半径, 柱面宽度]`，单位为格 |
+| `layers[].primitive.size`           | `billboard`：`[宽度, 深度]`；`ring`：`[半径, 柱面宽度]`；`mesh`：`[x, y, z]` 包围尺寸，单位为格 |
 | `layers[].primitive.segments`       | 仅 ring：多边形分段数（默认 32）                                  |
 | `positioning.offset`                | `[X, Y, Z]` 相对实体头部的偏移量（格）                            |
 | `positioning.scale`                 | 默认缩放倍率                                                      |
@@ -317,7 +326,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.3.2+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.4.0+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 

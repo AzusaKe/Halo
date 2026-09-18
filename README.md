@@ -9,7 +9,9 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**. The current source version is **2.3.2+adapter.1**, using HaloCore **2.3.2**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.20.1 Fabric**. The current source version is **2.4.0+adapter.1**, using HaloCore **2.4.0**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+
+2.4.0 adds the loader-neutral server ownership source API. Accessory and integration mods can submit halo candidates by entity UUID; Halo selects one winner by source priority, while the built-in commands and Halo Scepter continue to edit only the persisted `halo:world_data` source. Priorities are stored in `halo_source_priorities.json` and can be changed without restarting through `/halo priority list|set|reload`. Integrations must also provide the referenced definitions and visual assets to rendering clients. See the [API guide](docs/en/API.md#6-server-ownership-source-api).
 
 Billboard/ring rendering defaults to `compatibility`, with adjacent batching and shared geometry.
 Use `/halo renderer` to query, or `/halo renderer compatibility|cached` to select and save a client-only
@@ -36,7 +38,7 @@ For contributors and coding agents, the [development guide](DEVELOPMENT.md) cove
 - [Table of Contents](#table-of-contents)
 - [Introduction](#introduction)
 - [Features](#features)
-- [Planned Features](#planned-features)
+- [Feature Status](#feature-status)
 - [Installation](#installation)
   - [NeoForge / Forge](#neoforge--forge)
 - [Usage](#usage)
@@ -74,22 +76,24 @@ This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader ve
 - [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
 - [x] **Glow Effects**: The `animation.glow` channel drives each primitive's own self-illumination brightness (fullbright); set `glowing: false` on a group to make its primitives follow ambient light instead.
 - [x] **LabPBR Compatibility**: In world rendering, `billboard`, `ring`, and OBJ `mesh` primitives can use Iris-collected LabPBR companion textures. Set the containing group to `glowing: false`, then place same-basename `_n.png` and/or `_s.png` maps beside the base texture. The active shader pack must support LabPBR materials in its entity pass; effects such as emission and parallax/POM therefore remain shader-dependent. LabPBR emission encoded in `_s.png` is a static material property: `animation.glow` does not affect a group while `glowing` is `false`. To animate emission while retaining PBR on the non-emissive surface, place the PBR base in a `glowing: false` group and an emissive-only overlay in a separate `glowing: true` group; slightly offset overlapping geometry when necessary to avoid z-fighting.
-- [x] **Animation Support**: Halo definitions support position animation curves (oscillate, linear, constant) and rotation animation curves (continuous spin, etc.). **This feature is still in planning, with model support and more animations to be added.**
-- [x] **Runtime Configuration**: Damping factors, maximum distance, scale, position offset, and rotation offset can all be modified live via `/halo config`. **Note: Currently cannot configure these parameters for specific individuals and halos. Please manually adjust the individual halo definition file (JSON format) if needed.**
-- [x] **Resource Pack Friendly**: Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`. Add new halos via resource packs or data packs and run `/reload` to take effect. **The structure of data packs and resource packs is not yet finalized.**
-- [x] **Multi-Layer Shapes**: Beyond single billboards, halos can use `MultiBillboardShape` for layered quad effects. **More customization features coming soon!**
-- [x] **Distance Culling**: Halos beyond 1000 blocks from the camera are automatically skipped for performance optimization.
-- [x] **Multiplayer Support**: Halos sync across all players on a server — attach, remove, and configure halos and every connected client sees the result in real time.
+- [x] **Animation Support**: Halo definitions support position, rotation, scale, alpha, and glow animation channels, plus independent startup and shutdown transition timelines.
+- [x] **Runtime Debug Configuration**: `/halo config` provides session-scoped overrides for damping, distance limits, angular momentum, and uniform scale. It is intended for personal tuning and debugging: local mode applies it to the current client, integrated singleplayer bridges it to the paired client, and dedicated servers do not persist or distribute these values. Permanent placement changes, including position and rotation offsets, belong in each halo definition.
+- [x] **Resource Pack Friendly**: Rendering clients load definitions and visual assets from `assets/<namespace>/halo_definitions/` in resource packs. A server data pack may register definition JSON under `data/<namespace>/halo_definitions/` for server-side listing and selection, but Halo does not distribute that JSON, textures, or models; every rendering client still needs the matching resource pack. Run `/reload` after changing either source.
+- [x] **Hierarchical Multi-Layer Shapes**: A definition can contain multiple primitives per group and nested child groups with inherited transforms and animation. Legacy multi-billboard definitions remain loadable through compatibility parsing.
+- [x] **Distance Culling**: World halos whose entities are more than 256 blocks from the camera are skipped before physics and geometry submission. A separate ±1000-block camera-relative guard remains as a numeric safety check.
+- [x] **Multiplayer Support**: Authoritative halo assignments use a full snapshot on join and incremental attach/remove updates, so connected clients see ownership changes in real time. Clients render those assignments from their own locally installed definitions and assets; personal `/halo config` debug overrides are not part of this synchronization.
+- [x] **Halo Scepter**: The craftable Halo Scepter opens a searchable selector for an entity, applies or removes the persisted world-data halo with server permission and range checks, and supports self-targeting while sneaking.
+- [x] **Multiple Ownership Sources**: External server mods can register candidates through API v2. Halo arbitrates one visible winner by configurable source priority without commands or the Scepter overwriting higher-priority external state.
 
-## Planned Features
+## Feature Status
 
-- [ ] **Visible in Inventory**: Currently halos do not render on the player model's head in the inventory screen — this will be added later
+- [x] **Visible in Inventory**: Equipped halos render in survival and creative inventory player previews, with optional independent preview physics and vanilla/YSM/EMF head capture.
 - [x] **More Animations**: Animation-driven `alpha` (opacity) and `glow` intensity channels, scale animations, and "intro animations"
 - [x] **OBJ Mesh Primitives**: Three-axis size, authored origins, grayscale alpha masks and U/V animation; see the [mesh authoring guide](docs/en/mesh.md).
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
 - [ ] **Improved Self-Illumination**: Better compatibility with more shaders and stronger visual quality
 - [ ] **Better Entity & Pose Adaptation**: Halo display positions and animations currently have issues on some entities — pending fixes
-- [x] **Singleplayer `/halo hide` Shutdown Animation**: The shutdown (fade-out) animation does not play in singleplayer — the halo disappears instantly. This is a known issue; multiplayer shutdown animations work correctly. A fix is in progress.
+- [x] **Singleplayer `/halo hide` Shutdown Animation**: Local and integrated-singleplayer removal enters the normal shutdown transition; an explicit shutdown timeline is used when present, otherwise the startup timeline is reversed.
 - [ ] Other bug fixes — issues are welcome
 
 <a id="installation"></a>
@@ -104,7 +108,7 @@ This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader ve
 
 ### NeoForge / Forge
 
-This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.20.1** via [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api). Shader packs are compatible.
+This mod is natively built for Fabric and does not ship a native Forge or NeoForge adapter. The Fabric JAR can run in compatible **Forge / NeoForge 1.20.1** environments through [Sinytra Connector](https://modrinth.com/mod/connector) plus [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api). The 2.4.0 workflow has been exercised with a Forge dedicated server and Connector clients; client rendering and shader behavior still depend on the exact Connector, Iris-compatible stack, and shader-pack versions.
 
 1. Install NeoForge or Forge for Minecraft 1.20.1
 2. Install [Sinytra Connector](https://modrinth.com/mod/connector)
@@ -119,7 +123,7 @@ This mod is natively built for Fabric, but can also run on **NeoForge / Forge 1.
 
 ### Commands
 
-Server commands require permission level 2 (operator) by default. `/halo renderer` is client-only and requires no server permission. The required level can be changed in `config/halo-azusake/halo_mod_config.json` (0–4; restart the server/game for changes to take effect). This mod-level config file is separate from the runtime `/halo config` parameters. External ownership priorities live in `halo_source_priorities.json` and can be inspected or changed at runtime with `/halo priority list|set|reload`. Use `/halo` with tab completion to explore available subcommands.
+Server commands require permission level 2 (operator) by default. `/halo renderer` is client-only and requires no server permission. The required level can be changed in `config/halo-azusake/halo_mod_config.json` (0–4; restart the server/game for changes to take effect). This mod-level config file is separate from the session-scoped `/halo config` debug overrides. Those overrides affect the current local runtime or integrated-singleplayer client and are neither persisted nor synchronized by a dedicated server. External ownership priorities live in `halo_source_priorities.json` and can be inspected or changed at runtime with `/halo priority list|set|reload`. Use `/halo` with tab completion to explore available subcommands.
 
 | Command                                            | Description                                                                      |
 | -------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -129,14 +133,18 @@ Server commands require permission level 2 (operator) by default. `/halo rendere
 | `/halo hide <entity>`                              | Remove a halo from an entity                                                     |
 | `/halo active`                                     | List all entities currently wearing a halo                                       |
 | `/halo inspect <entity>`                           | View detailed runtime status of an entity's halo                                 |
-| `/halo config linear-damping <0-1>`                | Set linear follow speed (0 = no follow, 1 = instant follow)                      |
-| `/halo config angular-damping <0-1>`               | Set angular follow speed                                                         |
-| `/halo config max-linear-distance <n>`             | Set maximum distance before hard clamping (blocks)                               |
-| `/halo config max-angular-degrees <n>`             | Set maximum angular deviation (degrees)                                          |
-| `/halo config allow-angular-momentum <true/false>` | Toggle angular momentum inertia effect                                           |
-| `/halo config angular-momentum-factor <0-1>`       | Set angular momentum damping factor (0 = frozen, 1 = no inertia)                 |
-| `/halo config max-angular-momentum-degrees <n>`    | Set maximum angular momentum deviation (degrees)                                 |
-| `/halo config scale <0.1+>`                        | Set uniform scale multiplier                                                     |
+| `/halo config linear-damping <0-1>`                | Debug override for linear follow speed (0 = no follow, 1 = instant follow)       |
+| `/halo config angular-damping <0-1>`               | Debug override for angular follow speed                                          |
+| `/halo config max-linear-distance <n>`             | Debug override for maximum distance before hard clamping (blocks)                |
+| `/halo config max-angular-degrees <n>`             | Debug override for maximum angular deviation (degrees)                           |
+| `/halo config allow-angular-momentum <true/false>` | Debug override for the angular-momentum inertia toggle                           |
+| `/halo config angular-momentum-factor <0-1>`       | Debug override for angular-momentum damping (0 = frozen, 1 = no inertia)          |
+| `/halo config max-angular-momentum-degrees <n>`    | Debug override for maximum angular-momentum deviation (degrees)                  |
+| `/halo config scale <0.1+>`                        | Debug override for the uniform scale multiplier                                  |
+| `/halo priority list`                              | List registered ownership sources and effective priorities                       |
+| `/halo priority set <source> <priority>`           | Persist and immediately apply a signed 32-bit source priority                    |
+| `/halo priority reload`                            | Reload source priorities while retaining the last valid values on failure        |
+| `/halo renderer [compatibility\|cached]`           | Query or persist the client-only billboard/ring rendering backend                |
 | `/halo save`                                       | Sync halo data to world persistence and trigger save-all                         |
 | `/halo debug <true/false>`                         | Toggle teleport/snap debug logging to chat                                       |
 | `/halo reload`                                     | Hint to use `/reload` to reload halo definitions                                 |
@@ -195,7 +203,7 @@ Start at `[0.0, 0.0, 0.0]` and adjust in small `0.01`–`0.05` steps. For exampl
 
 ### Custom Halo Definitions
 
-Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/` (resource packs). The server never reads halo definitions — it only tracks which entity has which halo and broadcasts that to clients; clients render halos using their own locally loaded resource-pack definitions.
+Rendering definitions are JSON files stored in `assets/<namespace>/halo_definitions/` in resource packs. Servers can additionally read definition JSON from `data/<namespace>/halo_definitions/` in data packs so IDs are available to server-side listing, completion, and selection. The server synchronizes only ownership identifiers; it does not send definition JSON, textures, or OBJ files. Every rendering client therefore needs a resource pack containing each definition and its visual assets.
 
 > **For a full step-by-step tutorial and the complete field reference, see the docs:**
 > [Quickstart](docs/en/quickstart.md) · [Field Reference](docs/en/reference.md)
@@ -290,10 +298,11 @@ Halo definitions are JSON files stored in `assets/<namespace>/halo_definitions/`
 | `layers[].primitives`               | Array of rendering primitives within this group (see below)                                                                   |
 | `layers[].primitive`                | Backward-compatible single primitive object (equivalent to `primitives: [...]`)                                               |
 | `layers[].children`                 | Optional array of nested child groups that inherit this group's transform                                                     |
-| `primitive.type`                    | `billboard` (single textured quad) or `ring` (cylindrical ring)                                                               |
+| `primitive.type`                    | `billboard` (textured quad), `ring` (cylindrical ring), or `mesh` (OBJ model)                                                  |
 | `primitive.texture`                 | Texture path, e.g. `halo:textures/halo/ring_00.png`                                                                           |
+| `primitive.model`                   | Mesh only: OBJ model resource path                                                                                            |
 | `primitive.inner_texture`           | Ring only: inner surface texture (optional; defaults to `texture` if omitted)                                                 |
-| `layers[].primitive.size`           | `billboard`: `[width, depth]`; `ring`: `[radius, cylinder_width]` in blocks                                                   |
+| `layers[].primitive.size`           | `billboard`: `[width, depth]`; `ring`: `[radius, cylinder_width]`; `mesh`: `[x, y, z]` bounds in blocks                       |
 | `layers[].primitive.segments`       | Ring only: polygon segment count (default 32)                                                                                 |
 | `positioning.offset`                | `[X, Y, Z]` offset relative to entity head (blocks)                                                                           |
 | `positioning.scale`                 | Default scale multiplier                                                                                                      |
@@ -327,7 +336,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-1.20.1-fabric-2.3.2+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-1.20.1-fabric-2.4.0+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 
