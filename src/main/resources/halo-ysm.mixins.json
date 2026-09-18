@@ -2,6 +2,7 @@
   "required": false,
   "minVersion": "0.8",
   "package": "network.azusake.halo.compat.ysm.mixin",
+  "refmap": "halo.refmap.json",
   "compatibilityLevel": "JAVA_17",
   "plugin": "network.azusake.halo.compat.ysm.mixin.YsmMixinPlugin",
   "client": [
