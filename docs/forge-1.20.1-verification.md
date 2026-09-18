@@ -1,6 +1,6 @@
 # Minecraft 1.20.1 Forge 迁移验收记录
 
-记录日期：2026-09-18。此文档区分自动门禁、启动冒烟和未执行的目视/多人验收；未执行项不视为通过。
+记录日期：2026-09-19。此文档区分自动门禁、启动冒烟和未执行的目视/多人验收；未执行项不视为通过。
 
 ## 锁定版本
 
@@ -23,12 +23,16 @@
 - Oculus + Bliss 2.1.2：日志确认 flat、lit-solid、lit-translucent 三套材质建立，并在管线切换时释放及重建 generation。
 - 官方 YSM Forge JAR 签名门禁：通过，未跳过。
 - 官方 EMF Forge JAR ABI 门禁：通过，未跳过；确认 3.1.1 版本、`EMFModelPart` 渲染入口及 `EMFModelPartVanilla.name`。
+- 正式 JAR 的 Mixin refmap 加载已在 Forge 47.4.21 客户端验证，修复后可进入主界面；分发门禁检查四份 Mixin 配置均引用且成品包含 `halo.refmap.json`。
+- Forge 47.4.23 Halo 专用服与 Halo 客户端完成单客户端联机；执行 `/halo list` 经服务器转发返回非 OP 权限提示，客户端未再出现命令递归或 `StackOverflowError`。
+- Halo 客户端连接未安装 Halo 的服务端后，多个 `/halo show` 定义继续在 LOCAL 会话内生效。
+- 用户完成本轮实际游戏复测并反馈通过，渲染及多人场景未观察到明显错误。
 
 EMF 3.1.1 + ETF 7.0.6 在 ForgeGradle 的 `forgeclientuserdev` 中会因 EMF 自身发布 JAR 未带开发命名空间 refmap，在 EMF 的 `MixinResourceReloadStart` 处失败；在该失败之前 Halo 已记录 `verified EMF 3.1.1 detected`。因此这里只记为 Halo ABI/Mixin 选择门禁通过，不把 EMF 开发客户端启动或实际捕获记为通过。
 
 ## 尚未验证
 
-- 专用服加两个客户端的完整多人流程，以及 Halo 客户端连接无 Halo 服务端、Halo 服务端接受无 Halo 客户端的实际联机。
+- 专用服加两个客户端的完整多人流程，以及 Halo 服务端接受无 Halo 客户端的实际联机；已完成单个 Halo 客户端连接 Halo 专用服和 Halo 客户端连接无 Halo 服务端的回归。
 - 全部命令、权杖 GUI/会话、持久化、后加入/重连、死亡重生、卸载、跨维度与全部姿态的游戏内操作矩阵。
 - YSM/EMF 的世界与物品栏预览实际模型捕获；EMF 仍需带替换玩家模型的资源包。
 - BSL、IterationRP，以及 LabPBR 三图元的法线、smoothness/metalness、emission 像素级目视结果。
