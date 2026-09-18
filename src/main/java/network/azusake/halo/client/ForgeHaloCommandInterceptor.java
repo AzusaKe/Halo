@@ -235,14 +235,14 @@ public final class ForgeHaloCommandInterceptor implements HaloCommandInterceptor
     }
 
     /**
-     * Send a command through the normal 1.20.1 connection path. Forge executes
-     * the local dispatcher before this method, so sending the resulting packet
-     * does not re-enter the local command executor.
+     * Send a command through the normal 1.20.1 connection path. The forwarding
+     * guard makes the Forge hook at the start of that path fall through once;
+     * vanilla still creates the signed command packet and last-seen update.
      */
     private static void sendCommandRaw(String command) {
         Minecraft client = Minecraft.getInstance();
         if (client.getConnection() == null) return;
 
-        client.getConnection().sendCommand(command);
+        ServerCommandForwardingGuard.forward(() -> client.getConnection().sendCommand(command));
     }
 }
