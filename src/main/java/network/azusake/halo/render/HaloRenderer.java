@@ -35,8 +35,12 @@ public final class HaloRenderer {
         if(force||primitiveMode==PrimitiveRenderMode.COMPATIBILITY)primitiveBuffers.close();
         if(primitiveMode==PrimitiveRenderMode.CACHED){
             var meshes=new LinkedHashMap<network.azusake.halo.core.Identifier,TriangleMesh>();
-            snapshot.definitions().primitiveGeometries().forEach((id,g)->meshes.put(id,g.mesh()));
-            primitiveBuffers=primitiveBuffers.updated(new VisualResources(snapshot.visuals().generation(),meshes,Map.of()));
+            var quads=new HashSet<network.azusake.halo.core.Identifier>();
+            snapshot.definitions().primitiveGeometries().forEach((id,g)->{
+                meshes.put(id,g.mesh());
+                if(g.topology()==DrawBatch.Topology.QUADS)quads.add(id);
+            });
+            primitiveBuffers=primitiveBuffers.updated(new VisualResources(snapshot.visuals().generation(),meshes,Map.of()),quads);
         }
     }
     public void rebuildMeshBuffersForShaderPipeline(){meshBuffers.close();primitiveBuffers.close();reloadMeshBuffers(HaloMeshResources.snapshot().visuals());reloadPrimitiveBuffers(HaloMeshResources.snapshot(),true);}
@@ -101,6 +105,7 @@ public final class HaloRenderer {
     public void submitDeferredMeshes(){if(!OptionalIrisPassDetector.isMainPass())return;var pending=deferred;deferred=null;if(pending!=null)submit(pending.output(),pending.visuals(),pending.outer(),pending.shaderPack(),RenderEnvironment.WORLD,true);}
     public void submitPreview(FrameOutput output,VisualResources visuals){var outer = new Matrix4f(RenderSystem.getModelViewMatrix()); submit(output,visuals,outer,false,RenderEnvironment.GUI,false);submit(output,visuals,outer,false,RenderEnvironment.GUI,true);}
     private void submit(FrameOutput output,VisualResources visuals,Matrix4f outer,boolean shaderPack,RenderEnvironment environment,boolean late){
+        long profileStart=MeshRenderMetrics.start();
         var client=Minecraft.getInstance();
         if(!late){
             HaloDrawSubmitter.submitBatches(client,output.legacyBatches(),environment,outer);
@@ -114,6 +119,7 @@ public final class HaloRenderer {
                 HaloDrawSubmitter.submitBatches(client,new FrameOutput(output.visualGeneration(),List.of(),List.of(draw))
                     .expandedBatches(visuals,outer.m02(),outer.m12(),outer.m22(),outer.m32()),environment,outer);
         }
+        if(environment==RenderEnvironment.WORLD)MeshRenderMetrics.finish(profileStart,late);
     }
     static boolean submitBeforeTranslucents(MeshDraw draw,boolean shaderPack){return shaderPack&&draw.directionalLighting()&&!draw.blend();}
     static int packLight(LightSample light){return HaloDrawSubmitter.packLight(light);}

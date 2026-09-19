@@ -27,6 +27,8 @@ final class HaloDrawSubmitter {
                 try (var mesh = builder.buildOrThrow()) {
                     var format = mesh.drawState().format();
                     var vertex = format.uploadImmediateVertexBuffer(mesh.vertexBuffer());
+                    MeshRenderMetrics.expandedDraw();
+                    MeshRenderMetrics.vertexUpload(mesh.vertexBuffer().remaining());
                     var sequential = RenderSystem.getSequentialBuffer(mesh.drawState().mode());
                     var index = sequential.getBuffer(mesh.drawState().indexCount());
                     draw(batch, material, vertex, index, sequential.type(), mesh.drawState().indexCount(),

@@ -21,6 +21,29 @@ public final class IrisMeshBridge {
     private static boolean reportedSelection;
     private static long generation;
     private IrisMeshBridge(){}
+    /** Native GUI buffers must never accidentally acquire the current world's Iris layout. */
+    @SuppressWarnings("unchecked")
+    public static <T> T withoutVertexExtension(Supplier<T> action) {
+        if (!FabricLoader.getInstance().isModLoaded("iris")) return action.get();
+        try {
+            var skip = (ThreadLocal<Boolean>) Class.forName("net.irisshaders.iris.vertices.ImmediateState")
+                .getField("skipExtension").get(null);
+            Boolean previous = skip.get();
+            skip.set(true);
+            try { return action.get(); }
+            finally { if (previous == null) skip.remove(); else skip.set(previous); }
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("Cannot isolate Halo's native vertex layout", error);
+        }
+    }
+    public static void requireExtendedEntityFormat(VertexFormat format) {
+        try {
+            if (format != Class.forName("net.irisshaders.iris.vertices.IrisVertexFormats").getField("ENTITY").get(null))
+                throw new IllegalStateException("Iris did not extend Halo's resident entity vertices");
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("Cannot validate Iris entity layout", error);
+        }
+    }
     @SuppressWarnings({"unchecked","rawtypes"})
     public static void assign(RenderPipeline pipeline,boolean lit,boolean translucent){
         KINDS.put(pipeline,new Kind(lit,translucent));
