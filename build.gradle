@@ -210,6 +210,9 @@ test {
     testLogging { events 'passed', 'skipped', 'failed' }
 }
 
+// Opt-in real-client pixel regression; its classes never enter the main JAR.
+if (project.hasProperty('meshGpuTest')) apply from: 'gradle/mesh-gpu-test.gradle'
+
 tasks.named('check') { dependsOn gradle.includedBuild('core').task(':check') }
 
 publishing {

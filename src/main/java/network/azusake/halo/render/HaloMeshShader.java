@@ -121,10 +121,13 @@ public final class HaloMeshShader {
             var mask = draw.material().mask();
             var base = draw.texture();
             RenderSystem.setShader(program);
-            RenderSystem.setShaderTexture(0, cache.base(base).getId());
+            int baseTexture = cache.base(base).getId();
+            RenderSystem.setShaderTexture(0, baseTexture);
             int maskSlot = iris && draw.directionalLighting() ? 3 : 1;
             if (iris && draw.directionalLighting()) client.gameRenderer.overlayTexture().setupOverlayColor();
-            RenderSystem.setShaderTexture(maskSlot, cache.mask(mask == null ? base : mask.texture()).getId());
+            int maskTexture = cache.mask(mask == null ? base : mask.texture()).getId();
+            RenderSystem.setShaderTexture(maskSlot, maskTexture);
+            bindNativeSamplers(program.shader, iris, baseTexture, maskTexture);
             program.maskEnabled.set(mask == null ? 0 : 1);
             program.maskMode.set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
             program.maskThreshold.set(mask == null ? 0.5f : mask.threshold());
@@ -182,11 +185,13 @@ public final class HaloMeshShader {
         var mask = material == null ? null : material.mask();
         var baseTexture = texture == null ? WHITE_TEXTURE : texture;
         RenderSystem.setShader(() -> shader);
-        RenderSystem.setShaderTexture(0, client.getTextureManager().getTexture(game(baseTexture)).getId());
+        int baseTextureId = client.getTextureManager().getTexture(game(baseTexture)).getId();
+        RenderSystem.setShaderTexture(0, baseTextureId);
         int maskSlot = iris && directionalLighting ? 3 : 1;
         if (iris && directionalLighting) client.gameRenderer.overlayTexture().setupOverlayColor();
-        RenderSystem.setShaderTexture(maskSlot,
-            client.getTextureManager().getTexture(game(mask == null ? baseTexture : mask.texture())).getId());
+        int maskTextureId = client.getTextureManager().getTexture(game(mask == null ? baseTexture : mask.texture())).getId();
+        RenderSystem.setShaderTexture(maskSlot, maskTextureId);
+        bindNativeSamplers(shader, iris, baseTextureId, maskTextureId);
         String prefix = iris ? (shader.getUniform("HaloMaskEnabled") != null ? "Halo" : "iris_Halo") : "";
         shader.safeGetUniform(prefix + "MaskEnabled").set(mask == null ? 0 : 1);
         shader.safeGetUniform(prefix + "MaskMode").set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
@@ -196,6 +201,20 @@ public final class HaloMeshShader {
         shader.safeGetUniform(prefix + "LightCoord").set(sample.block() << 4, sample.sky() << 4);
         shader.safeGetUniform(prefix + "LegacyAlphaCutoff").set(legacyAlphaCutoff ? 1 : 0);
         return shader;
+    }
+
+    /**
+     * Populate the native program's base, mask and lightmap sampler objects. VertexBuffer's
+     * drawWithShader also copies these RenderSystem slots immediately before applying the
+     * program, so the submitter must keep slot 2 bound for every draw. Assigning a sampler
+     * alone cannot repair a lightmap slot cleared by RenderType. Iris owns its samplers.
+     */
+    private static void bindNativeSamplers(ShaderInstance shader, boolean iris, int baseTexture, int maskTexture) {
+        if (!iris) {
+            shader.setSampler("Sampler0", baseTexture);
+            shader.setSampler("Sampler1", maskTexture);
+            shader.setSampler("Sampler2", RenderSystem.getShaderTexture(2));
+        }
     }
 
     static void setNormalMatrix(ShaderInstance shader, Matrix4f transform) {

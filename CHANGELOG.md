@@ -1,5 +1,14 @@
 # 更新记录
 
+## 2.4.0 Forge adapter.2 — 2026-09-19
+
+- 修复无光影时受光图元结束绘制后清空光照贴图槽，导致后续全亮 mesh 变黑的问题。VBO、CPU 回退和缓存旧图元均在每次提交前恢复当前 lightmap，覆盖世界与 GUI 预览。
+- 增加独立客户端 GPU 像素回归，覆盖受光/全亮交替、五个 mesh demo、可选 Seia 资源包、资源重载与退回主界面后重新进入世界；测试代码不进入发布 JAR。
+- core 仍锁定 `224551ef3f76c36b60fd5c84caaf4fe8a71b5e3a`（2.4.0），定义、网络和存档格式不变。详见 [mesh 黑色回归记录](docs/forge-mesh-lightmap-fix.md)。
+- 用户已完成实际游戏复测并确认通过。
+
+正式版本：`2.4.0+adapter.2`；平台标签为 `v2.4.0-forge-1.20.1-adapter.2`，成品名为 `halo-1.20.1-forge-2.4.0+adapter.2.jar`。
+
 ## 2.4.0 Forge 适配器 — 2026-09-19
 
 - 新增 Minecraft 1.20.1 Forge 原生适配层，使用 ForgeGradle 6、Mojmap、Java 17 与 Forge 47.4.x；不依赖 Fabric Loader、Fabric API 或 Connector。

@@ -1,0 +1,30 @@
+sourceSets {
+    meshGpuTest {
+        java.srcDir 'src/testFixtures/mesh-gpu/java'
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+
+minecraft.runs {
+    meshGpuTest {
+        parent minecraft.runs.client
+        workingDirectory project.file('.local/mesh-gpu-test')
+        property 'halo.meshGpuTest', 'true'
+        if (project.hasProperty('meshGpuWorld')) {
+            property 'halo.meshGpuWorld', project.property('meshGpuWorld')
+            args '--quickPlaySingleplayer', project.property('meshGpuWorld')
+        }
+        mods { "${mod_id}" { source sourceSets.meshGpuTest } }
+    }
+}
+
+tasks.matching { it.name == 'runMeshGpuTest' }.configureEach {
+    def result = file('.local/mesh-gpu-test/mesh-gpu-result.txt')
+    doFirst { result.delete() }
+    doLast {
+        if (!result.exists() || !result.text.endsWith('PASS\n')) {
+            throw new GradleException('Mesh GPU regression failed; see .local/mesh-gpu-test/mesh-gpu-result.txt')
+        }
+    }
+}

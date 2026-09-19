@@ -25,9 +25,6 @@ final class HaloDrawSubmitter {
     static void submitMeshes(Minecraft client, Submission pending, HaloMeshBufferCache meshBuffers, RenderEnvironment environment) {
         if (pending.draws().isEmpty()) return;
         try (HaloRenderState ignored = new HaloRenderState()) {
-            // Direct VBO submission does not pass through a vanilla RenderLayer,
-            // so its LIGHTMAP render phase cannot bind Sampler2 for us.
-            client.gameRenderer.lightTexture().turnOnLightLayer();
             // A single draw cannot amortize either workspace or material lookup caches.
             boolean reuse = pending.draws().size() > 1;
             MeshDrawWorkspace workspace = reuse ? new MeshDrawWorkspace() : null;
@@ -37,6 +34,7 @@ final class HaloDrawSubmitter {
                     ? HaloForgeRenderTypes.lit(draw.texture(), draw.blend()) : null;
                 if (renderType != null) renderType.setupRenderState();
                 try {
+                    bindLightmap(client);
                     applyState(draw.cull(), draw.blend(), draw.depthTest(), draw.depthWrite(),
                         draw.red(), draw.green(), draw.blue(), draw.alpha());
                     var prepared = materials == null ? null : materials.bind(draw);
@@ -59,9 +57,6 @@ final class HaloDrawSubmitter {
     static void submitBatches(Minecraft client, List<DrawBatch> batches, RenderEnvironment environment) {
         if (batches.isEmpty()) return;
         try (HaloRenderState ignored = new HaloRenderState()) {
-            // Tessellator submission likewise runs outside a RenderLayer. Bind
-            // the current 16x16 vanilla lightmap before any lightmapped batch.
-            client.gameRenderer.lightTexture().turnOnLightLayer();
             for (int start = 0; start < batches.size();) {
                 int end = LegacyBatchRuns.end(batches, start);
                 submitRun(client, batches, start, end, environment);
@@ -78,6 +73,7 @@ final class HaloDrawSubmitter {
         RenderType renderType = b.directionalLighting() ? HaloForgeRenderTypes.lit(b.texture(), b.blend()) : null;
         if (renderType != null) renderType.setupRenderState();
         try {
+            bindLightmap(client);
             applyState(b.cull(), b.blend(), b.depthTest(), b.depthWrite(), b.red(), b.green(), b.blue(), b.alpha());
             boolean nativeLight = b.light().available();
             if (b.material() instanceof MaterialState.Mesh mesh) {
@@ -120,7 +116,6 @@ final class HaloDrawSubmitter {
                                  RenderEnvironment environment) {
         if (output.primitiveDraws().isEmpty()) return;
         try (HaloRenderState ignored = new HaloRenderState(true)) {
-            client.gameRenderer.lightTexture().turnOnLightLayer();
             Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix());
             Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
             for (PrimitiveDraw draw : output.primitiveDraws()) {
@@ -135,6 +130,7 @@ final class HaloDrawSubmitter {
                     ? HaloForgeRenderTypes.lit(state.texture(), state.blend()) : null;
                 if (renderType != null) renderType.setupRenderState();
                 try {
+                    bindLightmap(client);
                     applyState(state.cull(), state.blend(), state.depthTest(), state.depthWrite(),
                         state.red(), state.green(), state.blue(), state.alpha());
                     if (!HaloMeshShader.bindLegacy(client, state, environment)) continue;
@@ -152,6 +148,12 @@ final class HaloDrawSubmitter {
     static int packLight(LightSample light) {
         LightSample sample = light.available() ? light : LightSample.FULL_BRIGHT;
         return net.minecraft.client.renderer.LightTexture.pack(sample.block(), sample.sky());
+    }
+    private static void bindLightmap(Minecraft client) {
+        // Forge's entity RenderType clears Sampler2 when a lit draw ends. Even
+        // full-bright mesh shaders sample the lightmap, so bind it for EVERY
+        // draw/run, after RenderType setup, including cached and CPU fallbacks.
+        client.gameRenderer.lightTexture().turnOnLightLayer();
     }
     private static void applyState(boolean cull, boolean blend, boolean depthTest, boolean depthWrite,
                                    float red, float green, float blue, float alpha) {
