@@ -23,7 +23,8 @@ final class HaloDrawSubmitter {
             boolean reuse = pending.draws().size() > 1;
             MeshDrawWorkspace workspace = reuse ? new MeshDrawWorkspace() : null;
             HaloMeshShader.Submission materials = reuse ? new HaloMeshShader.Submission(client, environment) : null;
-            for (MeshDraw draw : pending.draws()) {
+            for (MeshDraw draw : MeshDrawViewSorter.backToFront(
+                    pending.draws(), pending.visuals(), pending.modelView())) {
                 boolean hasMask = draw.material().mask() != null;
                 try (var entity = HaloMeshShader.openEntityLayer(draw.texture(), draw.blend(), environment,
                         draw.directionalLighting(), hasMask, draw.light())) {
@@ -39,7 +40,8 @@ final class HaloDrawSubmitter {
                     if (!meshBuffers.draw(pending.generation(), draw, pending.modelView(), pending.projection(),
                             shader, workspace, prepared, entity != null)) {
                         var fallback = new FrameOutput(pending.generation(), List.of(), List.of(draw))
-                            .expandedBatches(pending.visuals());
+                            .expandedBatches(pending.visuals(), pending.modelView().m02(), pending.modelView().m12(),
+                                pending.modelView().m22(), pending.modelView().m32());
                         for (DrawBatch batch : fallback) submit(client, batch, environment);
                         if (materials != null) materials.invalidate();
                     }

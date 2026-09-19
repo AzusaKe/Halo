@@ -250,16 +250,20 @@ final class HaloMeshBufferCache implements AutoCloseable {
                           boolean nativeEntityMaterial) {
             VertexBuffer selected = draw.directionalLighting() ? litVertices : flatVertices;
             boolean expanded = draw.directionalLighting();
+            Matrix4f modelView = workspace == null
+                ? new Matrix4f(outerModelView).mul(new Matrix4f().set(draw.localToView()))
+                : workspace.modelView(outerModelView, draw);
             selected.bind();
             if (draw.blend()) {
                 GlStateManager._glBindBuffer(ELEMENT_ARRAY_BUFFER,
                     expanded ? litDynamicElements : flatDynamicElements);
-                long revision = indices.prepareBackToFront(draw);
+                long revision = indices.prepareBackToFrontTransform(
+                    modelView.m02(), modelView.m12(), modelView.m22(), modelView.m32());
                 MeshIndexUpload upload = expanded ? litUpload : flatUpload;
                 if (!upload.matches(revision, draw.mirrored())) {
                     indexInts.clear();
-                    if (expanded) indices.writeExpanded(indexInts, draw, true);
-                    else indices.write(indexInts, draw, true);
+                    if (expanded) indices.writeExpandedPrepared(indexInts, draw.mirrored());
+                    else indices.writePrepared(indexInts, draw.mirrored());
                     indexBytes.clear();
                     GlStateManager._glBufferData(ELEMENT_ARRAY_BUFFER, indexBytes, STREAM_DRAW);
                     upload.uploaded(revision, draw.mirrored());
@@ -271,9 +275,6 @@ final class HaloMeshBufferCache implements AutoCloseable {
                         ? draw.mirrored() ? litMirroredElements : litNormalElements
                         : draw.mirrored() ? flatMirroredElements : flatNormalElements);
             }
-            Matrix4f modelView = workspace == null
-                ? new Matrix4f(outerModelView).mul(new Matrix4f().set(draw.localToView()))
-                : workspace.modelView(outerModelView, draw);
             if (draw.directionalLighting()) {
                 if (prepared == null) HaloMeshShader.setNormalMatrix(shader, modelView);
                 else prepared.normal(workspace.normal(modelView));

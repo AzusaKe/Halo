@@ -59,8 +59,8 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             return builder.buildFuture();
         };
 
-    private void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher,
-                                  net.minecraft.command.CommandRegistryAccess registryAccess) {
+    void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher,
+                          net.minecraft.command.CommandRegistryAccess registryAccess) {
 
         var haloNode = ClientCommandManager.literal("halo")
             .then(RendererCommandTree.command(FabricHaloCommandInterceptor::renderer))
@@ -73,13 +73,23 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("show")
                 .executes(ctx -> executeLocal("halo show"))
+                .then(ClientCommandManager.literal("@s")
+                    .executes(ctx -> executeLocal("halo show @s"))
+                    .then(ClientCommandManager.argument("definition", net.minecraft.command.argument.IdentifierArgumentType.identifier())
+                        .suggests(DEFINITION_SUGGESTIONS)
+                        .executes(ctx -> {
+                            String def = ctx.getArgument("definition", net.minecraft.util.Identifier.class).toString();
+                            return executeLocal("halo show @s " + def);
+                        })
+                    )
+                )
                 .then(ClientCommandManager.argument("target", net.minecraft.command.argument.EntityArgumentType.entity())
                     .executes(ctx -> executeLocal("halo show"))
                     .then(ClientCommandManager.argument("definition", net.minecraft.command.argument.IdentifierArgumentType.identifier())
                         .suggests(DEFINITION_SUGGESTIONS)
                         .executes(ctx -> {
                             String target = ctx.getInput().split(" ")[2];
-                            String def = ctx.getInput().split(" ")[3];
+                            String def = ctx.getArgument("definition", net.minecraft.util.Identifier.class).toString();
                             return executeLocal("halo show " + target + " " + def);
                         })
                     )
@@ -87,6 +97,9 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("hide")
                 .executes(ctx -> executeLocal("halo hide"))
+                .then(ClientCommandManager.literal("@s")
+                    .executes(ctx -> executeLocal("halo hide @s"))
+                )
                 .then(ClientCommandManager.argument("target", net.minecraft.command.argument.EntityArgumentType.entity())
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
@@ -169,6 +182,9 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
             )
             .then(ClientCommandManager.literal("inspect")
                 .executes(ctx -> executeLocal("halo inspect"))
+                .then(ClientCommandManager.literal("@s")
+                    .executes(ctx -> executeLocal("halo inspect @s"))
+                )
                 .then(ClientCommandManager.argument("target", net.minecraft.command.argument.EntityArgumentType.entity())
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
