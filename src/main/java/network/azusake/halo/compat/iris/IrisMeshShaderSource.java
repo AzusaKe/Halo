@@ -33,6 +33,11 @@ public final class IrisMeshShaderSource {
         throw new IllegalArgumentException("Halo mesh does not support a geometry/tessellation stage in gbuffers_textured: " + path);
     }
 
+    /** Whether this stage receives Halo's generic smooth-world-normal replacement. */
+    static boolean replacesWorldDerivativeFaceNormal(String path, String source, boolean directionalLighting) {
+        return directionalLighting && path.endsWith(".fsh") && worldDerivativeFaceNormal(source) != null;
+    }
+
     private static String json(String source, boolean directionalLighting) {
         JsonObject json = JsonParser.parseString(source).getAsJsonObject();
         JsonArray uniforms = json.getAsJsonArray("uniforms");

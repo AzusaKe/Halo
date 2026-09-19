@@ -26,7 +26,7 @@ final class HaloDrawSubmitter {
             for (MeshDraw draw : pending.draws()) {
                 boolean hasMask = draw.material().mask() != null;
                 try (var entity = HaloMeshShader.openEntityLayer(draw.texture(), draw.blend(), environment,
-                        draw.directionalLighting(), hasMask)) {
+                        draw.directionalLighting(), hasMask, draw.light())) {
                     // RenderLayer phases select the pack's entity program and auxiliary
                     // textures; the command's exact depth/blend/cull contract remains authoritative.
                     applyState(draw.cull(), draw.blend(), draw.depthTest(), draw.depthWrite(),
@@ -70,7 +70,7 @@ final class HaloDrawSubmitter {
         boolean nativeLight = b.light().available();
         boolean hasMask = b.material() instanceof MaterialState.Mesh mesh && mesh.mask() != null;
         try (var entity = HaloMeshShader.openEntityLayer(b.texture(), b.blend(), environment,
-                b.directionalLighting(), hasMask)) {
+                b.directionalLighting(), hasMask, b.light())) {
             applyState(b.cull(), b.blend(), b.depthTest(), b.depthWrite(), b.red(), b.green(), b.blue(), b.alpha());
             if (entity == null) {
                 if (b.material() instanceof MaterialState.Mesh mesh) {
@@ -123,7 +123,7 @@ final class HaloDrawSubmitter {
                     continue;
                 }
                 try (var entity = HaloMeshShader.openEntityLayer(state.texture(), state.blend(), environment,
-                        state.directionalLighting(), false)) {
+                        state.directionalLighting(), false, state.light())) {
                     applyState(state.cull(), state.blend(), state.depthTest(), state.depthWrite(),
                         state.red(), state.green(), state.blue(), state.alpha());
                     if (entity == null && !HaloMeshShader.bindLegacy(client, state, environment)) continue;

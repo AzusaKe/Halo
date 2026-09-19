@@ -143,12 +143,16 @@ class IrisMeshShaderSourceTest {
             }
             """;
         String fragment = IrisMeshShaderSource.patch("entity.fsh", fragmentSource, true);
+        assertTrue(IrisMeshShaderSource.replacesWorldDerivativeFaceNormal(
+            "entity.fsh", fragmentSource, true));
         assertTrue(fragment.contains("in vec3 halo_meshWorldNormal;"));
         assertTrue(fragment.contains(
             "vec3 reconstructedNormal = (gl_FrontFacing ? 1.0 : -1.0) * normalize(halo_meshWorldNormal);"));
         assertFalse(fragment.contains("normalize(cross(horizontalChange, verticalChange))"));
 
         String flat = IrisMeshShaderSource.patch("entity.fsh", fragmentSource, false);
+        assertFalse(IrisMeshShaderSource.replacesWorldDerivativeFaceNormal(
+            "entity.fsh", fragmentSource, false));
         assertFalse(flat.contains("halo_meshWorldNormal"));
         assertTrue(flat.contains(
             "vec3 reconstructedNormal = normalize(cross(horizontalChange, verticalChange));"));
@@ -169,6 +173,8 @@ class IrisMeshShaderSourceTest {
             }
             """;
         String patched = IrisMeshShaderSource.patch("entity.fsh", source, true);
+        assertFalse(IrisMeshShaderSource.replacesWorldDerivativeFaceNormal(
+            "entity.fsh", source, true));
         assertFalse(patched.contains("halo_meshWorldNormal"));
         assertTrue(patched.contains(
             "vec3 reconstructedNormal = normalize(cross(horizontalChange, verticalChange));"));

@@ -37,12 +37,14 @@ public final class HaloMeshShader {
 
     /**
      * Activates the vanilla entity material contract so Iris can bind the pack's
-     * entity G-buffer program plus LabPBR normal/specular textures. Halo's
-     * masked materials stay on the isolated derived-program path below.
+     * entity G-buffer program plus LabPBR normal/specular textures. A private
+     * smooth-normal variant may replace only the program while this layer's
+     * material state remains active. Masked materials stay on the isolated path.
      */
     static EntityLayerBinding openEntityLayer(network.azusake.halo.core.Identifier texture,
                                               boolean translucent, RenderEnvironment environment,
-                                              boolean directionalLighting, boolean hasMask) {
+                                              boolean directionalLighting, boolean hasMask,
+                                              LightSample light) {
         boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
         if (!useEntityLayer(environment, shaderPack, directionalLighting, hasMask)) return null;
         var base = texture == null ? WHITE_TEXTURE : texture;
@@ -50,10 +52,20 @@ public final class HaloMeshShader {
             ? RenderLayer.getEntityTranslucent(game(base), false)
             : RenderLayer.getEntitySolid(game(base));
         layer.startDrawing();
-        ShaderProgram shader = RenderSystem.getShader();
-        if (shader == null) {
+        ShaderProgram nativeShader = RenderSystem.getShader();
+        if (nativeShader == null) {
             layer.endDrawing();
             return null;
+        }
+        ShaderProgram smoothNormalShader = IrisMeshBridge.currentSmoothNormalProgram(translucent);
+        ShaderProgram shader = smoothNormalShader == null ? nativeShader : smoothNormalShader;
+        if (smoothNormalShader != null) {
+            String prefix = shader.getUniform("HaloMaskEnabled") != null ? "Halo" : "iris_Halo";
+            shader.getUniformOrDefault(prefix + "MaskEnabled").set(0);
+            shader.getUniformOrDefault(prefix + "LegacyAlphaCutoff").set(0);
+            LightSample sample = light.available() ? light : LightSample.FULL_BRIGHT;
+            shader.getUniformOrDefault(prefix + "LightCoord").set(sample.block() << 4, sample.sky() << 4);
+            RenderSystem.setShader(() -> shader);
         }
         return new EntityLayerBinding(layer, shader);
     }
