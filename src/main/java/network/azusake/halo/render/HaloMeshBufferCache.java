@@ -1,8 +1,8 @@
 package network.azusake.halo.render;
 
-import com.mojang.blaze3d.IndexType;
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.pipeline.IndexType;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.renderer.texture.OverlayTexture;
@@ -68,8 +68,18 @@ final class HaloMeshBufferCache implements AutoCloseable {
                     return false;
                 }
             }
-            stream.draw(state, matrix, normal, sort, mirrored, environment);
-            return true;
+            try {
+                stream.draw(state, matrix, normal, sort, mirrored, environment);
+                return true;
+            } catch (RuntimeException | OutOfMemoryError error) {
+                // No command is queued until preparation finishes. Retain storage for earlier
+                // commands in this frame, and use the existing CPU result for this failed draw.
+                if (extended) irisFailed = true; else nativeFailed = true;
+                org.slf4j.LoggerFactory.getLogger("halo").warn(
+                    "Halo {} mesh preparation failed; using CPU fallback until reload",
+                    extended ? "Iris" : "native", error);
+                return false;
+            }
         }
         public void close() {
             if (nativeStream != null) nativeStream.close();
@@ -81,8 +91,9 @@ final class HaloMeshBufferCache implements AutoCloseable {
     private static final class Stream implements AutoCloseable {
         private final MeshIndexWriter writer;
         private final boolean expanded;
-        private GpuBuffer vertices, source, mirroredSource, dynamic;
-        private final MeshIndexUpload uploaded = new MeshIndexUpload();
+        private GpuBuffer vertices, source, mirroredSource;
+        private record IndexSlot(GpuBuffer buffer, MeshIndexUpload uploaded) {}
+        private final FrameIndexSlots<IndexSlot> sortedSlots = new FrameIndexSlots<>(slot -> slot.buffer().close());
 
         Stream(MeshIndexWriter writer, boolean expanded) {
             this.writer = writer;
@@ -106,8 +117,8 @@ final class HaloMeshBufferCache implements AutoCloseable {
                 }
                 source = indices(false);
                 mirroredSource = indices(true);
-                dynamic = RenderSystem.getDevice().createBuffer(() -> "Halo sorted indices",
-                    GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, writer.indexCount() * 4L);
+                HaloFrameDiagnostics.geometryUploaded();
+
             } catch (RuntimeException | OutOfMemoryError error) { close(); throw error; }
         }
         private GpuBuffer indices(boolean mirrored) {
@@ -122,6 +133,12 @@ final class HaloMeshBufferCache implements AutoCloseable {
                   boolean mirrored, RenderEnvironment environment) {
             GpuBuffer index = mirrored ? mirroredSource : source;
             if (sort) {
+                long frame = network.azusake.halo.physics.RenderHeadCapture.getFrameId();
+                var slot = sortedSlots.acquire(frame, () -> new IndexSlot(
+                    RenderSystem.getDevice().createBuffer(() -> "Halo sorted indices", GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
+                        writer.indexCount() * 4L), new MeshIndexUpload()));
+                var dynamic = slot.buffer();
+                var uploaded = slot.uploaded();
                 long revision = writer.prepareBackToFrontTransform(matrix.m02(), matrix.m12(), matrix.m22(), matrix.m32());
                 if (!uploaded.matches(revision, mirrored)) {
                     var data = MemoryUtil.memAlloc(writer.indexCount() * 4);
@@ -130,6 +147,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
                         else writer.writePrepared(data.asIntBuffer(), mirrored);
                         RenderSystem.getDevice().createCommandEncoder().writeToBuffer(dynamic.slice(), data);
                         uploaded.uploaded(revision, mirrored);
+                        HaloFrameDiagnostics.indicesUploaded();
                     } finally { MemoryUtil.memFree(data); }
                 }
                 index = dynamic;
@@ -141,7 +159,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
             if (vertices != null) vertices.close();
             if (source != null) source.close();
             if (mirroredSource != null) mirroredSource.close();
-            if (dynamic != null) dynamic.close();
+            sortedSlots.close();
         }
     }
 }

@@ -1,0 +1,148 @@
+{
+  "note": "Diagnostic recordings, not a controlled cross-version benchmark. See migration record for limits.",
+  "measurements": [
+    {
+      "mode": "cached",
+      "windows": [
+        {
+          "window": 1,
+          "frames": 2424,
+          "p50_ms": 12.394400000000001,
+          "p95_ms": 14.0113,
+          "max_ms": 28.7297,
+          "geometry_uploads": 0,
+          "sorted_index_uploads": 4848
+        },
+        {
+          "window": 2,
+          "frames": 1423,
+          "p50_ms": 13.3106,
+          "p95_ms": 35.7281,
+          "max_ms": 68.3434,
+          "geometry_uploads": 0,
+          "sorted_index_uploads": 2846
+        },
+        {
+          "window": 3,
+          "frames": 2594,
+          "p50_ms": 11.539,
+          "p95_ms": 13.120800000000001,
+          "max_ms": 25.05,
+          "geometry_uploads": 0,
+          "sorted_index_uploads": 5188
+        }
+      ],
+      "sampled_total_allocation_mib_s": 292.84643809000653,
+      "sampled_halo_allocation_mib_s": 10.08850555419922,
+      "halo_allocation_hotspots": [
+        [
+          "network/azusake/halo/render/HaloDrawSubmitter.draw",
+          173300800
+        ],
+        [
+          "network/azusake/halo/core/Vec3d.hashCode",
+          72822544
+        ],
+        [
+          "network/azusake/halo/animation/LayerAnimation.sumTerms",
+          66888304
+        ],
+        [
+          "network/azusake/halo/render/HaloDrawSubmitter.lambda$draw$1",
+          43387752
+        ],
+        [
+          "network/azusake/halo/physics/RenderHeadCapture.beginDraw",
+          43021712
+        ],
+        [
+          "network/azusake/halo/anchor/AnchorCaptureCoordinator.beginEntityRender",
+          42476896
+        ],
+        [
+          "network/azusake/halo/core/Identifier.hashCode",
+          42194880
+        ],
+        [
+          "network/azusake/halo/physics/AnchorFrameCalculator.calculate",
+          29501272
+        ]
+      ],
+      "tangent_or_upload_stack_samples": {
+        "net/irisshaders/iris/vertices/NormalHelper.computeTangent": 15
+      }
+    },
+    {
+      "mode": "compatibility",
+      "windows": [
+        {
+          "window": 1,
+          "frames": 2402,
+          "p50_ms": 12.5501,
+          "p95_ms": 14.7451,
+          "max_ms": 19.293000000000003,
+          "geometry_uploads": 0,
+          "sorted_index_uploads": 4804
+        },
+        {
+          "window": 2,
+          "frames": 2409,
+          "p50_ms": 12.4374,
+          "p95_ms": 14.6181,
+          "max_ms": 56.168,
+          "geometry_uploads": 0,
+          "sorted_index_uploads": 4818
+        },
+        {
+          "window": 3,
+          "frames": 1289,
+          "p50_ms": 14.5518,
+          "p95_ms": 16.625500000000002,
+          "max_ms": 47.8822,
+          "geometry_uploads": 0,
+          "sorted_index_uploads": 2444
+        }
+      ],
+      "sampled_total_allocation_mib_s": 500.71283281114364,
+      "sampled_halo_allocation_mib_s": 11.751414998372395,
+      "halo_allocation_hotspots": [
+        [
+          "network/azusake/halo/core/render/PrimitiveDraw.expand",
+          178799216
+        ],
+        [
+          "network/azusake/halo/render/HaloDrawSubmitter.draw",
+          118657192
+        ],
+        [
+          "network/azusake/halo/core/Vec3d.hashCode",
+          100185312
+        ],
+        [
+          "network/azusake/halo/core/render/DrawBatch.<init>",
+          63176160
+        ],
+        [
+          "network/azusake/halo/physics/RenderHeadCapture.beginDraw",
+          58675056
+        ],
+        [
+          "network/azusake/halo/anchor/AnchorCaptureCoordinator.beginEntityRender",
+          49949400
+        ],
+        [
+          "network/azusake/halo/animation/LayerAnimation.sumTerms",
+          49735080
+        ],
+        [
+          "network/azusake/halo/render/HaloDrawSubmitter.lambda$draw$1",
+          48461568
+        ]
+      ],
+      "tangent_or_upload_stack_samples": {
+        "net/irisshaders/iris/vertices/NormalHelper.computeTangent": 7,
+        "net/irisshaders/iris/vertices/NormalHelper.computeTangentSmooth": 5
+      }
+    }
+  ]
+}

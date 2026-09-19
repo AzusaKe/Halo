@@ -3,15 +3,15 @@
   Halo Mod
 </h1>
 
-> This branch supports **Minecraft 26.2 Fabric**, using HaloCore 2.4.1 and adapter.2. Native OpenGL/Vulkan, Iris and EMF/ETF were exercised; see the [migration record](docs/26.2-fabric-migration.md) for exact tested versions and limits. YSM and Vulkan shaders are outside this branch’s scope.
+> This branch supports **Minecraft 26.3 Fabric**, using HaloCore 2.4.1 and adapter.1. The user accepted the current build for release after native/Iris visual checks and network testing in their own environment; see the [migration record](docs/26.3-fabric-migration.md) for exact tested versions and limits. YSM and Vulkan shaders are outside this branch’s scope.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC Version](https://img.shields.io/badge/Minecraft-26.2-green.svg)
+![MC Version](https://img.shields.io/badge/Minecraft-26.3-green.svg)
 ![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 26.2 Fabric**. The source version is **2.4.1+adapter.2**, using HaloCore **2.4.1**. Players install one Halo JAR. Flash branches remain frozen. See the [migration record](docs/26.2-fabric-migration.md) and [development guide](DEVELOPMENT.md).
+This branch targets **Minecraft 26.3 Fabric**. The source version is **2.4.1+adapter.1**, using HaloCore **2.4.1**. Players install one Halo JAR. Flash branches remain frozen. See the [migration record](docs/26.3-fabric-migration.md) and [development guide](DEVELOPMENT.md).
 
 2.4.0 adds the loader-neutral server ownership source API. Accessory and integration mods can submit halo candidates by entity UUID; Halo selects one winner by source priority, while the built-in commands and Halo Scepter continue to edit only the persisted `halo:world_data` source. Priorities are stored in `halo_source_priorities.json` and can be changed without restarting through `/halo priority list|set|reload`. Integrations must also provide the referenced definitions and visual assets to rendering clients. See the [API guide](docs/en/API.md#6-server-ownership-source-api).
 
@@ -27,7 +27,7 @@ interface. Providers only capture heads; Halo owns preview physics and drawing. 
 Vanilla player previews now display the equipped halo, including survival and creative inventories.
 The preview uses the actual head as its physics anchor and shares all three primitives and visual animation
 with the world halo. `playerPreviewHaloEnabled` defaults to `true` in the client configuration (restart
-after editing). EMF capture is gated by the target ABI and requires a resource pack that replaces the player model; custom-head world/inventory following and pack-removal fallback were verified with EMF 3.3.8 / ETF 7.2.4. See the [preview API](docs/en/API.md#preview-host-integration) and [implementation/verification record](docs/player-preview.md).
+after editing). EMF capture is gated by the target ABI and requires a resource pack that replaces the player model; the 26.3 target is EMF 3.3.6 / ETF 7.2.2; current acceptance is recorded in the migration ledger. See the [preview API](docs/en/API.md#preview-host-integration) and [implementation/verification record](docs/player-preview.md).
 `playerPreviewHaloPhysicsEnabled` defaults to `true`, using world-style physics with independent state
 per preview. Set it to `false` for rigid head following; restart after editing.
 
@@ -59,7 +59,7 @@ For contributors and coding agents, the [development guide](DEVELOPMENT.md) cove
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-This source branch builds for Minecraft 26.2 with Fabric. Other game/loader versions use their own adapter branches.
+This source branch builds for Minecraft 26.3 with Fabric. Other game/loader versions use their own adapter branches.
 
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
@@ -75,7 +75,7 @@ This source branch builds for Minecraft 26.2 with Fabric. Other game/loader vers
 - [x] **Persistent**: Halos survive world reloads and server restarts through entity NBT and world persistent state. Automatically restored on entity load.
 - [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
 - [x] **Glow Effects**: The `animation.glow` channel drives each primitive's own self-illumination brightness (fullbright); set `glowing: false` on a group to make its primitives follow ambient light instead.
-- [x] **LabPBR compatibility**: Normal, smoothness/metalness and emission were accepted with IterationRP 0.8.22/0.8.28 using the test packs. POM and arbitrary shader packs are not guaranteed; see the [migration record](docs/26.2-fabric-migration.md).
+- [x] **LabPBR compatibility**: The user confirmed LabPBR rendering and smooth normals in the 26.3 Iris test environment. Separate per-channel and per-shader-version results were not recorded. POM and arbitrary shader packs are not guaranteed; see the [migration record](docs/26.3-fabric-migration.md).
 - [x] **Animation Support**: Halo definitions support position, rotation, scale, alpha, and glow animation channels, plus independent startup and shutdown transition timelines.
 - [x] **Runtime Debug Configuration**: `/halo config` provides session-scoped overrides for damping, distance limits, angular momentum, and uniform scale. It is intended for personal tuning and debugging: local mode applies it to the current client, integrated singleplayer bridges it to the paired client, and dedicated servers do not persist or distribute these values. Permanent placement changes, including position and rotation offsets, belong in each halo definition.
 - [x] **Resource Pack Friendly**: Rendering clients load definitions and visual assets from `assets/<namespace>/halo_definitions/` in resource packs. A server data pack may register definition JSON under `data/<namespace>/halo_definitions/` for server-side listing and selection, but Halo does not distribute that JSON, textures, or models; every rendering client still needs the matching resource pack. Run `/reload` after changing server data packs; use F3+T after changing client resource packs.
@@ -100,7 +100,7 @@ This source branch builds for Minecraft 26.2 with Fabric. Other game/loader vers
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.2.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.3.
 2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for your Minecraft version.
 3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
 4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
@@ -108,7 +108,7 @@ This source branch builds for Minecraft 26.2 with Fabric. Other game/loader vers
 
 ### NeoForge / Forge
 
-This mod is natively built for Fabric and does not ship a native Forge or NeoForge adapter. The historical 1.20.1 build was exercised through Sinytra Connector, but that result does not carry over to this 26.2 adapter. Forge/NeoForge 26.2 is currently unverified and is not part of this branch's compatibility claim.
+This mod is natively built for Fabric and does not ship a native Forge or NeoForge adapter. The historical 1.20.1 build was exercised through Sinytra Connector, but that result does not carry over to this 26.3 adapter. Forge/NeoForge 26.3 is currently unverified and is not part of this branch's compatibility claim.
 
 Use the native Fabric build for this target; Connector is excluded from this migration.
 
@@ -296,7 +296,7 @@ Rendering definitions are JSON files stored in `assets/<namespace>/halo_definiti
 
 ### Prerequisites
 
-- **JDK 25** — Required for Minecraft 26.2 (HaloCore remains Java 17 compatible)
+- **JDK 25** — Required for Minecraft 26.3 (HaloCore remains Java 17 compatible)
 - Internet connection (Gradle downloads dependencies from Maven repositories)
 
 <a id="build"></a>
@@ -304,12 +304,12 @@ Rendering definitions are JSON files stored in `assets/<namespace>/halo_definiti
 ### Build
 
 ```bash
-git clone --branch 26.2-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 26.3-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-26.2-fabric-2.4.1+adapter.2.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-26.3-fabric-2.4.1+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 
@@ -332,7 +332,7 @@ The compiled JAR is under `build/libs/`; this source version builds `halo-26.2-f
 ```
 
 The client uses `run/`, the second client uses `run2/`, and this branch's dedicated server uses
-`runServer/26.2-fabric/` for its own logs, configuration and world. On first launch, follow the
+`runServer/26.3-fabric/` for its own logs, configuration and world. On first launch, follow the
 instructions for `eula.txt` in that directory and configure the port in `server.properties`.
 Development usernames require an offline-mode test server; bind `server-ip` to `127.0.0.1` for local
 testing. Enter `stop` in the console to save and shut down normally.
@@ -365,7 +365,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please submit an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
 
-- **Development Environment**: Minecraft 26.2 + Fabric Loader 0.19.3+ + JDK 25
+- **Development Environment**: Minecraft 26.3 + Fabric Loader 0.19.5+ + JDK 25
 - **IDE**: Recommended IntelliJ IDEA (with Minecraft Development plugin) or VS Code
 
 <a id="license"></a>

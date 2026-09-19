@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class LabPbrFixtureTest {
     private static String resource(Identifier id) {
-        return "/labpbr-26.2/assets/" + id.getNamespace() + "/" + id.getPath();
+        return "/labpbr-26.3/assets/" + id.getNamespace() + "/" + id.getPath();
     }
     private static String text(String name) throws IOException {
         try (var stream = LabPbrFixtureTest.class.getResourceAsStream(name)) {
@@ -30,7 +30,7 @@ class LabPbrFixtureTest {
             var id = new Identifier("halo_verify:" + channel);
             var resources = new DefinitionResources();
             assertTrue(resources.reload(1, List.of(new ResourceInput(id, "labpbr-fixture",
-                text("/labpbr-26.2/assets/halo_verify/halo_definitions/" + channel + ".json")))).isEmpty());
+                text("/labpbr-26.3/assets/halo_verify/halo_definitions/" + channel + ".json")))).isEmpty());
             var loader = new VisualAssetLoader(1, new VisualAssetLoader.Source() {
                 public String model(Identifier model) throws IOException { return text(resource(model)); }
                 public VisualResources.TextureInfo texture(Identifier texture) throws IOException {

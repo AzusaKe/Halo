@@ -8,7 +8,7 @@ import java.util.Optional;
 /** Minimum-version check shared by the optional EMF Mixin plugin and diagnostics. */
 public final class EmfVersionGate {
 
-    private static final int[] MIN_SUPPORTED = {3, 1, 1};
+    private static final int[] MIN_SUPPORTED = {3, 3, 6};
 
     private EmfVersionGate() {
     }
@@ -20,7 +20,7 @@ public final class EmfVersionGate {
 
     public static Optional<String> installedVersion() {
         return FabricLoader.getInstance()
-            .getModContainer(Emf262Symbols.MOD_ID)
+            .getModContainer(Emf263Symbols.MOD_ID)
             .map(ModContainer::getMetadata)
             .map(metadata -> metadata.getVersion().getFriendlyString());
     }

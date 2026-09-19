@@ -42,7 +42,7 @@ public final class HaloMeshResources {
             @Override public VisualResources.TextureInfo texture(Identifier id) throws IOException {
                 var resource = manager.getResource(game(id)).orElseThrow(() -> new IOException("Missing texture resource"));
                 VisualResources.TextureInfo info;
-                try (var input = resource.open(); var image = NativeImage.read(NativeImage.Format.RGBA, input)) {
+                try (var input = resource.open(); var image = NativeImage.read(input)) {
                     boolean opaque = true;
                     outer: for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) {
                         if ((image.getPixel(x, y) >>> 24) != 255) { opaque = false; break outer; }

@@ -1,4 +1,4 @@
-本分支迁移至 **Minecraft 26.2 Fabric**，版本为 **2.4.1+adapter.2**，锁定 HaloCore **2.4.1**。玩家仍只安装一个 Halo JAR。flash 分支保持冻结；原版 OpenGL/Vulkan、Iris 与 EMF/ETF 已实测，具体版本与验证边界见 [26.2 迁移记录](docs/26.2-fabric-migration.md)。不包含 YSM 与 Vulkan 光影。
+本分支迁移至 **Minecraft 26.3 Fabric**，版本为 **2.4.1+adapter.1**，锁定 HaloCore **2.4.1**。玩家仍只安装一个 Halo JAR。flash 分支保持冻结；用户已确认原生／Iris 显示表现，并在专有环境完成网络测试后同意正式发布，具体版本与验证边界见 [26.3 迁移记录](docs/26.3-fabric-migration.md)。不包含 YSM 与 Vulkan 光影。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
@@ -8,7 +8,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 原版玩家预览现在会显示已佩戴光环，包括生存及创造物品栏。预览使用真实头部锚点，共享世界光环的三种图元和视觉动画。客户端配置 `playerPreviewHaloEnabled` 与 `playerPreviewHaloPhysicsEnabled` 均默认 `true`，每个预览独立模拟世界同款物理；将后者设为 `false` 可改为无阻尼的刚性随头。配置修改后重启生效。接入方法见[预览 API](docs/zh/API.md#preview-host-integration)，范围与实测记录见[玩家预览说明](docs/player-preview.md)。
 
-EMF 捕获按目标 ABI 检查；EMF 3.3.8 / ETF 7.2.4 下已使用真实替换模型验证世界与物品栏的偏移、摆动头部跟随，以及卸载模型包后的回退。
+EMF 捕获按目标 ABI 检查；26.3 测试组合为 EMF 3.3.6 / ETF 7.2.2，真实替换模型及卸载回退的验收状态见迁移记录。
 
 人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
 
@@ -17,10 +17,10 @@ EMF 捕获按目标 ABI 检查；EMF 3.3.8 / ETF 7.2.4 下已使用真实替换�
   Halo Mod（光环模组）
 </h1>
 
-> 本分支为 **Minecraft 26.2 Fabric**，使用 HaloCore 2.4.1 / adapter.2。原版 OpenGL、Vulkan、Iris 与 EMF/ETF 的实际验证范围见 [迁移记录](docs/26.2-fabric-migration.md)。不包含 YSM、Connector 与 Vulkan 光影。
+> 本分支为 **Minecraft 26.3 Fabric**，使用 HaloCore 2.4.1 / adapter.1。原版 OpenGL、Vulkan、Iris 与 EMF/ETF 的实际验证范围见 [迁移记录](docs/26.3-fabric-migration.md)。不包含 YSM、Connector 与 Vulkan 光影。
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-26.2-green.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-26.3-green.svg)
 ![模组加载器](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 中文 | [English](README.md)
@@ -51,7 +51,7 @@ EMF 捕获按目标 ABI 检查；EMF 3.3.8 / ETF 7.2.4 下已使用真实替换�
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-当前源码分支面向 Minecraft 26.2 Fabric；其他游戏版本与加载器通过各自适配分支维护。
+当前源码分支面向 Minecraft 26.3 Fabric；其他游戏版本与加载器通过各自适配分支维护。
 
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
@@ -67,7 +67,7 @@ EMF 捕获按目标 ABI 检查；EMF 3.3.8 / ETF 7.2.4 下已使用真实替换�
 - [x] **持久化**：通过实体 NBT 和世界持久状态，光环在世界重载和服务器重启后依然保留。实体加载时自动恢复。
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
 - [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
-- [x] **LabPBR 兼容**：使用测试包确认了 IterationRP 0.8.22/0.8.28 下的法线、光滑度/金属度及自发光表现。不保证 POM 或任意光影包，具体范围见[迁移记录](docs/26.2-fabric-migration.md)。
+- [x] **LabPBR 兼容**：用户已确认本平台 Iris 测试环境中的 LabPBR 与平滑法线表现正常；未单独记录各材质通道及各光影版本的验收结果。不保证 POM 或任意光影包，具体范围见[迁移记录](docs/26.3-fabric-migration.md)。
 - [x] **动画支持**：光环定义支持位置、旋转、缩放、透明度和发光动画通道，以及彼此独立的启动与关闭过渡时间线。
 - [x] **运行时调试配置**：`/halo config` 提供阻尼、距离限制、角动量和统一缩放的会话级覆写，用于个人微调与调试。本地模式作用于当前客户端，整合单人游戏通过进程内桥接作用于配对客户端；专用服务器不会持久化或向玩家分发这些值。位置和旋转偏移等永久摆放修改应写入具体光环定义。
 - [x] **资源包友好**：负责渲染的客户端从资源包 `assets/<namespace>/halo_definitions/` 读取定义及视觉素材。服务端数据包可在 `data/<namespace>/halo_definitions/` 注册定义 JSON，供服务端列出和选择，但 Halo 不会下发这些 JSON、纹理或模型；每个渲染客户端仍须安装匹配的资源包。服务端数据包修改后运行 `/reload`；客户端资源包修改后按 F3+T 重载。
@@ -92,7 +92,7 @@ EMF 捕获按目标 ABI 检查；EMF 3.3.8 / ETF 7.2.4 下已使用真实替换�
 
 ## 安装
 
-1. 为 Minecraft 26.2 安装 [Fabric Loader](https://fabricmc.net/use/)。
+1. 为 Minecraft 26.3 安装 [Fabric Loader](https://fabricmc.net/use/)。
 2. 下载对应版本的 [Fabric API](https://modrinth.com/mod/fabric-api)。
 3. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载最新的 **Halo** 模组 JAR 文件。
 4. 将两个 JAR 文件放入 Minecraft 安装目录的 `mods` 文件夹中。
@@ -100,7 +100,7 @@ EMF 捕获按目标 ABI 检查；EMF 3.3.8 / ETF 7.2.4 下已使用真实替换�
 
 ### NeoForge / Forge
 
-本模组原生面向 Fabric，不提供原生 Forge 或 NeoForge 适配器。历史 1.20.1 版本曾通过 Sinytra Connector 验证，但该结论不能自动继承到本 26.2 适配器。Forge／NeoForge 26.2 尚未验证，不属于本分支的兼容承诺。
+本模组原生面向 Fabric，不提供原生 Forge 或 NeoForge 适配器。历史 1.20.1 版本曾通过 Sinytra Connector 验证，但该结论不能自动继承到本 26.3 适配器。Forge／NeoForge 26.3 尚未验证，不属于本分支的兼容承诺。
 
 本平台使用原生 Fabric 适配器；Connector 不在本次迁移范围。
 
@@ -286,7 +286,7 @@ YSM 不在本平台迁移范围。公共世界与预览锚点 API 继续保留�
 
 ### 前置条件
 
-- **JDK 25** — Minecraft 26.2 所需（HaloCore 仍保持 Java 17 兼容）
+- **JDK 25** — Minecraft 26.3 所需（HaloCore 仍保持 Java 17 兼容）
 - 互联网连接（Gradle 从 Maven 仓库下载依赖）
 
 <a id="构建"></a>
@@ -294,12 +294,12 @@ YSM 不在本平台迁移范围。公共世界与预览锚点 API 继续保留�
 ### 构建
 
 ```bash
-git clone --branch 26.2-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 26.3-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.2-fabric-2.4.1+adapter.2.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.3-fabric-2.4.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
@@ -322,7 +322,7 @@ cd Halo
 ```
 
 客户端使用 `run/`，第二客户端使用 `run2/`；本分支的专用服务端独立使用
-`runServer/26.2-fabric/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
+`runServer/26.3-fabric/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
 `eula.txt`，并在 `server.properties` 中设置端口等参数。开发账号联机需要测试服务器允许离线账号；
 本机测试可将 `server-ip` 设为 `127.0.0.1`。控制台输入 `stop` 可正常保存并关闭服务器。
 
@@ -354,7 +354,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 欢迎对 Halo 进行贡献！如果你有想法、建议或想报告 Bug，请在 [GitHub 仓库](https://github.com/AzusaKe/Halo) 提交 Issue。如果你想贡献代码，请 Fork 仓库并提交 Pull Request。
 
-- **开发环境**：Minecraft 26.2 + Fabric Loader 0.19.3+ + JDK 25
+- **开发环境**：Minecraft 26.3 + Fabric Loader 0.19.5+ + JDK 25
 - **IDE**：推荐 IntelliJ IDEA（配合 Minecraft Development 插件）或 VS Code
 
 <a id="许可证"></a>

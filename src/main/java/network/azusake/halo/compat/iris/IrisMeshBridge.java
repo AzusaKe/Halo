@@ -1,17 +1,17 @@
 package network.azusake.halo.compat.iris;
 
-import com.mojang.blaze3d.opengl.GlProgram;
-import com.mojang.blaze3d.opengl.Uniform;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.shaders.UniformType;
+import com.mojang.renderpearl.backend.opengl.GlProgram;
+import com.mojang.renderpearl.backend.opengl.Uniform;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
 import java.lang.reflect.*;
 import java.util.*;
 import java.util.function.Supplier;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.LoggerFactory;
 
-/** Optional Iris 26.2 bridge. Halo alone owns the cloned programs and releases them with their pipeline. */
+/** Optional Iris 26.3 bridge. Halo alone owns the cloned programs and releases them with their pipeline. */
 public final class IrisMeshBridge {
     private record Kind(boolean lit,boolean translucent){}
     private static final Map<RenderPipeline,Kind> KINDS=new IdentityHashMap<>();
@@ -20,6 +20,31 @@ public final class IrisMeshBridge {
     private static Method getManager, getPipeline;
     private static boolean reportedSelection;
     private static long generation;
+    private static final ThreadLocal<RenderPipeline> SELECTING = new ThreadLocal<>();
+    private static final Map<GlProgram, Map<Integer, Uniform>> MATERIAL_BINDINGS = new IdentityHashMap<>();
+    public static RenderPipeline selecting(RenderPipeline pipeline) {
+        RenderPipeline previous = SELECTING.get();
+        if (pipeline == null) SELECTING.remove(); else SELECTING.set(pipeline);
+        return previous;
+    }
+    public static GlProgram selectedProgram(GlProgram original) {
+        RenderPipeline pipeline = SELECTING.get();
+        GlProgram selected = pipeline == null ? null : program(pipeline);
+        if (selected == null) return original;
+        return selected;
+    }
+    public static Map<Integer, Uniform> materialLayout(GlProgram shader,
+            List<com.mojang.renderpearl.api.pipeline.BindGroupLayout.UniformDescription> uniforms) {
+        if (!MATERIAL_BINDINGS.containsKey(shader)) return null;
+        return IrisMaterialLayout.bindings(uniforms);
+    }
+    public static void bindMaterialLayout(GlProgram shader, Map<Integer, Uniform> bindings) {
+        if (bindings != null) MATERIAL_BINDINGS.put(shader, bindings);
+    }
+    public static Uniform materialBinding(GlProgram shader, int index, Uniform original) {
+        var bindings = MATERIAL_BINDINGS.get(shader);
+        return bindings == null ? original : bindings.getOrDefault(index, original);
+    }
     private IrisMeshBridge(){}
     @SuppressWarnings({"unchecked","rawtypes"})
     public static void assign(RenderPipeline pipeline,boolean lit,boolean translucent){
@@ -54,26 +79,20 @@ public final class IrisMeshBridge {
                 try{
                     Object supplier=create.invoke(pipeline,"halo_mesh_"+(++generation),source,key,patch);
                     GlProgram shader=(GlProgram)((Supplier<?>)supplier.getClass().getMethod("shader").invoke(supplier)).get();
-                    var layout=com.mojang.blaze3d.pipeline.BindGroupLayout.builder();
-                    for(String name:List.of("DynamicTransforms","Projection","Fog","Globals","HaloMaterial"))
-                        layout.withUniform(name,UniformType.UNIFORM_BUFFER);
-                    for(String name:List.of("Sampler0","Sampler1","Sampler2","HaloMask")) layout.withSampler(name);
-                    shader.setupBindGroupLayouts(List.of(layout.build()));
-                    // Vanilla compacts unused samplers. Iris owns fixed units 0/1/2;
-                    // preserve these even when the pack optimizes overlay/lightmap out.
-                    for (var binding : Map.of("Sampler0",0,"Sampler1",1,"Sampler2",2,"HaloMask",3).entrySet()) {
-                        if (shader.getUniforms().get(binding.getKey()) instanceof Uniform.Sampler sampler)
-                            shader.getUniforms().put(binding.getKey(),new Uniform.Sampler(sampler.location(),binding.getValue()));
-                    }
+                    int block = org.lwjgl.opengl.GL31.glGetUniformBlockIndex(shader.getProgramId(), "iris_HaloMaterial");
+                    if (block != -1) org.lwjgl.opengl.GL31.glUniformBlockBinding(shader.getProgramId(), block, 7);
+                    int mask = org.lwjgl.opengl.GL20.glGetUniformLocation(shader.getProgramId(), "HaloMask");
+                    if (mask != -1) org.lwjgl.opengl.GL41.glProgramUniform1i(shader.getProgramId(), mask, 3);
+                    MATERIAL_BINDINGS.put(shader, Map.of());
                     shaders.put(kind,shader);
                 }finally{BUILDING.remove();}
             }
-            LoggerFactory.getLogger("halo").info("Prepared {} private Iris 26.2 material programs",shaders.size());
+            LoggerFactory.getLogger("halo").info("Prepared {} private Iris 26.3 material programs",shaders.size());
         }catch(ReflectiveOperationException|RuntimeException ex){LoggerFactory.getLogger("halo").error("Cannot prepare Halo Iris materials",ex);}
         network.azusake.halo.render.HaloRenderer.getInstance().rebuildMeshBuffersForShaderPipeline();
     }
     public static void forget(Object pipeline){
-        var shaders=PROGRAMS.remove(pipeline);if(shaders!=null)shaders.values().forEach(GlProgram::close);
+        var shaders=PROGRAMS.remove(pipeline);if(shaders!=null)shaders.values().forEach(shader -> { MATERIAL_BINDINGS.remove(shader); shader.close(); });
 
     }
     public static GlProgram program(RenderPipeline pipeline){

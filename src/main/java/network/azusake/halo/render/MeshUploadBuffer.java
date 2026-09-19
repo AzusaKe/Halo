@@ -1,8 +1,8 @@
 package network.azusake.halo.render;
 
-import com.mojang.blaze3d.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 
 /** Owns the 1.21 ByteBufferBuilder used for one immutable GPU upload. */

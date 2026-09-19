@@ -1,6 +1,6 @@
 package network.azusake.halo.compat.emf.mixin;
 
-import network.azusake.halo.compat.emf.Emf262Symbols;
+import network.azusake.halo.compat.emf.Emf263Symbols;
 import network.azusake.halo.compat.emf.EmfAbiDetector;
 import network.azusake.halo.compat.emf.EmfCompatDiagnostics;
 import network.azusake.halo.compat.emf.EmfVersionGate;
@@ -44,11 +44,11 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
             if (!EmfVersionGate.isSupportedVersion(installed.get())) {
                 apply = false;
                 String reason = "EMF " + installed.get()
-                    + " 低于最低支持版本 " + Emf262Symbols.MIN_SUPPORTED_VERSION;
+                    + " 低于最低支持版本 " + Emf263Symbols.MIN_SUPPORTED_VERSION;
                 EmfCompatDiagnostics.reportIncompatible(reason);
                 LOGGER.warn(
                     "[EMF Compat] installed EMF version {} is below minimum {}; capture disabled",
-                    installed.get(), Emf262Symbols.MIN_SUPPORTED_VERSION);
+                    installed.get(), Emf263Symbols.MIN_SUPPORTED_VERSION);
                 return;
             }
 
@@ -110,7 +110,7 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
-        if (!Emf262Symbols.MODEL_PART.equals(targetClassName)
+        if (!Emf263Symbols.MODEL_PART.equals(targetClassName)
             || !mixinClassName.endsWith("EmfModelPartNamedMixin")
                 && !mixinClassName.endsWith("EmfModelPartIntermediaryMixin")) {
             return;
@@ -118,13 +118,13 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
 
         boolean captureHookPresent = false;
         String renderMethod = namedRuntime
-            ? Emf262Symbols.RENDER_METHOD_NAMED
-            : Emf262Symbols.RENDER_METHOD_INTERMEDIARY;
+            ? Emf263Symbols.RENDER_METHOD_NAMED
+            : Emf263Symbols.RENDER_METHOD_INTERMEDIARY;
         search:
         for (var method : targetClass.methods) {
             if (!renderMethod.equals(method.name)
-                || !(Emf262Symbols.RENDER_DESCRIPTOR_INTERMEDIARY.equals(method.desc)
-                    || Emf262Symbols.RENDER_DESCRIPTOR_NAMED.equals(method.desc))) {
+                || !(Emf263Symbols.RENDER_DESCRIPTOR_INTERMEDIARY.equals(method.desc)
+                    || Emf263Symbols.RENDER_DESCRIPTOR_NAMED.equals(method.desc))) {
                 continue;
             }
             for (var instruction : method.instructions) {

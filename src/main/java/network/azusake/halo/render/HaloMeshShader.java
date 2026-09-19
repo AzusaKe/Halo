@@ -1,9 +1,9 @@
 package network.azusake.halo.render;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.*;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.shaders.UniformType;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.*;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
+import com.mojang.renderpearl.api.pipeline.UniformType;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.*;
@@ -47,7 +47,7 @@ public final class HaloMeshShader {
                 .withUniform("Projection", UniformType.UNIFORM_BUFFER)
                 .withUniform("Lighting", UniformType.UNIFORM_BUFFER)
                 .withUniform("HaloMaterial", UniformType.UNIFORM_BUFFER)
-                .withSampler("Sampler0").withSampler("Sampler1").withSampler("Sampler2").withSampler("HaloMask").build())
+                .withUniform("Sampler0", UniformType.COMBINED_IMAGE_SAMPLER).withUniform("Sampler1", UniformType.COMBINED_IMAGE_SAMPLER).withUniform("Sampler2", UniformType.COMBINED_IMAGE_SAMPLER).withUniform("HaloMask", UniformType.COMBINED_IMAGE_SAMPLER).build())
             .withVertexBinding(0, DefaultVertexFormat.ENTITY)
             .withPrimitiveTopology(key.topology() == DrawBatch.Topology.QUADS ? PrimitiveTopology.QUADS : PrimitiveTopology.TRIANGLES)
             .withCull(key.cull()).withColorTargetState(key.blend() ? new ColorTargetState(BlendFunction.TRANSLUCENT) : ColorTargetState.DEFAULT)

@@ -9,10 +9,10 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: ["26.2-fabric"]
+    branches: ["26.3-fabric"]
     tags: ["v*"]
   pull_request:
-    branches: ["26.2-fabric"]
+    branches: ["26.3-fabric"]
   workflow_dispatch:
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        game: ["26.2"]
+        game: ["26.3"]
     permissions:
       contents: write
     env:
@@ -62,7 +62,7 @@ jobs:
       # This matrix checks API linkage; it does not claim in-game visual verification.
       - name: Build adapter and verify distribution
         env:
-          RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.game == '26.2' }}
+          RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.game == '26.3' }}
         run: ./gradlew build -Pminecraft_version=${{ matrix.game }} -Prelease="$RELEASE_BUILD"
 
       # Upload JAR as workflow artifact (always available for download)
@@ -76,7 +76,7 @@ jobs:
 
       # Create GitHub Release when pushing a version tag (e.g. v0.1.0)
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.game == '26.2'
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.game == '26.3'
         uses: softprops/action-gh-release@v2
         with:
           files: build/libs/*.jar

@@ -24,7 +24,7 @@ public final class HaloScepterClientInput {
         if (!attackHeld) {
             attackHeld = true;
             HaloNetworkClient.sendScepterRemoveSelf();
-            client.player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            client.player.swing(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.component.SwingAnimation.DEFAULT, false);
         }
         return true;
     }

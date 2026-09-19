@@ -1,0 +1,13 @@
+{
+  "pack": {
+    "description": "Halo 26.3 LabPBR channel controls",
+    "min_format": [
+      97,
+      1
+    ],
+    "max_format": [
+      97,
+      1
+    ]
+  }
+}
