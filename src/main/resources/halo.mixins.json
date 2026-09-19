@@ -12,6 +12,7 @@
     "InventoryPreviewMouseMixin",
     "PreviewFrameLifecycleMixin",
     "LivingEntityPreviewPoseMixin",
+    "LivingEntityModelCaptureMixin",
     "EntityRenderContextMixin",
     "MinecraftClientAttackMixin",
     "ModelPartHeadCaptureMixin",

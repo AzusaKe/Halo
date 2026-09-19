@@ -69,8 +69,8 @@ public final class EmfHeadCapture {
 
     /**
      * Called by the optional EMFModelPart mixin at the head of the render
-     * method.  The first named head part wins, preventing armor and feature
-     * passes from replacing the main-model transform.
+     * method. Only the renderer's actual base-model head is eligible; a named
+     * head on a cape or armor model must not consume the first capture slot.
      */
     public static void capture(PoseStack matrices, ModelPart part) {
         Object candidate = part;
@@ -79,6 +79,13 @@ public final class EmfHeadCapture {
             || !part.visible || part.skipDraw) {
             return;
         }
+
+        captureNamedHead(matrices, part);
+    }
+
+    /** Capture an already identified EMF head, keeping the model identity gate shared by both views. */
+    static void captureNamedHead(PoseStack matrices, ModelPart part) {
+        if (!RenderHeadCapture.isPlayerHead(part) && !EmfPreviewCapture.isPoseOnlyHead(part)) return;
 
         if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) {
             EmfPreviewCapture.capture(matrices, part);
