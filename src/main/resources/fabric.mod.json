@@ -24,14 +24,14 @@
     },
     "mixins": [
         "halo.mixins.json",
-        "halo-ysm.mixins.json",
         "halo-emf.mixins.json",
         "halo-iris.mixins.json"
     ],
     "depends": {
-        "fabricloader": ">=0.16.14",
+        "fabricloader": ">=0.19.3",
         "fabric-api": "*",
-        "minecraft": "1.21.1",
-        "java": ">=21"
-    }
+        "minecraft": ">=26.1 <26.2",
+        "java": ">=25"
+    },
+    "accessWidener": "halo.accesswidener"
 }

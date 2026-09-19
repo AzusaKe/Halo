@@ -33,6 +33,30 @@ public final class IrisMeshShaderSource {
         throw new IllegalArgumentException("Halo mesh does not support a geometry/tessellation stage in gbuffers_textured: " + path);
     }
 
+    /** 26.1 binds material parameters through an explicit std140 uniform buffer. */
+    public static String patch261(String path,String source,boolean lit){
+        String result=patch(path,source,lit);
+        java.util.Map<String,String> replacements=java.util.Map.of(
+            "iris_HaloLightCoord","ivec2(HaloOffsetLight.zw * 16.0)",
+            "iris_HaloMaskEnabled","int(HaloMaskParams.x)",
+            "iris_HaloMaskMode","int(HaloMaskParams.y)",
+            "iris_HaloMaskThreshold","HaloMaskParams.z",
+            "iris_HaloMaskOffset","HaloOffsetLight.xy",
+            "iris_HaloLegacyAlphaCutoff","int(HaloMaskParams.w > 0.0)");
+        for(var entry:replacements.entrySet()){
+            result=result.replaceAll("uniform\\s+\\w+\\s+"+entry.getKey()+"\\s*;","");
+            result=result.replaceAll("\\b"+entry.getKey()+"\\b",java.util.regex.Matcher.quoteReplacement("("+entry.getValue()+")"));
+        }
+        result=result.replace("iris_HaloMaskTexture","HaloMask");
+        result=declarations(result,"layout(std140) uniform iris_HaloMaterial { mat3 HaloNormal; vec4 HaloMaskParams; vec4 HaloOffsetLight; };\n");
+        if(path.endsWith(".vsh")){
+            // The draw may add a local transform outside Iris's global camera matrix.
+            result=result.replaceAll("\\buniform\\s+mat3\\s+iris_NormalMat\\s*;", "");
+            result=result.replaceAll("\\biris_NormalMat\\b", "HaloNormal");
+        }
+        return result;
+    }
+
     /** Whether this stage receives Halo's generic smooth-world-normal replacement. */
     static boolean replacesWorldDerivativeFaceNormal(String path, String source, boolean directionalLighting) {
         return directionalLighting && path.endsWith(".fsh") && worldDerivativeFaceNormal(source) != null;
@@ -70,13 +94,12 @@ public final class IrisMeshShaderSource {
             throw new IllegalArgumentException("Iris mesh shader has no base UV attribute");
         String attribute = uv.group(1);
         var light = Pattern.compile("\\bin\\s+ivec2\\s+(iris_UV2|UV2)\\s*;").matcher(source);
-        if (!light.find())
-            throw new IllegalArgumentException("Iris mesh shader has no lightmap UV attribute");
-        String lightAttribute = light.group(1);
-        int lightDeclarationEnd = light.end();
-        source = source.substring(0, lightDeclarationEnd)
-            + source.substring(lightDeclarationEnd).replaceAll("\\b" + Pattern.quote(lightAttribute) + "\\b",
-                "iris_HaloLightCoord");
+        if (light.find()) {
+            String lightAttribute = light.group(1);
+            int lightDeclarationEnd = light.end();
+            source = source.substring(0, lightDeclarationEnd)
+                + source.substring(lightDeclarationEnd).replaceAll("\\b" + Pattern.quote(lightAttribute) + "\\b", "iris_HaloLightCoord");
+        }
         boolean transmitWorldNormal = directionalLighting && supportsWorldNormalVertex(source);
         source = renameMain(source);
         String extra = transmitWorldNormal ? "out vec3 halo_meshWorldNormal;\n" : "";
@@ -138,7 +161,7 @@ public final class IrisMeshShaderSource {
             """) + "\nvoid main() { if (halo_maskAlpha() <= 0.0) discard; halo_meshMain(); }\n";
     }
 
-    private static boolean supportsWorldNormalVertex(String source) {
+    static boolean supportsWorldNormalVertex(String source) {
         // These names belong to the public shader/Iris vertex ABI. No shader-pack
         // identifier is used: unsupported programs retain their original source.
         return declaration(source, "uniform", "mat4", "gbufferModelViewInverse")

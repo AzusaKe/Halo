@@ -4,7 +4,7 @@ import java.util.UUID;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.FriendlyByteBufs;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.client.HaloScepterScreen;
 import network.azusake.halo.core.Identifier;
@@ -36,37 +36,37 @@ public final class HaloNetworkClient {
             var buf = payload.buf();
             int targetEntityId = buf.readInt();
             UUID targetUuid = HaloNetwork.readUuid(buf);
-            String targetName = buf.readString(128);
+            String targetName = buf.readUtf(128);
             context.client().execute(() -> context.client().setScreen(
                 new HaloScepterScreen(targetEntityId, targetUuid, targetName)));
         });
         ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.ScepterCloseScreen.ID, (payload, context) ->
             context.client().execute(() -> {
-                if (context.client().currentScreen instanceof HaloScepterScreen) context.client().setScreen(null);
+                if (context.client().screen instanceof HaloScepterScreen) context.client().setScreen(null);
             }));
     }
 
     public static void sendScepterSelection(Identifier definitionId) {
         if (!ClientPlayNetworking.canSend(HaloPayloads.ScepterSelect.ID)) return;
-        var buf = PacketByteBufs.create();
+        var buf = FriendlyByteBufs.create();
         buf.writeIdentifier(game(definitionId));
         ClientPlayNetworking.send(new HaloPayloads.ScepterSelect(buf));
     }
 
     public static void sendScepterClose() {
         if (ClientPlayNetworking.canSend(HaloPayloads.ScepterClose.ID))
-            ClientPlayNetworking.send(new HaloPayloads.ScepterClose(PacketByteBufs.create()));
+            ClientPlayNetworking.send(new HaloPayloads.ScepterClose(FriendlyByteBufs.create()));
     }
 
     public static void sendScepterRemoveSelf() {
         if (ClientPlayNetworking.canSend(HaloPayloads.ScepterRemoveSelf.ID))
-            ClientPlayNetworking.send(new HaloPayloads.ScepterRemoveSelf(PacketByteBufs.create()));
+            ClientPlayNetworking.send(new HaloPayloads.ScepterRemoveSelf(FriendlyByteBufs.create()));
     }
 
     public static void sendDefsReport() {
         if (!ClientPlayNetworking.canSend(HaloPayloads.DefsReport.ID)) return;
         var definitions = HaloJsonLoader.getDefinitions();
-        var buf = PacketByteBufs.create();
+        var buf = FriendlyByteBufs.create();
         buf.writeInt(definitions.size());
         for (Identifier id : definitions.keySet()) buf.writeIdentifier(game(id));
         ClientPlayNetworking.send(new HaloPayloads.DefsReport(buf));

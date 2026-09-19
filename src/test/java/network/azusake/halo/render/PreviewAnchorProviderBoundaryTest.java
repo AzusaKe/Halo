@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PreviewAnchorProviderBoundaryTest {
     @Test void builtInPreviewProvidersUseThePublicApiWithoutInternalScopeDependencies() throws Exception {
-        for (String provider : List.of("ysm/YsmPreviewCapture", "emf/EmfPreviewCapture")) {
+        for (String provider : List.of("emf/EmfPreviewCapture")) {
             String resource = "network/azusake/halo/compat/" + provider + ".class";
             try (var input = getClass().getClassLoader().getResourceAsStream(resource)) {
                 assertNotNull(input, resource);

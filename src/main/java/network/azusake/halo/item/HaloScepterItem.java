@@ -1,24 +1,31 @@
 package network.azusake.halo.item;
 
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.tooltip.TooltipType;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.TooltipDisplay;
 
-import java.util.List;
+import java.util.function.Consumer;
 
 /** Permanent administration tool used to attach and remove entity halos. */
 public final class HaloScepterItem extends Item {
 
-    public HaloScepterItem(Settings settings) {
+    public HaloScepterItem(Properties settings) {
         super(settings);
     }
 
     @Override
-    public void appendTooltip(ItemStack stack, TooltipContext context, List<Text> tooltip, TooltipType type) {
-        tooltip.add(Text.translatable("tooltip.halo.halo_scepter.use").formatted(Formatting.GRAY));
-        tooltip.add(Text.translatable("tooltip.halo.halo_scepter.remove").formatted(Formatting.GRAY));
-        tooltip.add(Text.translatable("tooltip.halo.halo_scepter.self").formatted(Formatting.DARK_GRAY));
+    public void appendHoverText(
+        ItemStack stack,
+        TooltipContext context,
+        TooltipDisplay display,
+        Consumer<Component> tooltip,
+        TooltipFlag flag
+    ) {
+        tooltip.accept(Component.translatable("tooltip.halo.halo_scepter.use").withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("tooltip.halo.halo_scepter.remove").withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("tooltip.halo.halo_scepter.self").withStyle(ChatFormatting.DARK_GRAY));
     }
 }

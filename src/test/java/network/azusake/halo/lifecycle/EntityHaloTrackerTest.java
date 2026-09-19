@@ -1,7 +1,7 @@
 package network.azusake.halo.lifecycle;
 
 import network.azusake.halo.data.HaloInstance;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.CompoundTag;
 import network.azusake.halo.core.Identifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -32,19 +32,19 @@ class EntityHaloTrackerTest {
         @Test
         @DisplayName("attach → has → read → remove cycle preserves all fields")
         void testAttachHasReadRemove() {
-            NbtCompound persistent = new NbtCompound();
+            CompoundTag persistent = new CompoundTag();
             UUID entityUuid = UUID.randomUUID();
             Identifier defId = new Identifier("halo", "ring_default");
 
             // --- Attach ---
-            NbtCompound haloTag = new NbtCompound();
+            CompoundTag haloTag = new CompoundTag();
             haloTag.putString("HaloId", entityUuid.toString());
             haloTag.putString("Definition", defId.toString());
             haloTag.putDouble("Scale", 1.5);
-            net.minecraft.nbt.NbtList offsetList = new net.minecraft.nbt.NbtList();
-            offsetList.add(net.minecraft.nbt.NbtDouble.of(0.0));
-            offsetList.add(net.minecraft.nbt.NbtDouble.of(0.5));
-            offsetList.add(net.minecraft.nbt.NbtDouble.of(0.0));
+            net.minecraft.nbt.ListTag offsetList = new net.minecraft.nbt.ListTag();
+            offsetList.add(net.minecraft.nbt.DoubleTag.valueOf(0.0));
+            offsetList.add(net.minecraft.nbt.DoubleTag.valueOf(0.5));
+            offsetList.add(net.minecraft.nbt.DoubleTag.valueOf(0.0));
             haloTag.put("Offset", offsetList);
             persistent.put("HaloInstance", haloTag);
 
@@ -53,18 +53,18 @@ class EntityHaloTrackerTest {
                 "persistent NBT must contain HaloInstance key after attach");
 
             // --- Read ---
-            NbtCompound readBack = persistent.getCompound("HaloInstance");
-            assertEquals(entityUuid.toString(), readBack.getString("HaloId"),
+            CompoundTag readBack = persistent.getCompoundOrEmpty("HaloInstance");
+            assertEquals(entityUuid.toString(), readBack.getStringOr("HaloId", ""),
                 "HaloId must round-trip");
-            assertEquals(defId.toString(), readBack.getString("Definition"),
+            assertEquals(defId.toString(), readBack.getStringOr("Definition", ""),
                 "Definition must round-trip");
-            assertEquals(1.5, readBack.getDouble("Scale"), 0.0001,
+            assertEquals(1.5, readBack.getDoubleOr("Scale", 0), 0.0001,
                 "Scale must round-trip");
 
-            net.minecraft.nbt.NbtList offset = readBack.getList("Offset", net.minecraft.nbt.NbtElement.DOUBLE_TYPE);
-            assertEquals(0.0, offset.getDouble(0), 0.0001);
-            assertEquals(0.5, offset.getDouble(1), 0.0001);
-            assertEquals(0.0, offset.getDouble(2), 0.0001);
+            net.minecraft.nbt.ListTag offset = readBack.getListOrEmpty("Offset");
+            assertEquals(0.0, offset.getDoubleOr(0, 0), 0.0001);
+            assertEquals(0.5, offset.getDoubleOr(1, 0), 0.0001);
+            assertEquals(0.0, offset.getDoubleOr(2, 0), 0.0001);
 
             // --- Remove ---
             persistent.remove("HaloInstance");
@@ -75,22 +75,22 @@ class EntityHaloTrackerTest {
         @Test
         @DisplayName("read malformed Definition string returns null gracefully")
         void testMalformedDefinition() {
-            NbtCompound persistent = new NbtCompound();
-            NbtCompound haloTag = new NbtCompound();
+            CompoundTag persistent = new CompoundTag();
+            CompoundTag haloTag = new CompoundTag();
             haloTag.putString("HaloId", UUID.randomUUID().toString());
             haloTag.putString("Definition", "not:a:valid:identifier");
             persistent.put("HaloInstance", haloTag);
 
             // Identifier constructor should throw for triple-colon format
             assertThrows(Exception.class, () -> {
-                new Identifier(persistent.getCompound("HaloInstance").getString("Definition"));
+                new Identifier(persistent.getCompoundOrEmpty("HaloInstance").getStringOr("Definition", ""));
             }, "malformed identifier string must throw");
         }
 
         @Test
         @DisplayName("hasHalo returns false when key is absent")
         void testNoHaloWhenAbsent() {
-            NbtCompound persistent = new NbtCompound();
+            CompoundTag persistent = new CompoundTag();
             assertFalse(persistent.contains("HaloInstance"),
                 "clean NBT must not contain HaloInstance");
         }
@@ -98,8 +98,8 @@ class EntityHaloTrackerTest {
         @Test
         @DisplayName("multiple entities can each have independent NBT halo data")
         void testMultipleEntities() {
-            NbtCompound entity1Nbt = new NbtCompound();
-            NbtCompound entity2Nbt = new NbtCompound();
+            CompoundTag entity1Nbt = new CompoundTag();
+            CompoundTag entity2Nbt = new CompoundTag();
 
             UUID uuid1 = UUID.randomUUID();
             UUID uuid2 = UUID.randomUUID();
@@ -107,13 +107,13 @@ class EntityHaloTrackerTest {
             Identifier def2 = new Identifier("halo", "ring_b");
 
             // Attach to entity 1
-            NbtCompound tag1 = new NbtCompound();
+            CompoundTag tag1 = new CompoundTag();
             tag1.putString("HaloId", uuid1.toString());
             tag1.putString("Definition", def1.toString());
             entity1Nbt.put("HaloInstance", tag1);
 
             // Attach to entity 2
-            NbtCompound tag2 = new NbtCompound();
+            CompoundTag tag2 = new CompoundTag();
             tag2.putString("HaloId", uuid2.toString());
             tag2.putString("Definition", def2.toString());
             entity2Nbt.put("HaloInstance", tag2);
@@ -121,10 +121,10 @@ class EntityHaloTrackerTest {
             // Verify independence
             assertTrue(entity1Nbt.contains("HaloInstance"));
             assertTrue(entity2Nbt.contains("HaloInstance"));
-            assertEquals(uuid1.toString(), entity1Nbt.getCompound("HaloInstance").getString("HaloId"));
-            assertEquals(uuid2.toString(), entity2Nbt.getCompound("HaloInstance").getString("HaloId"));
-            assertEquals(def1.toString(), entity1Nbt.getCompound("HaloInstance").getString("Definition"));
-            assertEquals(def2.toString(), entity2Nbt.getCompound("HaloInstance").getString("Definition"));
+            assertEquals(uuid1.toString(), entity1Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("HaloId", ""));
+            assertEquals(uuid2.toString(), entity2Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("HaloId", ""));
+            assertEquals(def1.toString(), entity1Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("Definition", ""));
+            assertEquals(def2.toString(), entity2Nbt.getCompoundOrEmpty("HaloInstance").getStringOr("Definition", ""));
 
             // Remove from entity 1 — entity 2 unaffected
             entity1Nbt.remove("HaloInstance");
@@ -170,19 +170,19 @@ class EntityHaloTrackerTest {
         @Test
         @DisplayName("NBT halo list round-trips through write/read")
         void testNbtListRoundTrip() {
-            NbtCompound root = new NbtCompound();
+            CompoundTag root = new CompoundTag();
 
             // --- Write ---
-            net.minecraft.nbt.NbtList haloList = new net.minecraft.nbt.NbtList();
+            net.minecraft.nbt.ListTag haloList = new net.minecraft.nbt.ListTag();
             UUID uuid1 = UUID.randomUUID();
             UUID uuid2 = UUID.randomUUID();
 
-            NbtCompound tag1 = new NbtCompound();
+            CompoundTag tag1 = new CompoundTag();
             tag1.putString("UUID", uuid1.toString());
             tag1.putString("Definition", "halo:ring_default");
             haloList.add(tag1);
 
-            NbtCompound tag2 = new NbtCompound();
+            CompoundTag tag2 = new CompoundTag();
             tag2.putString("UUID", uuid2.toString());
             tag2.putString("Definition", "halo:ring_elite");
             haloList.add(tag2);
@@ -190,23 +190,22 @@ class EntityHaloTrackerTest {
             root.put("Halos", haloList);
 
             // --- Read ---
-            net.minecraft.nbt.NbtList readBack = root.getList("Halos",
-                net.minecraft.nbt.NbtElement.COMPOUND_TYPE);
+            net.minecraft.nbt.ListTag readBack = root.getListOrEmpty("Halos");
             assertEquals(2, readBack.size(), "halo list must contain 2 entries");
 
-            NbtCompound entry1 = readBack.getCompound(0);
-            assertEquals(uuid1.toString(), entry1.getString("UUID"));
-            assertEquals("halo:ring_default", entry1.getString("Definition"));
+            CompoundTag entry1 = readBack.getCompoundOrEmpty(0);
+            assertEquals(uuid1.toString(), entry1.getStringOr("UUID", ""));
+            assertEquals("halo:ring_default", entry1.getStringOr("Definition", ""));
 
-            NbtCompound entry2 = readBack.getCompound(1);
-            assertEquals(uuid2.toString(), entry2.getString("UUID"));
-            assertEquals("halo:ring_elite", entry2.getString("Definition"));
+            CompoundTag entry2 = readBack.getCompoundOrEmpty(1);
+            assertEquals(uuid2.toString(), entry2.getStringOr("UUID", ""));
+            assertEquals("halo:ring_elite", entry2.getStringOr("Definition", ""));
         }
 
         @Test
         @DisplayName("empty NBT (no Halos key) produces empty entry list")
         void testEmptyNbt() {
-            NbtCompound root = new NbtCompound();
+            CompoundTag root = new CompoundTag();
             assertFalse(root.contains("Halos"),
                 "fresh NBT must not contain Halos key");
         }

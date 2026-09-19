@@ -1,14 +1,14 @@
 plugins {
-    id 'fabric-loom' version '1.10.5'
+    id 'net.fabricmc.fabric-loom' version '1.17.19'
     id 'maven-publish'
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
-archivesBaseName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
+base.archivesName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
 def coreProperties = new Properties()
 file('core/gradle.properties').withInputStream { coreProperties.load(it) }
 ext.coreVersion = coreProperties.getProperty('version')
@@ -29,14 +29,14 @@ dependencies {
     coreContents "network.azusake:halo-core:${coreVersion}"
     // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     // Fabric API. This is technically optional, but you probably want it anyway.
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     // Test dependencies
     testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation "com.google.code.gson:gson:2.10"
 }
 
@@ -50,13 +50,13 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // Minecraft 1.20.5 and above require Java 21.
-    it.options.release = 21
+    // Minecraft 26.1 requires Java 25.
+    it.options.release = 25
     it.options.encoding = "UTF-8"
 }
 
 java {
-    // Loom will use this to set up access wideners and remap mods correctly
+    // Publish sources alongside the native, unobfuscated adapter.
     withSourcesJar()
 }
 
@@ -66,7 +66,7 @@ jar {
         exclude 'META-INF/MANIFEST.MF'
     }
     from("LICENSE") {
-        rename { "${it}_${project.archivesBaseName}" }
+        rename { "${it}_${project.base.archivesName.get()}" }
     }
 }
 
@@ -81,6 +81,7 @@ tasks.named('check') { dependsOn gradle.includedBuild('core').task(':check') }
 
 // Client run configuration: 2560x1600 window, non-fullscreen
 loom {
+    accessWidenerPath = file("src/main/resources/halo.accesswidener")
     runs {
         client {
             programArgs("--width", "2560")

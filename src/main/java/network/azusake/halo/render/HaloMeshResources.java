@@ -2,9 +2,9 @@ package network.azusake.halo.render;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.resource.ResourceManager;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.server.packs.resources.ResourceManager;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.render.ObjMeshLoader;
 import network.azusake.halo.core.render.VisualResources;
@@ -33,7 +33,7 @@ public final class HaloMeshResources {
         loader = new VisualAssetLoader(++generation, new VisualAssetLoader.Source() {
             @Override public String model(Identifier id) throws IOException {
                 var resource = manager.getResource(game(id)).orElseThrow(() -> new IOException("Missing model resource"));
-                try (var input = resource.getInputStream()) {
+                try (var input = resource.open()) {
                     byte[] bytes = input.readNBytes(ObjMeshLoader.MAX_TEXT_LENGTH + 1);
                     if (bytes.length > ObjMeshLoader.MAX_TEXT_LENGTH) throw new IOException("OBJ exceeds 16 MiB limit");
                     return new String(bytes, StandardCharsets.UTF_8);
@@ -42,15 +42,15 @@ public final class HaloMeshResources {
             @Override public VisualResources.TextureInfo texture(Identifier id) throws IOException {
                 var resource = manager.getResource(game(id)).orElseThrow(() -> new IOException("Missing texture resource"));
                 VisualResources.TextureInfo info;
-                try (var input = resource.getInputStream(); var image = NativeImage.read(NativeImage.Format.RGBA, input)) {
+                try (var input = resource.open(); var image = NativeImage.read(NativeImage.Format.RGBA, input)) {
                     boolean opaque = true;
                     outer: for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) {
-                        if ((image.getColor(x, y) >>> 24) != 255) { opaque = false; break outer; }
+                        if ((image.getPixel(x, y) >>> 24) != 255) { opaque = false; break outer; }
                     }
                     info = new VisualResources.TextureInfo(image.getWidth(), image.getHeight(), opaque);
                 }
                 // Preload through Minecraft's owner during loading, never first-load a PNG inside a mesh draw.
-                MinecraftClient.getInstance().getTextureManager().getTexture(game(id));
+                Minecraft.getInstance().getTextureManager().getTexture(game(id));
                 return info;
             }
         }, problem -> LOG.warn("Skipping mesh asset {}: {}", problem.resource(), problem.message()));
@@ -66,7 +66,7 @@ public final class HaloMeshResources {
         definitions.primitiveGeometries();
         for (Identifier id : definitions.legacyTextures()) {
             if (!warmed.add(id)) continue;
-            try { MinecraftClient.getInstance().getTextureManager().getTexture(game(id)); }
+            try { Minecraft.getInstance().getTextureManager().getTexture(game(id)); }
             catch (RuntimeException error) { LOG.warn("Could not preload legacy texture {}", id, error); }
         }
     }

@@ -3,14 +3,14 @@ package network.azusake.halo.lifecycle;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.manager.HaloManager;
-import net.minecraft.datafixer.DataFixTypes;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.datafix.DataFixTypes;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.server.level.ServerLevel;
 import network.azusake.halo.core.Identifier;
-import net.minecraft.world.PersistentState;
+import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +32,7 @@ import java.util.UUID;
  * <p>Entity-level NBT (see {@link HaloEntityData}) is <em>not</em> used for
  * restoration — it is kept as a diagnostic mirror only.</p>
  */
-public class HaloWorldSaveData extends PersistentState {
+public class HaloWorldSaveData extends SavedData {
 
     private static final String NAME = "halo_world_data";
     private static final String HALOS_KEY = "Halos";
@@ -42,25 +42,24 @@ public class HaloWorldSaveData extends PersistentState {
     /** Halo assignments persisted to / loaded from world NBT. */
     private final List<HaloEntry> entries = new ArrayList<>();
 
-    public static final PersistentState.Type<HaloWorldSaveData> TYPE = new PersistentState.Type<>(
-        HaloWorldSaveData::new,
-        HaloWorldSaveData::fromNbt,
-        DataFixTypes.SAVED_DATA_MAP_DATA
-    );
+    public static final net.minecraft.world.level.saveddata.SavedDataType<HaloWorldSaveData> TYPE =
+        new net.minecraft.world.level.saveddata.SavedDataType<>(
+            net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "world_data"),
+            HaloWorldSaveData::new, CompoundTag.CODEC.xmap(HaloWorldSaveData::fromNbt,
+                data -> data.writeNbt(new CompoundTag())), null);
 
     // ------------------------------------------------------------------
-    // PersistentState contract
+    // SavedData contract
     // ------------------------------------------------------------------
 
-    @Override
-    public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+    public CompoundTag writeNbt(CompoundTag nbt, HolderLookup.Provider registryLookup) {
         // Serialise the stored entries directly.  Deliberately NOT synced from
         // HaloManager's activeHalos — that map is transient (cleared on death)
         // and must not overwrite the durable ownership record.
-        NbtList haloList = new NbtList();
+        ListTag haloList = new ListTag();
 
         for (HaloEntry entry : entries) {
-            NbtCompound haloTag = new NbtCompound();
+            CompoundTag haloTag = new CompoundTag();
             haloTag.putString(UUID_KEY, entry.entityUuid().toString());
             haloTag.putString(DEF_KEY, entry.definitionId().toString());
             haloList.add(haloTag);
@@ -71,26 +70,26 @@ public class HaloWorldSaveData extends PersistentState {
     }
 
     /** Test/tooling entry point; Halo's persisted fields do not depend on registries. */
-    public NbtCompound writeNbt(NbtCompound nbt) {
+    public CompoundTag writeNbt(CompoundTag nbt) {
         return writeNbt(nbt, null);
     }
 
     /**
      * Factory: reconstruct from saved NBT.
      */
-    public static HaloWorldSaveData fromNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+    public static HaloWorldSaveData fromNbt(CompoundTag nbt, HolderLookup.Provider registryLookup) {
         HaloWorldSaveData data = new HaloWorldSaveData();
 
         if (!nbt.contains(HALOS_KEY)) {
             return data;
         }
 
-        NbtList haloList = nbt.getList(HALOS_KEY, NbtElement.COMPOUND_TYPE);
+        ListTag haloList = nbt.getListOrEmpty(HALOS_KEY);
         for (int i = 0; i < haloList.size(); i++) {
-            NbtCompound haloTag = haloList.getCompound(i);
+            CompoundTag haloTag = haloList.getCompoundOrEmpty(i);
             try {
-                UUID uuid = UUID.fromString(haloTag.getString(UUID_KEY));
-                Identifier defId = new Identifier(haloTag.getString(DEF_KEY));
+                UUID uuid = UUID.fromString(haloTag.getStringOr(UUID_KEY, ""));
+                Identifier defId = new Identifier(haloTag.getStringOr(DEF_KEY, ""));
                 data.entries.add(new HaloEntry(uuid, defId));
             } catch (Exception e) {
                 HaloMod.LOGGER.warn("HaloWorldSaveData: skipping malformed halo entry at index {}: {}",
@@ -103,7 +102,7 @@ public class HaloWorldSaveData extends PersistentState {
     }
 
     /** Test/tooling entry point; Halo's persisted fields do not depend on registries. */
-    public static HaloWorldSaveData fromNbt(NbtCompound nbt) {
+    public static HaloWorldSaveData fromNbt(CompoundTag nbt) {
         return fromNbt(nbt, null);
     }
 
@@ -114,11 +113,11 @@ public class HaloWorldSaveData extends PersistentState {
     /**
      * Get (or create) the persistent state for the given world.
      *
-     * @param world the server world (typically {@code server.getOverworld()})
+     * @param world the server world (typically {@code server.overworld()})
      * @return the persistent state instance, never {@code null}
      */
-    public static HaloWorldSaveData get(ServerWorld world) {
-        return world.getPersistentStateManager().getOrCreate(TYPE, NAME);
+    public static HaloWorldSaveData get(ServerLevel world) {
+        return world.getDataStorage().computeIfAbsent(TYPE);
     }
 
     // ------------------------------------------------------------------
@@ -141,7 +140,7 @@ public class HaloWorldSaveData extends PersistentState {
     public void set(UUID entityUuid, Identifier defId) {
         entries.removeIf(e -> e.entityUuid().equals(entityUuid));
         entries.add(new HaloEntry(entityUuid, defId));
-        markDirty();
+        setDirty();
     }
 
     /**
@@ -156,7 +155,7 @@ public class HaloWorldSaveData extends PersistentState {
     public void remove(UUID entityUuid) {
         boolean removed = entries.removeIf(e -> e.entityUuid().equals(entityUuid));
         if (removed) {
-            markDirty();
+            setDirty();
         }
     }
 

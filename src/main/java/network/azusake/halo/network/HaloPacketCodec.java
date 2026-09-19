@@ -1,8 +1,8 @@
 package network.azusake.halo.network;
 
 import java.util.*;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.network.PacketByteBuf;
+import net.fabricmc.fabric.api.networking.v1.FriendlyByteBufs;
+import net.minecraft.network.FriendlyByteBuf;
 import network.azusake.halo.core.Identifier;
 import static network.azusake.halo.platform.PlatformTypes.*;
 
@@ -11,14 +11,14 @@ public final class HaloPacketCodec {
     public record Update(UUID entity, boolean attach, Identifier definition) {}
     private HaloPacketCodec() {}
 
-    public static PacketByteBuf encodeSnapshot(Map<UUID, Identifier> snapshot) {
-        var buf = PacketByteBufs.create();
+    public static FriendlyByteBuf encodeSnapshot(Map<UUID, Identifier> snapshot) {
+        var buf = FriendlyByteBufs.create();
         buf.writeInt(snapshot.size());
         snapshot.forEach((uuid, id) -> { HaloNetwork.writeUuid(buf, uuid); buf.writeIdentifier(game(id)); });
         return buf;
     }
 
-    public static Map<UUID, Identifier> decodeSnapshot(PacketByteBuf buf) {
+    public static Map<UUID, Identifier> decodeSnapshot(FriendlyByteBuf buf) {
         int count = buf.readInt();
         if (count < 0 || count > buf.readableBytes() / 17) throw new IllegalArgumentException("Invalid halo snapshot count");
         var values = new LinkedHashMap<UUID, Identifier>();
@@ -26,15 +26,15 @@ public final class HaloPacketCodec {
         return Map.copyOf(values);
     }
 
-    public static PacketByteBuf encodeUpdate(UUID uuid, boolean attach, Identifier definition) {
-        var buf = PacketByteBufs.create();
+    public static FriendlyByteBuf encodeUpdate(UUID uuid, boolean attach, Identifier definition) {
+        var buf = FriendlyByteBufs.create();
         HaloNetwork.writeUuid(buf, uuid);
         buf.writeBoolean(attach);
         buf.writeIdentifier(game(definition));
         return buf;
     }
 
-    public static Update decodeUpdate(PacketByteBuf buf) {
+    public static Update decodeUpdate(FriendlyByteBuf buf) {
         return new Update(HaloNetwork.readUuid(buf), buf.readBoolean(), core(buf.readIdentifier()));
     }
 }

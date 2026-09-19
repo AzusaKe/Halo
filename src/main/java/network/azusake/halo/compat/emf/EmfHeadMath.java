@@ -2,7 +2,7 @@ package network.azusake.halo.compat.emf;
 
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.physics.RenderHeadMath;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 /** Converts an EMF-rendered head part matrix into Halo's 6-DOF anchor. */

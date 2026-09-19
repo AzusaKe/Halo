@@ -4,11 +4,11 @@ import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorSource;
 import network.azusake.halo.api.v2.HaloAnchorApi;
 import network.azusake.halo.physics.RenderHeadCapture;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.model.geom.ModelPart;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,10 +43,10 @@ public final class EmfHeadCapture {
     }
 
     /** Invisible previews still need this frame's EMF animation before obtaining the head. */
-    public static void capturePreviewPose(LivingEntity entity, MatrixStack matrices, ModelPart head) {
-        var client = net.minecraft.client.MinecraftClient.getInstance();
+    public static void capturePreviewPose(LivingEntity entity, PoseStack matrices, ModelPart head) {
+        var client = net.minecraft.client.Minecraft.getInstance();
         if (entity.isInvisible() && client.player != null && entity.isInvisibleTo(client.player)
-                && !client.hasOutline(entity) && (Object) head instanceof EmfPartNameAccess)
+                && !client.shouldEntityAppearGlowing(entity) && (Object) head instanceof EmfPartNameAccess)
             EmfPreviewCapture.capturePose(matrices, head);
     }
 
@@ -57,14 +57,14 @@ public final class EmfHeadCapture {
      * buffers.  A capture keeps the view matrix and camera position that
      * produced it so a previous-frame anchor remains valid after camera motion.
      */
-    public static void beginFrame(Matrix4f viewMatrix, Vec3d cameraPos) {
+    public static void beginFrame(Matrix4f viewMatrix, Vec3 cameraPos) {
         PREVIOUS.clear();
         PREVIOUS.putAll(CURRENT);
         CURRENT.clear();
         captureFrame = viewMatrix == null || cameraPos == null
             ? null
             : new CaptureFrame(new Matrix4f(viewMatrix),
-                new Vec3d(cameraPos.x, cameraPos.y, cameraPos.z));
+                new Vec3(cameraPos.x, cameraPos.y, cameraPos.z));
     }
 
     /**
@@ -72,11 +72,11 @@ public final class EmfHeadCapture {
      * method.  The first named head part wins, preventing armor and feature
      * passes from replacing the main-model transform.
      */
-    public static void capture(MatrixStack matrices, ModelPart part) {
+    public static void capture(PoseStack matrices, ModelPart part) {
         Object candidate = part;
         if (!(candidate instanceof EmfPartNameAccess namedPart)
             || !"head".equals(namedPart.halo$getEmfPartName())
-            || !part.visible || part.hidden) {
+            || !part.visible || part.skipDraw) {
             return;
         }
 
@@ -85,14 +85,14 @@ public final class EmfHeadCapture {
             return;
         }
 
-        LivingEntity entity = RenderHeadCapture.getCurrentEntity();
+        var entity = RenderHeadCapture.currentEntity();
         CaptureFrame frame = captureFrame;
-        if (!(entity instanceof PlayerEntity) || frame == null || matrices == null
-            || RenderHeadCapture.isAuxiliaryYsmPass()) {
+        if ((entity == null || !entity.player()) || frame == null || matrices == null
+            || RenderHeadCapture.isAuxiliaryPass()) {
             return;
         }
 
-        UUID uuid = entity.getUuid();
+        UUID uuid = entity.uuid();
         if (CURRENT.containsKey(uuid)) {
             return;
         }
@@ -129,13 +129,13 @@ public final class EmfHeadCapture {
     }
 
     /** Reproduce the model part's actual transform without changing the caller's stack. */
-    static Matrix4f captureHeadMatrix(MatrixStack matrices, ModelPart part) {
-        matrices.push();
+    static Matrix4f captureHeadMatrix(PoseStack matrices, ModelPart part) {
+        matrices.pushPose();
         try {
-            part.rotate(matrices);
-            return new Matrix4f(matrices.peek().getPositionMatrix());
+            part.translateAndRotate(matrices);
+            return new Matrix4f(matrices.last().pose());
         } finally {
-            matrices.pop();
+            matrices.popPose();
         }
     }
 
@@ -160,10 +160,10 @@ public final class EmfHeadCapture {
         captureFrame = null;
     }
 
-    static void recordForTests(UUID uuid, Matrix4f matrix, Matrix4f viewMatrix, Vec3d cameraPos) {
+    static void recordForTests(UUID uuid, Matrix4f matrix, Matrix4f viewMatrix, Vec3 cameraPos) {
         CURRENT.put(uuid, new CapturedHead(
             new Matrix4f(matrix), new Matrix4f(viewMatrix),
-            new Vec3d(cameraPos.x, cameraPos.y, cameraPos.z)));
+            new Vec3(cameraPos.x, cameraPos.y, cameraPos.z)));
     }
 
     static void advanceFrameForTests() {
@@ -195,9 +195,9 @@ public final class EmfHeadCapture {
         }
     }
 
-    public record CapturedHead(Matrix4f headMatrix, Matrix4f viewMatrix, Vec3d cameraPos) {
+    public record CapturedHead(Matrix4f headMatrix, Matrix4f viewMatrix, Vec3 cameraPos) {
     }
 
-    private record CaptureFrame(Matrix4f viewMatrix, Vec3d cameraPos) {
+    private record CaptureFrame(Matrix4f viewMatrix, Vec3 cameraPos) {
     }
 }

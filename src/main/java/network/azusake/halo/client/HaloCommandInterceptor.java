@@ -17,7 +17,7 @@ package network.azusake.halo.client;
  *       result locally.  Do <strong>not</strong> forward to the server.</li>
  *   <li>Otherwise (singleplayer or MULTIPLAYER phase)
  *       → forward the raw command string to the server via the loader's
- *       command-send mechanism (e.g. {@code client.getNetworkHandler().sendCommand(cmd)}).</li>
+ *       command-send mechanism (e.g. {@code client.getConnection().sendCommand(cmd)}).</li>
  * </ol>
  *
  * <h3>Multi-loader support</h3>

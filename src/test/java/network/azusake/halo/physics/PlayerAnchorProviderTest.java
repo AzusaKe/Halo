@@ -1,6 +1,6 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.entity.EntityPose;
+import net.minecraft.world.entity.Pose;
 import network.azusake.halo.core.Vec3d;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.DisplayName;
@@ -350,7 +350,7 @@ class PlayerAnchorProviderTest {
     class PoseResolution {
 
         private static String resolve(boolean sleeping, boolean fallFlying, boolean swimming,
-                                      EntityPose pose, boolean sneaking, boolean onGround) {
+                                      Pose pose, boolean sneaking, boolean onGround) {
             return PlayerAnchorProvider.resolvePoseKey(sleeping, fallFlying, swimming, pose, sneaking, onGround);
         }
 
@@ -358,36 +358,36 @@ class PlayerAnchorProviderTest {
         @DisplayName("airborne + shift → standing (regression: halo must not crouch in air)")
         void testAirborneSneakingStaysStanding() {
             // Ordinary falling: pose is STANDING while shift is held
-            assertEquals("standing", resolve(false, false, false, EntityPose.STANDING, true, false));
+            assertEquals("standing", resolve(false, false, false, Pose.STANDING, true, false));
             // 1.20.1 edge: pose already CROUCHING midair — still standing anchor
-            assertEquals("standing", resolve(false, false, false, EntityPose.CROUCHING, true, false));
+            assertEquals("standing", resolve(false, false, false, Pose.CROUCHING, true, false));
         }
 
         @Test
         @DisplayName("ground + shift → sneaking")
         void testGroundSneaking() {
-            assertEquals("sneaking", resolve(false, false, false, EntityPose.CROUCHING, true, true));
+            assertEquals("sneaking", resolve(false, false, false, Pose.CROUCHING, true, true));
         }
 
         @Test
         @DisplayName("ground + crouch pose without shift (forced crouch under ceiling) → sneaking")
         void testForcedCrouchOnGround() {
-            assertEquals("sneaking", resolve(false, false, false, EntityPose.CROUCHING, false, true));
+            assertEquals("sneaking", resolve(false, false, false, Pose.CROUCHING, false, true));
         }
 
         @Test
         @DisplayName("higher-priority poses still win over sneaking")
         void testPriorityOrder() {
-            assertEquals("sleeping", resolve(true, false, false, EntityPose.CROUCHING, true, true));
-            assertEquals("fall_flying", resolve(false, true, false, EntityPose.CROUCHING, true, true));
-            assertEquals("swimming", resolve(false, false, true, EntityPose.SWIMMING, true, true));
-            assertEquals("crawling", resolve(false, false, false, EntityPose.SWIMMING, true, true));
+            assertEquals("sleeping", resolve(true, false, false, Pose.CROUCHING, true, true));
+            assertEquals("fall_flying", resolve(false, true, false, Pose.CROUCHING, true, true));
+            assertEquals("swimming", resolve(false, false, true, Pose.SWIMMING, true, true));
+            assertEquals("crawling", resolve(false, false, false, Pose.SWIMMING, true, true));
         }
 
         @Test
         @DisplayName("no modifiers → standing")
         void testDefaultStanding() {
-            assertEquals("standing", resolve(false, false, false, EntityPose.STANDING, false, true));
+            assertEquals("standing", resolve(false, false, false, Pose.STANDING, false, true));
         }
     }
 }

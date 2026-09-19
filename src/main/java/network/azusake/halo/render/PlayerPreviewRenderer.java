@@ -1,9 +1,12 @@
 package network.azusake.halo.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.renderer.state.gui.pip.GuiEntityRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import org.joml.Matrix4f;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.core.Vec3d;
 import network.azusake.halo.core.render.*;
@@ -17,10 +20,11 @@ public final class PlayerPreviewRenderer {
     private PlayerPreviewRenderer() {}
 
     public static void beginFrame() {
+        network.azusake.halo.physics.RenderHeadCapture.beginRenderFrame();
         HaloRenderer.getInstance().beginFrame();
-        var client = net.minecraft.client.MinecraftClient.getInstance();
+        var client = net.minecraft.client.Minecraft.getInstance();
         if (!HaloModConfigStore.get().isPlayerPreviewHaloEnabled()) { VIEWS.close(); return; }
-        VIEWS.beginFrame(client.currentScreen, client.world, motionOptions(), System.nanoTime());
+        VIEWS.beginFrame(client.screen, client.level, motionOptions(), System.nanoTime());
     }
     public static void endFrame() { VIEWS.endFrame(); }
     public static void resetAutomaticMotion() { VIEWS.resetMotion(); }
@@ -33,27 +37,30 @@ public final class PlayerPreviewRenderer {
     private static void draw(PreviewSession session, PreviewFrame frame) {
         RenderSystem.assertOnRenderThread();
         if (!HaloModConfigStore.get().isPlayerPreviewHaloEnabled()) return;
-        HaloRenderer.getInstance().submitPreview(session.render(frame), frame.visuals());
+        var output = session.render(frame);
+        HaloRenderer.getInstance().submitPreview(output, frame.visuals());
     }
 
     /**
      * Wrap a vanilla player renderer at its final preview root. Flushes model buffers before drawing
      * the halo. Invoked by the InventoryScreen.drawEntity adapter hook.
      */
-    public static void renderPlayer(DrawContext context, LivingEntity entity, Object viewIdentity, Runnable renderEntity) {
-        if (!(entity instanceof PlayerEntity)) { renderEntity.run(); return; }
-        try (var capture = PlayerPreviewCapture.open(entity, context.getMatrices().peek().getPositionMatrix())) {
+    public static void renderPlayer(GuiEntityRenderState state, PoseStack stack, Runnable renderEntity) {
+        var client=net.minecraft.client.Minecraft.getInstance();
+        if(!(state.renderState() instanceof AvatarRenderState avatar)||client.level==null
+            ||!(client.level.getEntity(avatar.id) instanceof Player entity)){renderEntity.run();return;}
+        Object viewIdentity=java.util.List.of(state.x0(),state.y0(),state.x1(),state.y1());
+        Matrix4f root=new Matrix4f(stack.last().pose()).translate(state.translation()).rotate(state.rotation());
+        try(var capture=PlayerPreviewCapture.open(entity,root)){
             renderEntity.run();
-            context.draw();
-            var head = capture.head();
-            if (head == null || !entity.isAlive() || !HaloModConfigStore.get().isPlayerPreviewHaloEnabled()) return;
-            var assets = HaloMeshResources.snapshot();
-            try (var lease = VIEWS.acquire(viewIdentity, entity.getUuid(), entity.getId(), motionOptions())) {
-                draw(lease.session(), new PreviewFrame(entity.getUuid(), entity.getId(), head,
-                    new FrameScene.CameraSample(new Vec3d(0, 0, 0), new Vec3d(0, -1, 0), new Vec3d(1, 0, 0)),
-                    capture.root().get(new float[16]), System.currentTimeMillis(), VIEWS.frameNanos(),
-                    LightSample.FULL_BRIGHT, id -> true, assets.visuals(), PreviewFrame.Projection.ORTHOGRAPHIC,
-                    HaloRenderer.getInstance().primitiveMode()));
+            var head=capture.head();
+            if(head==null||!entity.isAlive()||!HaloModConfigStore.get().isPlayerPreviewHaloEnabled())return;
+            var assets=HaloMeshResources.snapshot();
+            try(var lease=VIEWS.acquire(viewIdentity,entity.getUUID(),entity.getId(),motionOptions())){
+                draw(lease.session(),new PreviewFrame(entity.getUUID(),entity.getId(),head,
+                    new FrameScene.CameraSample(new Vec3d(0,0,0),new Vec3d(0,-1,0),new Vec3d(1,0,0)),
+                    root.get(new float[16]),System.currentTimeMillis(),VIEWS.frameNanos(),LightSample.FULL_BRIGHT,
+                    id->true,assets.visuals(),PreviewFrame.Projection.ORTHOGRAPHIC,HaloRenderer.getInstance().primitiveMode()));
             }
         }
     }

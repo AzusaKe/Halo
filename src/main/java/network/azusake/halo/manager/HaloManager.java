@@ -12,11 +12,11 @@ import network.azusake.halo.core.runtime.ServerRuntime;
 import network.azusake.halo.data.*;
 import network.azusake.halo.lifecycle.HaloWorldSaveData;
 import network.azusake.halo.network.HaloNetwork;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
 
 import java.util.*;
 
@@ -44,7 +44,7 @@ public final class HaloManager {
         pendingUnloads.clear();
         network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
         runtime = new ServerRuntime(new ServerRuntime.OwnershipStore() {
-            private HaloWorldSaveData data() { return HaloWorldSaveData.get(value.getOverworld()); }
+            private HaloWorldSaveData data() { return HaloWorldSaveData.get(value.overworld()); }
             public Identifier get(UUID id) { return data().get(id); }
             public void set(UUID id, Identifier def) { data().set(id, def); }
             public void remove(UUID id) { data().remove(id); }
@@ -72,48 +72,48 @@ public final class HaloManager {
     }
 
     public void showHaloOn(LivingEntity entity, Identifier definition) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
-        HaloWorldSaveData.get(entity.getServer().getOverworld()).set(entity.getUuid(), definition);
-        worldDataSource.set(entity.getUuid(), definition.toString());
-        sourceHost.activate(entity.getUuid());
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
+        HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).set(entity.getUUID(), definition);
+        worldDataSource.set(entity.getUUID(), definition.toString());
+        sourceHost.activate(entity.getUUID());
         syncMirror(entity);
     }
 
-    public void showHaloOn(LivingEntity entity, net.minecraft.util.Identifier definition) {
+    public void showHaloOn(LivingEntity entity, net.minecraft.resources.Identifier definition) {
         showHaloOn(entity, network.azusake.halo.platform.PlatformTypes.core(definition));
     }
 
     /** Activate all retained candidates, then restore Halo's own persisted candidate if present. */
     public void restore(LivingEntity entity) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
-        Identifier id = HaloWorldSaveData.get(entity.getServer().getOverworld()).get(entity.getUuid());
-        if (id != null) worldDataSource.set(entity.getUuid(), id.toString());
-        else sourceHost.activate(entity.getUuid());
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
+        Identifier id = HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).get(entity.getUUID());
+        if (id != null) worldDataSource.set(entity.getUUID(), id.toString());
+        else sourceHost.activate(entity.getUUID());
         syncMirror(entity);
     }
 
     public void entityLoaded(LivingEntity entity) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer()); sourceHost.activate(entity.getUuid()); syncMirror(entity);
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity)); sourceHost.activate(entity.getUUID()); syncMirror(entity);
     }
 
     public void hideHaloOn(LivingEntity entity) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
-        HaloWorldSaveData.get(entity.getServer().getOverworld()).remove(entity.getUuid());
-        worldDataSource.clear(entity.getUuid());
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
+        HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).remove(entity.getUUID());
+        worldDataSource.clear(entity.getUUID());
         syncMirror(entity);
     }
 
     public void died(LivingEntity entity, boolean player) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
-        if (player) sourceHost.deactivate(entity.getUuid());
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
+        if (player) sourceHost.deactivate(entity.getUUID());
         else {
-            HaloWorldSaveData.get(entity.getServer().getOverworld()).remove(entity.getUuid());
-            sourceHost.forget(entity.getUuid());
+            HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).remove(entity.getUUID());
+            sourceHost.forget(entity.getUUID());
         }
         HaloEntityData.removeHalo(entity);
     }
@@ -129,7 +129,7 @@ public final class HaloManager {
      * performs the later activation instead.
      */
     public void entityUnloaded(Entity unloaded) {
-        UUID uuid = unloaded.getUuid();
+        UUID uuid = unloaded.getUUID();
         if (runtime == null || sourceHost == null) return;
         sourceHost.deactivate(uuid);
         pendingUnloads.put(uuid, unloaded);
@@ -177,11 +177,11 @@ public final class HaloManager {
     }
     public ServerRuntime.Selection selection(UUID entity) { return runtime == null ? null : runtime.selection(entity); }
 
-    public void notifyPriorityConflicts(ServerPlayerEntity player) {
-        if (!player.hasPermissionLevel(HaloModConfigStore.getPermissionLevel()) || sourceHost == null) return;
+    public void notifyPriorityConflicts(ServerPlayer player) {
+        if (!player.permissions().hasPermission(new net.minecraft.server.permissions.Permission.HasCommandLevel(net.minecraft.server.permissions.PermissionLevel.byId(HaloModConfigStore.getPermissionLevel()))) || sourceHost == null) return;
         sourceHost.priorities().entries().values().stream()
             .filter(entry -> entry.status() == HaloSourceHost.PriorityStatus.DISABLED_CONFLICT)
-            .forEach(entry -> player.sendMessage(priorityConflictMessage(entry), false));
+            .forEach(entry -> player.sendSystemMessage(priorityConflictMessage(entry)));
     }
 
     private void syncPriorityFileAndWarnings() {
@@ -194,22 +194,22 @@ public final class HaloManager {
             .forEach(entry -> {
                 currentConflicts.add(entry.sourceId());
                 if (reportedConflicts.add(entry.sourceId())) {
-                    Text message = priorityConflictMessage(entry);
+                    Component message = priorityConflictMessage(entry);
                     HaloMod.LOGGER.warn(message.getString());
-                    if (server != null) server.getPlayerManager().getPlayerList().stream()
-                        .filter(player -> player.hasPermissionLevel(HaloModConfigStore.getPermissionLevel()))
-                        .forEach(player -> player.sendMessage(message, false));
+                    if (server != null) server.getPlayerList().getPlayers().stream()
+                        .filter(player -> player.permissions().hasPermission(new net.minecraft.server.permissions.Permission.HasCommandLevel(net.minecraft.server.permissions.PermissionLevel.byId(HaloModConfigStore.getPermissionLevel()))))
+                        .forEach(player -> player.sendSystemMessage(message));
                 }
             });
         reportedConflicts.retainAll(currentConflicts);
     }
 
-    private Text priorityConflictMessage(HaloSourceHost.PriorityEntry entry) {
+    private Component priorityConflictMessage(HaloSourceHost.PriorityEntry entry) {
         String fallback = entry.configuredPriority() == Integer.MIN_VALUE
             ? "; it cannot auto-demote below Integer.MIN_VALUE"
             : "; fallback priority " + (entry.configuredPriority() - 1) + " conflicts with '"
                 + entry.fallbackConflictWith() + "'";
-        return Text.literal("[Halo] Source '" + entry.sourceId() + "' is disabled: requested priority "
+        return Component.literal("[Halo] Source '" + entry.sourceId() + "' is disabled: requested priority "
             + entry.configuredPriority() + " conflicts with '" + entry.conflictWith() + "'" + fallback + ". Config: "
             + HaloSourcePriorityStore.file() + ". Use /halo priority set " + entry.sourceId()
             + " <priority> to apply and persist immediately without restart. After a manual edit, run /halo priority reload "
@@ -217,7 +217,7 @@ public final class HaloManager {
     }
 
     private void syncMirror(LivingEntity entity) {
-        Identifier selected = runtime == null ? null : runtime.get(entity.getUuid());
+        Identifier selected = runtime == null ? null : runtime.get(entity.getUUID());
         if (selected == null) HaloEntityData.removeHalo(entity); else HaloEntityData.attachHalo(entity, selected);
     }
 
@@ -227,7 +227,7 @@ public final class HaloManager {
 
     private LivingEntity findEntity(UUID uuid, Entity excluded) {
         if (server == null) return null;
-        for (var world : server.getWorlds()) {
+        for (var world : server.getAllLevels()) {
             var entity = world.getEntity(uuid);
             if (entity != excluded && entity instanceof LivingEntity living && living.isAlive()) return living;
         }
@@ -236,13 +236,13 @@ public final class HaloManager {
 
     public HaloConfig getConfig() { return config; }
     public void publishConfig() {
-        if (server != null && !server.isDedicated())
+        if (server != null && !server.isDedicatedServer())
             network.azusake.halo.platform.IntegratedBridge.config.accept(
                 network.azusake.halo.core.runtime.RuntimeConfigSnapshot.of(config));
     }
     public HaloInstance getHaloInstance(UUID uuid) {
         Identifier id = runtime == null ? null : runtime.get(uuid); if (id == null) return null;
-        var status = server.isDedicated() ? null : network.azusake.halo.platform.IntegratedBridge.status(uuid, id);
+        var status = server.isDedicatedServer() ? null : network.azusake.halo.platform.IntegratedBridge.status(uuid, id);
         long created = status == null ? runtime.createdAt(uuid) : status.createdAt();
         HaloInstance view = new HaloInstance(uuid, id, () -> created);
         view.setNeedsSnap(status != null && status.needsSnap());

@@ -40,6 +40,6 @@ class HaloScepterRecipeTest {
     }
 
     private static void assertIngredient(JsonObject key, String symbol, String itemId) {
-        assertEquals(itemId, key.getAsJsonObject(symbol).get("item").getAsString());
+        assertEquals(itemId, key.get(symbol).getAsString());
     }
 }

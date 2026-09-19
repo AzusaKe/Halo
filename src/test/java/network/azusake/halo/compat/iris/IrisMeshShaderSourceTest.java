@@ -7,32 +7,58 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class IrisMeshShaderSourceTest {
+    @Test void nativeMaterialNormalReplacesIrisCameraNormalWithoutDuplicateUniforms() {
+        String vertex = IrisMeshShaderSource.patch261("entity.vsh", """
+            #version 430 core
+            uniform mat4 gbufferModelViewInverse;
+            uniform   mat3   iris_NormalMat ;
+            in vec3 iris_Normal;
+            in vec2 iris_UV0;
+            in ivec2 iris_UV2;
+            void main() { gl_Position = vec4(iris_NormalMat * iris_Normal, 1); }
+            """, true);
+        assertFalse(vertex.contains("uniform   mat3"));
+        assertFalse(vertex.contains("iris_NormalMat"));
+        assertTrue(vertex.contains("gl_Position = vec4(HaloNormal * iris_Normal, 1)"));
+        assertTrue(vertex.contains("mat3(gbufferModelViewInverse) * HaloNormal * iris_Normal"));
+        assertTrue(vertex.contains("uniform iris_HaloMaterial { mat3 HaloNormal;"));
+    }
+
     @Test void nativeAndIrisMasksUseOnlyTheMaskTextureNativeSize() throws IOException {
-        String nativeSource, nativeVertex, nativeJson;
-        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/mesh.fsh")) {
+        String nativeSource, nativeVertex;
+        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/halo.fsh")) {
             assertNotNull(input);
             nativeSource = new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
-        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/mesh.vsh")) {
+        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/halo.vsh")) {
             assertNotNull(input);
             nativeVertex = new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
-        try (var input = getClass().getResourceAsStream("/assets/halo/shaders/core/mesh.json")) {
-            assertNotNull(input);
-            nativeJson = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
-        assertTrue(nativeSource.contains("textureSize(Sampler1, 0)"));
+        assertTrue(nativeSource.contains("textureSize(HaloMask, 0)"));
         assertFalse(nativeSource.contains("textureSize(Sampler0"));
-        assertTrue(nativeSource.contains("floor(fract(texCoord0 + MaskOffset) * vec2(dimensions))"));
-        assertTrue(nativeVertex.contains("texelFetch(Sampler2, LightCoord / 16, 0)"));
-        var nativeProgram = JsonParser.parseString(nativeJson).getAsJsonObject();
-        assertTrue(nativeProgram.getAsJsonArray("samplers").toString().contains("Sampler2"));
-        assertTrue(nativeProgram.getAsJsonArray("uniforms").toString().contains("LightCoord"));
+        assertTrue(nativeSource.contains("floor(fract(texCoord0 + HaloOffsetLight.xy) * vec2(dimensions))"));
+        assertTrue(nativeVertex.contains("texelFetch(Sampler2, ivec2(HaloOffsetLight.zw), 0)"));
 
         String iris = IrisMeshShaderSource.patch("test.fsh",
             "#version 330 core\nuniform sampler2D gtexture;\nin vec2 uv;\nout vec4 color;\nvoid main(){color=texture(gtexture,uv);}");
         assertTrue(iris.contains("textureSize(iris_HaloMaskTexture, 0)"));
         assertFalse(iris.contains("textureSize(gtexture"));
+    }
+
+    @Test void materialBlockPreservesPbrSamplersAndReplacesOnlyPerDrawParameters() {
+        String patched = IrisMeshShaderSource.patch261("halo.fsh", """
+            #version 330 core
+            uniform sampler2D gtexture, normals, specular;
+            in vec2 uv;
+            out vec4 color;
+            void main() { color=texture(gtexture,uv)+texture(normals,uv)+texture(specular,uv); }
+            """, true);
+        assertTrue(patched.contains("uniform iris_HaloMaterial"));
+        assertTrue(patched.contains("texture(normals,uv)"));
+        assertTrue(patched.contains("texture(specular,uv)"));
+        assertTrue(patched.contains("halo_texture(gtexture,uv)"));
+        assertFalse(patched.contains("uniform int iris_HaloMaskEnabled"));
+        assertTrue(patched.contains("texelFetch(HaloMask, pixel, 0)"));
     }
 
     @Test void maskChangesOnlyAlbedoSamplesBeforePackLighting() {

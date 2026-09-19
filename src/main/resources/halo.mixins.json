@@ -1,24 +1,25 @@
 {
-    "required": true,
-    "package": "network.azusake.halo.mixin",
-    "compatibilityLevel": "JAVA_21",
-    "mixins": [
-        "LivingEntityDataMixin",
-        "EntityTeleportMixin"
-    ],
-    "client": [
-        "ClientCommandSuggestionsMixin",
-        "InventoryScreenPreviewMixin",
-        "PreviewFrameLifecycleMixin",
-        "LivingEntityPreviewPoseMixin",
-        "MeshShaderResourceMixin",
-        "VertexBufferAccessor",
-        "EntityRenderContextMixin",
-        "MinecraftClientAttackMixin",
-        "PlayerEntityRendererHeadCaptureMixin",
-        "ModelPartHeadCaptureMixin"
-    ],
-    "injectors": {
-        "defaultRequire": 1
-    }
+  "required": true,
+  "package": "network.azusake.halo.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "LivingEntityDataMixin",
+    "EntityTeleportMixin"
+  ],
+  "client": [
+    "ClientCommandSuggestionsMixin",
+    "InventoryScreenPreviewMixin",
+    "PreviewFrameLifecycleMixin",
+    "LivingEntityPreviewPoseMixin",
+    "EntityRenderContextMixin",
+    "MinecraftClientAttackMixin",
+    "ModelPartHeadCaptureMixin",
+    "GuiPreviewBoundsMixin",
+    "EntityRenderStateMixin",
+    "EntityExtractionMixin",
+    "LevelRenderCompletionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

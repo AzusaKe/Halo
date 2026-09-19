@@ -17,9 +17,9 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
-import net.minecraft.util.Identifier;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,10 +31,10 @@ public class HaloModClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
         network.azusake.halo.platform.IntegratedBridge.config = snapshot ->
-            net.minecraft.client.MinecraftClient.getInstance().execute(() ->
+            net.minecraft.client.Minecraft.getInstance().execute(() ->
                 network.azusake.halo.platform.HaloClientState.get().setConfig(snapshot.toConfig()));
         network.azusake.halo.platform.IntegratedBridge.teleport = uuid ->
-            net.minecraft.client.MinecraftClient.getInstance().execute(() ->
+            net.minecraft.client.Minecraft.getInstance().execute(() ->
                 network.azusake.halo.platform.HaloClientState.get().teleport(uuid));
         EmfCompatChatNotifier.register();
 
@@ -47,7 +47,6 @@ public class HaloModClient implements ClientModInitializer {
         // definitions are available for rendering in single-player and when
         // definitions are bundled in a client resource pack.
         HaloJsonLoader.registerClientResources();
-        network.azusake.halo.render.HaloMeshShader.register();
 
         // Register entity-anchor profile loader on the client side
         network.azusake.halo.json.EntityAnchorLoader.registerClientResources();
@@ -72,12 +71,12 @@ public class HaloModClient implements ClientModInitializer {
         ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             if (entity != null) {
                 var runtime = network.azusake.halo.platform.HaloClientState.get();
-                if (entity instanceof net.minecraft.entity.LivingEntity living && !living.isAlive()) {
-                    runtime.died(entity.getUuid(), entity instanceof net.minecraft.entity.player.PlayerEntity);
+                if (entity instanceof net.minecraft.world.entity.LivingEntity living && !living.isAlive()) {
+                    runtime.died(entity.getUUID(), entity instanceof net.minecraft.world.entity.player.Player);
                 } else {
-                    runtime.unload(entity.getUuid());
+                    runtime.unload(entity.getUUID());
                 }
-                AnchorCaptureCoordinator.clearEntity(entity.getUuid());
+                AnchorCaptureCoordinator.clearEntity(entity.getUUID());
             }
         });
 
@@ -95,15 +94,15 @@ public class HaloModClient implements ClientModInitializer {
         // covers both bootstrap and incremental updates.  The sendDefsReport()
         // method safely no-ops when not connected to a server world.
         ResourceManagerHelper
-            .get(ResourceType.CLIENT_RESOURCES)
+            .get(PackType.CLIENT_RESOURCES)
             .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
                 @Override
                 public Identifier getFabricId() {
-                    return Identifier.of(HaloMod.MOD_ID, "defs_report_trigger");
+                    return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "defs_report_trigger");
                 }
                 @Override
-                public void reload(ResourceManager manager) {
-                    net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
+                public void onResourceManagerReload(ResourceManager manager) {
+                    net.minecraft.client.Minecraft.getInstance().execute(() -> {
                         HaloNetworkClient.sendDefsReport();
                     });
                 }

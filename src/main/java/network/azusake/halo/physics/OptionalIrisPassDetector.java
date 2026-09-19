@@ -17,7 +17,7 @@ public final class OptionalIrisPassDetector {
     private OptionalIrisPassDetector() {
     }
 
-    static boolean isMainPass() {
+    public static boolean isMainPass() {
         if (!FabricLoader.getInstance().isModLoaded(IRIS_MOD_ID)) {
             return true;
         }

@@ -1,7 +1,7 @@
 package network.azusake.halo.compat.emf;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -19,7 +19,7 @@ public final class EmfCompatChatNotifier {
         }
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null && EmfCompatDiagnostics.markChatReported()) {
-                client.player.sendMessage(Text.literal(EmfCompatDiagnostics.USER_ERROR_MESSAGE), false);
+                client.player.sendSystemMessage(Component.literal(EmfCompatDiagnostics.USER_ERROR_MESSAGE));
             }
         });
     }

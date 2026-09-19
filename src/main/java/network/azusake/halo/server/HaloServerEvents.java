@@ -41,10 +41,10 @@ public final class HaloServerEvents {
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             HaloMod.LOGGER.debug(
                 "HaloServerEvents: entity unloaded – uuid={}, type={}",
-                entity.getUuid(), entity.getType().getName().getString()
+                entity.getUUID(), entity.getType().getDescription().getString()
             );
             HaloManager.getInstance().entityUnloaded(entity);
-            HaloScepterService.invalidateTarget(world.getServer(), entity.getUuid());
+            HaloScepterService.invalidateTarget(world.getServer(), entity.getUUID());
         });
     }
 
@@ -53,7 +53,7 @@ public final class HaloServerEvents {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             HaloMod.LOGGER.debug(
                 "HaloServerEvents: player joined – uuid={}, name={}",
-                handler.getPlayer().getUuid(), handler.getPlayer().getName().getString()
+                handler.getPlayer().getUUID(), handler.getPlayer().getName().getString()
             );
             network.azusake.halo.network.HaloNetwork.sendFullSync(handler.getPlayer());
             network.azusake.halo.network.HaloNetwork.sendHello(handler.getPlayer());
@@ -66,7 +66,7 @@ public final class HaloServerEvents {
         // just as they keep it across a respawn.  Only /halo show and /halo hide
         // may modify ownership.
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            UUID uuid = handler.getPlayer().getUuid();
+            UUID uuid = handler.getPlayer().getUUID();
             HaloMod.LOGGER.debug(
                 "HaloServerEvents: player disconnected – uuid={}, name={}",
                 uuid, handler.getPlayer().getName().getString()

@@ -4,9 +4,8 @@ import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.TypedActionResult;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
 
 /** Fabric interaction hooks for the halo scepter. */
 final class HaloScepterInteractions {
@@ -22,44 +21,44 @@ final class HaloScepterInteractions {
         }
         registered = true;
 
-        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (!player.getMainHandStack().isOf(HaloItems.HALO_SCEPTER)) {
-                return ActionResult.PASS;
+        AttackEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> {
+            if (!player.getMainHandItem().is(HaloItems.HALO_SCEPTER)) {
+                return InteractionResult.PASS;
             }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
-                HaloScepterService.remove(serverPlayer, entity, player.isSneaking());
+            if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
+                HaloScepterService.remove(serverPlayer, entity, player.isShiftKeyDown());
             }
-            return ActionResult.SUCCESS;
+            return InteractionResult.SUCCESS;
         });
 
-        UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (!player.getStackInHand(hand).isOf(HaloItems.HALO_SCEPTER)) {
-                return ActionResult.PASS;
+        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> {
+            if (!player.getItemInHand(hand).is(HaloItems.HALO_SCEPTER)) {
+                return InteractionResult.PASS;
             }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
-                HaloScepterService.open(serverPlayer, player.isSneaking() ? player : entity);
+            if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
+                HaloScepterService.open(serverPlayer, player.isShiftKeyDown() ? player : entity);
             }
-            return ActionResult.SUCCESS;
+            return InteractionResult.SUCCESS;
         });
 
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (!player.isSneaking() || !player.getStackInHand(hand).isOf(HaloItems.HALO_SCEPTER)) {
-                return ActionResult.PASS;
+        UseBlockCallback.EVENT.register((player, level, hand, hitResult) -> {
+            if (!player.isShiftKeyDown() || !player.getItemInHand(hand).is(HaloItems.HALO_SCEPTER)) {
+                return InteractionResult.PASS;
             }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
+            if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
                 HaloScepterService.open(serverPlayer, player);
             }
-            return ActionResult.SUCCESS;
+            return InteractionResult.SUCCESS;
         });
 
-        UseItemCallback.EVENT.register((player, world, hand) -> {
-            if (!player.isSneaking() || !player.getStackInHand(hand).isOf(HaloItems.HALO_SCEPTER)) {
-                return TypedActionResult.pass(player.getStackInHand(hand));
+        UseItemCallback.EVENT.register((player, level, hand) -> {
+            if (!player.isShiftKeyDown() || !player.getItemInHand(hand).is(HaloItems.HALO_SCEPTER)) {
+                return InteractionResult.PASS;
             }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
+            if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
                 HaloScepterService.open(serverPlayer, player);
             }
-            return TypedActionResult.success(player.getStackInHand(hand), world.isClient);
+            return InteractionResult.SUCCESS;
         });
     }
 }

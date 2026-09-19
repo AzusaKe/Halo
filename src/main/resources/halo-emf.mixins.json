@@ -2,7 +2,7 @@
   "required": false,
   "minVersion": "0.8",
   "package": "network.azusake.halo.compat.emf.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "plugin": "network.azusake.halo.compat.emf.mixin.EmfMixinPlugin",
   "client": [
     "EmfModelPartVanillaNameMixin",

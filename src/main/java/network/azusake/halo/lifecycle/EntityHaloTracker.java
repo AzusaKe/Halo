@@ -8,12 +8,12 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
 import network.azusake.halo.core.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.Map;
 import java.util.UUID;
@@ -201,23 +201,23 @@ public final class EntityHaloTracker {
      * @param entity the living entity that teleported
      */
     public static void markTeleport(LivingEntity entity) {
-        UUID uuid = entity.getUuid();
-        if (entity.getWorld().isClient) {
+        UUID uuid = entity.getUUID();
+        if (entity.level().isClientSide()) {
             network.azusake.halo.platform.IntegratedBridge.teleport.accept(uuid);
             return;
         }
-        if(entity.getServer()!=null && !entity.getServer().isDedicated())
+        if(network.azusake.halo.platform.PlatformTypes.server(entity)!=null && !network.azusake.halo.platform.PlatformTypes.server(entity).isDedicatedServer())
             network.azusake.halo.platform.IntegratedBridge.teleport.accept(uuid);
         tracker.mark(uuid, System.currentTimeMillis());
 
         HaloInstance instance = HaloManager.getInstance().getHaloInstance(uuid);
         if (instance != null) {
             if (debugMode && currentServer != null) {
-                Vec3d pos = entity.getPos();
-                var msg = Text.literal(
+                Vec3 pos = entity.position();
+                var msg = Component.literal(
                     String.format("§e[HaloDebug] §fTELEPORT §edetected | §7%s §fpos=(§7%.1f, %.1f, %.1f§f) §a-> snap",
                         entity.getName().getString(), pos.x, pos.y, pos.z));
-                currentServer.getPlayerManager().broadcast(msg, false);
+                currentServer.getPlayerList().broadcastSystemMessage(msg, false);
             }
         }
     }
@@ -251,10 +251,10 @@ public final class EntityHaloTracker {
      * @param entity the living entity to clean up
      */
     public static void cleanup(LivingEntity entity) {
-        UUID uuid = entity.getUuid();
+        UUID uuid = entity.getUUID();
         // Silent removal — no broadcast, no shutdown animation.  Ownership in the
         // world save is preserved (players) or pruned (non-players) below.
-        HaloManager.getInstance().died(entity, entity instanceof ServerPlayerEntity);
+        HaloManager.getInstance().died(entity, entity instanceof ServerPlayer);
 
         tracker.remove(uuid);
     }
@@ -287,7 +287,7 @@ public final class EntityHaloTracker {
                 continue;
             }
 
-            Vec3d currentPos = entity.getPos();
+            Vec3 currentPos = entity.position();
             if(tracker.moved(uuid,network.azusake.halo.platform.PlatformTypes.core(currentPos)))markTeleport(entity);
         }
     }
@@ -304,15 +304,15 @@ public final class EntityHaloTracker {
      *
      * @param player the respawned player entity
      */
-    private static void onPlayerRespawn(ServerPlayerEntity player) {
-        UUID uuid = player.getUuid();
+    private static void onPlayerRespawn(ServerPlayer player) {
+        UUID uuid = player.getUUID();
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = network.azusake.halo.platform.PlatformTypes.server(player);
         if (server == null) {
             return;
         }
 
-        Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(uuid);
+        Identifier defId = HaloWorldSaveData.get(server.overworld()).get(uuid);
         HaloManager.getInstance().restore(player);
         if (defId != null) HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on player {} after respawn", defId, uuid);
     }
@@ -323,22 +323,22 @@ public final class EntityHaloTracker {
      * @param entity the entity that just loaded
      */
     private static void restoreFromWorldSave(LivingEntity entity) {
-        MinecraftServer server = entity.getServer();
+        MinecraftServer server = network.azusake.halo.platform.PlatformTypes.server(entity);
         if (server == null) {
             return;
         }
 
-        Identifier defId = HaloWorldSaveData.get(server.getOverworld()).get(entity.getUuid());
+        Identifier defId = HaloWorldSaveData.get(server.overworld()).get(entity.getUUID());
         HaloManager.getInstance().restore(entity);
         if (defId != null) HaloMod.LOGGER.debug("EntityHaloTracker: restored halo '{}' on entity {} from world save",
-            defId, entity.getUuid());
+            defId, entity.getUUID());
     }
 
     /**
      * Find a living entity by UUID across all server worlds.
      */
     private static LivingEntity findEntity(MinecraftServer server, UUID uuid) {
-        for (var world : server.getWorlds()) {
+        for (var world : server.getAllLevels()) {
             var entity = world.getEntity(uuid);
             if (entity instanceof LivingEntity living && living.isAlive()) {
                 return living;

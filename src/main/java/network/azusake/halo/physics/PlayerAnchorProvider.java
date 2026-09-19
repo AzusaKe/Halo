@@ -6,11 +6,11 @@ import network.azusake.halo.json.EntityAnchorLoader;
 import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorVec3;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.Vec3d;
 import org.slf4j.Logger;
@@ -53,27 +53,19 @@ public final class PlayerAnchorProvider {
     }
 
     public AnchorPose resolve(LivingEntity entity, float tickDelta) {
-        // 1. Interpolated foot position & head yaw/pitch
-        double x = entity.prevX + (entity.getX() - entity.prevX) * tickDelta;
-        double y = entity.prevY + (entity.getY() - entity.prevY) * tickDelta;
-        double z = entity.prevZ + (entity.getZ() - entity.prevZ) * tickDelta;
+        Camera camera = getLocalFirstPersonCamera(entity);
+        if (camera != null) {
+            // Use the rendered camera basis directly, including roll and camera effects.
+            return new AnchorPose(new AnchorVec3(camera.position().x, camera.position().y, camera.position().z),
+                CameraAnchorMath.rotation(camera.rotation()));
+        }
+        double x = entity.xo + (entity.getX() - entity.xo) * tickDelta;
+        double y = entity.yo + (entity.getY() - entity.yo) * tickDelta;
+        double z = entity.zo + (entity.getZ() - entity.zo) * tickDelta;
         Vec3d footPos = new Vec3d(x, y, z);
-
         float yaw = getInterpolatedHeadYaw(entity, tickDelta);
-        float pitch = entity.prevPitch + (entity.getPitch() - entity.prevPitch) * tickDelta;
-        Camera firstPersonCamera = getLocalFirstPersonCamera(entity);
-        if (firstPersonCamera != null) {
-            yaw = firstPersonCamera.getYaw();
-            pitch = firstPersonCamera.getPitch();
-        }
+        float pitch = entity.xRotO + (entity.getXRot() - entity.xRotO) * tickDelta;
         float roll = getHeadRoll(entity);
-
-        if (firstPersonCamera != null) {
-            // The local first-person camera is the rendered head.  Entity
-            // interpolation omits camera bob and can lag independently,
-            // causing shader-pass captures to orbit or jump around the player.
-            return pose(network.azusake.halo.platform.PlatformTypes.core(firstPersonCamera.getPos()), yaw, pitch, roll);
-        }
 
         // 2. Pose key → PoseAnchor
         String poseKey = resolvePoseKey(entity);
@@ -99,31 +91,31 @@ public final class PlayerAnchorProvider {
      * players) always get 0.
      */
     private static float getHeadRoll(LivingEntity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.gameRenderer == null || entity != client.player) {
             return 0f;
         }
-        Camera camera = client.gameRenderer.getCamera();
+        Camera camera = client.gameRenderer.getMainCamera();
         if (camera == null) {
             return 0f;
         }
-        float roll = CameraRollMath.recoverRollDeg(camera.getYaw(), camera.getPitch(), camera.getRotation());
+        float roll = CameraRollMath.recoverRollDeg(camera.yRot(), camera.xRot(), camera.rotation());
         if (Math.abs(roll) > 0.001f) {
             LOGGER.debug("Local player head roll recovered from camera: {} deg (camera yaw={}, pitch={})",
-                roll, camera.getYaw(), camera.getPitch());
+                roll, camera.yRot(), camera.xRot());
         }
         return roll;
     }
 
     /** Local first-person camera when it is actually attached to this entity. */
     private static Camera getLocalFirstPersonCamera(LivingEntity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.gameRenderer == null || entity != client.player
-            || !client.options.getPerspective().isFirstPerson()) {
+            || !client.options.getCameraType().isFirstPerson()) {
             return null;
         }
-        Camera camera = client.gameRenderer.getCamera();
-        return camera != null && camera.getFocusedEntity() == entity ? camera : null;
+        Camera camera = client.gameRenderer.getMainCamera();
+        return camera != null && camera.entity() == entity ? camera : null;
     }
 
     // ------------------------------------------------------------------
@@ -151,8 +143,8 @@ public final class PlayerAnchorProvider {
             entity.isFallFlying(),
             entity.isSwimming(),
             entity.getPose(),
-            entity.isSneaking(),
-            entity.isOnGround()
+            entity.isShiftKeyDown(),
+            entity.onGround()
         );
     }
 
@@ -162,9 +154,9 @@ public final class PlayerAnchorProvider {
      * {@link #resolvePoseKey(LivingEntity)}.
      */
     static String resolvePoseKey(boolean sleeping, boolean fallFlying, boolean swimming,
-                                 EntityPose pose, boolean sneaking, boolean onGround) {
-        var semantic = pose==EntityPose.SWIMMING ? network.azusake.halo.core.AnchorFallback.Pose.SWIMMING
-            : pose==EntityPose.CROUCHING ? network.azusake.halo.core.AnchorFallback.Pose.CROUCHING
+                                 Pose pose, boolean sneaking, boolean onGround) {
+        var semantic = pose==Pose.SWIMMING ? network.azusake.halo.core.AnchorFallback.Pose.SWIMMING
+            : pose==Pose.CROUCHING ? network.azusake.halo.core.AnchorFallback.Pose.CROUCHING
             : network.azusake.halo.core.AnchorFallback.Pose.STANDING;
         return network.azusake.halo.core.AnchorFallback.poseKey(sleeping,fallFlying,swimming,semantic,sneaking,onGround);
     }
@@ -203,8 +195,8 @@ public final class PlayerAnchorProvider {
     // ------------------------------------------------------------------
 
     private static float getInterpolatedHeadYaw(LivingEntity entity, float tickDelta) {
-        float prev = entity.prevHeadYaw;
-        float curr = entity.headYaw;
+        float prev = entity.yHeadRotO;
+        float curr = entity.yHeadRot;
         float diff = curr - prev;
         if (diff > 180f) diff -= 360f;
         if (diff < -180f) diff += 360f;

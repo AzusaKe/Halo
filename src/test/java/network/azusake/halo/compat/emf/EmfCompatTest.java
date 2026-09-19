@@ -4,14 +4,14 @@ import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.physics.HeadFrameMath;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.model.geom.ModelPart;
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.List;
 import java.util.Map;
 
@@ -29,17 +29,17 @@ class EmfCompatTest {
 
     @Test
     void capturesPartTransformAndRestoresCallerStack() {
-        MatrixStack matrices = new MatrixStack();
+        PoseStack matrices = new PoseStack();
         matrices.translate(1, 2, 3);
-        Matrix4f before = new Matrix4f(matrices.peek().getPositionMatrix());
+        Matrix4f before = new Matrix4f(matrices.last().pose());
         ModelPart part = new ModelPart(List.of(), Map.of());
-        part.setPivot(8, -4, 12);
+        part.setPos(8, -4, 12);
         part.xScale = 2;
         part.yScale = 3;
         part.zScale = 4;
         Matrix4f capture = EmfHeadCapture.captureHeadMatrix(matrices, part);
         assertTrue(new Matrix4f(before).translate(.5f, -.25f, .75f).scale(2,3,4).equals(capture, 1e-6f));
-        assertTrue(before.equals(matrices.peek().getPositionMatrix(), 0));
+        assertTrue(before.equals(matrices.last().pose(), 0));
     }
 
     @AfterEach
@@ -65,7 +65,7 @@ class EmfCompatTest {
     @DisplayName("EMF captures retain only the immediately previous frame")
     void oneFrameRetention() {
         UUID uuid = UUID.randomUUID();
-        EmfHeadCapture.recordForTests(uuid, new Matrix4f(), new Matrix4f(), Vec3d.ZERO);
+        EmfHeadCapture.recordForTests(uuid, new Matrix4f(), new Matrix4f(), Vec3.ZERO);
         assertNotNull(EmfHeadCapture.getCurrent(uuid));
         assertNull(EmfHeadCapture.getPrevious(uuid));
 
@@ -82,8 +82,8 @@ class EmfCompatTest {
     @DisplayName("previous EMF captures retain their producing camera frame")
     void previousCaptureKeepsCameraFrame() {
         UUID uuid = UUID.randomUUID();
-        Vec3d expectedWorld = new Vec3d(13, 4, -8);
-        Vec3d captureCamera = new Vec3d(10, 2, -5);
+        Vec3 expectedWorld = new Vec3(13, 4, -8);
+        Vec3 captureCamera = new Vec3(10, 2, -5);
         Matrix4f captureView = new Matrix4f().rotateY(0.65f).rotateX(-0.2f);
         Matrix4f cameraRelativeWorld = new Matrix4f().translate(
             (float) (expectedWorld.x - captureCamera.x),
@@ -108,16 +108,16 @@ class EmfCompatTest {
         float pitch = -20f;
         float roll = 42f;
         HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yaw, pitch, roll);
-        Vec3d cubeOrigin = new Vec3d(2, 3, 4);
+        Vec3 cubeOrigin = new Vec3(2, 3, 4);
         Matrix4f matrix = matrixFromFrame(frame, cubeOrigin);
 
         AnchorPose anchor = EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
-            matrix, new Matrix4f(), Vec3d.ZERO));
+            matrix, new Matrix4f(), Vec3.ZERO));
 
         assertNotNull(anchor);
         assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
         assertDirection(frame.headUp(), anchor, new AnchorVec3(0, 1, 0));
-        Vec3d expectedCenter = cubeOrigin.add(network.azusake.halo.platform.PlatformTypes.game(frame.headUp().multiply(0.25)));
+        Vec3 expectedCenter = cubeOrigin.add(network.azusake.halo.platform.PlatformTypes.game(frame.headUp().multiply(0.25)));
         assertEquals(expectedCenter.x, anchor.position().x(), EPS);
         assertEquals(expectedCenter.y, anchor.position().y(), EPS);
         assertEquals(expectedCenter.z, anchor.position().z(), EPS);
@@ -128,21 +128,21 @@ class EmfCompatTest {
     void nonFiniteMatrixRejected() {
         Matrix4f invalid = new Matrix4f().m00(Float.NaN);
         assertNull(EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
-            invalid, new Matrix4f(), Vec3d.ZERO)));
+            invalid, new Matrix4f(), Vec3.ZERO)));
         assertNull(EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
-            new Matrix4f(), new Matrix4f().scale(0f), Vec3d.ZERO)));
+            new Matrix4f(), new Matrix4f().scale(0f), Vec3.ZERO)));
     }
 
     @Test
     @DisplayName("view-space EMF matrices are restored before extracting orientation")
     void viewSpaceRestoration() {
         HeadFrameMath.HeadFrame frame = HeadFrameMath.of(-70f, 25f, -30f);
-        Matrix4f world = matrixFromFrame(frame, new Vec3d(3, 2, -1));
+        Matrix4f world = matrixFromFrame(frame, new Vec3(3, 2, -1));
         Matrix4f view = new Matrix4f().rotate(new Quaternionf().rotationYXZ(0.4f, -0.2f, 0.1f));
         Matrix4f viewSpace = new Matrix4f(view).mul(world);
 
         AnchorPose anchor = EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
-            viewSpace, view, Vec3d.ZERO));
+            viewSpace, view, Vec3.ZERO));
 
         assertNotNull(anchor);
         assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
@@ -156,7 +156,7 @@ class EmfCompatTest {
         assertEquals(expected.z, actual.z(), EPS);
     }
 
-    private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3d origin) {
+    private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3 origin) {
         Matrix4f matrix = new Matrix4f();
         matrix.m00((float) frame.right().x);
         matrix.m01((float) frame.right().y);
