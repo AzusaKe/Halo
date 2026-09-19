@@ -24,7 +24,10 @@ public final class HaloMeshShader {
     public static void clear() { MATERIALS.clear(); }
     static Material material(DrawBatch draw, RenderEnvironment environment) {
         Key key = new Key(draw.directionalLighting(), draw.blend(), draw.cull(), draw.depthTest(),
-            draw.depthWrite(), draw.material() instanceof MaterialState.Legacy, environment == RenderEnvironment.GUI, draw.topology());
+            HaloDepthPolicy.writesDepth(environment,
+                environment == RenderEnvironment.WORLD && network.azusake.halo.physics.OptionalIrisPassDetector.hasShaderPack(),
+                draw.depthTest(), draw.depthWrite()),
+            draw.material() instanceof MaterialState.Legacy, environment == RenderEnvironment.GUI, draw.topology());
         var mask = draw.material() instanceof MaterialState.Mesh m ? m.mask() : null;
         Identifier texture = draw.textured() && draw.texture() != null ? game(draw.texture()) : WHITE;
         return MATERIALS.computeIfAbsent(new TextureKey(key, texture, mask == null ? WHITE : game(mask.texture())), k -> {

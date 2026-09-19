@@ -1,5 +1,15 @@
 # 更新记录
 
+## 2.4.1 — Minecraft 26.1 Fabric 首次发布 — 2026-09-19
+
+- 从 1.21.1 Fabric 迁移至 26.1 系列，使用 Java 25、非混淆官方名称和原生 RenderPipeline/RenderPass；保留 HaloCore 2.4.1、定义 schema、存档键、网络负载及公开 API v2。目标为同一 JAR 支持 26.1 / 26.1.1 / 26.1.2，以 26.1.2 实测。
+- 迁移佩戴、命令、本地模式、光环权杖、GUI、资源重载、billboard/ring/OBJ、预览与 EMF/ETF 接入。YSM 不在本平台范围。
+- 第一人称使用当帧相机四元数；延迟绘制消费帧快照，透明实例与三角形按实际视深排序。保留 compatibility/cached 配置；Iris 世界绘制使用展开路径生成正确的切线属性。
+- 修复原版云层遮挡、权杖材质缺失及 IterationRP 平滑法线；为 Iris 世界图元补齐合成阶段需要的表面深度，修复 Bliss 天空背景下 mesh 近乎不可见，以及 IterationRP 遮罩区域透出草地的问题。无光影和 GUI 深度规则不变。
+- 119 项平台测试和 326 项 core 测试通过；用户确认网络及报告中的渲染问题测试通过。三版本完整运行矩阵、LabPBR 分通道与性能测量等未执行项仍见[迁移记录](docs/26.1-fabric-migration.md)。core 只增加 Gradle 9 所需的测试 launcher，Java 17 生产字节码与接口不变。
+
+正式版本：`2.4.1+adapter.1`；平台标签为 `v2.4.1-fabric-26.1-adapter.1`。
+
 ## 2.4.1 — 透明 mesh 与本地命令修复 — 2026-09-19
 
 - HaloCore 2.4.1 为缓存与展开回退提供 GPU 实际视深系数排序入口，不暴露平台数学类型；旧 `MeshIndexWriter`、帧输出构造器和二进制调用方保持兼容。

@@ -1,4 +1,4 @@
-本分支为 **Minecraft 26.1 Fabric 迁移开发版**，以 **26.1.2** 开发，版本为 **2.4.1+adapter.1.dev**，锁定 HaloCore **2.4.1**。玩家仍只安装一个 Halo JAR。flash 分支保持冻结；实际验收范围见 [26.1 迁移记录](docs/26.1-fabric-migration.md)。
+本分支为 **Minecraft 26.1 Fabric 版本**，以 **26.1.2** 开发，版本为 **2.4.1+adapter.1**，锁定 HaloCore **2.4.1**。玩家仍只安装一个 Halo JAR。flash 分支保持冻结；实际验收范围见 [26.1 迁移记录](docs/26.1-fabric-migration.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
@@ -17,7 +17,7 @@ EMF 捕获按目标 ABI 检查；自定义模型实际替换后的完整验收�
   Halo Mod（光环模组）
 </h1>
 
-> 本分支为 **26.1 Fabric 迁移开发版**，以 26.1.2 开发，使用 HaloCore 2.4.1 / adapter.1。YSM 与 Connector 不在本次范围；网络及三版本完整运行验收尚未完成。实际验证范围见 [迁移记录](docs/26.1-fabric-migration.md)，下文继承的功能文档不代表所有项目已在本平台验收。
+> 本分支为 **26.1 Fabric 版本**，以 26.1.2 开发，使用 HaloCore 2.4.1 / adapter.1。YSM 与 Connector 不在本次范围；用户已确认网络和本次渲染问题测试通过；三版本完整运行矩阵尚未完成。实际验证范围见 [迁移记录](docs/26.1-fabric-migration.md)，下文继承的功能文档不代表所有项目已在本平台验收。
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
 ![MC版本](https://img.shields.io/badge/Minecraft-26.1-green.svg)
@@ -299,7 +299,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.1.2-fabric-2.4.1+adapter.1.dev.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.1.2-fabric-2.4.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
