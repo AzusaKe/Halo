@@ -141,13 +141,6 @@ tasks.withType(AbstractArchiveTask).configureEach {
     reproducibleFileOrder = true
 }
 
-// Several dev clients can run while core is rebuilt. Never overwrite an open ZipFile in those JVMs.
-tasks.withType(JavaExec).matching { it.name.startsWith('run') }.configureEach {
-    doFirst {
-        def coreJar = configurations.coreContents.singleFile
-        def snapshot = file(".gradle/halo-runtime-core/${java.util.UUID.randomUUID()}/halo-core.jar")
-        snapshot.parentFile.mkdirs()
-        java.nio.file.Files.copy(coreJar.toPath(), snapshot.toPath())
-        classpath = files(classpath.files.collect { it == coreJar ? snapshot : it })
-    }
-}
+// Loom 1.10 finalizes run classpaths before execution. Keep its provider-owned
+// classpath intact; changing it in doFirst (the 1.20.1 workaround) prevents
+// 1.21.1 launches from observing newly compiled adapter classes.

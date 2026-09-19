@@ -171,7 +171,7 @@ public final class HaloJsonLoader {
         for (var entry : resources.entrySet()) {
             try (var input = entry.getValue().getInputStream()) {
                 loaded.add(new network.azusake.halo.core.runtime.ResourceInput(
-                    network.azusake.halo.platform.PlatformTypes.core(entry.getKey()), entry.getValue().getResourcePackName(),
+                    network.azusake.halo.platform.PlatformTypes.core(entry.getKey()), entry.getValue().getPackId(),
                     new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
             } catch (java.io.IOException ex) {
                 LOG.warn("Could not read halo resource {}: {}", entry.getKey(), ex.getMessage());
@@ -190,7 +190,7 @@ public final class HaloJsonLoader {
     private static class ServerListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public net.minecraft.util.Identifier getFabricId() {
-            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "halo_definitions");
+            return net.minecraft.util.Identifier.of(HaloMod.MOD_ID, "halo_definitions");
         }
 
         @Override
@@ -202,7 +202,7 @@ public final class HaloJsonLoader {
     private static class ClientListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public net.minecraft.util.Identifier getFabricId() {
-            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "halo_definitions_client");
+            return net.minecraft.util.Identifier.of(HaloMod.MOD_ID, "halo_definitions_client");
         }
 
         @Override

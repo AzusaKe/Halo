@@ -55,7 +55,7 @@ class EmfCompatTest {
         assertTrue(EmfVersionGate.isSupportedVersion("3.3.5"));
         assertTrue(EmfVersionGate.isSupportedVersion("3.3.6"));
         assertTrue(EmfVersionGate.isSupportedVersion("4.0.0"));
-        assertTrue(EmfVersionGate.isSupportedVersion("3.1.1+mc1.20.1"));
+        assertTrue(EmfVersionGate.isSupportedVersion("3.1.1+mc1.21.1"));
         assertFalse(EmfVersionGate.isSupportedVersion("3.1.0"));
         assertFalse(EmfVersionGate.isSupportedVersion("3.0.17"));
         assertFalse(EmfVersionGate.isSupportedVersion(null));

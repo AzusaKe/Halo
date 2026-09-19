@@ -13,7 +13,7 @@ Users may replace EMF with an interface-compatible modified version; Halo
 does not prohibit modification or reverse engineering for debugging it.
 Halo's independently written code remains under Halo's own license.
 
-Yes Steve Model (YSM) 2.6.5-fabric+mc1.20.1
+Yes Steve Model (YSM) 2.6.5-fabric+mc1.21.1
 Project: https://ysm.cfpa.team/
 This release is All Rights Reserved. It is installed separately and is not
 included in Halo. The version-pinned compatibility symbols and necessary

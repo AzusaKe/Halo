@@ -1,5 +1,7 @@
 # Halo Mod 跨版本兼容性测试方案
 
+> 本文是旧 1.20.x 单 JAR 跨版本调查记录，不是 `1.21.1-fabric` 的当前兼容声明。1.21.1 使用独立适配器；迁移结果、精确第三方版本和待签收项见 [1.21.1 Fabric 迁移记录](docs/1.21.1-fabric-migration.md)。
+
 > 兼容范围：**1.19.4 ~ 1.20.4**（Fabric，已确认）
 > - 下界 **1.19.4**（已确认）：1.19.3 缺少 `ClientPlayNetworkHandler.getConnection()` 方法
 > - 上界 **1.20.4**（已确认）：1.20.5 起 Fabric API 移除 `ServerPlayNetworking$PlayChannelHandler`，启动即崩

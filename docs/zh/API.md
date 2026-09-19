@@ -2,7 +2,7 @@
 
 ## 从这里开始：接入 API v2
 
-本文以 **Halo 2.4.0、Minecraft 1.20.1 Fabric、Java 17** 为基准。其他已接入宿主可以复用中立接口，但旧版／冻结适配器不因此自动拥有预览能力。
+本文以 **Halo 2.4.0、Minecraft 1.21.1 Fabric、Java 21** 为基准；加载器无关的 HaloCore API 仍保持 Java 17 兼容。其他已接入宿主可以复用中立接口，但旧版／冻结适配器不因此自动拥有预览能力。
 API v2 为光环提供**头部锚点和服务端佩戴来源**，不负责动态注册物品或绘制任意几何。先用 `/halo list` 查找定义，再用 `/halo show @s <定义ID>` 佩戴一个由 Halo 管理的光环。
 
 阅读顺序：先完成[1. 依赖配置](#dependency-setup)。要接入饰品／职业等佩戴状态，直接阅读[6. 服务端佩戴来源](#server-ownership-source-api)；要接入模型锚点，继续阅读[2. 模型提供者](#provider-routing) → [3. 预览面板](#preview-host-integration) → [4. 接口参考](#api-v2-reference) → [5. 验证排错](#integration-checks)。[其他接口](#other-interfaces)位于 API v2 指南之后。

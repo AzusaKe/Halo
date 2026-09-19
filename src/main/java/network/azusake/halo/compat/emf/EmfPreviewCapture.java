@@ -14,15 +14,12 @@ final class EmfPreviewCapture {
     private static boolean reportedFailure;
     private static final ThreadLocal<Boolean> POSE_ONLY = ThreadLocal.withInitial(() -> false);
     private static final VertexConsumer DISCARD = new VertexConsumer() {
-        public VertexConsumer vertex(double x, double y, double z) { return this; }
+        public VertexConsumer vertex(float x, float y, float z) { return this; }
         public VertexConsumer color(int r, int g, int b, int a) { return this; }
         public VertexConsumer texture(float u, float v) { return this; }
         public VertexConsumer overlay(int u, int v) { return this; }
         public VertexConsumer light(int u, int v) { return this; }
         public VertexConsumer normal(float x, float y, float z) { return this; }
-        public void next() {}
-        public void fixedColor(int r, int g, int b, int a) {}
-        public void unfixColor() {}
     };
     private EmfPreviewCapture() {}
 
@@ -39,7 +36,7 @@ final class EmfPreviewCapture {
         POSE_ONLY.set(true);
         matrices.push();
         try {
-            head.render(matrices, DISCARD, 0, 0, 1, 1, 1, 0);
+            head.render(matrices, DISCARD, 0, 0, 0xFFFFFFFF);
         } catch (Throwable error) {
             reportFailure(error);
         } finally {

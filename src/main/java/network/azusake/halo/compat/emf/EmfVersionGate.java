@@ -20,7 +20,7 @@ public final class EmfVersionGate {
 
     public static Optional<String> installedVersion() {
         return FabricLoader.getInstance()
-            .getModContainer(Emf1201Symbols.MOD_ID)
+            .getModContainer(Emf1211Symbols.MOD_ID)
             .map(ModContainer::getMetadata)
             .map(metadata -> metadata.getVersion().getFriendlyString());
     }

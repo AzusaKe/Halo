@@ -39,10 +39,6 @@ class YsmReleaseSignatureTest {
             assertTrue(hasMethod(renderer, YsmV265Symbols.RENDER_METHOD,
                 YsmV265Symbols.RENDER_DESCRIPTOR_INTERMEDIARY),
                 "missing pinned YSM render method");
-            assertTrue(hasMethod(renderer, YsmV265Symbols.RENDER_METHOD,
-                YsmV265Symbols.PREPARE_DESCRIPTOR_INTERMEDIARY),
-                "missing pinned YSM preview preparation method");
-
             ClassNode model = classNode(zip, YsmV265Symbols.ANIMATED_GEO_MODEL);
             assertTrue(hasMethod(model, YsmV265Symbols.HEAD_BONES_GETTER,
                 YsmV265Symbols.HEAD_BONES_DESCRIPTOR),

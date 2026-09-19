@@ -1,5 +1,15 @@
 # 更新记录
 
+## 2.4.0 — Minecraft 1.21.1 Fabric 迁移 — 2026-09-19
+
+- 从 `1.20.1-fabric` 的 2.4.0 功能基线建立独立 `1.21.1-fabric` 适配器，继续锁定 HaloCore 2.4.0；定义、存档、网络字节布局、命令、权杖、来源 API、预览物理与三类图元语义保持不变。
+- 升级到 Java 21、Gradle 8.13、Loom 1.10.5、Fabric Loader 0.16.14、Fabric API 0.116.15；迁移 1.21.1 的 CustomPayload、PersistentState、资源标识符、物品提示、GUI、世界渲染、BufferBuilder／VertexBuffer 和配方目录接口。
+- 保留 2.3.1/2.3.2 的共享几何、VBO/EBO、透明索引和材质缓存优化。未遮罩受光图元改走 1.21.1 原生实体 RenderLayer，令 Iris 1.8.8 管理实体 G-buffer、LabPBR 伴生纹理及 shader 生命周期；遮罩 mesh 保留隔离派生程序。
+- 更新 EMF 3.3.9 ABI 与精确锁定的 YSM `2.6.5-fabric+mc1.21.1` 符号。YSM 发布包验签通过；其原生保护在 Loom 开发环境返回 `err: 54`，因此真实 YSM 模型视觉验收仍需普通游戏实例。
+- 自动测试、独立专用服、原版客户端以及 Iris/Sodium/EMF/ETF 组合启动与绘制烟测通过。LabPBR 固定诊断资源的视觉对照与 YSM/EMF 真实自定义模型头部签收仍明确列为人工验收项，详见[迁移记录](docs/1.21.1-fabric-migration.md)。
+
+开发版本：`2.4.0+adapter.1`；计划平台标签为 `v2.4.0-fabric-1.21.1-adapter.1`，当前尚未推送或发布。
+
 ## 2.4.0 — 2026-09-17
 
 - 新增 core `api.v2` 服务端光环来源 API；饰品等外部模组可按 UUID 提交定义，Halo 仍只同步并渲染唯一胜者。

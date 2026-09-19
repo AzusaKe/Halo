@@ -24,17 +24,25 @@ final class HaloDrawSubmitter {
             MeshDrawWorkspace workspace = reuse ? new MeshDrawWorkspace() : null;
             HaloMeshShader.Submission materials = reuse ? new HaloMeshShader.Submission(client, environment) : null;
             for (MeshDraw draw : pending.draws()) {
-                applyState(draw.cull(), draw.blend(), draw.depthTest(), draw.depthWrite(),
-                    draw.red(), draw.green(), draw.blue(), draw.alpha());
-                var prepared = materials == null ? null : materials.bind(draw);
-                var shader = materials == null ? HaloMeshShader.bind(client, draw, environment)
-                    : prepared == null ? null : prepared.shader;
-                if (shader == null) continue;
-                if (!meshBuffers.draw(pending.generation(), draw, pending.modelView(), pending.projection(), shader, workspace, prepared)) {
-                    var fallback = new FrameOutput(pending.generation(), List.of(), List.of(draw))
-                        .expandedBatches(pending.visuals());
-                    for (DrawBatch batch : fallback) submit(client, batch, environment);
-                    if (materials != null) materials.invalidate();
+                boolean hasMask = draw.material().mask() != null;
+                try (var entity = HaloMeshShader.openEntityLayer(draw.texture(), draw.blend(), environment,
+                        draw.directionalLighting(), hasMask)) {
+                    // RenderLayer phases select the pack's entity program and auxiliary
+                    // textures; the command's exact depth/blend/cull contract remains authoritative.
+                    applyState(draw.cull(), draw.blend(), draw.depthTest(), draw.depthWrite(),
+                        draw.red(), draw.green(), draw.blue(), draw.alpha());
+                    var prepared = entity == null && materials != null ? materials.bind(draw) : null;
+                    var shader = entity != null ? entity.shader
+                        : materials == null ? HaloMeshShader.bind(client, draw, environment)
+                        : prepared == null ? null : prepared.shader;
+                    if (shader == null) continue;
+                    if (!meshBuffers.draw(pending.generation(), draw, pending.modelView(), pending.projection(),
+                            shader, workspace, prepared, entity != null)) {
+                        var fallback = new FrameOutput(pending.generation(), List.of(), List.of(draw))
+                            .expandedBatches(pending.visuals());
+                        for (DrawBatch batch : fallback) submit(client, batch, environment);
+                        if (materials != null) materials.invalidate();
+                    }
                 }
             }
         }
@@ -59,40 +67,45 @@ final class HaloDrawSubmitter {
     }
     private static void submitRun(MinecraftClient client, List<DrawBatch> batches, int start, int end, RenderEnvironment environment) {
         DrawBatch b = batches.get(start);
-        applyState(b.cull(), b.blend(), b.depthTest(), b.depthWrite(), b.red(), b.green(), b.blue(), b.alpha());
         boolean nativeLight = b.light().available();
-        if (b.material() instanceof MaterialState.Mesh mesh) {
-            if (!HaloMeshShader.bind(client, b, mesh, environment)) return;
-        } else if (b.directionalLighting() || b.textured() && nativeLight) {
-            if (!HaloMeshShader.bindLegacy(client, b, environment)) return;
-        } else if(b.textured()) {
-            RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-            RenderSystem.setShaderTexture(0,client.getTextureManager().getTexture(game(b.texture())).getGlId());
-        } else if (nativeLight) RenderSystem.setShader(GameRenderer::getPositionColorLightmapProgram);
-        else RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-        var builder=Tessellator.getInstance().getBuffer();
-        VertexFormat format = b.directionalLighting() ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL
-            : b.textured() ? VertexFormats.POSITION_TEXTURE_COLOR
-            : nativeLight ? VertexFormats.POSITION_COLOR_LIGHT : VertexFormats.POSITION_COLOR;
-        builder.begin(b.topology()==DrawBatch.Topology.QUADS?VertexFormat.DrawMode.QUADS:VertexFormat.DrawMode.TRIANGLES,
-            format);
-        int packedLight = packLight(b.light());
-        for (int batch = start; batch < end; batch++) for (var v : batches.get(batch).vertices()) {
-            builder.vertex(v.x(),v.y(),v.z());
-            if (b.directionalLighting()) {
-                builder.color(v.red(),v.green(),v.blue(),v.alpha());
-                builder.texture(b.textured() ? v.u() : 0f, b.textured() ? v.v() : 0f);
-                builder.overlay(OverlayTexture.DEFAULT_UV);
-                builder.light(packedLight);
-                builder.normal(v.normalX(), v.normalY(), v.normalZ());
-            } else {
-                if(b.textured())builder.texture(v.u(),v.v());
-                builder.color(v.red(),v.green(),v.blue(),v.alpha());
-                if (!b.textured() && nativeLight) builder.light(packedLight);
+        boolean hasMask = b.material() instanceof MaterialState.Mesh mesh && mesh.mask() != null;
+        try (var entity = HaloMeshShader.openEntityLayer(b.texture(), b.blend(), environment,
+                b.directionalLighting(), hasMask)) {
+            applyState(b.cull(), b.blend(), b.depthTest(), b.depthWrite(), b.red(), b.green(), b.blue(), b.alpha());
+            if (entity == null) {
+                if (b.material() instanceof MaterialState.Mesh mesh) {
+                    if (!HaloMeshShader.bind(client, b, mesh, environment)) return;
+                } else if (b.directionalLighting() || b.textured() && nativeLight) {
+                    if (!HaloMeshShader.bindLegacy(client, b, environment)) return;
+                } else if(b.textured()) {
+                    RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+                    RenderSystem.setShaderTexture(0,client.getTextureManager().getTexture(game(b.texture())).getGlId());
+                } else if (nativeLight) RenderSystem.setShader(GameRenderer::getPositionColorLightmapProgram);
+                else RenderSystem.setShader(GameRenderer::getPositionColorProgram);
             }
-            builder.next();
+            VertexFormat format = b.directionalLighting() ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL
+                : b.textured() ? VertexFormats.POSITION_TEXTURE_COLOR
+                : nativeLight ? VertexFormats.POSITION_COLOR_LIGHT : VertexFormats.POSITION_COLOR;
+            var builder=Tessellator.getInstance().begin(
+                b.topology()==DrawBatch.Topology.QUADS?VertexFormat.DrawMode.QUADS:VertexFormat.DrawMode.TRIANGLES,
+                format);
+            int packedLight = packLight(b.light());
+            for (int batch = start; batch < end; batch++) for (var v : batches.get(batch).vertices()) {
+                builder.vertex(v.x(),v.y(),v.z());
+                if (b.directionalLighting()) {
+                    builder.color(v.red(),v.green(),v.blue(),v.alpha());
+                    builder.texture(b.textured() ? v.u() : 0f, b.textured() ? v.v() : 0f);
+                    builder.overlay(OverlayTexture.DEFAULT_UV);
+                    builder.light(packedLight);
+                    builder.normal(v.normalX(), v.normalY(), v.normalZ());
+                } else {
+                    if(b.textured())builder.texture(v.u(),v.v());
+                    builder.color(v.red(),v.green(),v.blue(),v.alpha());
+                    if (!b.textured() && nativeLight) builder.light(packedLight);
+                }
+            }
+            BufferRenderer.drawWithGlobalProgram(builder.end());
         }
-        Tessellator.getInstance().draw();
     }
     static void submitPrimitives(MinecraftClient client, FrameOutput output, HaloMeshBufferCache buffers,
                                  RenderEnvironment environment) {
@@ -109,10 +122,14 @@ final class HaloDrawSubmitter {
                     submit(client, draw.expand(), environment);
                     continue;
                 }
-                applyState(state.cull(), state.blend(), state.depthTest(), state.depthWrite(),
-                    state.red(), state.green(), state.blue(), state.alpha());
-                if (!HaloMeshShader.bindLegacy(client, state, environment)) continue;
-                buffers.drawPrimitive(output.visualGeneration(), draw, modelView, projection, RenderSystem.getShader());
+                try (var entity = HaloMeshShader.openEntityLayer(state.texture(), state.blend(), environment,
+                        state.directionalLighting(), false)) {
+                    applyState(state.cull(), state.blend(), state.depthTest(), state.depthWrite(),
+                        state.red(), state.green(), state.blue(), state.alpha());
+                    if (entity == null && !HaloMeshShader.bindLegacy(client, state, environment)) continue;
+                    buffers.drawPrimitive(output.visualGeneration(), draw, modelView, projection,
+                        entity == null ? RenderSystem.getShader() : entity.shader, entity != null);
+                }
             }
         }
     }

@@ -6,7 +6,7 @@ import net.minecraft.client.render.VertexFormat;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-/** 1.20.1-only bridge for binding Halo-owned indexed mesh buffers to vanilla VertexBuffer draws. */
+/** 1.21.1 bridge for binding Halo-owned indexed mesh buffers to vanilla VertexBuffer draws. */
 @Mixin(VertexBuffer.class)
 public interface VertexBufferAccessor {
     @Accessor("indexCount") void halo$setIndexCount(int value);

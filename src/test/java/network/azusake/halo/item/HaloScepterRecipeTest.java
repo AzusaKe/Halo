@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class HaloScepterRecipeTest {
 
     private static final Path RECIPE = Path.of(
-        "src", "main", "resources", "data", "halo", "recipes", "halo_scepter.json"
+        "src", "main", "resources", "data", "halo", "recipe", "halo_scepter.json"
     );
 
     @Test
@@ -35,7 +35,7 @@ class HaloScepterRecipeTest {
         assertIngredient(key, "E", "minecraft:stick");
 
         JsonObject result = root.getAsJsonObject("result");
-        assertEquals("halo:halo_scepter", result.get("item").getAsString());
+        assertEquals("halo:halo_scepter", result.get("id").getAsString());
         assertEquals(1, result.get("count").getAsInt());
     }
 

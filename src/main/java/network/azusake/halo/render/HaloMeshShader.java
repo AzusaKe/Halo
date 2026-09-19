@@ -7,6 +7,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.ShaderProgram;
 import net.minecraft.client.gl.Uniform;
 import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.AbstractTexture;
 import net.minecraft.util.Identifier;
 import network.azusake.halo.core.render.DrawBatch;
@@ -29,12 +30,50 @@ public final class HaloMeshShader {
     private static ShaderProgram litProgram;
     private HaloMeshShader() {}
 
+    static boolean useEntityLayer(RenderEnvironment environment, boolean shaderPack,
+                                  boolean directionalLighting, boolean hasMask) {
+        return environment == RenderEnvironment.WORLD && shaderPack && directionalLighting && !hasMask;
+    }
+
+    /**
+     * Activates the vanilla entity material contract so Iris can bind the pack's
+     * entity G-buffer program plus LabPBR normal/specular textures. Halo's
+     * masked materials stay on the isolated derived-program path below.
+     */
+    static EntityLayerBinding openEntityLayer(network.azusake.halo.core.Identifier texture,
+                                              boolean translucent, RenderEnvironment environment,
+                                              boolean directionalLighting, boolean hasMask) {
+        boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
+        if (!useEntityLayer(environment, shaderPack, directionalLighting, hasMask)) return null;
+        var base = texture == null ? WHITE_TEXTURE : texture;
+        RenderLayer layer = translucent
+            ? RenderLayer.getEntityTranslucent(game(base), false)
+            : RenderLayer.getEntitySolid(game(base));
+        layer.startDrawing();
+        ShaderProgram shader = RenderSystem.getShader();
+        if (shader == null) {
+            layer.endDrawing();
+            return null;
+        }
+        return new EntityLayerBinding(layer, shader);
+    }
+
+    static final class EntityLayerBinding implements AutoCloseable {
+        private final RenderLayer layer;
+        final ShaderProgram shader;
+        private EntityLayerBinding(RenderLayer layer, ShaderProgram shader) {
+            this.layer = layer;
+            this.shader = shader;
+        }
+        @Override public void close() { layer.endDrawing(); }
+    }
+
     public static void register() {
         CoreShaderRegistrationCallback.EVENT.register(context -> {
             flatProgram = null;
             litProgram = null;
             try {
-                context.register(new Identifier("halo", "mesh"), VertexFormats.POSITION_TEXTURE_COLOR, loaded -> {
+                context.register(Identifier.of("halo", "mesh"), VertexFormats.POSITION_TEXTURE_COLOR, loaded -> {
                     for (String uniform : new String[]{"MaskEnabled", "MaskMode", "MaskThreshold", "MaskOffset",
                             "LightCoord", "LegacyAlphaCutoff"}) {
                         if (loaded.getUniform(uniform) == null) {
@@ -44,7 +83,7 @@ public final class HaloMeshShader {
                     }
                     flatProgram = loaded;
                 });
-                context.register(new Identifier("halo", "mesh_lit"),
+                context.register(Identifier.of("halo", "mesh_lit"),
                     VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL, loaded -> {
                     for (String uniform : new String[]{"MaskEnabled", "MaskMode", "MaskThreshold", "MaskOffset",
                             "LightCoord", "LegacyAlphaCutoff", "NormalMat"}) {

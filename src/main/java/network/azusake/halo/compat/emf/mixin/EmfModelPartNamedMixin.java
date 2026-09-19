@@ -1,7 +1,7 @@
 package network.azusake.halo.compat.emf.mixin;
 
 import network.azusake.halo.compat.emf.EmfHeadCapture;
-import network.azusake.halo.compat.emf.Emf1201Symbols;
+import network.azusake.halo.compat.emf.Emf1211Symbols;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.util.math.MatrixStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -10,13 +10,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Named-namespace hook used by Loom's 1.20.1 development runtime. */
+/** Named-namespace hook used by Loom's 1.21.1 development runtime. */
 @Pseudo
-@Mixin(targets = Emf1201Symbols.MODEL_PART, remap = false)
+@Mixin(targets = Emf1211Symbols.MODEL_PART, remap = false)
 public abstract class EmfModelPartNamedMixin {
 
     @Inject(
-        method = Emf1201Symbols.RENDER_METHOD_NAMED + Emf1201Symbols.RENDER_DESCRIPTOR_NAMED,
+        method = Emf1211Symbols.RENDER_METHOD_NAMED + Emf1211Symbols.RENDER_DESCRIPTOR_NAMED,
         at = @At("HEAD"),
         remap = false,
         cancellable = true,
@@ -27,10 +27,7 @@ public abstract class EmfModelPartNamedMixin {
         VertexConsumer vertices,
         int light,
         int overlay,
-        float red,
-        float green,
-        float blue,
-        float alpha,
+        int color,
         CallbackInfo ci
     ) {
         EmfHeadCapture.capture(matrices, (net.minecraft.client.model.ModelPart) (Object) this);

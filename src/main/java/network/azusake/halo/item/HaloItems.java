@@ -14,7 +14,7 @@ public final class HaloItems {
 
     public static final Item HALO_SCEPTER = Registry.register(
         Registries.ITEM,
-        new Identifier(HaloMod.MOD_ID, "halo_scepter"),
+        Identifier.of(HaloMod.MOD_ID, "halo_scepter"),
         new HaloScepterItem(new Item.Settings().maxCount(1).rarity(Rarity.RARE))
     );
 

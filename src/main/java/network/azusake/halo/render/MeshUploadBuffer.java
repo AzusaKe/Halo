@@ -1,17 +1,20 @@
 package network.azusake.halo.render;
 
 import net.minecraft.client.render.BufferBuilder;
-import network.azusake.halo.mixin.BufferBuilderStorageAccessor;
-import org.lwjgl.system.MemoryUtil;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.util.BufferAllocator;
 
-/** BufferBuilder's native malloc has no cleaner; upload staging must have an explicit owner. */
-final class MeshUploadBuffer extends BufferBuilder implements AutoCloseable {
-    private boolean closed;
-    MeshUploadBuffer(int capacity) { super(capacity); }
-    @Override public void close() {
-        if (closed) return;
-        closed = true;
-        // Match GlAllocationUtils, including the latest allocation after builder growth.
-        MemoryUtil.getAllocator(false).free(MemoryUtil.memAddress0(((BufferBuilderStorageAccessor)(Object)this).halo$storage()));
+/** Owns the 1.21 BufferAllocator used for one immutable GPU upload. */
+final class MeshUploadBuffer implements AutoCloseable {
+    private final BufferAllocator allocator;
+
+    MeshUploadBuffer(int capacity) {
+        allocator = new BufferAllocator(capacity);
     }
+
+    BufferBuilder begin(VertexFormat.DrawMode mode, VertexFormat format) {
+        return new BufferBuilder(allocator, mode, format);
+    }
+
+    @Override public void close() { allocator.close(); }
 }

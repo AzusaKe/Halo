@@ -18,15 +18,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(targets = YsmV265Symbols.GEO_RENDERER, remap = false)
 public interface YsmGeoRendererNamedMixin {
 
-    @Inject(method = YsmV265Symbols.RENDER_METHOD + YsmV265Symbols.PREPARE_DESCRIPTOR_NAMED,
-        at = @At("RETURN"), remap = false, require = 0)
-    private void halo$capturePreparedPreview(@Coerce Object animatedModel, @Coerce Object animatable,
-        float tickDelta, MatrixStack matrices, VertexConsumerProvider providers, VertexConsumer vertices,
-        int light, int overlay, float red, float green, float blue, float alpha, CallbackInfo ci) {
-        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering())
-            YsmHeadCapture.capture(animatedModel, matrices);
-    }
-
     @Inject(
         method = YsmV265Symbols.RENDER_METHOD + YsmV265Symbols.RENDER_DESCRIPTOR_NAMED,
         at = @At("HEAD"),

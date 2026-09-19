@@ -1,7 +1,7 @@
 package network.azusake.halo.compat.emf.mixin;
 
 import network.azusake.halo.compat.emf.EmfHeadCapture;
-import network.azusake.halo.compat.emf.Emf1201Symbols;
+import network.azusake.halo.compat.emf.Emf1211Symbols;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.util.math.MatrixStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -10,14 +10,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Production/intermediary hook for the EMF 1.20.1 ABI family. */
+/** Production/intermediary hook for the EMF 1.21.1 ABI family. */
 @Pseudo
-@Mixin(targets = Emf1201Symbols.MODEL_PART, remap = false)
+@Mixin(targets = Emf1211Symbols.MODEL_PART, remap = false)
 public abstract class EmfModelPartIntermediaryMixin {
 
     @Inject(
-        method = Emf1201Symbols.RENDER_METHOD_INTERMEDIARY
-            + Emf1201Symbols.RENDER_DESCRIPTOR_INTERMEDIARY,
+        method = Emf1211Symbols.RENDER_METHOD_INTERMEDIARY
+            + Emf1211Symbols.RENDER_DESCRIPTOR_INTERMEDIARY,
         at = @At("HEAD"),
         remap = false,
         cancellable = true,
@@ -28,10 +28,7 @@ public abstract class EmfModelPartIntermediaryMixin {
         VertexConsumer vertices,
         int light,
         int overlay,
-        float red,
-        float green,
-        float blue,
-        float alpha,
+        int color,
         CallbackInfo ci
     ) {
         EmfHeadCapture.capture(matrices, (net.minecraft.client.model.ModelPart) (Object) this);

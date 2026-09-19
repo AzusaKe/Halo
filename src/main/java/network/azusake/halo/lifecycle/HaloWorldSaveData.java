@@ -3,9 +3,11 @@ package network.azusake.halo.lifecycle;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloInstance;
 import network.azusake.halo.manager.HaloManager;
+import net.minecraft.datafixer.DataFixTypes;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.world.ServerWorld;
 import network.azusake.halo.core.Identifier;
 import net.minecraft.world.PersistentState;
@@ -40,12 +42,18 @@ public class HaloWorldSaveData extends PersistentState {
     /** Halo assignments persisted to / loaded from world NBT. */
     private final List<HaloEntry> entries = new ArrayList<>();
 
+    public static final PersistentState.Type<HaloWorldSaveData> TYPE = new PersistentState.Type<>(
+        HaloWorldSaveData::new,
+        HaloWorldSaveData::fromNbt,
+        DataFixTypes.SAVED_DATA_MAP_DATA
+    );
+
     // ------------------------------------------------------------------
     // PersistentState contract
     // ------------------------------------------------------------------
 
     @Override
-    public NbtCompound writeNbt(NbtCompound nbt) {
+    public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         // Serialise the stored entries directly.  Deliberately NOT synced from
         // HaloManager's activeHalos — that map is transient (cleared on death)
         // and must not overwrite the durable ownership record.
@@ -62,10 +70,15 @@ public class HaloWorldSaveData extends PersistentState {
         return nbt;
     }
 
+    /** Test/tooling entry point; Halo's persisted fields do not depend on registries. */
+    public NbtCompound writeNbt(NbtCompound nbt) {
+        return writeNbt(nbt, null);
+    }
+
     /**
      * Factory: reconstruct from saved NBT.
      */
-    public static HaloWorldSaveData fromNbt(NbtCompound nbt) {
+    public static HaloWorldSaveData fromNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         HaloWorldSaveData data = new HaloWorldSaveData();
 
         if (!nbt.contains(HALOS_KEY)) {
@@ -89,6 +102,11 @@ public class HaloWorldSaveData extends PersistentState {
         return data;
     }
 
+    /** Test/tooling entry point; Halo's persisted fields do not depend on registries. */
+    public static HaloWorldSaveData fromNbt(NbtCompound nbt) {
+        return fromNbt(nbt, null);
+    }
+
     // ------------------------------------------------------------------
     // Access
     // ------------------------------------------------------------------
@@ -100,11 +118,7 @@ public class HaloWorldSaveData extends PersistentState {
      * @return the persistent state instance, never {@code null}
      */
     public static HaloWorldSaveData get(ServerWorld world) {
-        return world.getPersistentStateManager().getOrCreate(
-            HaloWorldSaveData::fromNbt,
-            HaloWorldSaveData::new,
-            NAME
-        );
+        return world.getPersistentStateManager().getOrCreate(TYPE, NAME);
     }
 
     // ------------------------------------------------------------------

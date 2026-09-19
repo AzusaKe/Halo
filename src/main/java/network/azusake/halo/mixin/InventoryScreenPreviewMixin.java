@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.entity.LivingEntity;
 import network.azusake.halo.render.PlayerPreviewRenderer;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -26,10 +27,11 @@ public abstract class InventoryScreenPreviewMixin {
         PlayerPreviewRenderer.resetAutomaticMotion();
     }
 
-    @Redirect(method = "drawEntity(Lnet/minecraft/client/gui/DrawContext;IIILorg/joml/Quaternionf;Lorg/joml/Quaternionf;Lnet/minecraft/entity/LivingEntity;)V",
+    @Redirect(method = "drawEntity(Lnet/minecraft/client/gui/DrawContext;FFFLorg/joml/Vector3f;Lorg/joml/Quaternionf;Lorg/joml/Quaternionf;Lnet/minecraft/entity/LivingEntity;)V",
         at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;runAsFancy(Ljava/lang/Runnable;)V"))
-    private static void halo$renderPreview(Runnable render, DrawContext context, int x, int y, int size,
-                                           Quaternionf rotation, Quaternionf cameraRotation, LivingEntity entity) {
+    private static void halo$renderPreview(Runnable render, DrawContext context, float x, float y, float size,
+                                           Vector3f translation, Quaternionf rotation,
+                                           Quaternionf cameraRotation, LivingEntity entity) {
         PlayerPreviewRenderer.renderPlayer(context, entity, java.util.List.of(x, y, size), () -> RenderSystem.runAsFancy(render));
     }
 }

@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 1.20.1 Fabric**，当前源码版本为 **2.4.0+adapter.1**，使用 HaloCore **2.4.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 1.21.1 Fabric**，当前源码版本为 **2.4.0+adapter.1**，使用 HaloCore **2.4.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [1.21.1 迁移记录](docs/1.21.1-fabric-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
@@ -8,7 +8,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 原版玩家预览现在会显示已佩戴光环，包括生存及创造物品栏。预览使用真实头部锚点，共享世界光环的三种图元和视觉动画。客户端配置 `playerPreviewHaloEnabled` 与 `playerPreviewHaloPhysicsEnabled` 均默认 `true`，每个预览独立模拟世界同款物理；将后者设为 `false` 可改为无阻尼的刚性随头。配置修改后重启生效。接入方法见[预览 API](docs/zh/API.md#preview-host-integration)，范围与实测记录见[玩家预览说明](docs/player-preview.md)。
 
-内置兼容包也支持 YSM 2.6.5 和 EMF 3.1.1+ 接管后的玩家预览头部，版本与 ABI 门槛沿用世界渲染。EMF 需要资源包实际替换玩家模型；仅安装 EMF 不能验证该兼容路径。
+内置兼容包也支持 YSM 2.6.5 和 EMF 3.3.9+ 接管后的玩家预览头部，版本与 ABI 门槛沿用世界渲染。EMF 需要资源包实际替换玩家模型；仅安装 EMF 不能验证该兼容路径。
 
 人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
 
@@ -18,7 +18,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 </h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)
 ![模组加载器](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 中文 | [English](README.md)
@@ -49,7 +49,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-当前源码分支面向 Minecraft 1.20.1 Fabric；其他游戏版本与加载器通过各自适配分支维护。
+当前源码分支面向 Minecraft 1.21.1 Fabric；其他游戏版本与加载器通过各自适配分支维护。
 
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
@@ -65,7 +65,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 - [x] **持久化**：通过实体 NBT 和世界持久状态，光环在世界重载和服务器重启后依然保留。实体加载时自动恢复。
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
 - [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
-- [x] **LabPBR 兼容**：在世界渲染中，`billboard`、`ring` 和 OBJ `mesh` 三种图元均可使用由 Iris 收集的 LabPBR 附加贴图。将图元所在组设为 `glowing: false`，再在基础贴图同目录放置同名的 `_n.png` 和／或 `_s.png`。所用光影仍须在实体渲染阶段支持 LabPBR；自发光与视差／POM 等效果是否生效取决于光影实现。`_s.png` 中编码的 LabPBR 自发光属于静态材质属性：组的 `glowing` 为 `false` 时，`animation.glow` 不会生效。如需在保留非发光表面 PBR 效果的同时动态控制发光，请将 PBR 基础层放入 `glowing: false` 组，将仅包含发光部分的覆盖层放入独立的 `glowing: true` 组；重叠图元必要时应略微错开，以避免深度冲突。
+- [ ] **LabPBR 兼容——1.21.1 视觉签收待完成**：1.21.1 世界路径已把未遮罩、非全亮的 `billboard`、`ring` 与 OBJ `mesh` 提交到原生实体 RenderLayer，使 Iris 可收集同名 `_n.png`／`_s.png`。Iris 1.8.8 + Complementary Reimagined r5.9.3 已成功建立全部 Halo 材质变体，并通过重载及绘制烟测；固定诊断资源完成截图对照前，本分支不标记为完整兼容。POM 仍取决于光影包，不能由实体材质通路自动推出。
 - [x] **动画支持**：光环定义支持位置、旋转、缩放、透明度和发光动画通道，以及彼此独立的启动与关闭过渡时间线。
 - [x] **运行时调试配置**：`/halo config` 提供阻尼、距离限制、角动量和统一缩放的会话级覆写，用于个人微调与调试。本地模式作用于当前客户端，整合单人游戏通过进程内桥接作用于配对客户端；专用服务器不会持久化或向玩家分发这些值。位置和旋转偏移等永久摆放修改应写入具体光环定义。
 - [x] **资源包友好**：负责渲染的客户端从资源包 `assets/<namespace>/halo_definitions/` 读取定义及视觉素材。服务端数据包可在 `data/<namespace>/halo_definitions/` 注册定义 JSON，供服务端列出和选择，但 Halo 不会下发这些 JSON、纹理或模型；每个渲染客户端仍须安装匹配的资源包。修改任一来源后运行 `/reload`。
@@ -90,7 +90,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ## 安装
 
-1. 为 Minecraft 1.20.1 安装 [Fabric Loader](https://fabricmc.net/use/)。
+1. 为 Minecraft 1.21.1 安装 [Fabric Loader](https://fabricmc.net/use/)。
 2. 下载对应版本的 [Fabric API](https://modrinth.com/mod/fabric-api)。
 3. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 页面下载最新的 **Halo** 模组 JAR 文件。
 4. 将两个 JAR 文件放入 Minecraft 安装目录的 `mods` 文件夹中。
@@ -98,12 +98,9 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ### NeoForge / Forge
 
-本模组原生面向 Fabric，不提供原生 Forge 或 NeoForge 适配器。Fabric JAR 可通过 [Sinytra Connector](https://modrinth.com/mod/connector) + [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api) 在兼容的 **Forge / NeoForge 1.20.1** 环境运行。2.4.0 流程已实际检查 Forge 专用服与 Connector 客户端；客户端渲染及光影表现仍取决于具体 Connector、Iris 兼容栈与光影包版本。
+本模组原生面向 Fabric，不提供原生 Forge 或 NeoForge 适配器。历史 1.20.1 版本曾通过 Sinytra Connector 验证，但该结论不能自动继承到本 1.21.1 适配器。Forge／NeoForge 1.21.1 尚未验证，不属于本分支的兼容承诺。
 
-1. 安装 NeoForge 或 Forge（Minecraft 1.20.1）
-2. 安装 [Sinytra Connector](https://modrinth.com/mod/connector)
-3. 安装 [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
-4. 将 Halo 模组 JAR 放入 `mods` 文件夹
+受支持部署请使用原生 Fabric 1.21.1 版本；本分支完成 Connector 测试后再补充相关步骤。
 
 <a id="使用方法"></a>
 
@@ -163,7 +160,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ### YSM 兼容
 
-Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的。本分支仅支持 **YSM `2.6.5-fabric+mc1.20.1`**。未安装 YSM、关闭功能或安装其他版本时，Halo 会安全回退到标准实体锚点。只有负责渲染 YSM 模型的客户端需要安装 YSM；Halo 的服务端同步不要求安装 YSM。
+Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的。本分支仅支持 **YSM `2.6.5-fabric+mc1.21.1`**。未安装 YSM、关闭功能或安装其他版本时，Halo 会安全回退到标准实体锚点。只有负责渲染 YSM 模型的客户端需要安装 YSM；Halo 的服务端同步不要求安装 YSM。
 
 开启 YSM 头部 locator 锚点的方法：
 
@@ -313,7 +310,7 @@ Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的�
 
 ### 前置条件
 
-- **JDK 17** — Minecraft 1.20.1 所需
+- **JDK 21** — Minecraft 1.21.1 所需（HaloCore 仍保持 Java 17 兼容）
 - 互联网连接（Gradle 从 Maven 仓库下载依赖）
 
 <a id="构建"></a>
@@ -321,12 +318,12 @@ Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的�
 ### 构建
 
 ```bash
-git clone --branch 1.20.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 1.21.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-fabric-2.4.0+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.21.1-fabric-2.4.0+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
@@ -349,12 +346,11 @@ cd Halo
 ```
 
 客户端使用 `run/`，第二客户端使用 `run2/`；本分支的专用服务端独立使用
-`runServer/1.20.1-fabric/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
+`runServer/1.21.1-fabric/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
 `eula.txt`，并在 `server.properties` 中设置端口等参数。开发账号联机需要测试服务器允许离线账号；
 本机测试可将 `server-ip` 设为 `127.0.0.1`。控制台输入 `stop` 可正常保存并关闭服务器。
 
-不要把其他游戏版本的世界直接放入此目录。尤其是 26.2 存档不能交给 1.20.1 加载，
-`--safeMode` 也不负责降级存档。服务端日志出现 `Done (...)!` 才表示启动完成；
+不要把其他游戏版本的世界直接放入此目录；`--safeMode` 不负责降级存档。服务端日志出现 `Done (...)!` 才表示启动完成；
 `BUILD SUCCESSFUL` 仅表示 Gradle 启动任务正常结束。
 
 <a id="项目结构"></a>
@@ -382,7 +378,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 欢迎对 Halo 进行贡献！如果你有想法、建议或想报告 Bug，请在 [GitHub 仓库](https://github.com/AzusaKe/Halo) 提交 Issue。如果你想贡献代码，请 Fork 仓库并提交 Pull Request。
 
-- **开发环境**：Minecraft 1.20.1 + Fabric Loader 0.15+
+- **开发环境**：Minecraft 1.21.1 + Fabric Loader 0.16.14+ + JDK 21
 - **IDE**：推荐 IntelliJ IDEA（配合 Minecraft Development 插件）或 VS Code
 
 <a id="许可证"></a>

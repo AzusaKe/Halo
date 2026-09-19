@@ -19,15 +19,15 @@ public final class EmfAbiDetector {
 
     public static Result inspect(boolean namedRuntime) {
         String methodName = namedRuntime
-            ? Emf1201Symbols.RENDER_METHOD_NAMED
-            : Emf1201Symbols.RENDER_METHOD_INTERMEDIARY;
+            ? Emf1211Symbols.RENDER_METHOD_NAMED
+            : Emf1211Symbols.RENDER_METHOD_INTERMEDIARY;
         String methodDescriptor = namedRuntime
-            ? Emf1201Symbols.RENDER_DESCRIPTOR_NAMED
-            : Emf1201Symbols.RENDER_DESCRIPTOR_INTERMEDIARY;
+            ? Emf1211Symbols.RENDER_DESCRIPTOR_NAMED
+            : Emf1211Symbols.RENDER_DESCRIPTOR_INTERMEDIARY;
 
-        Optional<ClassNode> modelPart = readClass(Emf1201Symbols.MODEL_PART);
+        Optional<ClassNode> modelPart = readClass(Emf1211Symbols.MODEL_PART);
         if (modelPart.isEmpty()) {
-            return Result.incompatible("目标类不存在: " + Emf1201Symbols.MODEL_PART);
+            return Result.incompatible("目标类不存在: " + Emf1211Symbols.MODEL_PART);
         }
         boolean hasRenderMethod = modelPart.get().methods.stream()
             .anyMatch(method -> methodName.equals(method.name)
@@ -37,9 +37,9 @@ public final class EmfAbiDetector {
                 "目标渲染方法不存在: " + methodName + methodDescriptor);
         }
 
-        Optional<ClassNode> vanillaPart = readClass(Emf1201Symbols.VANILLA_MODEL_PART);
+        Optional<ClassNode> vanillaPart = readClass(Emf1211Symbols.VANILLA_MODEL_PART);
         if (vanillaPart.isEmpty()) {
-            return Result.incompatible("目标类不存在: " + Emf1201Symbols.VANILLA_MODEL_PART);
+            return Result.incompatible("目标类不存在: " + Emf1211Symbols.VANILLA_MODEL_PART);
         }
         boolean hasNameField = vanillaPart.get().fields.stream()
             .anyMatch(field -> "name".equals(field.name) && STRING_DESCRIPTOR.equals(field.desc));

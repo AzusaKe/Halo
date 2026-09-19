@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ModelPartHeadCaptureMixin {
 
     @Inject(
-        method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumer;IIFFFF)V",
+        method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumer;III)V",
         at = @At("HEAD")
     )
     private void halo$captureHeadTransform(
@@ -25,10 +25,7 @@ public abstract class ModelPartHeadCaptureMixin {
         VertexConsumer vertices,
         int light,
         int overlay,
-        float red,
-        float green,
-        float blue,
-        float alpha,
+        int color,
         CallbackInfo ci
     ) {
         RenderHeadCapture.capture(matrices, (ModelPart) (Object) this);

@@ -4,12 +4,12 @@
 </h1>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC Version](https://img.shields.io/badge/Minecraft-1.20.1-green.svg)
+![MC Version](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)
 ![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**. The current source version is **2.4.0+adapter.1**, using HaloCore **2.4.0**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.21.1 Fabric**. The current source version is **2.4.0+adapter.1**, using HaloCore **2.4.0**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See the [1.21.1 migration record](docs/1.21.1-fabric-migration.md), [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 2.4.0 adds the loader-neutral server ownership source API. Accessory and integration mods can submit halo candidates by entity UUID; Halo selects one winner by source priority, while the built-in commands and Halo Scepter continue to edit only the persisted `halo:world_data` source. Priorities are stored in `halo_source_priorities.json` and can be changed without restarting through `/halo priority list|set|reload`. Integrations must also provide the referenced definitions and visual assets to rendering clients. See the [API guide](docs/en/API.md#6-server-ownership-source-api).
 
@@ -25,7 +25,7 @@ interface. Providers only capture heads; Halo owns preview physics and drawing. 
 Vanilla player previews now display the equipped halo, including survival and creative inventories.
 The preview uses the actual head as its physics anchor and shares all three primitives and visual animation
 with the world halo. `playerPreviewHaloEnabled` defaults to `true` in the client configuration (restart
-after editing). Built-in compatibility also captures YSM 2.6.5 and EMF 3.1.1+ player preview heads,
+after editing). Built-in compatibility also captures YSM 2.6.5 and EMF 3.3.9+ player preview heads,
 using the same version/ABI gates as world rendering. EMF requires a resource pack that replaces the
 player model. See the [preview API](docs/en/API.md#preview-host-integration) and [implementation/verification record](docs/player-preview.md).
 `playerPreviewHaloPhysicsEnabled` defaults to `true`, using world-style physics with independent state
@@ -59,7 +59,7 @@ For contributors and coding agents, the [development guide](DEVELOPMENT.md) cove
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader versions use their own adapter branches.
+This source branch builds for Minecraft 1.21.1 with Fabric. Other game/loader versions use their own adapter branches.
 
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
@@ -75,7 +75,7 @@ This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader ve
 - [x] **Persistent**: Halos survive world reloads and server restarts through entity NBT and world persistent state. Automatically restored on entity load.
 - [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
 - [x] **Glow Effects**: The `animation.glow` channel drives each primitive's own self-illumination brightness (fullbright); set `glowing: false` on a group to make its primitives follow ambient light instead.
-- [x] **LabPBR Compatibility**: In world rendering, `billboard`, `ring`, and OBJ `mesh` primitives can use Iris-collected LabPBR companion textures. Set the containing group to `glowing: false`, then place same-basename `_n.png` and/or `_s.png` maps beside the base texture. The active shader pack must support LabPBR materials in its entity pass; effects such as emission and parallax/POM therefore remain shader-dependent. LabPBR emission encoded in `_s.png` is a static material property: `animation.glow` does not affect a group while `glowing` is `false`. To animate emission while retaining PBR on the non-emissive surface, place the PBR base in a `glowing: false` group and an emissive-only overlay in a separate `glowing: true` group; slightly offset overlapping geometry when necessary to avoid z-fighting.
+- [ ] **LabPBR Compatibility — visual sign-off pending for 1.21.1**: The 1.21.1 world path submits unmasked, non-glowing `billboard`, `ring`, and OBJ `mesh` primitives through the native entity RenderLayer so Iris can collect same-basename `_n.png` and `_s.png` maps. Iris 1.8.8 with Complementary Reimagined r5.9.3 successfully built all Halo material variants and survived reload/draw smoke tests, but this branch is not marked fully compatible until the fixed diagnostic pack receives visual comparison. POM remains shader-dependent and is not implied by the entity material path.
 - [x] **Animation Support**: Halo definitions support position, rotation, scale, alpha, and glow animation channels, plus independent startup and shutdown transition timelines.
 - [x] **Runtime Debug Configuration**: `/halo config` provides session-scoped overrides for damping, distance limits, angular momentum, and uniform scale. It is intended for personal tuning and debugging: local mode applies it to the current client, integrated singleplayer bridges it to the paired client, and dedicated servers do not persist or distribute these values. Permanent placement changes, including position and rotation offsets, belong in each halo definition.
 - [x] **Resource Pack Friendly**: Rendering clients load definitions and visual assets from `assets/<namespace>/halo_definitions/` in resource packs. A server data pack may register definition JSON under `data/<namespace>/halo_definitions/` for server-side listing and selection, but Halo does not distribute that JSON, textures, or models; every rendering client still needs the matching resource pack. Run `/reload` after changing either source.
@@ -100,7 +100,7 @@ This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader ve
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.20.1.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.21.1.
 2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for your Minecraft version.
 3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
 4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
@@ -108,12 +108,9 @@ This source branch builds for Minecraft 1.20.1 with Fabric. Other game/loader ve
 
 ### NeoForge / Forge
 
-This mod is natively built for Fabric and does not ship a native Forge or NeoForge adapter. The Fabric JAR can run in compatible **Forge / NeoForge 1.20.1** environments through [Sinytra Connector](https://modrinth.com/mod/connector) plus [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api). The 2.4.0 workflow has been exercised with a Forge dedicated server and Connector clients; client rendering and shader behavior still depend on the exact Connector, Iris-compatible stack, and shader-pack versions.
+This mod is natively built for Fabric and does not ship a native Forge or NeoForge adapter. The historical 1.20.1 build was exercised through Sinytra Connector, but that result does not carry over to this 1.21.1 adapter. Forge/NeoForge 1.21.1 is currently unverified and is not part of this branch's compatibility claim.
 
-1. Install NeoForge or Forge for Minecraft 1.20.1
-2. Install [Sinytra Connector](https://modrinth.com/mod/connector)
-3. Install [Forgified Fabric API](https://modrinth.com/mod/forgified-fabric-api)
-4. Place the Halo mod JAR into the `mods` folder
+Use the native Fabric 1.21.1 build for supported deployments; Connector testing is still pending for this branch.
 
 <a id="usage"></a>
 
@@ -173,7 +170,7 @@ Server commands require permission level 2 (operator) by default. `/halo rendere
 
 ### YSM Compatibility
 
-Halo's Yes Steve Model (YSM) integration is optional and version-pinned. This branch supports exactly **YSM `2.6.5-fabric+mc1.20.1`**. If YSM is missing, disabled, or a different version is installed, Halo safely uses its standard entity anchor instead. YSM is only needed on clients that render YSM models; the server does not need YSM for Halo synchronization.
+Halo's Yes Steve Model (YSM) integration is optional and version-pinned. This branch supports exactly **YSM `2.6.5-fabric+mc1.21.1`**. If YSM is missing, disabled, or a different version is installed, Halo safely uses its standard entity anchor instead. YSM is only needed on clients that render YSM models; the server does not need YSM for Halo synchronization.
 
 To enable YSM head-locator anchoring:
 
@@ -323,7 +320,7 @@ Rendering definitions are JSON files stored in `assets/<namespace>/halo_definiti
 
 ### Prerequisites
 
-- **JDK 17** — Required for Minecraft 1.20.1
+- **JDK 21** — Required for Minecraft 1.21.1 (HaloCore remains Java 17 compatible)
 - Internet connection (Gradle downloads dependencies from Maven repositories)
 
 <a id="build"></a>
@@ -331,12 +328,12 @@ Rendering definitions are JSON files stored in `assets/<namespace>/halo_definiti
 ### Build
 
 ```bash
-git clone --branch 1.20.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 1.21.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-1.20.1-fabric-2.4.0+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-1.21.1-fabric-2.4.0+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 
@@ -359,13 +356,12 @@ The compiled JAR is under `build/libs/`; this source version builds `halo-1.20.1
 ```
 
 The client uses `run/`, the second client uses `run2/`, and this branch's dedicated server uses
-`runServer/1.20.1-fabric/` for its own logs, configuration and world. On first launch, follow the
+`runServer/1.21.1-fabric/` for its own logs, configuration and world. On first launch, follow the
 instructions for `eula.txt` in that directory and configure the port in `server.properties`.
 Development usernames require an offline-mode test server; bind `server-ip` to `127.0.0.1` for local
 testing. Enter `stop` in the console to save and shut down normally.
 
-Do not reuse worlds from another game version here. In particular, 1.20.1 cannot load a 26.2 world,
-and `--safeMode` does not downgrade saves. The server's `Done (...)!` log confirms startup;
+Do not reuse worlds from another game version here; `--safeMode` does not downgrade saves. The server's `Done (...)!` log confirms startup;
 `BUILD SUCCESSFUL` only means the Gradle launch task exited normally.
 
 <a id="project-structure"></a>
@@ -393,7 +389,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please submit an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
 
-- **Development Environment**: Minecraft 1.20.1 + Fabric Loader 0.15+
+- **Development Environment**: Minecraft 1.21.1 + Fabric Loader 0.16.14+ + JDK 21
 - **IDE**: Recommended IntelliJ IDEA (with Minecraft Development plugin) or VS Code
 
 <a id="license"></a>

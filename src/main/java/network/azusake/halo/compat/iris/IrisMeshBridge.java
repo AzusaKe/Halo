@@ -10,7 +10,7 @@ import net.minecraft.resource.ResourceFactory;
 import network.azusake.halo.render.HaloRenderer;
 import org.slf4j.LoggerFactory;
 
-/** Isolated 1.20.1 Iris bridge. Iris owns variant programs, framebuffers, samplers and disposal. */
+/** Isolated 1.21.1 Iris bridge. Iris owns variant programs, framebuffers, samplers and disposal. */
 public final class IrisMeshBridge {
     private enum Variant { FLAT, LIT_SOLID, LIT_TRANSLUCENT }
     private record Programs(ShaderProgram flat, ShaderProgram litSolid, ShaderProgram litTranslucent) {}

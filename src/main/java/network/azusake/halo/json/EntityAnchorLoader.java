@@ -138,7 +138,7 @@ public final class EntityAnchorLoader {
     private static class ServerListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public net.minecraft.util.Identifier getFabricId() {
-            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "entity_anchors");
+            return net.minecraft.util.Identifier.of(HaloMod.MOD_ID, "entity_anchors");
         }
 
         @Override
@@ -150,7 +150,7 @@ public final class EntityAnchorLoader {
     private static class ClientListener implements SimpleSynchronousResourceReloadListener {
         @Override
         public net.minecraft.util.Identifier getFabricId() {
-            return new net.minecraft.util.Identifier(HaloMod.MOD_ID, "entity_anchors_client");
+            return net.minecraft.util.Identifier.of(HaloMod.MOD_ID, "entity_anchors_client");
         }
 
         @Override

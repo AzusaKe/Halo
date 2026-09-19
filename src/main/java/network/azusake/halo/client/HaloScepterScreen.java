@@ -67,10 +67,8 @@ public final class HaloScepterScreen extends Screen {
 
         int listTop = panelTop + 70;
         int listBottom = panelBottom - 34;
-        haloList = new HaloListWidget(client, panelWidth - 28, height, listTop, listBottom, ROW_HEIGHT);
-        haloList.setLeftPos(panelLeft + 14);
-        haloList.setRenderBackground(false);
-        haloList.setRenderHorizontalShadows(false);
+        haloList = new HaloListWidget(client, panelWidth - 28, listBottom - listTop, listTop, ROW_HEIGHT);
+        haloList.setX(panelLeft + 14);
         addDrawableChild(haloList);
 
         addDrawableChild(ButtonWidget.builder(
@@ -100,8 +98,6 @@ public final class HaloScepterScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        searchField.tick();
-
         Entity target = client == null || client.world == null
             ? null
             : client.world.getEntityById(targetEntityId);
@@ -122,7 +118,7 @@ public final class HaloScepterScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
+        renderBackground(context, mouseX, mouseY, delta);
         context.fill(panelLeft, panelTop, panelRight, panelBottom, 0xE0101520);
         context.fill(panelLeft, panelTop, panelRight, panelTop + 1, 0xFF4F6A78);
         context.fill(panelLeft, panelBottom - 1, panelRight, panelBottom, 0xFF090C10);
@@ -155,6 +151,11 @@ public final class HaloScepterScreen extends Screen {
     }
 
     @Override
+    protected void applyBlur(float delta) {
+        // Keep the selector crisp instead of blurring the world framebuffer.
+    }
+
+    @Override
     public void close() {
         sendCloseOnce();
         super.close();
@@ -180,8 +181,8 @@ public final class HaloScepterScreen extends Screen {
 
     private final class HaloListWidget extends AlwaysSelectedEntryListWidget<HaloEntry> {
 
-        private HaloListWidget(MinecraftClient client, int width, int height, int top, int bottom, int itemHeight) {
-            super(client, width, height, top, bottom, itemHeight);
+        private HaloListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
+            super(client, width, height, top, itemHeight);
         }
 
         private void setIdentifiers(List<Identifier> identifiers) {
@@ -196,13 +197,16 @@ public final class HaloScepterScreen extends Screen {
         @Override
         public int getRowWidth() {
             // Keep the 3px gap and the whole 6px scrollbar inside the list's mouse hitbox.
-            return width - 22;
+            return width - 14;
         }
 
         @Override
-        protected int getScrollbarPositionX() {
+        protected int getScrollbarX() {
             return getRowRight() + 3;
         }
+
+        @Override protected void drawMenuListBackground(DrawContext context) {}
+        @Override protected void drawHeaderAndFooterSeparators(DrawContext context) {}
     }
 
     private final class HaloEntry extends AlwaysSelectedEntryListWidget.Entry<HaloEntry> {

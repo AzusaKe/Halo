@@ -25,6 +25,14 @@ class HaloRendererLightTest {
         assertFalse(HaloRenderer.submitBeforeTranslucents(draw(true, false), false));
     }
 
+    @Test void labPbrEntityLayerIsWorldOnlyAndNeverStealsMaskedOrGlowingMaterials() {
+        assertTrue(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, true, true, false));
+        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, true, true, true));
+        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, true, false, false));
+        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, false, true, false));
+        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.GUI, true, true, false));
+    }
+
     private static MeshDraw draw(boolean directionalLighting, boolean blend) {
         return new MeshDraw(new Identifier("test:model"), new Identifier("test:texture"), new float[]{
             1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1

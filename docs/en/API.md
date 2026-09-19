@@ -2,7 +2,7 @@
 
 ## Start here: integrate API v2
 
-This guide targets **Halo 2.4.0, Minecraft 1.20.1 Fabric, Java 17**. Other integrated hosts can reuse the neutral API; older/frozen adapters do not automatically provide previews. API v2 supplies **head anchors and server ownership sources**, not dynamic items or arbitrary geometry. First use `/halo list` and `/halo show @s <definition-id>` to equip a Halo-owned halo.
+This guide targets **Halo 2.4.0, Minecraft 1.21.1 Fabric, Java 21**; the loader-neutral HaloCore API remains Java 17 compatible. Other integrated hosts can reuse the neutral API; older/frozen adapters do not automatically provide previews. API v2 supplies **head anchors and server ownership sources**, not dynamic items or arbitrary geometry. First use `/halo list` and `/halo show @s <definition-id>` to equip a Halo-owned halo.
 
 Start with [1. Dependencies](#dependency-setup). For accessories, classes or other ownership state, continue directly to [6. Server ownership sources](#server-ownership-source-api). For model anchors, continue through [2. Model provider](#provider-routing) → [3. Preview panel](#preview-host-integration) → [4. API reference](#api-v2-reference) → [5. Verification](#integration-checks). [Other interfaces](#other-interfaces) follow the API v2 guide.
 

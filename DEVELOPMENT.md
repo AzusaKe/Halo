@@ -2,11 +2,11 @@
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
-当前开发主线是 Halo 的 `1.20.1-fabric`，core 的集成分支是 `main`。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。主线不一定名为 `main`；开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
+本分支是 Halo 的 `1.21.1-fabric` 适配器，core 的集成分支是 `main`；功能基准来自 `1.20.1-fabric`，平台代码则按 1.21.1 API 独立维护。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
 
 **常规流程：先定义功能的数据与规则 → 在 core 实现和验证 → 在主线实现适配器并联调 → 发布确定的 core 提交 → 提交主线的适配器及 core 指针 → 按需更新其他版本的指针和适配器 → 分别验收、推送和发布。** 不要求所有游戏版本同时跟进。
 
-文中的 `entity-opacity`（根据实体状态调整光环透明度）和 `1.21.1-fabric` 是完整流程的示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。编写本文时仅存在 `1.21.1-fabric-flash`，不存在已迁移的新架构 `1.21.1-fabric` 分支。
+文中的 `entity-opacity`（根据实体状态调整光环透明度）仍是完整流程示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。本适配器的迁移边界和验证结果见 [1.21.1 Fabric 迁移记录](docs/1.21.1-fabric-migration.md)。
 
 ## 阅读路线
 
@@ -44,7 +44,7 @@ git -C core rev-parse HEAD
 首次检出：
 
 ```powershell
-git clone --branch 1.20.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 1.21.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 Set-Location Halo
 ```
 
@@ -62,10 +62,10 @@ Linux/macOS 将示例中的 `Set-Location` 换成 `cd`、`.\gradlew.bat` 换成 
 
 ```powershell
 git fetch origin
-git switch 1.20.1-fabric
-git pull --ff-only origin 1.20.1-fabric
+git switch 1.21.1-fabric
+git pull --ff-only origin 1.21.1-fabric
 git submodule update --init --recursive
-git switch -c codex/entity-opacity-1.20.1
+git switch -c codex/entity-opacity-1.21.1
 
 git -C core fetch origin --tags
 git -C core switch -c codex/entity-opacity
@@ -121,7 +121,7 @@ flowchart LR
 
 ### 3.1 先验证核心行为，再做联合构建
 
-主线使用 Java 17、Gradle wrapper 8.8 和固定 Loom 1.5.8。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
+1.21.1 适配器使用 Java 21、Gradle wrapper 8.13 和固定 Loom 1.10.5；core 源码仍以 Java 17 为契约基线。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
 
 ```powershell
 # 快速重放与功能相关的 core 用例；测试类按实际改动选择。
@@ -144,7 +144,7 @@ flowchart LR
 | --- | --- |
 | `.\gradlew.bat runClient --console=plain` | `run/`，Dev1 |
 | `.\gradlew.bat runClient2 --console=plain` | `run2/`，Dev2 |
-| `.\gradlew.bat runServer --console=plain` | `runServer/1.20.1-fabric/` |
+| `.\gradlew.bat runServer --console=plain` | `runServer/1.21.1-fabric/` |
 | `.\gradlew.bat runSmokeServer --console=plain` | `.local/smoke-server/` |
 | `.\gradlew.bat runSmokeClient --console=plain` | `.local/smoke-client/` |
 | `.\gradlew.bat runSmokeClient2 --console=plain` | `.local/smoke-client2/` |
@@ -235,7 +235,7 @@ git -C core push --atomic origin main refs/tags/v1.4.0
 
 `--ff-only` 失败表示基线发生了分叉。回到工作分支集成变化、解决冲突并重做受影响的验证，再继续；不要强推或覆盖已有发布。PR 的 squash/rebase 合并可能改变最终 SHA，**Halo 必须锁定实际合并后的 core 提交**，不能继续使用合并前的临时 SHA。
 
-如需在完成前推送协作分支，先执行 `git -C core push -u origin codex/entity-opacity`。随后在 Halo 提交适配改动和该 core 指针，再执行 `git push -u origin codex/entity-opacity-1.20.1`。Halo 工作分支只有在它引用的 core 提交已可从远端取得后再推送，避免其他开发者或 CI 无法检出。协作分支推送不等于给 core 版本打正式标签。
+如需在完成前推送协作分支，先执行 `git -C core push -u origin codex/entity-opacity`。随后在 Halo 提交适配改动和该 core 指针，再执行 `git push -u origin codex/entity-opacity-1.21.1`。Halo 工作分支只有在它引用的 core 提交已可从远端取得后再推送，避免其他开发者或 CI 无法检出。协作分支推送不等于给 core 版本打正式标签。
 
 ### 4.3 锁定已发布 core，提交并验证 Halo
 
@@ -250,11 +250,11 @@ git -C core rev-parse HEAD
 git add -- core src gradle.properties CHANGELOG.md docs README.md README_ZH.md
 git diff --cached --submodule=short
 git diff --cached --check
-git commit -m 'feat: adapt entity opacity on Minecraft 1.20.1 Fabric'
+git commit -m 'feat: adapt entity opacity on Minecraft 1.21.1 Fabric'
 
-git switch 1.20.1-fabric
-git pull --ff-only origin 1.20.1-fabric
-git merge --ff-only codex/entity-opacity-1.20.1
+git switch 1.21.1-fabric
+git pull --ff-only origin 1.21.1-fabric
+git merge --ff-only codex/entity-opacity-1.21.1
 git submodule update --init --recursive
 git status --short
 git -C core status --short
@@ -271,14 +271,14 @@ git -C core status --short
 ### 4.4 推送 Halo 分支，按需要发布版本标签
 
 ```powershell
-git push origin 1.20.1-fabric
+git push origin 1.21.1-fabric
 ```
 
 查看该提交的 CI 结果。需要正式发布成品时，再创建唯一的目标平台标签，例如：
 
 ```powershell
-git tag -a v1.4.0-fabric-1.20.1-adapter.1 -m 'Halo 1.4.0 for Minecraft 1.20.1 Fabric, adapter 1'
-git push origin refs/tags/v1.4.0-fabric-1.20.1-adapter.1
+git tag -a v1.4.0-fabric-1.21.1-adapter.1 -m 'Halo 1.4.0 for Minecraft 1.21.1 Fabric, adapter 1'
+git push origin refs/tags/v1.4.0-fabric-1.21.1-adapter.1
 ```
 
 当前 [Halo CI](.github/workflows/gradle.yml) 会递归检出子模块；主线分支/PR 触发构建，`v*` 标签触发正式构建并自动创建 GitHub Release、上传 JAR。只需要备份源码时推送分支即可；正式标签推送也是发布动作。core 的 CI 独立运行构建，不能替代 Halo 的平台验证。
@@ -287,7 +287,7 @@ git push origin refs/tags/v1.4.0-fabric-1.20.1-adapter.1
 
 ```powershell
 git -C core ls-remote origin refs/heads/main refs/tags/v1.4.0 'refs/tags/v1.4.0^{}'
-git ls-remote origin refs/heads/1.20.1-fabric refs/tags/v1.4.0-fabric-1.20.1-adapter.1 'refs/tags/v1.4.0-fabric-1.20.1-adapter.1^{}'
+git ls-remote origin refs/heads/1.21.1-fabric refs/tags/v1.4.0-fabric-1.21.1-adapter.1 'refs/tags/v1.4.0-fabric-1.21.1-adapter.1^{}'
 git status --short --branch
 git -C core status --short --branch
 ```
@@ -322,7 +322,7 @@ git diff --submodule=short -- core
 1. 补齐新输入、回调和输出的适配：实体/相机事实、生命周期、资源/存储、通信/线程、光照与 GPU 提交。
 2. 迁入新功能需要的内置 JSON、纹理、语言、配方及适配测试。这些内容保存在 Halo，更新 core 指针不会自动带来它们。
 3. 适配目标版本的 Minecraft、加载器、mappings、Mixin 和第三方 ABI。已有 1.21.1 旧分支使用 Java 21；不要把主线的 Java 17、Loom 1.5.8 和渲染 API 原样当作所有目标版本的配置。core 仍编译为 Java 17。
-4. 核对运行目录、版本/JAR 命名及 CI。当前主线 workflow 的分支过滤只包含 `1.20.1-fabric`，目标分支要显式配置自己的 push/PR 目标和 JDK，同时保留递归子模块检出、core 检查、合包与提交来源验证。
+4. 核对运行目录、版本/JAR 命名及 CI。各适配分支的 workflow 必须显式配置自己的 push/PR 目标和 JDK，同时保留递归子模块检出、core 检查、合包与提交来源验证。
 5. 在目标环境执行独立 core 检查、联合构建、第 3 节中受影响的游戏验证及兼容验证；若该平台继续声明 LabPBR 兼容，还必须重新执行 [LabPBR 兼容门禁](#labpbr-gate)，再提交该分支的指针和适配改动。
 
 **不要整条合并 `1.20.1-fabric` 来获得功能，也不要把 core 的业务实现复制回目标 Halo 源码。** 可按内容选取确实通用的资源/文档/测试提交或补丁，平台相关代码必须针对目标 API 检查。编译错误消失仅表示接口已接通，还需验证坐标、时序、生命周期与视觉效果。

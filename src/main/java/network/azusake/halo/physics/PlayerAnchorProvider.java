@@ -92,7 +92,7 @@ public final class PlayerAnchorProvider {
     /**
      * Head roll for this entity this frame.  Vanilla entity heads never roll,
      * but the local player's head follows the camera, so its roll is inherited
-     * from the actual camera rotation.  The 1.20.1 {@link Camera} exposes no
+     * from the actual camera rotation.  The 1.21.1 {@link Camera} exposes no
      * {@code getRoll()}; a roll (when present, e.g. from a camera mod) is folded
      * into {@link Camera#getRotation()}, so it is recovered by stripping the
      * camera's own yaw/pitch component.  Other entities (including remote
@@ -140,7 +140,7 @@ public final class PlayerAnchorProvider {
      *   <li>{@code swimming}  — in water (swimming upwards)</li>
      *   <li>{@code crawling}  — SWIMMING pose but not in water (stuck under block)</li>
      *   <li>{@code sneaking}  — crouching on the ground (shift key). Airborne
-     *       sneaking keeps {@code standing}: on 1.20.1 the pose may already be
+     *       sneaking keeps {@code standing}: the pose may already be
      *       {@code CROUCHING} midair, so the on-ground check is the actual gate.</li>
      *   <li>{@code standing}  — default</li>
      * </ol>

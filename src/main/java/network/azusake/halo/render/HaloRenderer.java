@@ -178,14 +178,14 @@ public final class HaloRenderer {
         Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
         var sorting = RenderSystem.getVertexSorting();
         var modelView = RenderSystem.getModelViewStack();
-        modelView.push();
+        modelView.pushMatrix();
         try {
-            modelView.peek().getPositionMatrix().set(pending.modelView());
+            modelView.set(pending.modelView());
             RenderSystem.applyModelViewMatrix();
             RenderSystem.setProjectionMatrix(pending.projection(), pending.sorting());
             submitMeshes(MinecraftClient.getInstance(), pending);
         } finally {
-            modelView.pop();
+            modelView.popMatrix();
             RenderSystem.applyModelViewMatrix();
             RenderSystem.setProjectionMatrix(projection, sorting);
         }
