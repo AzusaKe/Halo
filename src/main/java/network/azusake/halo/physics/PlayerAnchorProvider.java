@@ -107,7 +107,7 @@ public final class PlayerAnchorProvider {
         if (camera == null) {
             return 0f;
         }
-        float roll = HeadFrameMath.recoverRollDeg(camera.getYaw(), camera.getPitch(), camera.getRotation());
+        float roll = CameraRollMath.recoverRollDeg(camera.getYaw(), camera.getPitch(), camera.getRotation());
         if (Math.abs(roll) > 0.001f) {
             LOGGER.debug("Local player head roll recovered from camera: {} deg (camera yaw={}, pitch={})",
                 roll, camera.getYaw(), camera.getPitch());
