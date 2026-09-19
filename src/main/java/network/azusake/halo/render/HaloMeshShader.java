@@ -1,5 +1,6 @@
 package network.azusake.halo.render;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.pipeline.*;
 import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.shaders.UniformType;
@@ -41,18 +42,20 @@ public final class HaloMeshShader {
         var builder = RenderPipeline.builder().withLocation(Identifier.fromNamespaceAndPath("halo", "pipeline/material_" + PIPELINES.size()))
             .withVertexShader(Identifier.fromNamespaceAndPath("halo", "core/halo"))
             .withFragmentShader(Identifier.fromNamespaceAndPath("halo", "core/halo"))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform("Lighting", UniformType.UNIFORM_BUFFER)
-            .withUniform("HaloMaterial", UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0").withSampler("Sampler1").withSampler("Sampler2").withSampler("HaloMask")
-            .withVertexFormat(DefaultVertexFormat.ENTITY, key.topology() == DrawBatch.Topology.QUADS ? VertexFormat.Mode.QUADS : VertexFormat.Mode.TRIANGLES)
+            .withBindGroupLayout(BindGroupLayout.builder()
+                .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+                .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+                .withUniform("Lighting", UniformType.UNIFORM_BUFFER)
+                .withUniform("HaloMaterial", UniformType.UNIFORM_BUFFER)
+                .withSampler("Sampler0").withSampler("Sampler1").withSampler("Sampler2").withSampler("HaloMask").build())
+            .withVertexBinding(0, DefaultVertexFormat.ENTITY)
+            .withPrimitiveTopology(key.topology() == DrawBatch.Topology.QUADS ? PrimitiveTopology.QUADS : PrimitiveTopology.TRIANGLES)
             .withCull(key.cull()).withColorTargetState(key.blend() ? new ColorTargetState(BlendFunction.TRANSLUCENT) : ColorTargetState.DEFAULT)
-            .withDepthStencilState(new DepthStencilState(key.depth() ? CompareOp.LESS_THAN_OR_EQUAL : CompareOp.ALWAYS_PASS, key.write()));
+            .withDepthStencilState(new DepthStencilState(HaloDepthPolicy.comparison(key.depth()), key.write()));
         if (key.lit() && !key.gui()) builder.withShaderDefine("HALO_LIT");
         if (key.gui()) builder.withShaderDefine("HALO_GUI");
         RenderPipeline pipeline = RenderPipelines.register(builder.build());
-        if (!key.gui()) network.azusake.halo.compat.iris.IrisMeshBridge.assign(pipeline, key.lit(), key.blend());
+        if (!key.gui() && net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("iris")) network.azusake.halo.compat.iris.IrisMeshBridge.assign(pipeline, key.lit(), key.blend());
         return pipeline;
     }
 }

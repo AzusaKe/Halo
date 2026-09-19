@@ -1,5 +1,14 @@
 # 更新记录
 
+## 2.4.1+adapter.1 — Minecraft 26.2 Fabric — 2026-09-19
+
+- 从 26.1 Fabric 迁移资源重载、GUI、模型 Feature 提交、GPU 绑定与 reverse-Z 深度；core 保持 2.4.1 和现有 schema、NBT、协议、API v2。
+- 适配 OpenGL/Vulkan 原生绘制及 Iris 1.11.4、EMF 3.3.8；按主帧共享不可变输出，保留相机四元数、阴影隔离、遮罩和平滑法线匹配。
+- 保留连续批次合并、共享几何、透明排序与索引复用；Iris 按世界/GUI 上下文分别缓存顶点格式，失败使用同帧回退。
+- 断线清理调度回客户端线程，避免退出时访问异线程预览宿主。
+- 修复生存物品栏首帧使用旧鼠标位置导致预览光环偏移的问题；模型与光环从首帧使用相同的当前坐标。
+- 125 项适配层和 326 项 core 测试通过；OpenGL、Vulkan、Iris、EMF/ETF、双客户端生命周期及原版服本地模式由实际运行和用户反馈验收。运行矩阵与边界见 [26.2 迁移记录](docs/26.2-fabric-migration.md)。Bliss 仅作参考，光影门槛为 IterationRP 0.8.22/0.8.28。
+
 ## 2.4.1 — Minecraft 26.1 Fabric 首次发布 — 2026-09-19
 
 - 从 1.21.1 Fabric 迁移至 26.1 系列，使用 Java 25、非混淆官方名称和原生 RenderPipeline/RenderPass；保留 HaloCore 2.4.1、定义 schema、存档键、网络负载及公开 API v2。目标为同一 JAR 支持 26.1 / 26.1.1 / 26.1.2，以 26.1.2 实测。

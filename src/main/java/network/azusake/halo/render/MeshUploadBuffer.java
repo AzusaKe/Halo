@@ -1,5 +1,6 @@
 package network.azusake.halo.render;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
@@ -12,7 +13,7 @@ final class MeshUploadBuffer implements AutoCloseable {
         allocator = new ByteBufferBuilder(capacity);
     }
 
-    BufferBuilder begin(VertexFormat.Mode mode, VertexFormat format) {
+    BufferBuilder begin(PrimitiveTopology mode, VertexFormat format) {
         return new BufferBuilder(allocator, mode, format);
     }
 

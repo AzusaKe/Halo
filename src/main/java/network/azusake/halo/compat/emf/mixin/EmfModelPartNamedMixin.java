@@ -1,7 +1,7 @@
 package network.azusake.halo.compat.emf.mixin;
 
 import network.azusake.halo.compat.emf.EmfHeadCapture;
-import network.azusake.halo.compat.emf.Emf261Symbols;
+import network.azusake.halo.compat.emf.Emf262Symbols;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,11 +12,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Named-namespace hook used by Loom's 1.21.1 development runtime. */
 @Pseudo
-@Mixin(targets = Emf261Symbols.MODEL_PART, remap = false)
+@Mixin(targets = Emf262Symbols.MODEL_PART, remap = false)
 public abstract class EmfModelPartNamedMixin {
 
     @Inject(
-        method = Emf261Symbols.RENDER_METHOD_NAMED + Emf261Symbols.RENDER_DESCRIPTOR_NAMED,
+        method = Emf262Symbols.RENDER_METHOD_NAMED + Emf262Symbols.RENDER_DESCRIPTOR_NAMED,
         at = @At("HEAD"),
         remap = false,
         cancellable = true,

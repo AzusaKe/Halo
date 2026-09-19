@@ -2,8 +2,8 @@ package network.azusake.halo.json;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.HaloDefinition;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import network.azusake.halo.resource.SynchronousResourceReloadListener;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.PackType;
 import network.azusake.halo.core.Identifier;
@@ -67,8 +67,8 @@ public final class HaloJsonLoader {
             return;
         }
         serverRegistered = true;
-        ResourceManagerHelper.get(PackType.SERVER_DATA)
-            .registerReloadListener(new ServerListener());
+        ServerListener listener = new ServerListener();
+        ResourceLoader.get(PackType.SERVER_DATA).registerReloadListener(listener.id(), listener);
 
         LOG.info("HaloJsonLoader registered for SERVER_DATA");
     }
@@ -86,8 +86,8 @@ public final class HaloJsonLoader {
             return;
         }
         clientRegistered = true;
-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES)
-            .registerReloadListener(new ClientListener());
+        ClientListener listener = new ClientListener();
+        ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(listener.id(), listener);
 
         LOG.info("HaloJsonLoader registered for CLIENT_RESOURCES");
     }
@@ -187,28 +187,23 @@ public final class HaloJsonLoader {
     // Listener implementations
     // ------------------------------------------------------------------
 
-    private static class ServerListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public net.minecraft.resources.Identifier getFabricId() {
-            return net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions");
-        }
+    private static class ServerListener extends SynchronousResourceReloadListener {
+        ServerListener() { super(net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions")); }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void load(ResourceManager manager) {
             HaloJsonLoader.reload(manager, serverLoadedIds);
         }
     }
 
-    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public net.minecraft.resources.Identifier getFabricId() {
-            return net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions_client");
-        }
+    private static class ClientListener extends SynchronousResourceReloadListener {
+        ClientListener() { super(net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "halo_definitions_client")); }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void load(ResourceManager manager) {
             HaloJsonLoader.reload(manager, clientLoadedIds);
             network.azusake.halo.render.HaloMeshResources.reload(manager, snapshot());
+            network.azusake.halo.network.HaloNetworkClient.sendDefsReport();
         }
     }
     public static void clearServerResources() { RESOURCES.reload(0, List.of()); clientReportedDefs.clear(); }

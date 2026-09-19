@@ -1,5 +1,6 @@
 {
     "required": false,
+    "plugin": "network.azusake.halo.compat.iris.mixin.IrisMixinPlugin",
     "package": "network.azusake.halo.compat.iris.mixin",
     "compatibilityLevel": "JAVA_25",
     "client": [

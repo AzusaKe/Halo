@@ -4,6 +4,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HaloDepthPolicyTest {
+    @Test void worldAndPreviewUseTheNativeReverseZComparison() {
+        assertEquals(com.mojang.blaze3d.platform.CompareOp.GREATER_THAN_OR_EQUAL, HaloDepthPolicy.comparison(true));
+        assertEquals(com.mojang.blaze3d.platform.CompareOp.ALWAYS_PASS, HaloDepthPolicy.comparison(false));
+    }
     @Test void translucentWorldSurfacesProvideDepthOnlyToShaderPackComposites() {
         assertTrue(HaloDepthPolicy.writesDepth(RenderEnvironment.WORLD, true, true, false));
         assertFalse(HaloDepthPolicy.writesDepth(RenderEnvironment.WORLD, false, true, false));

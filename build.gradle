@@ -50,7 +50,7 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // Minecraft 26.1 requires Java 25.
+    // Minecraft 26.2 requires Java 25.
     it.options.release = 25
     it.options.encoding = "UTF-8"
 }
@@ -107,7 +107,7 @@ loom {
         }
         smokeClient {
             inherit client
-            runDir = ".local/smoke-client"
+            runDir = project.findProperty("smokeClientDir") ?: ".local/smoke-client"
             programArgs("--width", "1280", "--height", "720")
             if (project.hasProperty('smokeServerAddress')) programArgs("--quickPlayMultiplayer", project.property('smokeServerAddress'))
             if (project.hasProperty('smokeWorldName')) programArgs("--quickPlaySingleplayer", project.property('smokeWorldName'))

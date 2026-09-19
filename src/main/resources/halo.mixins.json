@@ -9,6 +9,7 @@
   "client": [
     "ClientCommandSuggestionsMixin",
     "InventoryScreenPreviewMixin",
+    "InventoryPreviewMouseMixin",
     "PreviewFrameLifecycleMixin",
     "LivingEntityPreviewPoseMixin",
     "EntityRenderContextMixin",

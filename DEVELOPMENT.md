@@ -2,11 +2,11 @@
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
-本分支是 Halo 的 `26.1-fabric` 迁移适配器，以 `1.21.1-fabric` 与 HaloCore 2.4.1 为功能基准。开发目标为 26.1.2，26.1 / 26.1.1 的完整运行验收尚未完成。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
+本分支是 Halo 的 `26.2-fabric` 迁移适配器，以 `26.1-fabric` 与固定 HaloCore 2.4.1 提交为功能基准。目标只声明 Minecraft 26.2，实际游戏验收状态见迁移记录。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
 
 **常规流程：先定义功能的数据与规则 → 在 core 实现和验证 → 在主线实现适配器并联调 → 发布确定的 core 提交 → 提交主线的适配器及 core 指针 → 按需更新其他版本的指针和适配器 → 分别验收、推送和发布。** 不要求所有游戏版本同时跟进。
 
-文中的 `entity-opacity`（根据实体状态调整光环透明度）仍是完整流程示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。本适配器的迁移边界和验证结果见 [26.1 Fabric 迁移记录](docs/26.1-fabric-migration.md)。本次排除 YSM 和 Connector。下文旧版本发布示例不代表本分支已经验收。
+文中的 `entity-opacity`（根据实体状态调整光环透明度）仍是完整流程示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。本适配器的迁移边界和验证结果见 [26.2 Fabric 迁移记录](docs/26.2-fabric-migration.md)。本次排除 YSM 和 Connector。下文旧版本发布示例不代表本分支已经验收。
 
 ## 阅读路线
 
@@ -44,7 +44,7 @@ git -C core rev-parse HEAD
 首次检出：
 
 ```powershell
-git clone --branch 26.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 26.2-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
 Set-Location Halo
 ```
 
@@ -121,7 +121,7 @@ flowchart LR
 
 ### 3.1 先验证核心行为，再做联合构建
 
-26.1 适配器使用 Java 25、Gradle wrapper 9.5.1 和固定 Loom 1.17.19（官方名称，无 remap）；core 源码仍以 Java 17 为契约基线。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
+26.2 适配器使用 Java 25、Gradle wrapper 9.5.1 和固定 Loom 1.17.19（官方名称，无 remap）；core 源码仍以 Java 17 为契约基线。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
 
 ```powershell
 # 快速重放与功能相关的 core 用例；测试类按实际改动选择。
@@ -144,7 +144,7 @@ flowchart LR
 | --- | --- |
 | `.\gradlew.bat runClient --console=plain` | `run/`，Dev1 |
 | `.\gradlew.bat runClient2 --console=plain` | `run2/`，Dev2 |
-| `.\gradlew.bat runServer --console=plain` | `runServer/26.1.2-fabric/` |
+| `.\gradlew.bat runServer --console=plain` | `runServer/26.2-fabric/` |
 | `.\gradlew.bat runSmokeServer --console=plain` | `.local/smoke-server/` |
 | `.\gradlew.bat runSmokeClient --console=plain` | `.local/smoke-client/` |
 | `.\gradlew.bat runSmokeClient2 --console=plain` | `.local/smoke-client2/` |
@@ -305,7 +305,7 @@ git -C core status --short --branch
 ```powershell
 # 此时位于原 Halo 根目录；只在目标分支确实存在时执行。
 git ls-remote --heads origin refs/heads/1.21.1-fabric
-git clone --branch 26.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git ../Halo-1.21.1-fabric
+git clone --branch 26.2-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git ../Halo-1.21.1-fabric
 Set-Location ../Halo-1.21.1-fabric
 git switch -c codex/entity-opacity-1.21.1
 

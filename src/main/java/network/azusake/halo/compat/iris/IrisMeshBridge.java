@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.LoggerFactory;
 
-/** Optional Iris 26.1 bridge. Halo alone owns the cloned programs and releases them with their pipeline. */
+/** Optional Iris 26.2 bridge. Halo alone owns the cloned programs and releases them with their pipeline. */
 public final class IrisMeshBridge {
     private record Kind(boolean lit,boolean translucent){}
     private static final Map<RenderPipeline,Kind> KINDS=new IdentityHashMap<>();
@@ -42,7 +42,9 @@ public final class IrisMeshBridge {
             Class<?> keys=Class.forName("net.irisshaders.iris.pipeline.programs.ShaderKey");
             var resolverField=pipeline.getClass().getDeclaredField("resolver");resolverField.setAccessible(true);
             Object resolver=resolverField.get(pipeline);
-            var create=pipeline.getClass().getDeclaredMethod("createShader",String.class,Optional.class,keys);create.setAccessible(true);
+            Class<?> patchType=Class.forName("net.irisshaders.iris.pipeline.transform.Patch");
+            Object patch=patchType.getField("VANILLA").get(null);
+            var create=pipeline.getClass().getDeclaredMethod("createShader",String.class,Optional.class,keys,patchType);create.setAccessible(true);
             for(var kind:List.of(new Kind(false,false),new Kind(false,true),new Kind(true,false),new Kind(true,true))){
                 Object key=keys.getField(!kind.lit()?"PARTICLES":kind.translucent()?"ENTITIES_TRANSLUCENT":"ENTITIES_SOLID_DIFFUSE").get(null);
                 Object id=keys.getMethod("getProgram").invoke(key);
@@ -50,12 +52,13 @@ public final class IrisMeshBridge {
                 if(((Optional<?>)source).isEmpty())continue;
                 BUILDING.set(kind);
                 try{
-                    Object supplier=create.invoke(pipeline,"halo_mesh_"+(++generation),source,key);
+                    Object supplier=create.invoke(pipeline,"halo_mesh_"+(++generation),source,key,patch);
                     GlProgram shader=(GlProgram)((Supplier<?>)supplier.getClass().getMethod("shader").invoke(supplier)).get();
-                    var uniforms=new ArrayList<RenderPipeline.UniformDescription>();
+                    var layout=com.mojang.blaze3d.pipeline.BindGroupLayout.builder();
                     for(String name:List.of("DynamicTransforms","Projection","Fog","Globals","HaloMaterial"))
-                        uniforms.add(new RenderPipeline.UniformDescription(name,UniformType.UNIFORM_BUFFER));
-                    shader.setupUniforms(uniforms,List.of("Sampler0","Sampler1","Sampler2","HaloMask"));
+                        layout.withUniform(name,UniformType.UNIFORM_BUFFER);
+                    for(String name:List.of("Sampler0","Sampler1","Sampler2","HaloMask")) layout.withSampler(name);
+                    shader.setupBindGroupLayouts(List.of(layout.build()));
                     // Vanilla compacts unused samplers. Iris owns fixed units 0/1/2;
                     // preserve these even when the pack optimizes overlay/lightmap out.
                     for (var binding : Map.of("Sampler0",0,"Sampler1",1,"Sampler2",2,"HaloMask",3).entrySet()) {
@@ -65,7 +68,7 @@ public final class IrisMeshBridge {
                     shaders.put(kind,shader);
                 }finally{BUILDING.remove();}
             }
-            LoggerFactory.getLogger("halo").info("Prepared {} private Iris 26.1 material programs",shaders.size());
+            LoggerFactory.getLogger("halo").info("Prepared {} private Iris 26.2 material programs",shaders.size());
         }catch(ReflectiveOperationException|RuntimeException ex){LoggerFactory.getLogger("halo").error("Cannot prepare Halo Iris materials",ex);}
         network.azusake.halo.render.HaloRenderer.getInstance().rebuildMeshBuffersForShaderPipeline();
     }

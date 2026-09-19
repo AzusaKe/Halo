@@ -12,9 +12,9 @@ public final class DefaultAnchorResolver {
     }
 
     public static AnchorPose resolve(LivingEntity entity, float tickDelta) {
-        double x = entity.xo + (entity.getX() - entity.xo) * tickDelta;
-        double y = entity.yo + (entity.getY() - entity.yo) * tickDelta;
-        double z = entity.zo + (entity.getZ() - entity.zo) * tickDelta;
+        double x = entity.xOld + (entity.getX() - entity.xOld) * tickDelta;
+        double y = entity.yOld + (entity.getY() - entity.yOld) * tickDelta;
+        double z = entity.zOld + (entity.getZ() - entity.zOld) * tickDelta;
 
         float yaw = interpolateDegrees(entity.yHeadRotO, entity.yHeadRot, tickDelta);
         float pitch = entity.xRotO + (entity.getXRot() - entity.xRotO) * tickDelta;

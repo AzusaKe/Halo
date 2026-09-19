@@ -19,14 +19,19 @@ public final class HaloRenderer {
     private static final HaloRenderer INSTANCE=new HaloRenderer();
     private Object previousWorld;
     private long worldToken;
-    private long completedFrame=Long.MIN_VALUE;
+    private boolean shaderVertexLayout;
+    private final FrameSubmission<Pending> submissions = new FrameSubmission<>();
     private HaloMeshBufferCache meshBuffers=HaloMeshBufferCache.empty(),primitiveBuffers=HaloMeshBufferCache.empty();
     private PrimitiveRenderMode primitiveMode=PrimitiveRenderMode.COMPATIBILITY;
     private record Pending(FrameOutput output, VisualResources visuals, Matrix4f outer, boolean shaderPack) {}
-    private Pending deferred;
     public static HaloRenderer getInstance(){return INSTANCE;}
     public PrimitiveRenderMode primitiveMode(){return primitiveMode;}
     public void beginFrame(){
+        boolean shaders=OptionalIrisPassDetector.hasShaderPack();
+        if(shaders!=shaderVertexLayout) {
+            shaderVertexLayout=shaders;
+            rebuildMeshBuffersForShaderPipeline();
+        }
         var requested="cached".equals(network.azusake.halo.config.HaloModConfigStore.get().getPrimitiveRenderBackend())?PrimitiveRenderMode.CACHED:PrimitiveRenderMode.COMPATIBILITY;
         if(requested!=primitiveMode){primitiveMode=requested;reloadPrimitiveBuffers(HaloMeshResources.snapshot(),true);}
     }
@@ -41,12 +46,11 @@ public final class HaloRenderer {
     }
     public void rebuildMeshBuffersForShaderPipeline(){meshBuffers.close();primitiveBuffers.close();reloadMeshBuffers(HaloMeshResources.snapshot().visuals());reloadPrimitiveBuffers(HaloMeshResources.snapshot(),true);}
     public void shutdown(){meshBuffers.close();primitiveBuffers.close();clearWorld();}
-    public void clearWorld(){previousWorld=null;deferred=null;completedFrame=Long.MIN_VALUE;}
+    public void clearWorld(){previousWorld=null;submissions.clear();}
     public IdlePhaseTracker.RenderState readLastRenderState(UUID uuid){return HaloClientState.get().renderer().readLastRenderState(uuid);}
     public void clearIdlePhases(){HaloClientState.get().renderer().clearIdlePhases();}
     public void renderHalos(PoseStack matrices,Camera camera,float tickDelta){
-        if(!OptionalIrisPassDetector.isMainPass()||completedFrame==RenderHeadCapture.getFrameId())return;
-        completedFrame=RenderHeadCapture.getFrameId();
+        if(!OptionalIrisPassDetector.isMainPass()||!submissions.begin(RenderHeadCapture.getFrameId()))return;
         Minecraft client=Minecraft.getInstance();
         if(client.level==null) return;
         if(previousWorld!=client.level) { previousWorld=client.level;worldToken++; }
@@ -60,9 +64,9 @@ public final class HaloRenderer {
             if(!(entity instanceof LivingEntity living))continue;
             if(!assignments.containsKey(entity.getUUID()) && runtime.getInstance(entity.getUUID())==null)continue;
             var pos=new network.azusake.halo.core.Vec3d(
-                entity.xo+(entity.getX()-entity.xo)*tickDelta,
-                entity.yo+(entity.getY()-entity.yo)*tickDelta,
-                entity.zo+(entity.getZ()-entity.zo)*tickDelta);
+                entity.xOld+(entity.getX()-entity.xOld)*tickDelta,
+                entity.yOld+(entity.getY()-entity.yOld)*tickDelta,
+                entity.zOld+(entity.getZ()-entity.zOld)*tickDelta);
             AnchorPose fallback=living instanceof net.minecraft.world.entity.player.Player
                 ? PlayerAnchorProvider.getInstance().resolve(living,tickDelta)
                 : DefaultAnchorResolver.resolve(living,tickDelta);
@@ -92,14 +96,22 @@ public final class HaloRenderer {
             }, primitiveMode);
         FrameOutput output = runtime.renderFrame(scene);
 
-        var outer = new Matrix4f(RenderSystem.getModelViewMatrix());
+        var outer = new Matrix4f(RenderSystem.getModelViewMatrixCopy());
         boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
-        submit(output,assets.visuals(),outer,shaderPack,RenderEnvironment.WORLD,false);
-        deferred=new Pending(output,assets.visuals(),outer,shaderPack);
+        submissions.publish(new Pending(output,assets.visuals(),outer,shaderPack));
         if(client.hasSingleplayerServer())IntegratedBridge.publishDiagnostics(runtime.diagnostics());
     }
-    public void submitDeferredMeshes(){if(!OptionalIrisPassDetector.isMainPass())return;var pending=deferred;deferred=null;if(pending!=null)submit(pending.output(),pending.visuals(),pending.outer(),pending.shaderPack(),RenderEnvironment.WORLD,true);}
-    public void submitPreview(FrameOutput output,VisualResources visuals){var outer = new Matrix4f(RenderSystem.getModelViewMatrix()); submit(output,visuals,outer,false,RenderEnvironment.GUI,false);submit(output,visuals,outer,false,RenderEnvironment.GUI,true);}
+    public void submitSolidStage() {
+        if (!OptionalIrisPassDetector.isMainPass()) return;
+        Pending pending = submissions.claimEarly();
+        if (pending != null) submit(pending.output(), pending.visuals(), pending.outer(), pending.shaderPack(), RenderEnvironment.WORLD, false);
+    }
+    public void submitDeferredMeshes() {
+        if (!OptionalIrisPassDetector.isMainPass()) return;
+        Pending pending = submissions.claimLate();
+        if (pending != null) submit(pending.output(), pending.visuals(), pending.outer(), pending.shaderPack(), RenderEnvironment.WORLD, true);
+    }
+    public void submitPreview(FrameOutput output,VisualResources visuals){var outer = new Matrix4f(RenderSystem.getModelViewMatrixCopy()); submit(output,visuals,outer,false,RenderEnvironment.GUI,false);submit(output,visuals,outer,false,RenderEnvironment.GUI,true);}
     private void submit(FrameOutput output,VisualResources visuals,Matrix4f outer,boolean shaderPack,RenderEnvironment environment,boolean late){
         var client=Minecraft.getInstance();
         if(!late){

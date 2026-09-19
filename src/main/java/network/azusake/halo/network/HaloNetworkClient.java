@@ -37,12 +37,12 @@ public final class HaloNetworkClient {
             int targetEntityId = buf.readInt();
             UUID targetUuid = HaloNetwork.readUuid(buf);
             String targetName = buf.readUtf(128);
-            context.client().execute(() -> context.client().setScreen(
+            context.client().execute(() -> context.client().gui.setScreen(
                 new HaloScepterScreen(targetEntityId, targetUuid, targetName)));
         });
         ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.ScepterCloseScreen.ID, (payload, context) ->
             context.client().execute(() -> {
-                if (context.client().screen instanceof HaloScepterScreen) context.client().setScreen(null);
+                if (context.client().gui.screen() instanceof HaloScepterScreen) context.client().gui.setScreen(null);
             }));
     }
 

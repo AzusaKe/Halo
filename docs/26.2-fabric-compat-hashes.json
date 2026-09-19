@@ -1,0 +1,22 @@
+[
+  {
+    "file": "entity_model_features-3.3.8-26.2-fabric.jar",
+    "sha256": "714686cefe56a7e46fa1e13ecdeddcb55ddfbb9715ae5b1ffd7573c1928d9fdd",
+    "sha512": "1dfe379c021e1478c01817b1e6e8a0ce3aa6db868fbad088da34ea35c4db3ec3ffe2c984b112957923478ac68664d89f3857a710b8558dbce0fbba58c859d3c9"
+  },
+  {
+    "file": "entity_texture_features-7.2.4-26.2-fabric.jar",
+    "sha256": "351c0f40fa9cb760f51b8a0819c5ec5f5450a2787ced8e5200a7c695cb16500e",
+    "sha512": "8a854074af3bb3fd1151e39c3f5d370d2995f4c15212dbb56d84c227e9b7d6c8402a181aaf4701b0637c0deee529f83cc2ed748c04adc5ef77e1734c0a945429"
+  },
+  {
+    "file": "iris-fabric-1.11.4+mc26.2.jar",
+    "sha256": "f1f7ab57c974d193ba33aa285864a0ded949216f402116fceaf4dc7739b4dd7c",
+    "sha512": "dee955580976aebc92373f5c2d88398ad1019b043c6254a41fe7ab8a6ca3a5ff29d58df2b22ec43a31198beb769e814658eef06fbf980066a2e2c216eeafd32a"
+  },
+  {
+    "file": "sodium-fabric-0.9.2+mc26.2.jar",
+    "sha256": "16a5e91db49750f8c046ecca3b8f2af5a28ea6f9b6581b42f123ca8fda20864f",
+    "sha512": "9b7a7aade8824543ce2a804fddfd04e37f57d1f91c00574e7dc87e554eb1835d888313ee6f715a7599bd729840cf01fd74e02aeae87b4e5a3c10c34a016e407c"
+  }
+]

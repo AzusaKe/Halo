@@ -1,0 +1,29 @@
+[
+  {
+    "file": "iterationRP Alpha 0.8.22.zip",
+    "sha256": "3563bb529535ffc901ffc25a6c37db70be050e2da5177f6a118a50e869db8304",
+    "settings": [
+      "DISABLE_HAND_DOF=true",
+      "DOF_CATSEYE=true",
+      "DOF_FOCUS_IGNORE_HAND_PARTICLE=false",
+      "FLASHLIGHT_FOV=0.5",
+      "HARDCODED_EMISSIVENESS_MODE=2",
+      "HELDLIGHT_MODE=1",
+      "INFO_1=1",
+      "LABPBR_POROSITY=true",
+      "LABPBR_SSS=true",
+      "PARALLAX_MODE=2",
+      "SHADOW_WAVING_PLANTS=true",
+      "WAVING_PLANTS=true"
+    ]
+  },
+  {
+    "file": "iterationRP Alpha 0.8.28.zip",
+    "sha256": "2eada0f38d7cc63ebaaad89f632c2aa27cfa0d979b472b3dbf665767faadce9d",
+    "settings": [
+      "HARDCODED_EMISSIVENESS_MODE=2",
+      "INFO_1=1",
+      "PARALLAX_MODE=2"
+    ]
+  }
+]

@@ -15,11 +15,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.server.packs.PackType;
-import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,30 +84,8 @@ public class HaloModClient implements ClientModInitializer {
         // Received messages update only the client core runtime.
         HaloNetworkClient.registerReceivers();
 
-        // Send local definition IDs to the server on join and on resource reloads.
-        // This listener fires on the initial load cycle AND every /reload, so it
-        // covers both bootstrap and incremental updates.  The sendDefsReport()
-        // method safely no-ops when not connected to a server world.
-        ResourceManagerHelper
-            .get(PackType.CLIENT_RESOURCES)
-            .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
-                @Override
-                public Identifier getFabricId() {
-                    return Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "defs_report_trigger");
-                }
-                @Override
-                public void onResourceManagerReload(ResourceManager manager) {
-                    net.minecraft.client.Minecraft.getInstance().execute(() -> {
-                        HaloNetworkClient.sendDefsReport();
-                    });
-                }
-            });
-
-        // Reset phase to LOCAL on every join, BEFORE the server can send
-        // halo:hello.  This prevents state pollution from a previous session
-        // (e.g. exiting singleplayer → joining a vanilla server — phase was
-        // still MULTIPLAYER because integrated-server disconnect doesn't fire
-        // DISCONNECT callback, and no hello arrives from the vanilla server).
+        // Reset the phase before the server's hello, including transitions to a vanilla
+        // server. Reload reports are sent by HaloJsonLoader after visual publication.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             HaloPhaseTracker.getInstance().resetToLocal();
             HaloNetworkClient.sendDefsReport();
@@ -121,14 +94,16 @@ public class HaloModClient implements ClientModInitializer {
         // Clear runtime halo state when disconnecting from a server.
         // Only the client replica is cleared; HaloLocalManager (persistent)
         // retains local halos so they survive reconnects to the same server.
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+        // Fabric can dispatch disconnect from the network thread. Preview scopes, runtime
+        // state and render caches must all be cleared on the client/render thread.
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.platform.HaloClientState.get().clearAllClientHalos();
             network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
             AnchorCaptureCoordinator.clearCaptures();
             network.azusake.halo.render.HaloRenderer.getInstance().clearWorld();
             HaloPhaseTracker.getInstance().resetToLocal();
-        });
+        }));
 
         LOGGER.info("Halo client initialized");
     }

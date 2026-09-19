@@ -7,8 +7,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import network.azusake.halo.resource.SynchronousResourceReloadListener;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.PackType;
 import network.azusake.halo.core.Identifier;
@@ -64,8 +64,8 @@ public final class EntityAnchorLoader {
             return;
         }
         serverRegistered = true;
-        ResourceManagerHelper.get(PackType.SERVER_DATA)
-            .registerReloadListener(new ServerListener());
+        ServerListener listener = new ServerListener();
+        ResourceLoader.get(PackType.SERVER_DATA).registerReloadListener(listener.id(), listener);
         LOG.info("EntityAnchorLoader registered for SERVER_DATA");
     }
 
@@ -77,8 +77,8 @@ public final class EntityAnchorLoader {
             return;
         }
         clientRegistered = true;
-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES)
-            .registerReloadListener(new ClientListener());
+        ClientListener listener = new ClientListener();
+        ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(listener.id(), listener);
         LOG.info("EntityAnchorLoader registered for CLIENT_RESOURCES");
     }
 
@@ -135,26 +135,20 @@ public final class EntityAnchorLoader {
     // Resource listeners
     // ------------------------------------------------------------------
 
-    private static class ServerListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public net.minecraft.resources.Identifier getFabricId() {
-            return net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors");
-        }
+    private static class ServerListener extends SynchronousResourceReloadListener {
+        ServerListener() { super(net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors")); }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void load(ResourceManager manager) {
             EntityAnchorLoader.reload(manager, serverLoadedIds);
         }
     }
 
-    private static class ClientListener implements SimpleSynchronousResourceReloadListener {
-        @Override
-        public net.minecraft.resources.Identifier getFabricId() {
-            return net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors_client");
-        }
+    private static class ClientListener extends SynchronousResourceReloadListener {
+        ClientListener() { super(net.minecraft.resources.Identifier.fromNamespaceAndPath(HaloMod.MOD_ID, "entity_anchors_client")); }
 
         @Override
-        public void onResourceManagerReload(ResourceManager manager) {
+        protected void load(ResourceManager manager) {
             EntityAnchorLoader.reload(manager, clientLoadedIds);
         }
     }

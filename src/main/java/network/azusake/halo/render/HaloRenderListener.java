@@ -15,6 +15,7 @@ public final class HaloRenderListener {
             var camera=context.camera();
             RenderHeadCapture.beginFrame(new Matrix4f(),camera.position(),camera.getCullFrustum(),tickDelta,context.level());
         });
-        LevelRenderEvents.AFTER_SOLID_FEATURES.register(context->HaloRenderer.getInstance().renderHalos(context.poseStack(),Minecraft.getInstance().gameRenderer.getMainCamera(),tickDelta));
+        LevelRenderEvents.COLLECT_SUBMITS.register(context->HaloRenderer.getInstance().renderHalos(context.poseStack(),Minecraft.getInstance().gameRenderer.mainCamera(),tickDelta));
+        LevelRenderEvents.AFTER_SOLID_FEATURES.register(context->HaloRenderer.getInstance().submitSolidStage());
     }
 }

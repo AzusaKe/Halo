@@ -1,0 +1,42 @@
+[
+  {
+    "mode": "compatibility",
+    "report": "2026-09-19_19_36_34-New World-26_2.zip",
+    "duration_ms": 10005,
+    "frames": 868,
+    "fps": 86.75662168915541,
+    "sampled_frame_ms_mean": 11.47238767281106,
+    "sampled_frame_ms_p50": 11.4679,
+    "sampled_frame_ms_p95": 12.2649,
+    "heap_positive_deltas_mib_per_s": 302.18929231673224,
+    "note": "Heap deltas are a sampling proxy, not exact allocated bytes; GPU/swap wait and profiler overhead are included.",
+    "jfr": {
+      "mode": "compatibility",
+      "sampled_total_allocation_mib_s": 409.27527923583983,
+      "sampled_halo_stack_allocation_mib_s": 9.577236938476563,
+      "execution_samples": 381,
+      "gpu_upload_stack_samples": 0,
+      "iris_tangent_samples": 1
+    }
+  },
+  {
+    "mode": "cached",
+    "report": "2026-09-19_19_36_54-New World-26_2.zip",
+    "duration_ms": 10007,
+    "frames": 863,
+    "fps": 86.23963225741981,
+    "sampled_frame_ms_mean": 11.553941599073001,
+    "sampled_frame_ms_p50": 11.5448,
+    "sampled_frame_ms_p95": 12.3623,
+    "heap_positive_deltas_mib_per_s": 298.55090816311395,
+    "note": "Heap deltas are a sampling proxy, not exact allocated bytes; GPU/swap wait and profiler overhead are included.",
+    "jfr": {
+      "mode": "cached",
+      "sampled_total_allocation_mib_s": 288.5248420715332,
+      "sampled_halo_stack_allocation_mib_s": 7.8589317321777346,
+      "execution_samples": 303,
+      "gpu_upload_stack_samples": 0,
+      "iris_tangent_samples": 1
+    }
+  }
+]
