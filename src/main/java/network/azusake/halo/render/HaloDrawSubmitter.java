@@ -47,8 +47,7 @@ final class HaloDrawSubmitter {
                     if (!meshBuffers.draw(pending.generation(), draw, pending.modelView(), pending.projection(),
                             shader, workspace, prepared, entity != null)) {
                         var fallback = new FrameOutput(pending.generation(), List.of(), List.of(draw))
-                            .expandedBatches(pending.visuals(), pending.modelView().m02(), pending.modelView().m12(),
-                                pending.modelView().m22(), pending.modelView().m32());
+                            .expandedBatches(pending.visuals(), pending.modelView().get(new float[16]), pending.projection().m33() == 0);
                         for (DrawBatch batch : fallback) submit(client, batch, environment);
                         if (materials != null) materials.invalidate();
                     }

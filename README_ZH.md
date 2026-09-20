@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 1.21.1 NeoForge**，当前源码版本为 **2.4.1+adapter.1**，使用 HaloCore **2.4.1**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [1.21.1 迁移记录](docs/1.21.1-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 1.21.1 NeoForge**，当前源码版本为 **2.4.2+adapter.1**，使用 HaloCore **2.4.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [1.21.1 迁移记录](docs/1.21.1-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
@@ -319,7 +319,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.21.1-neoforge-2.4.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.21.1-neoforge-2.4.2+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
