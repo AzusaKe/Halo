@@ -9,6 +9,7 @@ from unittest.mock import patch
 import zipfile
 
 import publish as p
+import dispatch as d
 
 
 def plan_fixture(loader="fabric"):
@@ -44,6 +45,7 @@ class FakeGitHub:
         self.records = {}
         self.deletes = []
         self.fail_receipt = False
+        self.body = "Release notes"
 
     def assets(self, release_id):
         return [{"name": name, "id": index} for index, name in enumerate(self.records, 10)]
@@ -60,6 +62,8 @@ class FakeGitHub:
         return {"id": 10}
 
     def api(self, path, method="GET"):
+        if method == "GET" and path == "/releases/1":
+            return {"tag_name": plan_fixture()["tag"], "draft": False, "body": self.body}
         self.deletes.append((method, path))
         if method == "DELETE":
             self.records = {name: value for name, value in self.records.items() if not name.endswith(".pending.json")}
@@ -290,11 +294,71 @@ class CommandTests(unittest.TestCase):
     @patch.object(p, "make_plan", return_value=(plan_fixture(), b"jar"))
     def test_one_platform_failure_does_not_block_the_other(self, make_plan, publish_one):
         with tempfile.TemporaryDirectory() as tmp:
-            self.assertEqual(p.main(["--run-id", "2", "--publish", "--output", tmp]), 1)
+            self.assertEqual(p.main(["--run-id", "2", "--publish", "--notes-sha256", p.notes_digest("Release notes"), "--output", tmp]), 1)
             self.assertEqual(publish_one.call_count, 2)
             results = json.loads((Path(tmp) / "results.json").read_text())
             self.assertEqual(results["modrinth"]["status"], "failed")
             self.assertEqual(results["curseforge"]["id"], 42)
+
+
+class FinalNotesTests(unittest.TestCase):
+    def test_unfinalized_and_old_notes_are_rejected(self):
+        plan = plan_fixture()
+        for expected in ["", "not-a-hash", p.notes_digest("Old auto-generated notes")]:
+            with self.subTest(expected=expected), self.assertRaises(p.PublishError):
+                p.validate_final_notes(plan, expected)
+        p.validate_final_notes(plan, p.notes_digest(plan["changelog"]))
+
+    @patch.object(p, "publish_one")
+    @patch.object(p, "make_plan", return_value=(plan_fixture(), b"jar"))
+    def test_publish_without_final_hash_has_no_platform_side_effects(self, make_plan, publish_one):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(p.main(["--run-id", "2", "--publish", "--output", tmp]), 1)
+            publish_one.assert_not_called()
+
+    @patch.object(p, "upload")
+    def test_edit_after_queued_dispatch_blocks_upload(self, upload):
+        gh = FakeGitHub()
+        gh.body = "Changed while queued"
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(p.PublishError, "changed after finalization"):
+            p.publish_one(gh, plan_fixture(), b"jar", "curseforge", "token", Path(tmp))
+        self.assertEqual(gh.records, {})
+        upload.assert_not_called()
+
+    @patch.object(p, "upload")
+    def test_edit_during_platform_preflight_blocks_upload(self, upload):
+        gh = FakeGitHub()
+        def metadata(*args):
+            gh.body = "Changed while resolving game versions"
+            return {}
+        with patch.object(p, "platform_metadata", side_effect=metadata), tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(p.PublishError, "changed after finalization"):
+                p.publish_one(gh, plan_fixture(), b"jar", "curseforge", "token", Path(tmp))
+        self.assertEqual(gh.records, {})
+        upload.assert_not_called()
+
+    @patch.object(p, "request")
+    @patch.object(p, "make_plan", return_value=(plan_fixture(), b"jar"))
+    def test_dispatch_binds_edited_file_instead_of_old_body(self, make_plan, request):
+        gh = FakeGitHub()
+        gh.base = "https://api.github.com/repos/AzusaKe/Halo"
+        gh.headers = {}
+        config = {"default_branch": "1.20.1-fabric"}
+        with self.assertRaisesRegex(p.PublishError, "differ from"):
+            d.dispatch(gh, config, 2, "File not yet applied to GitHub", "both", True)
+        request.assert_not_called()
+        inputs = d.dispatch(gh, config, 2, "Release notes", "both", True)
+        payload = json.loads(request.call_args.kwargs["data"])
+        self.assertEqual(payload["ref"], "1.20.1-fabric")
+        self.assertEqual(inputs["notes_sha256"], p.notes_digest("Release notes"))
+        self.assertEqual(payload["inputs"]["dry_run"], "false")
+
+    @patch.object(p, "request")
+    def test_both_platform_payloads_use_the_final_body(self, request):
+        request.return_value = [{"version": "1.20.1"}]
+        self.assertEqual(p.platform_metadata("modrinth", plan_fixture(), "token")["changelog"], "Release notes")
+        request.return_value = [{"id": 1, "name": "1.20.1"}, {"id": 2, "name": "Fabric"}]
+        self.assertEqual(p.platform_metadata("curseforge", plan_fixture(), "token")["changelog"], "Release notes")
 
 
 if __name__ == "__main__":

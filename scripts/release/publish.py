@@ -47,6 +47,23 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
 
 
+def notes_digest(body):
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def validate_final_notes(plan, expected):
+    require(bool(re.fullmatch(r"[0-9a-f]{64}", expected)), "Final Release notes SHA-256 is required; edit notes first, then use scripts/release/dispatch.py")
+    require(notes_digest(plan["changelog"]) == expected, "Release notes differ from the finalized body; no upload is allowed")
+
+
+def verify_current_notes(gh, plan):
+    # Always publish the authorized snapshot. Recheck before each destination so
+    # a queued run or later edit cannot silently select another body.
+    release = gh.api(f'/releases/{plan["release_id"]}')
+    require(release["tag_name"] == plan["tag"] and not release["draft"], "Release identity/status changed after finalization")
+    require(release.get("body") == plan["changelog"], "Release notes changed after finalization; stop and finalize again")
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -224,6 +241,7 @@ def make_plan(gh, config, run_id):
         "curseforge_project": config["curseforge_project"],
     }
     plan["modrinth_version"] = modrinth_version_number(plan)
+    plan["notes_sha256"] = notes_digest(plan["changelog"])
     require(len(plan["name"]) <= 64 and len(plan["changelog"]) <= 65536, "Release title or changelog exceeds platform limits")
     inspect_jar(content, plan)
     return plan, content
@@ -241,6 +259,7 @@ def existing_modrinth(plan, token):
             require(matching_file, "Modrinth version number exists with a different JAR")
             require(set(version["loaders"]) == {plan["loader"]} and set(version["game_versions"]) == set(plan["game_versions"]), "Existing Modrinth file has different compatibility metadata; review instead of duplicating")
             require(version["version_type"] == plan["version_type"], "Existing Modrinth release type differs")
+            require(version.get("changelog") == plan["changelog"], "Existing Modrinth notes differ; update platform metadata instead of duplicating the JAR")
             require(version.get("status") in ("listed", "archived", "unlisted"), "Existing Modrinth version is not published")
             expected_dependencies = {"P7dR8mSH"} if plan["loader"] == "fabric" else set()
             actual_dependencies = {dep["project_id"] for dep in version["dependencies"] if dep["dependency_type"] == "required"}
@@ -298,6 +317,7 @@ def identity(plan, platform):
 
 
 def publish_one(gh, plan, content, platform, token, output):
+    verify_current_notes(gh, plan)
     fingerprint = identity(plan, platform)
     receipt_name = f"halo-publish-{platform}.json"
     pending_name = f"halo-publish-{platform}.pending.json"
@@ -320,6 +340,7 @@ def publish_one(gh, plan, content, platform, token, output):
     # API offers no file-hash lookup: stop for reconciliation rather than repeat.
     require(pending_name not in assets, f"Unresolved {platform} upload intent. Inspect the platform and recover the receipt; do not blindly rerun the upload. See docs/release-automation.md")
     metadata = platform_metadata(platform, plan, token)
+    verify_current_notes(gh, plan)
     intent = gh.record(plan["release_id"], pending_name, {"identity": fingerprint, "tag": plan["tag"], "sha256": plan["sha256"], "source_run_id": plan["source_run_id"]})
     try:
         result = upload(platform, plan, content, metadata, token)
@@ -341,6 +362,7 @@ def main(argv=None):
     parser.add_argument("--run-id", required=True, type=int)
     parser.add_argument("--platform", choices=["both", "modrinth", "curseforge"], default="both")
     parser.add_argument("--publish", action="store_true", help="Actually upload; omitted means read-only preview")
+    parser.add_argument("--notes-sha256", default="", help="SHA-256 of the final edited Release body; required with --publish")
     parser.add_argument("--output", type=Path, default=Path(".local/halo-publish"))
     args = parser.parse_args(argv)
     args.output.mkdir(parents=True, exist_ok=True)
@@ -356,6 +378,7 @@ def main(argv=None):
             results = {platform: {"status": "dry_run", "project": plan[f"{platform}_project"]} for platform in platforms}
             print("Read-only preview complete. No upload, platform credential validation or moderation check was performed.")
         else:
+            validate_final_notes(plan, args.notes_sha256)
             require(bool(os.environ.get("GH_TOKEN")), "GH_TOKEN is required to persist publication receipts")
             for platform in platforms:
                 try:
