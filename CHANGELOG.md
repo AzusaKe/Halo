@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.4.1+adapter.3 — Minecraft 26.2 Fabric — 存档兼容修复 — 2026-09-20
+
+- 恢复 26.x 结构化 SavedData Codec 及 flash 兼容的 UUID 整数数组写出格式；同时兼容读取 flash 旧数组 UUID 与受影响构建写出的字符串 UUID。
+- 保持 `halo:world_data`、`Halos`、`UUID`、`Definition` 键及 `SAVED_DATA_MAP_DATA` 不变；受影响存档在下一次保存时自动转换为 flash 可读取格式。
+- 新增多记录、空列表、读取后修改并保存及 flash Codec 回退读取的兼容性回归测试；HaloCore 保持 2.4.1 / `295bc579ab8d63e6dba5642ebb9e889516e90105`。详情见 [迁移记录](docs/26.2-fabric-migration.md)。
+
+正式版本：`2.4.1+adapter.3`；平台标签为 `v2.4.1-fabric-26.2-adapter.3`。
+
 ## 2.4.1+adapter.2 — Minecraft 26.2 Fabric — 2026-09-19
 
 - 修复开启披风时 EMF 待机、爬梯及落地动画的头部跟随丢失，世界与物品栏预览均受影响：26.2 披风／盔甲模型也继承 PlayerModel，旧逻辑可能先接收附加模型的头部，占用本帧捕获。现在按玩家渲染器的实际本体模型身份筛选，保留阴影隔离及隐身预览路径。
