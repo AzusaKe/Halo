@@ -124,7 +124,7 @@ public final class HaloRenderer {
             if(submitBeforeTranslucents(draw,shaderPack)==late)continue;
             if(!meshBuffers.draw(output.visualGeneration(),draw,outer,environment,workspace))
                 HaloDrawSubmitter.submitBatches(client,new FrameOutput(output.visualGeneration(),List.of(),List.of(draw))
-                    .expandedBatches(visuals,outer.m02(),outer.m12(),outer.m22(),outer.m32()),environment,outer);
+                    .expandedBatches(visuals,outer.get(new float[16]),environment == RenderEnvironment.WORLD),environment,outer);
         }
     }
     static boolean submitBeforeTranslucents(MeshDraw draw,boolean shaderPack){return shaderPack&&draw.directionalLighting()&&!draw.blend();}

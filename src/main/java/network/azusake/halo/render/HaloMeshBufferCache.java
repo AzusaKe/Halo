@@ -83,6 +83,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
         private final boolean expanded;
         private GpuBuffer vertices, source, mirroredSource, dynamic;
         private final MeshIndexUpload uploaded = new MeshIndexUpload();
+        private final float[] sortView = new float[16];
 
         Stream(MeshIndexWriter writer, boolean expanded) {
             this.writer = writer;
@@ -122,7 +123,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
                   boolean mirrored, RenderEnvironment environment) {
             GpuBuffer index = mirrored ? mirroredSource : source;
             if (sort) {
-                long revision = writer.prepareBackToFrontTransform(matrix.m02(), matrix.m12(), matrix.m22(), matrix.m32());
+                long revision = writer.prepareBackToFrontView(matrix.get(sortView), environment == RenderEnvironment.WORLD);
                 if (!uploaded.matches(revision, mirrored)) {
                     var data = MemoryUtil.memAlloc(writer.indexCount() * 4);
                     try {
