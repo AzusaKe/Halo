@@ -1,4 +1,4 @@
-本分支迁移至 **Minecraft 26.3 Fabric**，版本为 **2.4.1+adapter.1**，锁定 HaloCore **2.4.1**。玩家仍只安装一个 Halo JAR。flash 分支保持冻结；用户已确认原生／Iris 显示表现，并在专有环境完成网络测试后同意正式发布，具体版本与验证边界见 [26.3 迁移记录](docs/26.3-fabric-migration.md)。不包含 YSM 与 Vulkan 光影。
+本分支迁移至 **Minecraft 26.3 Fabric**，版本为 **2.4.2+adapter.1**，锁定 HaloCore **2.4.2**。玩家仍只安装一个 Halo JAR。flash 分支保持冻结；用户已确认原生／Iris 显示表现，并在专有环境完成网络测试后同意正式发布，具体版本与验证边界见 [26.3 迁移记录](docs/26.3-fabric-migration.md)。不包含 YSM 与 Vulkan 光影。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
@@ -299,7 +299,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.3-fabric-2.4.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.3-fabric-2.4.2+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
