@@ -120,6 +120,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
         private final VertexBuffer flatVertices;
         private final VertexBuffer litVertices;
         private final MeshIndexWriter indices;
+        private final float[] sortView = new float[16];
         private final ByteBuffer indexBytes;
         private final IntBuffer indexInts;
         private final int flatNormalElements;
@@ -257,8 +258,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
             if (draw.blend()) {
                 GlStateManager._glBindBuffer(ELEMENT_ARRAY_BUFFER,
                     expanded ? litDynamicElements : flatDynamicElements);
-                long revision = indices.prepareBackToFrontTransform(
-                    modelView.m02(), modelView.m12(), modelView.m22(), modelView.m32());
+                long revision = indices.prepareBackToFrontView(modelView.get(sortView), projection.m33() == 0);
                 MeshIndexUpload upload = expanded ? litUpload : flatUpload;
                 if (!upload.matches(revision, draw.mirrored())) {
                     indexInts.clear();

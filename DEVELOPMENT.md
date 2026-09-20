@@ -1,5 +1,9 @@
 # Halo 项目开发指南
 
+## 当前维护版本：2.4.2
+
+本分支本次锁定 HaloCore `2.4.2` / `1d3cf90478011c1e6f956f1b7dc978d00e796099`，适配修订为 1。半透明 mesh 排序的修复范围与实际验证见 [修复记录](docs/mesh-transparency-fix.md)。下文旧版本数字作为历史基线或流程示例保留。
+
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
 本分支是 Halo 的 `1.21.1-fabric` 适配器，core 的集成分支是 `main`；功能基准来自 `1.20.1-fabric`，平台代码则按 1.21.1 API 独立维护。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
