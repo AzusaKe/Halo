@@ -1,5 +1,9 @@
 # Halo 项目开发指南
 
+## 当前维护版本：2.4.2
+
+本分支本次锁定 HaloCore `2.4.2` / `1d3cf90478011c1e6f956f1b7dc978d00e796099`，适配修订为 1。半透明 mesh 排序的修复范围与实际验证见 [修复记录](docs/mesh-transparency-fix.md)。下文旧版本数字作为历史基线或流程示例保留。
+
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
 本分支是 Halo 的 `26.2-neoforge` 适配器，仅面向 Minecraft 26.2；core 集成分支为 `main`，固定 2.4.1 / `295bc57`。功能基准为 `26.1-neoforge@5b20c238`，最低支持及构建基线为 NeoForge 26.2.0.59。另验证 NeoForge 26.2.0.88；本分支的迁移及用户验收已完成；定量压测按用户要求停止，未执行项目保留在迁移记录中，所有 `*-flash` 分支保持冻结。
