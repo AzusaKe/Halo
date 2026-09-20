@@ -11,7 +11,7 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 26.1 Fabric**, developed on **26.1.2**. The source version is **2.4.1+adapter.2**, using HaloCore **2.4.1**. Players install one Halo JAR. Flash branches remain frozen. See the [migration record](docs/26.1-fabric-migration.md) and [development guide](DEVELOPMENT.md).
+This branch targets **Minecraft 26.1 Fabric**, developed on **26.1.2**. The source version is **2.4.2+adapter.1**, using HaloCore **2.4.2**. Players install one Halo JAR. Flash branches remain frozen. See the [migration record](docs/26.1-fabric-migration.md) and [development guide](DEVELOPMENT.md).
 
 2.4.0 adds the loader-neutral server ownership source API. Accessory and integration mods can submit halo candidates by entity UUID; Halo selects one winner by source priority, while the built-in commands and Halo Scepter continue to edit only the persisted `halo:world_data` source. Priorities are stored in `halo_source_priorities.json` and can be changed without restarting through `/halo priority list|set|reload`. Integrations must also provide the referenced definitions and visual assets to rendering clients. See the [API guide](docs/en/API.md#6-server-ownership-source-api).
 
@@ -309,7 +309,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-26.1.2-fabric-2.4.1+adapter.2.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-26.1.2-fabric-2.4.2+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 
