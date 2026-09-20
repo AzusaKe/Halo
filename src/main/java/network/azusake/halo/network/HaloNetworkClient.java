@@ -1,10 +1,12 @@
 package network.azusake.halo.network;
 
 import java.util.UUID;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+
+
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraft.client.Minecraft;
+
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.client.HaloScepterScreen;
 import network.azusake.halo.core.Identifier;
@@ -12,63 +14,68 @@ import network.azusake.halo.json.HaloJsonLoader;
 import static network.azusake.halo.platform.PlatformTypes.game;
 
 /** Client side of Halo's 1.21 CustomPayload transport. */
-@Environment(EnvType.CLIENT)
+
 public final class HaloNetworkClient {
     private HaloNetworkClient() {}
 
-    public static void registerReceivers() {
-        ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.Sync.ID, (payload, context) -> {
+    public static void registerReceivers(PayloadRegistrar registrar) {
+        registrar.playToClient(HaloPayloads.Sync.ID, HaloPayloads.Sync.CODEC, (payload, context) -> {
             var incoming = HaloPacketCodec.decodeSnapshot(payload.buf());
-            context.client().execute(() ->
+            Minecraft.getInstance().execute(() ->
                 network.azusake.halo.platform.HaloClientState.get().replaceAllClientHalos(incoming));
         });
-        ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.Update.ID, (payload, context) -> {
+        registrar.playToClient(HaloPayloads.Update.ID, HaloPayloads.Update.CODEC, (payload, context) -> {
             var update = HaloPacketCodec.decodeUpdate(payload.buf());
-            context.client().execute(() -> {
+            Minecraft.getInstance().execute(() -> {
                 var runtime = network.azusake.halo.platform.HaloClientState.get();
                 if (update.attach()) runtime.attach(update.entity(), update.definition(), true);
                 else runtime.hide(update.entity(), update.definition());
             });
         });
-        ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.Hello.ID, (payload, context) ->
-            context.client().execute(() -> HaloPhaseTracker.getInstance().transitionToMultiplayer()));
-        ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.ScepterOpen.ID, (payload, context) -> {
+        registrar.playToClient(HaloPayloads.Hello.ID, HaloPayloads.Hello.CODEC, (payload, context) ->
+            Minecraft.getInstance().execute(() -> HaloPhaseTracker.getInstance().transitionToMultiplayer()));
+        registrar.playToClient(HaloPayloads.ScepterOpen.ID, HaloPayloads.ScepterOpen.CODEC, (payload, context) -> {
             var buf = payload.buf();
             int targetEntityId = buf.readInt();
             UUID targetUuid = HaloNetwork.readUuid(buf);
-            String targetName = buf.readString(128);
-            context.client().execute(() -> context.client().setScreen(
+            String targetName = buf.readUtf(128);
+            Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(
                 new HaloScepterScreen(targetEntityId, targetUuid, targetName)));
         });
-        ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.ScepterCloseScreen.ID, (payload, context) ->
-            context.client().execute(() -> {
-                if (context.client().currentScreen instanceof HaloScepterScreen) context.client().setScreen(null);
+        registrar.playToClient(HaloPayloads.ScepterCloseScreen.ID, HaloPayloads.ScepterCloseScreen.CODEC, (payload, context) ->
+            Minecraft.getInstance().execute(() -> {
+                if (Minecraft.getInstance().screen instanceof HaloScepterScreen) Minecraft.getInstance().setScreen(null);
             }));
     }
 
+    private static boolean canSend(net.minecraft.network.protocol.common.custom.CustomPacketPayload.Type<?> type) {
+        var connection = Minecraft.getInstance().getConnection();
+        return connection != null && connection.hasChannel(type);
+    }
+
     public static void sendScepterSelection(Identifier definitionId) {
-        if (!ClientPlayNetworking.canSend(HaloPayloads.ScepterSelect.ID)) return;
-        var buf = PacketByteBufs.create();
-        buf.writeIdentifier(game(definitionId));
-        ClientPlayNetworking.send(new HaloPayloads.ScepterSelect(buf));
+        if (!canSend(HaloPayloads.ScepterSelect.ID)) return;
+        var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        buf.writeResourceLocation(game(definitionId));
+        PacketDistributor.sendToServer(new HaloPayloads.ScepterSelect(buf));
     }
 
     public static void sendScepterClose() {
-        if (ClientPlayNetworking.canSend(HaloPayloads.ScepterClose.ID))
-            ClientPlayNetworking.send(new HaloPayloads.ScepterClose(PacketByteBufs.create()));
+        if (canSend(HaloPayloads.ScepterClose.ID))
+            PacketDistributor.sendToServer(new HaloPayloads.ScepterClose(new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer())));
     }
 
     public static void sendScepterRemoveSelf() {
-        if (ClientPlayNetworking.canSend(HaloPayloads.ScepterRemoveSelf.ID))
-            ClientPlayNetworking.send(new HaloPayloads.ScepterRemoveSelf(PacketByteBufs.create()));
+        if (canSend(HaloPayloads.ScepterRemoveSelf.ID))
+            PacketDistributor.sendToServer(new HaloPayloads.ScepterRemoveSelf(new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer())));
     }
 
     public static void sendDefsReport() {
-        if (!ClientPlayNetworking.canSend(HaloPayloads.DefsReport.ID)) return;
+        if (!canSend(HaloPayloads.DefsReport.ID)) return;
         var definitions = HaloJsonLoader.getDefinitions();
-        var buf = PacketByteBufs.create();
+        var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         buf.writeInt(definitions.size());
-        for (Identifier id : definitions.keySet()) buf.writeIdentifier(game(id));
-        ClientPlayNetworking.send(new HaloPayloads.DefsReport(buf));
+        for (Identifier id : definitions.keySet()) buf.writeResourceLocation(game(id));
+        PacketDistributor.sendToServer(new HaloPayloads.DefsReport(buf));
     }
 }

@@ -1,17 +1,14 @@
 package network.azusake.halo.client;
 
 import network.azusake.halo.data.HaloTransitionState;
-import network.azusake.halo.data.HaloInstance;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
+
+
+import net.minecraft.client.Minecraft;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.config.HaloConfig;
 import network.azusake.halo.data.HaloDefinition;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.manager.HaloManager;
-import network.azusake.halo.render.HaloRenderer;
-import network.azusake.halo.render.IdlePhaseTracker;
 
 import java.util.Map;
 import java.util.UUID;
@@ -37,7 +34,7 @@ import java.util.UUID;
  *       holds client-local resource-pack definitions.</li>
  * </ul>
  */
-@Environment(EnvType.CLIENT)
+
 public final class HaloLocalCommandHandler {
 
     private HaloLocalCommandHandler() {
@@ -101,12 +98,12 @@ public final class HaloLocalCommandHandler {
     }
 
     private static String handleDump() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return "§e无法获取玩家信息。";
         }
 
-        UUID playerUuid = client.player.getUuid();
+        UUID playerUuid = client.player.getUUID();
         String serverKey = getServerKey(client);
 
         Map<Identifier, HaloDefinition> defs = HaloJsonLoader.getDefinitions();
@@ -188,7 +185,7 @@ public final class HaloLocalCommandHandler {
                 + "§7请确保包含该定义的资源包已加载。使用 §f/halo list §7查看可用定义。";
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return "§e无法获取玩家信息。";
         }
@@ -198,9 +195,9 @@ public final class HaloLocalCommandHandler {
             return "§e未连接到服务器。";
         }
 
-        HaloLocalManager.getInstance().showHalo(serverKey, client.player.getUuid(), defId);
+        HaloLocalManager.getInstance().showHalo(serverKey, client.player.getUUID(), defId);
         // Put into HaloManager with STARTING state — triggers startup animation
-        network.azusake.halo.platform.HaloClientState.get().putClientHalo(client.player.getUuid(), defId, HaloTransitionState.STARTING);
+        network.azusake.halo.platform.HaloClientState.get().putClientHalo(client.player.getUUID(), defId, HaloTransitionState.STARTING);
         return "§a本地光环: 已将 §f" + defId
             + "§a 设置给自己。\n"
             + "§7(仅在当前服务器当前会话中可见)";
@@ -219,7 +216,7 @@ public final class HaloLocalCommandHandler {
                 + "§7示例: /halo hide @s";
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return "§e无法获取玩家信息。";
         }
@@ -229,12 +226,12 @@ public final class HaloLocalCommandHandler {
             return "§e未连接到服务器。";
         }
 
-        HaloLocalManager.getInstance().hideHalo(serverKey, client.player.getUuid());
+        HaloLocalManager.getInstance().hideHalo(serverKey, client.player.getUUID());
 
         // Set ENDING state — renderer will play shutdown animation and remove the instance
         var runtime=network.azusake.halo.platform.HaloClientState.get();
-        var inst=runtime.getInstance(client.player.getUuid());
-        runtime.hide(client.player.getUuid(),inst==null?null:inst.getDefinitionId());
+        var inst=runtime.getInstance(client.player.getUUID());
+        runtime.hide(client.player.getUUID(),inst==null?null:inst.getDefinitionId());
 
         return "§a已移除自己的本地光环。";
     }
@@ -285,13 +282,13 @@ public final class HaloLocalCommandHandler {
     }
 
     private static String handleReload() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        client.reloadResources();
+        Minecraft client = Minecraft.getInstance();
+        client.reloadResourcePacks();
         return "§a正在重新加载客户端资源…";
     }
 
     private static String handleActive() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return "§e无法获取玩家信息。";
         }
@@ -301,7 +298,7 @@ public final class HaloLocalCommandHandler {
             return "§e未连接到服务器。";
         }
 
-        var halo = HaloLocalManager.getInstance().getCoreHalo(serverKey, client.player.getUuid());
+        var halo = HaloLocalManager.getInstance().getCoreHalo(serverKey, client.player.getUUID());
         if (halo.isPresent()) {
             return "§a当前光环: §f" + halo.get() + "\n"
                 + "§7(本地阶段，仅自己可见)";
@@ -336,10 +333,10 @@ public final class HaloLocalCommandHandler {
      *
      * @return {@code "host:port"} string, or {@code null} if not connected
      */
-    static String getServerKey(MinecraftClient client) {
-        if (client.getNetworkHandler() != null && client.getNetworkHandler().getConnection() != null) {
+    static String getServerKey(Minecraft client) {
+        if (client.getConnection() != null && client.getConnection().getConnection() != null) {
             return HaloLocalManager.serverKeyFromAddress(
-                client.getNetworkHandler().getConnection().getAddress());
+                client.getConnection().getConnection().getRemoteAddress());
         }
         return null;
     }

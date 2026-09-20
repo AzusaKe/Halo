@@ -1,8 +1,8 @@
 package network.azusake.halo.compat.emf;
 
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.text.Text;
-
+import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Emits one actionable in-game message after the client player exists. */
@@ -17,9 +17,10 @@ public final class EmfCompatChatNotifier {
         if (!REGISTERED.compareAndSet(false, true)) {
             return;
         }
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> {
+            var client = net.minecraft.client.Minecraft.getInstance();
             if (client.player != null && EmfCompatDiagnostics.markChatReported()) {
-                client.player.sendMessage(Text.literal(EmfCompatDiagnostics.USER_ERROR_MESSAGE), false);
+                client.player.displayClientMessage(Component.literal(EmfCompatDiagnostics.USER_ERROR_MESSAGE), false);
             }
         });
     }

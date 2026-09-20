@@ -1,154 +1,160 @@
 plugins {
-    id 'fabric-loom' version '1.10.5'
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.144'
     id 'maven-publish'
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
-
-archivesBaseName = "${project.archives_base_name}-${project.minecraft_version}-fabric"
 def coreProperties = new Properties()
 file('core/gradle.properties').withInputStream { coreProperties.load(it) }
 ext.coreVersion = coreProperties.getProperty('version')
 version = "${coreVersion}+adapter.${project.adapter_revision}"
 group = project.maven_group
 
-configurations {
-    coreContents { transitive = false }
+if (providers.gradleProperty('adapterBuildDir').isPresent()) {
+    layout.buildDirectory = file(providers.gradleProperty('adapterBuildDir').get())
+}
+
+base {
+    archivesName = "${project.archives_base_name}-${project.minecraft_version}-neoforge"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
 }
 
 repositories {
-    // Add repositories to retrieve artifacts from in here.
-    // For LSPDFR or other non-Maven repos, add their URLs here.
+    mavenCentral()
+}
+
+def ysmDevJarPath = System.getenv('HALO_YSM_DEV_JAR')
+def ysmDevFixtureEnabled = ysmDevJarPath != null && !ysmDevJarPath.isBlank()
+
+configurations {
+    coreContents { transitive = false }
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+// NeoForge's module layer must see core and the adapter as one mod in dev,
+// matching the flat release jar. A separate library would split shared packages.
+def unpackCoreForRun = tasks.register('unpackCoreForRun', Sync) {
+    dependsOn configurations.coreContents
+    from({ configurations.coreContents.collect { zipTree(it) } }) { exclude 'META-INF/**' }
+    into layout.buildDirectory.dir('dev-core')
+}
+sourceSets {
+    coreRuntime {
+        java.setSrcDirs([])
+        resources.setSrcDirs([])
+        output.dir(unpackCoreForRun)
+    }
 }
 
 dependencies {
     implementation "network.azusake:halo-core:${coreVersion}"
     coreContents "network.azusake:halo-core:${coreVersion}"
-    // To change the versions see the gradle.properties file
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
 
-    // Fabric API. This is technically optional, but you probably want it anyway.
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-    // Test dependencies
-    testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
-    testImplementation "com.google.code.gson:gson:2.10"
+    // Optional official YSM release used only for development launch testing.
+    // It is absent from normal builds and is never bundled in Halo.
+    if (ysmDevFixtureEnabled) {
+        localRuntime files(ysmDevJarPath)
+    }
 }
 
-processResources {
-    inputs.property "version", providers.provider { project.version.toString() }
-    filteringCharset "UTF-8"
+neoForge {
+    version = project.neo_version
 
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
+    parchment {
+        minecraftVersion = project.parchment_minecraft_version
+        mappingsVersion = project.parchment_mappings_version
+    }
+
+    mods {
+        halo {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.coreRuntime
+        }
+    }
+
+    runs {
+        client {
+            client()
+            gameDirectory = file("runClient/${project.neo_version}")
+            programArguments.addAll '--width', '2560', '--height', '1600', '--username', 'Dev1'
+            if (project.hasProperty('smokeWorldName')) programArguments.addAll '--quickPlaySingleplayer', project.property('smokeWorldName')
+        }
+        client2 {
+            client()
+            gameDirectory = file("runClient2/${project.neo_version}")
+            programArguments.addAll '--width', '2560', '--height', '1600', '--username', 'Dev2'
+        }
+        server {
+            server()
+            gameDirectory = file("runServer/${project.minecraft_version}-neoforge-${project.neo_version}")
+            programArgument '--nogui'
+        }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    addModdingDependenciesTo sourceSets.test
+}
+
+def replaceProperties = [
+    minecraft_version      : project.minecraft_version,
+    minecraft_version_range: project.minecraft_version_range,
+    neo_version            : project.neo_version,
+    neo_version_range      : project.neo_version_range,
+    loader_version_range   : project.loader_version_range,
+    mod_id                 : project.mod_id,
+    mod_name               : project.mod_name,
+    mod_license            : project.mod_license,
+    mod_version            : providers.provider { project.version.toString() },
+    mod_authors            : project.mod_authors,
+    mod_description        : project.mod_description
+]
+
+tasks.named('processResources', ProcessResources).configure {
+    inputs.properties replaceProperties
+    filteringCharset = 'UTF-8'
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand replaceProperties.collectEntries { key, value -> [(key): value instanceof Provider ? value.get() : value] }
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // Minecraft 1.20.5 and above require Java 21.
-    it.options.release = 21
-    it.options.encoding = "UTF-8"
+    options.encoding = 'UTF-8'
+    options.release = 21
 }
 
-java {
-    // Loom will use this to set up access wideners and remap mods correctly
-    withSourcesJar()
-}
-
-jar {
+tasks.named('jar', Jar).configure {
     dependsOn configurations.coreContents
-    from({ configurations.coreContents.collect { zipTree(it) } }) {
-        exclude 'META-INF/MANIFEST.MF'
-    }
-    from("LICENSE") {
-        rename { "${it}_${project.archivesBaseName}" }
+    from({ configurations.coreContents.collect { zipTree(it) } }) { exclude 'META-INF/MANIFEST.MF' }
+    from('LICENSE') {
+        rename { "${it}_${project.base.archivesName.get()}" }
     }
 }
 
 test {
     useJUnitPlatform()
     testLogging {
-        events "passed", "skipped", "failed"
+        events 'passed', 'skipped', 'failed'
     }
 }
 
-tasks.named('check') { dependsOn gradle.includedBuild('core').task(':check') }
-
-// Client run configuration: 2560x1600 window, non-fullscreen
-loom {
-    runs {
-        client {
-            programArgs("--width", "2560")
-            programArgs("--height", "1600")
-            programArgs("--username", "Dev1")
-        }
-        // Second client for local multiplayer testing — launch with:
-        //   ./gradlew runClient2
-        client2 {
-            inherit client
-            programArgs("--username", "Dev2")
-            runDir = "run2"
-        }
-        server {
-            // Separate both the logical side and game version from existing development worlds.
-            runDir = "runServer/${project.minecraft_version}-fabric"
-            programArgs("nogui")
-        }
-        smokeServer {
-            inherit server
-            runDir = ".local/smoke-server"
-            vmArg "-Xlog:class+load=info:file=loaded-classes.log"
-        }
-        smokeClient {
-            inherit client
-            runDir = ".local/smoke-client"
-            programArgs("--width", "1280", "--height", "720")
-            if (project.hasProperty('smokeServerAddress')) programArgs("--quickPlayMultiplayer", project.property('smokeServerAddress'))
-            if (project.hasProperty('smokeWorldName')) programArgs("--quickPlaySingleplayer", project.property('smokeWorldName'))
-        }
-        smokeClient2 {
-            inherit smokeClient
-            programArgs("--username", "Dev2")
-            runDir = ".local/smoke-client2"
-        }
-    }
-}
-
-['runServer', 'runSmokeServer'].each { runTask ->
-    tasks.named(runTask) { standardInput = System.in }
-}
-
-// Force fullscreen:false before each runClient launch
-tasks.named('runClient') {
-    doFirst {
-        def optionsFile = file('run/options.txt')
-        if (optionsFile.exists()) {
-            def lines = optionsFile.readLines()
-            def modified = lines.collect { line ->
-                line.startsWith('fullscreen:') ? 'fullscreen:false' : line
-            }
-            optionsFile.text = modified.join('\n') + '\n'
-        }
-    }
-}
-
-// configure the maven publication
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
         }
     }
-
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-    repositories {
-        // Add repositories to publish to here.
-    }
 }
 
-apply from: "gradle/core-build.gradle"
+tasks.named('check') { dependsOn gradle.includedBuild('core').task(':check') }
+tasks.named('runServer') { standardInput = System.in }
+apply from: 'gradle/core-build.gradle'

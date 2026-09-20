@@ -15,28 +15,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * Applies the optional EMF hook only when the loaded EMF jar exposes the ABI
- * required by this Minecraft branch. ETF itself has no capture hook: when EMF
- * is installed, ETF remains a texture/variant provider around the same model.
- */
+/** Enables the optional EMF hook only after version and actual ABI checks. */
 public final class EmfMixinPlugin implements IMixinConfigPlugin {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("halo");
 
     private boolean apply;
-    private boolean namedRuntime;
-    private String runtimeNamespace = "unknown";
 
     @Override
     public void onLoad(String mixinPackage) {
         Optional<String> installed = Optional.empty();
         try {
             installed = EmfVersionGate.installedVersion();
-            runtimeNamespace = net.fabricmc.loader.api.FabricLoader.getInstance()
-                .getMappingResolver().getCurrentRuntimeNamespace();
-            namedRuntime = "named".equals(runtimeNamespace);
-
             if (installed.isEmpty()) {
                 apply = false;
                 return;
@@ -52,15 +42,15 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
                 return;
             }
 
-            EmfAbiDetector.Result abi = EmfAbiDetector.inspect(namedRuntime);
+            EmfAbiDetector.Result abi = EmfAbiDetector.inspect();
             apply = abi.compatible();
             if (!apply) {
                 EmfCompatDiagnostics.reportIncompatible(abi.detail());
                 LOGGER.warn("[EMF Compat] EMF ABI is incompatible; capture disabled: {}", abi.detail());
             } else {
                 LOGGER.info(
-                    "[EMF Compat] verified EMF {} detected; head capture hook enabled for {} namespace",
-                    installed.orElse("unknown"), runtimeNamespace);
+                    "[EMF Compat] verified EMF {} detected; head capture hook enabled for NeoForge 1.21.1",
+                    installed.get());
             }
         } catch (Throwable error) {
             apply = false;
@@ -83,16 +73,8 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
         if (!apply) {
             return false;
         }
-        if (mixinClassName.endsWith("EmfModelPartVanillaNameMixin")) {
-            return true;
-        }
-        if (mixinClassName.endsWith("EmfModelPartNamedMixin")) {
-            return namedRuntime;
-        }
-        if (mixinClassName.endsWith("EmfModelPartIntermediaryMixin")) {
-            return !namedRuntime;
-        }
-        return false;
+        return mixinClassName.endsWith("EmfModelPartVanillaNameMixin")
+            || mixinClassName.endsWith("EmfModelPartNamedMixin");
     }
 
     @Override
@@ -111,20 +93,15 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
         if (!Emf1211Symbols.MODEL_PART.equals(targetClassName)
-            || !mixinClassName.endsWith("EmfModelPartNamedMixin")
-                && !mixinClassName.endsWith("EmfModelPartIntermediaryMixin")) {
+            || !mixinClassName.endsWith("EmfModelPartNamedMixin")) {
             return;
         }
 
         boolean captureHookPresent = false;
-        String renderMethod = namedRuntime
-            ? Emf1211Symbols.RENDER_METHOD_NAMED
-            : Emf1211Symbols.RENDER_METHOD_INTERMEDIARY;
         search:
         for (var method : targetClass.methods) {
-            if (!renderMethod.equals(method.name)
-                || !(Emf1211Symbols.RENDER_DESCRIPTOR_INTERMEDIARY.equals(method.desc)
-                    || Emf1211Symbols.RENDER_DESCRIPTOR_NAMED.equals(method.desc))) {
+            if (!Emf1211Symbols.RENDER_METHOD.equals(method.name)
+                || !Emf1211Symbols.RENDER_DESCRIPTOR.equals(method.desc)) {
                 continue;
             }
             for (var instruction : method.instructions) {
@@ -138,10 +115,10 @@ public final class EmfMixinPlugin implements IMixinConfigPlugin {
         }
 
         if (captureHookPresent) {
-            LOGGER.info("[EMF Compat] capture hook injected into EMFModelPart.{}", renderMethod);
+            LOGGER.info("[EMF Compat] capture hook injected into EMFModelPart.render");
         } else {
             EmfCompatDiagnostics.reportIncompatible(
-                "Mixin 未能注入 EMFModelPart." + renderMethod);
+                "Mixin 未能注入 EMFModelPart.render");
             LOGGER.warn("[EMF Compat] EMFModelPart loaded, but no capture hook was injected; "
                 + "using Halo's normal entity anchors");
         }

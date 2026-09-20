@@ -1,6 +1,5 @@
 package network.azusake.halo.render;
 
-import net.minecraft.client.render.LightmapTextureManager;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.render.LightSample;
 import network.azusake.halo.core.render.MaterialState;
@@ -8,12 +7,14 @@ import network.azusake.halo.core.render.MeshDraw;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+import net.minecraft.client.renderer.LightTexture;
+
 class HaloRendererLightTest {
     @Test void coreLightChannelsMapToVanillaPackedCoordinates() {
-        assertEquals(LightmapTextureManager.pack(3, 12), HaloRenderer.packLight(new LightSample(3, 12)));
-        assertEquals(LightmapTextureManager.MAX_LIGHT_COORDINATE,
+        assertEquals(LightTexture.pack(3, 12), HaloRenderer.packLight(new LightSample(3, 12)));
+        assertEquals(LightTexture.FULL_BRIGHT,
             HaloRenderer.packLight(LightSample.UNAVAILABLE));
-        assertEquals(LightmapTextureManager.MAX_LIGHT_COORDINATE,
+        assertEquals(LightTexture.FULL_BRIGHT,
             HaloRenderer.packLight(LightSample.FULL_BRIGHT));
     }
 

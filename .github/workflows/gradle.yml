@@ -9,15 +9,19 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: ["1.21.1-fabric"]
+    branches: ["1.21.1-neoforge"]
     tags: ["v*"]
   pull_request:
-    branches: ["1.21.1-fabric"]
+    branches: ["1.21.1-neoforge"]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        neoforge: ['21.1.219', '21.1.248']
     permissions:
       contents: write
     env:
@@ -46,23 +50,33 @@ jobs:
       - name: Build adapter and verify distribution
         env:
           RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        run: ./gradlew build -Prelease="$RELEASE_BUILD"
+        run: ./gradlew build -Pneo_version=${{ matrix.neoforge }} -Prelease="$RELEASE_BUILD"
 
       # Upload JAR as workflow artifact (always available for download)
       - name: Upload JAR artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Halo-Mod
+          name: Halo-Mod-NeoForge-${{ matrix.neoforge }}
           path: build/libs/*.jar
           if-no-files-found: error
 
-      # Create GitHub Release when pushing a version tag (e.g. v0.1.0)
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the 248 distribution after both compatibility jobs pass
+        uses: actions/download-artifact@v4
+        with:
+          name: Halo-Mod-NeoForge-21.1.248
+          path: release
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/*.jar
+          files: release/*.jar
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

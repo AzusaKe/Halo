@@ -4,16 +4,16 @@ import java.io.ByteArrayInputStream;
 import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import net.minecraft.client.gl.ShaderProgram;
-import net.minecraft.resource.Resource;
-import net.minecraft.resource.ResourceFactory;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceProvider;
 import network.azusake.halo.render.HaloRenderer;
 import org.slf4j.LoggerFactory;
 
 /** Isolated 1.21.1 Iris bridge. Iris owns variant programs, framebuffers, samplers and disposal. */
 public final class IrisMeshBridge {
     private enum Variant { FLAT, LIT_SOLID, LIT_TRANSLUCENT }
-    private record Program(ShaderProgram shader, boolean smoothNormalPatch) {}
+    private record Program(ShaderInstance shader, boolean smoothNormalPatch) {}
     private record Programs(Program flat, Program litSolid, Program litTranslucent) {}
     private static final Map<Object, Programs> PROGRAMS = new IdentityHashMap<>();
     private static boolean building;
@@ -57,15 +57,15 @@ public final class IrisMeshBridge {
 
     public static void forget(Object pipeline) { PROGRAMS.remove(pipeline); }
 
-    public static ShaderProgram currentProgram() {
+    public static ShaderInstance currentProgram() {
         return currentProgram(false, false);
     }
 
-    public static ShaderProgram currentProgram(boolean directionalLighting) {
+    public static ShaderInstance currentProgram(boolean directionalLighting) {
         return currentProgram(directionalLighting, false);
     }
 
-    public static ShaderProgram currentProgram(boolean directionalLighting, boolean translucent) {
+    public static ShaderInstance currentProgram(boolean directionalLighting, boolean translucent) {
         if (getManager == null || getPipeline == null) return null;
         try {
             Programs programs = PROGRAMS.get(getPipeline.invoke(getManager.invoke(null)));
@@ -82,7 +82,7 @@ public final class IrisMeshBridge {
      * generic world-position derivative face-normal idiom. The caller keeps a
      * native entity RenderLayer active so Iris still owns its material state.
      */
-    public static ShaderProgram currentSmoothNormalProgram(boolean translucent) {
+    public static ShaderInstance currentSmoothNormalProgram(boolean translucent) {
         if (getManager == null || getPipeline == null) return null;
         try {
             Programs programs = PROGRAMS.get(getPipeline.invoke(getManager.invoke(null)));
@@ -92,11 +92,11 @@ public final class IrisMeshBridge {
         } catch (ReflectiveOperationException error) { return null; }
     }
 
-    public static ResourceFactory resources(ResourceFactory original) {
+    public static ResourceProvider resources(ResourceProvider original) {
         if (!building) return original;
-        return id -> original.getResource(id).map(resource -> new Resource(resource.getPack(), () -> {
+        return id -> original.getResource(id).map(resource -> new Resource(resource.source(), () -> {
             String source;
-            try (var input = resource.getInputStream()) { source = new String(input.readAllBytes(), StandardCharsets.UTF_8); }
+            try (var input = resource.open()) { source = new String(input.readAllBytes(), StandardCharsets.UTF_8); }
             if (IrisMeshShaderSource.replacesWorldDerivativeFaceNormal(id.getPath(), source,
                     buildingVariant != Variant.FLAT)) buildingSmoothNormalPatch = true;
             return new ByteArrayInputStream(IrisMeshShaderSource.patch(id.getPath(), source,
@@ -112,10 +112,10 @@ public final class IrisMeshBridge {
         building = true;
         buildingVariant = variant;
         buildingSmoothNormalPatch = false;
-        ShaderProgram program;
+        ShaderInstance program;
         boolean smoothNormalPatch;
         try {
-            program = (ShaderProgram) create.invoke(pipeline,
+            program = (ShaderInstance) create.invoke(pipeline,
                 "halo_mesh_" + variant.name().toLowerCase(Locale.ROOT) + "_" + (++generation), source, key);
             smoothNormalPatch = buildingSmoothNormalPatch;
         } finally {

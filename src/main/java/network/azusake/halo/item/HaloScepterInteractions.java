@@ -1,14 +1,13 @@
 package network.azusake.halo.item;
 
-import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.TypedActionResult;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
-/** Fabric interaction hooks for the halo scepter. */
+/** NeoForge interaction hooks for the halo scepter. */
 final class HaloScepterInteractions {
 
     private static boolean registered;
@@ -16,50 +15,117 @@ final class HaloScepterInteractions {
     private HaloScepterInteractions() {
     }
 
-    static void register() {
+    static void register(IEventBus eventBus) {
         if (registered) {
             return;
         }
         registered = true;
 
-        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (!player.getMainHandStack().isOf(HaloItems.HALO_SCEPTER)) {
-                return ActionResult.PASS;
-            }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
-                HaloScepterService.remove(serverPlayer, entity, player.isSneaking());
-            }
-            return ActionResult.SUCCESS;
-        });
+        eventBus.addListener(
+            EventPriority.HIGHEST,
+            false,
+            AttackEntityEvent.class,
+            HaloScepterInteractions::onAttackEntity
+        );
+        eventBus.addListener(
+            EventPriority.HIGHEST,
+            false,
+            PlayerInteractEvent.EntityInteract.class,
+            HaloScepterInteractions::onUseEntity
+        );
+        eventBus.addListener(
+            EventPriority.HIGHEST,
+            false,
+            PlayerInteractEvent.EntityInteractSpecific.class,
+            HaloScepterInteractions::onUseEntitySpecific
+        );
+        eventBus.addListener(
+            EventPriority.HIGHEST,
+            false,
+            PlayerInteractEvent.RightClickBlock.class,
+            HaloScepterInteractions::onUseBlock
+        );
+        eventBus.addListener(
+            EventPriority.HIGHEST,
+            false,
+            PlayerInteractEvent.RightClickItem.class,
+            HaloScepterInteractions::onUseItem
+        );
+        eventBus.addListener(
+            EventPriority.HIGHEST,
+            false,
+            PlayerInteractEvent.LeftClickBlock.class,
+            HaloScepterInteractions::onLeftClickBlock
+        );
+    }
 
-        UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (!player.getStackInHand(hand).isOf(HaloItems.HALO_SCEPTER)) {
-                return ActionResult.PASS;
-            }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
-                HaloScepterService.open(serverPlayer, player.isSneaking() ? player : entity);
-            }
-            return ActionResult.SUCCESS;
-        });
+    private static void onAttackEntity(AttackEntityEvent event) {
+        if (!event.getEntity().getMainHandItem().is(HaloItems.HALO_SCEPTER.get())) {
+            return;
+        }
+        if (!event.getEntity().level().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+            HaloScepterService.remove(player, event.getTarget(), player.isShiftKeyDown());
+        }
+        event.setCanceled(true);
+    }
 
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (!player.isSneaking() || !player.getStackInHand(hand).isOf(HaloItems.HALO_SCEPTER)) {
-                return ActionResult.PASS;
-            }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
-                HaloScepterService.open(serverPlayer, player);
-            }
-            return ActionResult.SUCCESS;
-        });
+    private static void onUseEntity(PlayerInteractEvent.EntityInteract event) {
+        if (!event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
+            return;
+        }
+        if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+            HaloScepterService.open(player, player.isShiftKeyDown() ? player : event.getTarget());
+        }
+        consume(event);
+    }
 
-        UseItemCallback.EVENT.register((player, world, hand) -> {
-            if (!player.isSneaking() || !player.getStackInHand(hand).isOf(HaloItems.HALO_SCEPTER)) {
-                return TypedActionResult.pass(player.getStackInHand(hand));
-            }
-            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
-                HaloScepterService.open(serverPlayer, player);
-            }
-            return TypedActionResult.success(player.getStackInHand(hand), world.isClient);
-        });
+    private static void onUseEntitySpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (!event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
+            return;
+        }
+        if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+            HaloScepterService.open(player, player.isShiftKeyDown() ? player : event.getTarget());
+        }
+        consume(event);
+    }
+
+    private static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (event.getEntity().isShiftKeyDown()
+            && event.getEntity().getMainHandItem().is(HaloItems.HALO_SCEPTER.get())) {
+            event.setCanceled(true);
+        }
+    }
+
+    private static void onUseBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (openSelf(event)) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.SUCCESS);
+        }
+    }
+
+    private static void onUseItem(PlayerInteractEvent.RightClickItem event) {
+        if (openSelf(event)) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.SUCCESS);
+        }
+    }
+
+    private static boolean openSelf(PlayerInteractEvent event) {
+        if (!event.getEntity().isShiftKeyDown()
+            || !event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) return false;
+        if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+            HaloScepterService.open(player, player);
+        }
+        return true;
+    }
+
+    private static void consume(PlayerInteractEvent.EntityInteract event) {
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.SUCCESS);
+    }
+
+    private static void consume(PlayerInteractEvent.EntityInteractSpecific event) {
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.SUCCESS);
     }
 }

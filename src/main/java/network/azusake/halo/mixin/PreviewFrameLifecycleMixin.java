@@ -1,7 +1,7 @@
 package network.azusake.halo.mixin;
 
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.renderer.GameRenderer;
 import network.azusake.halo.render.PlayerPreviewRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,11 +12,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(GameRenderer.class)
 public abstract class PreviewFrameLifecycleMixin {
     @Inject(method = "render", at = @At("HEAD"))
-    private void halo$beginViews(RenderTickCounter tickCounter, boolean tick, CallbackInfo ci) {
+    private void halo$beginViews(DeltaTracker tickCounter, boolean tick, CallbackInfo ci) {
         PlayerPreviewRenderer.beginFrame();
     }
     @Inject(method = "render", at = @At("RETURN"))
-    private void halo$endViews(RenderTickCounter tickCounter, boolean tick, CallbackInfo ci) {
+    private void halo$endViews(DeltaTracker tickCounter, boolean tick, CallbackInfo ci) {
         PlayerPreviewRenderer.endFrame();
     }
 }

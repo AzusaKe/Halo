@@ -1,7 +1,7 @@
 package network.azusake.halo.config;
 
 import com.google.gson.*;
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.fml.loading.FMLPaths;
 import network.azusake.halo.HaloMod;
 
 import java.io.IOException;
@@ -22,7 +22,7 @@ public final class HaloSourcePriorityStore {
     public record LoadResult(boolean success, String message) {}
 
     public static Path defaultFile() {
-        return FabricLoader.getInstance().getConfigDir().resolve("halo-azusake").resolve(FILE_NAME);
+        return FMLPaths.CONFIGDIR.get().resolve("halo-azusake").resolve(FILE_NAME);
     }
 
     public static synchronized LoadResult load() { return load(defaultFile()); }

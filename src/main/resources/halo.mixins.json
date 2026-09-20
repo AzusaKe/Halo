@@ -12,6 +12,7 @@
         "PreviewFrameLifecycleMixin",
         "LivingEntityPreviewPoseMixin",
         "MeshShaderResourceMixin",
+        "LevelRendererLateMeshMixin",
         "VertexBufferAccessor",
         "EntityRenderContextMixin",
         "MinecraftClientAttackMixin",

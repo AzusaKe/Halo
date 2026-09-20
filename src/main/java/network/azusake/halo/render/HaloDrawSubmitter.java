@@ -1,9 +1,15 @@
 package network.azusake.halo.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.List;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.*;
+import net.minecraft.client.Minecraft;
+
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import network.azusake.halo.core.render.*;
 import org.joml.Matrix4f;
 import static network.azusake.halo.platform.PlatformTypes.game;
@@ -13,12 +19,13 @@ final class HaloDrawSubmitter {
     record Submission(long generation, VisualResources visuals, List<MeshDraw> draws,
                       Matrix4f modelView, Matrix4f projection) {}
     private HaloDrawSubmitter() {}
-    static void submitMeshes(MinecraftClient client, Submission pending, HaloMeshBufferCache meshBuffers, RenderEnvironment environment) {
+    static void submitMeshes(Minecraft client, Submission pending, HaloMeshBufferCache meshBuffers, RenderEnvironment environment) {
         if (pending.draws().isEmpty()) return;
-        try (HaloRenderState ignored = new HaloRenderState()) {
+        try (var diagnostic = HaloRenderDiagnostics.open("meshes", environment);
+             HaloRenderState ignored = new HaloRenderState()) {
             // Direct VBO submission does not pass through a vanilla RenderLayer,
             // so its LIGHTMAP render phase cannot bind Sampler2 for us.
-            client.gameRenderer.getLightmapTextureManager().enable();
+            client.gameRenderer.lightTexture().turnOnLightLayer();
             // A single draw cannot amortize either workspace or material lookup caches.
             boolean reuse = pending.draws().size() > 1;
             MeshDrawWorkspace workspace = reuse ? new MeshDrawWorkspace() : null;
@@ -50,12 +57,13 @@ final class HaloDrawSubmitter {
         }
     }
 
-    static void submitBatches(MinecraftClient client, List<DrawBatch> batches, RenderEnvironment environment) {
+    static void submitBatches(Minecraft client, List<DrawBatch> batches, RenderEnvironment environment) {
         if (batches.isEmpty()) return;
-        try (HaloRenderState ignored = new HaloRenderState()) {
+        try (var diagnostic = HaloRenderDiagnostics.open("batches", environment);
+             HaloRenderState ignored = new HaloRenderState()) {
             // Tessellator submission likewise runs outside a RenderLayer. Bind
             // the current 16x16 vanilla lightmap before any lightmapped batch.
-            client.gameRenderer.getLightmapTextureManager().enable();
+            client.gameRenderer.lightTexture().turnOnLightLayer();
             for (int start = 0; start < batches.size();) {
                 int end = LegacyBatchRuns.end(batches, start);
                 submitRun(client, batches, start, end, environment);
@@ -64,10 +72,10 @@ final class HaloDrawSubmitter {
         }
 
     }
-    private static void submit(MinecraftClient client, DrawBatch b, RenderEnvironment environment) {
+    private static void submit(Minecraft client, DrawBatch b, RenderEnvironment environment) {
         submitRun(client, List.of(b), 0, 1, environment);
     }
-    private static void submitRun(MinecraftClient client, List<DrawBatch> batches, int start, int end, RenderEnvironment environment) {
+    private static void submitRun(Minecraft client, List<DrawBatch> batches, int start, int end, RenderEnvironment environment) {
         DrawBatch b = batches.get(start);
         boolean nativeLight = b.light().available();
         boolean hasMask = b.material() instanceof MaterialState.Mesh mesh && mesh.mask() != null;
@@ -80,40 +88,41 @@ final class HaloDrawSubmitter {
                 } else if (b.directionalLighting() || b.textured() && nativeLight) {
                     if (!HaloMeshShader.bindLegacy(client, b, environment)) return;
                 } else if(b.textured()) {
-                    RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-                    RenderSystem.setShaderTexture(0,client.getTextureManager().getTexture(game(b.texture())).getGlId());
-                } else if (nativeLight) RenderSystem.setShader(GameRenderer::getPositionColorLightmapProgram);
-                else RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+                    RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+                    RenderSystem.setShaderTexture(0,client.getTextureManager().getTexture(game(b.texture())).getId());
+                } else if (nativeLight) RenderSystem.setShader(GameRenderer::getPositionColorLightmapShader);
+                else RenderSystem.setShader(GameRenderer::getPositionColorShader);
             }
-            VertexFormat format = b.directionalLighting() ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL
-                : b.textured() ? VertexFormats.POSITION_TEXTURE_COLOR
-                : nativeLight ? VertexFormats.POSITION_COLOR_LIGHT : VertexFormats.POSITION_COLOR;
-            var builder=Tessellator.getInstance().begin(
-                b.topology()==DrawBatch.Topology.QUADS?VertexFormat.DrawMode.QUADS:VertexFormat.DrawMode.TRIANGLES,
+            VertexFormat format = b.directionalLighting() ? DefaultVertexFormat.NEW_ENTITY
+                : b.textured() ? DefaultVertexFormat.POSITION_TEX_COLOR
+                : nativeLight ? DefaultVertexFormat.POSITION_COLOR_LIGHTMAP : DefaultVertexFormat.POSITION_COLOR;
+            var builder=Tesselator.getInstance().begin(
+                b.topology()==DrawBatch.Topology.QUADS?VertexFormat.Mode.QUADS:VertexFormat.Mode.TRIANGLES,
                 format);
             int packedLight = packLight(b.light());
             for (int batch = start; batch < end; batch++) for (var v : batches.get(batch).vertices()) {
-                builder.vertex(v.x(),v.y(),v.z());
+                builder.addVertex(v.x(),v.y(),v.z());
                 if (b.directionalLighting()) {
-                    builder.color(v.red(),v.green(),v.blue(),v.alpha());
-                    builder.texture(b.textured() ? v.u() : 0f, b.textured() ? v.v() : 0f);
-                    builder.overlay(OverlayTexture.DEFAULT_UV);
-                    builder.light(packedLight);
-                    builder.normal(v.normalX(), v.normalY(), v.normalZ());
+                    builder.setColor(v.red(),v.green(),v.blue(),v.alpha());
+                    builder.setUv(b.textured() ? v.u() : 0f, b.textured() ? v.v() : 0f);
+                    builder.setOverlay(OverlayTexture.NO_OVERLAY);
+                    builder.setLight(packedLight);
+                    builder.setNormal(v.normalX(), v.normalY(), v.normalZ());
                 } else {
-                    if(b.textured())builder.texture(v.u(),v.v());
-                    builder.color(v.red(),v.green(),v.blue(),v.alpha());
-                    if (!b.textured() && nativeLight) builder.light(packedLight);
+                    if(b.textured())builder.setUv(v.u(),v.v());
+                    builder.setColor(v.red(),v.green(),v.blue(),v.alpha());
+                    if (!b.textured() && nativeLight) builder.setLight(packedLight);
                 }
             }
-            BufferRenderer.drawWithGlobalProgram(builder.end());
+            BufferUploader.drawWithShader(builder.buildOrThrow());
         }
     }
-    static void submitPrimitives(MinecraftClient client, FrameOutput output, HaloMeshBufferCache buffers,
+    static void submitPrimitives(Minecraft client, FrameOutput output, HaloMeshBufferCache buffers,
                                  RenderEnvironment environment) {
         if (output.primitiveDraws().isEmpty()) return;
-        try (HaloRenderState ignored = new HaloRenderState(true)) {
-            client.gameRenderer.getLightmapTextureManager().enable();
+        try (var diagnostic = HaloRenderDiagnostics.open("primitives", environment);
+             HaloRenderState ignored = new HaloRenderState(true)) {
+            client.gameRenderer.lightTexture().turnOnLightLayer();
             Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix());
             Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
             for (PrimitiveDraw draw : output.primitiveDraws()) {
@@ -141,7 +150,7 @@ final class HaloDrawSubmitter {
 
     static int packLight(LightSample light) {
         LightSample sample = light.available() ? light : LightSample.FULL_BRIGHT;
-        return net.minecraft.client.render.LightmapTextureManager.pack(sample.block(), sample.sky());
+        return net.minecraft.client.renderer.LightTexture.pack(sample.block(), sample.sky());
     }
     private static void applyState(boolean cull, boolean blend, boolean depthTest, boolean depthWrite,
                                    float red, float green, float blue, float alpha) {

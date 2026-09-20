@@ -1,7 +1,6 @@
 package network.azusake.halo.compat.ysm;
 
 import org.joml.Matrix4f;
-import org.joml.Quaternionf;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;

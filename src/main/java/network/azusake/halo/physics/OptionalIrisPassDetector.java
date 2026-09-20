@@ -1,6 +1,6 @@
 package network.azusake.halo.physics;
 
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.fml.ModList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,8 +17,8 @@ public final class OptionalIrisPassDetector {
     private OptionalIrisPassDetector() {
     }
 
-    static boolean isMainPass() {
-        if (!FabricLoader.getInstance().isModLoaded(IRIS_MOD_ID)) {
+    public static boolean isMainPass() {
+        if (!ModList.get().isLoaded(IRIS_MOD_ID)) {
             return true;
         }
         Probe current = probe;
@@ -58,7 +58,7 @@ public final class OptionalIrisPassDetector {
 
     /** Whether the adapter must use the shader-pack mesh program for this frame. */
     public static boolean hasShaderPack() {
-        if (!FabricLoader.getInstance().isModLoaded(IRIS_MOD_ID)) return false;
+        if (!ModList.get().isLoaded(IRIS_MOD_ID)) return false;
         isMainPass(); // Initialize the same cached public-API probe used for captures.
         try { return probe.hasShaderPack(); }
         catch (Exception error) { warnUnknown(error); return true; }

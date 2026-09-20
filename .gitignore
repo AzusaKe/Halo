@@ -29,6 +29,8 @@ desktop.ini
 # Minecraft / Fabric Loom
 run/
 runServer/
+runClient/
+runClient2/
 logs/
 crash-reports/
 

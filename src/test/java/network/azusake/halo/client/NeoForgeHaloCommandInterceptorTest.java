@@ -5,14 +5,14 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import java.util.List;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.minecraft.commands.CommandSourceStack;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-class FabricHaloCommandInterceptorTest {
+class NeoForgeHaloCommandInterceptorTest {
     @Test void selfTargetIsAnUnrestrictedLiteralWithDefinitionSuggestions() throws Exception {
-        var dispatcher = new CommandDispatcher<FabricClientCommandSource>();
-        new FabricHaloCommandInterceptor().registerCommands(dispatcher, null);
+        var dispatcher = new CommandDispatcher<CommandSourceStack>();
+        new NeoForgeHaloCommandInterceptor().registerCommands(dispatcher, null);
 
         var halo = dispatcher.getRoot().getChild("halo");
         for (String command : new String[]{"show", "hide", "inspect"}) {

@@ -1,9 +1,9 @@
 package network.azusake.halo.compat.emf;
 
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Vec3d;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.world.phys.Vec3;
 import network.azusake.halo.api.v2.*;
 import org.joml.Matrix4f;
 import org.slf4j.LoggerFactory;
@@ -14,12 +14,12 @@ final class EmfPreviewCapture {
     private static boolean reportedFailure;
     private static final ThreadLocal<Boolean> POSE_ONLY = ThreadLocal.withInitial(() -> false);
     private static final VertexConsumer DISCARD = new VertexConsumer() {
-        public VertexConsumer vertex(float x, float y, float z) { return this; }
-        public VertexConsumer color(int r, int g, int b, int a) { return this; }
-        public VertexConsumer texture(float u, float v) { return this; }
-        public VertexConsumer overlay(int u, int v) { return this; }
-        public VertexConsumer light(int u, int v) { return this; }
-        public VertexConsumer normal(float x, float y, float z) { return this; }
+        public VertexConsumer addVertex(float x, float y, float z) { return this; }
+        public VertexConsumer setColor(int r, int g, int b, int a) { return this; }
+        public VertexConsumer setUv(float u, float v) { return this; }
+        public VertexConsumer setUv1(int u, int v) { return this; }
+        public VertexConsumer setUv2(int u, int v) { return this; }
+        public VertexConsumer setNormal(float x, float y, float z) { return this; }
     };
     private EmfPreviewCapture() {}
 
@@ -30,27 +30,27 @@ final class EmfPreviewCapture {
      * then cancel at our existing capture hook before EMF selects textures or emits geometry.
      * This uses the current posed model, including CEM animations, even with no visible body.
      */
-    static void capturePose(MatrixStack matrices, ModelPart head) {
+    static void capturePose(PoseStack matrices, ModelPart head) {
         var scope = HaloAnchorApi.currentPreviewContext();
         if (scope == null || scope.hasModelAnchor() || isPoseOnly()) return;
         POSE_ONLY.set(true);
-        matrices.push();
+        matrices.pushPose();
         try {
             head.render(matrices, DISCARD, 0, 0, 0xFFFFFFFF);
         } catch (Throwable error) {
             reportFailure(error);
         } finally {
-            matrices.pop();
+            matrices.popPose();
             POSE_ONLY.remove();
         }
     }
 
-    static void capture(MatrixStack matrices, ModelPart part) {
+    static void capture(PoseStack matrices, ModelPart part) {
         var scope = HaloAnchorApi.currentPreviewContext();
         if (scope == null || scope.hasModelAnchor() || matrices == null) return;
         try {
             var pose = EmfHeadMath.toAnchorPose(new EmfHeadCapture.CapturedHead(
-                EmfHeadCapture.captureHeadMatrix(matrices, part), new Matrix4f().set(scope.sceneToView()), Vec3d.ZERO));
+                EmfHeadCapture.captureHeadMatrix(matrices, part), new Matrix4f().set(scope.sceneToView()), Vec3.ZERO));
             if (pose != null && EmfHeadCapture.EMF_SOURCE.submitPreview(scope, new PreviewAnchorPose(pose.position().x(), pose.position().y(),
                     pose.position().z(), pose.rotation())) && !reportedCapture) {
                 reportedCapture = true;

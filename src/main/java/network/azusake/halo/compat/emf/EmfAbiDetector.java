@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/** Checks the exact EMF class ABI before optional Mixins are enabled. */
+/** Checks the actual EMF class ABI before optional NeoForge Mixins are enabled. */
 public final class EmfAbiDetector {
 
     private static final String STRING_DESCRIPTOR = "Ljava/lang/String;";
@@ -17,24 +17,19 @@ public final class EmfAbiDetector {
     private EmfAbiDetector() {
     }
 
-    public static Result inspect(boolean namedRuntime) {
-        String methodName = namedRuntime
-            ? Emf1211Symbols.RENDER_METHOD_NAMED
-            : Emf1211Symbols.RENDER_METHOD_INTERMEDIARY;
-        String methodDescriptor = namedRuntime
-            ? Emf1211Symbols.RENDER_DESCRIPTOR_NAMED
-            : Emf1211Symbols.RENDER_DESCRIPTOR_INTERMEDIARY;
-
+    public static Result inspect() {
         Optional<ClassNode> modelPart = readClass(Emf1211Symbols.MODEL_PART);
         if (modelPart.isEmpty()) {
             return Result.incompatible("目标类不存在: " + Emf1211Symbols.MODEL_PART);
         }
+
         boolean hasRenderMethod = modelPart.get().methods.stream()
-            .anyMatch(method -> methodName.equals(method.name)
-                && methodDescriptor.equals(method.desc));
+            .anyMatch(method -> Emf1211Symbols.RENDER_METHOD.equals(method.name)
+                && Emf1211Symbols.RENDER_DESCRIPTOR.equals(method.desc));
         if (!hasRenderMethod) {
             return Result.incompatible(
-                "目标渲染方法不存在: " + methodName + methodDescriptor);
+                "目标渲染方法不存在: " + Emf1211Symbols.RENDER_METHOD
+                    + Emf1211Symbols.RENDER_DESCRIPTOR);
         }
 
         Optional<ClassNode> vanillaPart = readClass(Emf1211Symbols.VANILLA_MODEL_PART);
@@ -47,7 +42,7 @@ public final class EmfAbiDetector {
             return Result.incompatible("EMFModelPartVanilla.name 字段不存在或类型不匹配");
         }
 
-        return Result.compatible(methodName + methodDescriptor);
+        return Result.compatible(Emf1211Symbols.RENDER_METHOD + Emf1211Symbols.RENDER_DESCRIPTOR);
     }
 
     private static Optional<ClassNode> readClass(String binaryName) {
@@ -62,9 +57,6 @@ public final class EmfAbiDetector {
             loaders.add(contextLoader);
         }
         for (ClassLoader loader : loaders) {
-            if (loader == null) {
-                continue;
-            }
             try (InputStream stream = loader.getResourceAsStream(resourceName)) {
                 if (stream == null) {
                     continue;
@@ -74,7 +66,7 @@ public final class EmfAbiDetector {
                     | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
                 return Optional.of(node);
             } catch (IOException | RuntimeException ignored) {
-                return Optional.empty();
+                // Optional compatibility must never stop startup.
             }
         }
         return Optional.empty();

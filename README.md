@@ -5,11 +5,11 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![MC Version](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)
-![Mod Loader](https://img.shields.io/badge/Mod%20Loader-Fabric-orange.svg)
+![Mod Loader](https://img.shields.io/badge/Mod%20Loader-NeoForge-orange.svg)
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.21.1 Fabric**. The current source version is **2.4.1+adapter.2**, using HaloCore **2.4.1**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See the [1.21.1 migration record](docs/1.21.1-fabric-migration.md), [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 1.21.1 NeoForge**. The current source version is **2.4.1+adapter.1**, using HaloCore **2.4.1**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See the [1.21.1 migration record](docs/1.21.1-neoforge-migration.md), [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 2.4.0 adds the loader-neutral server ownership source API. Accessory and integration mods can submit halo candidates by entity UUID; Halo selects one winner by source priority, while the built-in commands and Halo Scepter continue to edit only the persisted `halo:world_data` source. Priorities are stored in `halo_source_priorities.json` and can be changed without restarting through `/halo priority list|set|reload`. Integrations must also provide the referenced definitions and visual assets to rendering clients. See the [API guide](docs/en/API.md#6-server-ownership-source-api).
 
@@ -25,7 +25,7 @@ interface. Providers only capture heads; Halo owns preview physics and drawing. 
 Vanilla player previews now display the equipped halo, including survival and creative inventories.
 The preview uses the actual head as its physics anchor and shares all three primitives and visual animation
 with the world halo. `playerPreviewHaloEnabled` defaults to `true` in the client configuration (restart
-after editing). Built-in compatibility also captures YSM 2.6.5 and EMF 3.3.9+ player preview heads,
+after editing). Built-in compatibility also captures YSM 2.6.5 and EMF 3.1.1+ (ABI-gated) player preview heads,
 using the same version/ABI gates as world rendering. EMF requires a resource pack that replaces the
 player model. See the [preview API](docs/en/API.md#preview-host-integration) and [implementation/verification record](docs/player-preview.md).
 `playerPreviewHaloPhysicsEnabled` defaults to `true`, using world-style physics with independent state
@@ -59,7 +59,7 @@ For contributors and coding agents, the [development guide](DEVELOPMENT.md) cove
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-This source branch builds for Minecraft 1.21.1 with Fabric. Other game/loader versions use their own adapter branches.
+This source branch builds for Minecraft 1.21.1 with NeoForge. Other game/loader versions use their own adapter branches.
 
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
@@ -75,7 +75,7 @@ This source branch builds for Minecraft 1.21.1 with Fabric. Other game/loader ve
 - [x] **Persistent**: Halos survive world reloads and server restarts through entity NBT and world persistent state. Automatically restored on entity load.
 - [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
 - [x] **Glow Effects**: The `animation.glow` channel drives each primitive's own self-illumination brightness (fullbright); set `glowing: false` on a group to make its primitives follow ambient light instead.
-- [ ] **LabPBR Compatibility — visual sign-off pending for 1.21.1**: The 1.21.1 world path submits unmasked, non-glowing `billboard`, `ring`, and OBJ `mesh` primitives through the native entity RenderLayer so Iris can collect same-basename `_n.png` and `_s.png` maps. Iris 1.8.8 with Complementary Reimagined r5.9.3 successfully built all Halo material variants and survived reload/draw smoke tests, but this branch is not marked fully compatible until the fixed diagnostic pack receives visual comparison. POM remains shader-dependent and is not implied by the entity material path.
+- [ ] **LabPBR Compatibility — visual sign-off pending for 1.21.1**: The 1.21.1 world path submits unmasked, non-glowing `billboard`, `ring`, and OBJ `mesh` primitives through the native entity RenderLayer so Iris can collect same-basename `_n.png` and `_s.png` maps. NeoForge Iris 1.8.14-beta.1 with IterationRP Alpha 0.8.22 passed material-program and smooth-normal matching checks; the user confirmed halos and EMF/YSM previews with shaders enabled. Per-channel diagnostic comparisons were not separately recorded; see the migration record for the exact scope. POM remains shader-dependent and is not implied by the entity material path.
 - [x] **Animation Support**: Halo definitions support position, rotation, scale, alpha, and glow animation channels, plus independent startup and shutdown transition timelines.
 - [x] **Runtime Debug Configuration**: `/halo config` provides session-scoped overrides for damping, distance limits, angular momentum, and uniform scale. It is intended for personal tuning and debugging: local mode applies it to the current client, integrated singleplayer bridges it to the paired client, and dedicated servers do not persist or distribute these values. Permanent placement changes, including position and rotation offsets, belong in each halo definition.
 - [x] **Resource Pack Friendly**: Rendering clients load definitions and visual assets from `assets/<namespace>/halo_definitions/` in resource packs. A server data pack may register definition JSON under `data/<namespace>/halo_definitions/` for server-side listing and selection, but Halo does not distribute that JSON, textures, or models; every rendering client still needs the matching resource pack. Run `/reload` after changing either source.
@@ -100,17 +100,13 @@ This source branch builds for Minecraft 1.21.1 with Fabric. Other game/loader ve
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.21.1.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for your Minecraft version.
-3. Download the latest **Halo** mod JAR file from the [Releases](https://github.com/AzusaKe/Halo/releases) page.
-4. Place both JAR files into the `mods` folder in your Minecraft installation directory.
-5. Launch Minecraft with the Fabric profile.
+1. Install [NeoForge](https://neoforged.net/) for Minecraft 1.21.1. The minimum supported loader is **21.1.219**; development and release builds use **21.1.248**.
+2. Download the matching **Halo NeoForge 1.21.1** JAR from [Releases](https://github.com/AzusaKe/Halo/releases).
+3. Place the Halo JAR in the instance's `mods` folder and launch its NeoForge profile. HaloCore is already included.
 
 ### NeoForge / Forge
 
-This mod is natively built for Fabric and does not ship a native Forge or NeoForge adapter. The historical 1.20.1 build was exercised through Sinytra Connector, but that result does not carry over to this 1.21.1 adapter. Forge/NeoForge 1.21.1 is currently unverified and is not part of this branch's compatibility claim.
-
-Use the native Fabric 1.21.1 build for supported deployments; Connector testing is still pending for this branch.
+This branch is a native NeoForge adapter. Other loaders use their corresponding Halo builds. Current migration evidence and outstanding acceptance tests are recorded in the [migration record](docs/1.21.1-neoforge-migration.md).
 
 <a id="usage"></a>
 
@@ -170,7 +166,7 @@ Server commands require permission level 2 (operator) by default. `/halo rendere
 
 ### YSM Compatibility
 
-Halo's Yes Steve Model (YSM) integration is optional and version-pinned. This branch supports exactly **YSM `2.6.5-fabric+mc1.21.1`**. If YSM is missing, disabled, or a different version is installed, Halo safely uses its standard entity anchor instead. YSM is only needed on clients that render YSM models; the server does not need YSM for Halo synchronization.
+Halo's Yes Steve Model (YSM) integration is optional and version-pinned. This branch supports exactly **YSM `2.6.5-neoforge+mc1.21.1`**. If YSM is missing, disabled, or a different version is installed, Halo safely uses its standard entity anchor instead. YSM is only needed on clients that render YSM models; the server does not need YSM for Halo synchronization.
 
 To enable YSM head-locator anchoring:
 
@@ -328,12 +324,12 @@ Rendering definitions are JSON files stored in `assets/<namespace>/halo_definiti
 ### Build
 
 ```bash
-git clone --branch 1.21.1-fabric --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 1.21.1-neoforge --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-1.21.1-fabric-2.4.1+adapter.2.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-1.21.1-neoforge-2.4.1+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 
@@ -355,8 +351,8 @@ The compiled JAR is under `build/libs/`; this source version builds `halo-1.21.1
 ./gradlew runServer --console=plain
 ```
 
-The client uses `run/`, the second client uses `run2/`, and this branch's dedicated server uses
-`runServer/1.21.1-fabric/` for its own logs, configuration and world. On first launch, follow the
+The client uses `runClient/21.1.248/`, the second client uses `runClient2/21.1.248/`, and this branch's dedicated server uses
+`runServer/1.21.1-neoforge-21.1.248/` for its own logs, configuration and world. On first launch, follow the
 instructions for `eula.txt` in that directory and configure the port in `server.properties`.
 Development usernames require an offline-mode test server; bind `server-ip` to `127.0.0.1` for local
 testing. Enter `stop` in the console to save and shut down normally.
@@ -376,7 +372,7 @@ src/main/java/network/azusake/halo/
   platform/                   # core value conversions and explicit integrated-server bridge
   client/, command/, item/    # UI, Brigadier and item inputs
   json/, config/, lifecycle/  # resource, file and world/NBT adapters
-  network/                    # Fabric channels and existing byte codecs
+  network/                    # NeoForge optional payloads and existing byte codecs
   physics/, compat/, mixin/   # game/model capture, EMF/YSM/Iris integration
   render/                     # frame assembly and GPU batch submission
 src/main/resources/           # built-in definitions, textures, recipes and translations
@@ -389,7 +385,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please submit an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
 
-- **Development Environment**: Minecraft 1.21.1 + Fabric Loader 0.16.14+ + JDK 21
+- **Development Environment**: Minecraft 1.21.1 + NeoForge 21.1.248 (minimum 21.1.219) + JDK 21
 - **IDE**: Recommended IntelliJ IDEA (with Minecraft Development plugin) or VS Code
 
 <a id="license"></a>

@@ -2,11 +2,11 @@
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
-本分支是 Halo 的 `1.21.1-fabric` 适配器，core 的集成分支是 `main`；功能基准来自 `1.20.1-fabric`，平台代码则按 1.21.1 API 独立维护。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
+本分支是 Halo 的 `1.21.1-neoforge` 适配器，core 的集成分支是 `main`；功能基准来自 `1.21.1-fabric` 的 `d09d864`，最低支持 NeoForge 21.1.219，开发和发布构建基线为 21.1.248。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
 
 **常规流程：先定义功能的数据与规则 → 在 core 实现和验证 → 在主线实现适配器并联调 → 发布确定的 core 提交 → 提交主线的适配器及 core 指针 → 按需更新其他版本的指针和适配器 → 分别验收、推送和发布。** 不要求所有游戏版本同时跟进。
 
-文中的 `entity-opacity`（根据实体状态调整光环透明度）仍是完整流程示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。本适配器的迁移边界和验证结果见 [1.21.1 Fabric 迁移记录](docs/1.21.1-fabric-migration.md)。
+文中的 `entity-opacity`（根据实体状态调整光环透明度）仍是完整流程示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。本适配器的迁移边界和验证结果见 [1.21.1 NeoForge 迁移记录](docs/1.21.1-neoforge-migration.md)。
 
 ## 阅读路线
 
@@ -121,13 +121,13 @@ flowchart LR
 
 ### 3.1 先验证核心行为，再做联合构建
 
-1.21.1 适配器使用 Java 21、Gradle wrapper 8.13 和固定 Loom 1.10.5；core 源码仍以 Java 17 为契约基线。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
+1.21.1 适配器使用 Java 21、Gradle wrapper 8.13 和固定 ModDevGradle 2.0.144；core 源码仍以 Java 17 为契约基线。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
 
 ```powershell
 # 快速重放与功能相关的 core 用例；测试类按实际改动选择。
 .\core\gradlew.bat -p core test --tests 'network.azusake.halo.core.runtime.RuntimePipelineTest' --console=plain
 
-# 不经过 Loom 的 core 独立构建和边界检查。
+# 不经过 Minecraft 工具链的 core 独立构建和边界检查。
 .\core\gradlew.bat -p core build --console=plain
 
 # Halo + core 的联合构建、测试、JAR 内容及旧 API v2 调用方检查。
@@ -142,23 +142,16 @@ flowchart LR
 
 | 命令 | 当前主线的运行目录 |
 | --- | --- |
-| `.\gradlew.bat runClient --console=plain` | `run/`，Dev1 |
-| `.\gradlew.bat runClient2 --console=plain` | `run2/`，Dev2 |
-| `.\gradlew.bat runServer --console=plain` | `runServer/1.21.1-fabric/` |
-| `.\gradlew.bat runSmokeServer --console=plain` | `.local/smoke-server/` |
-| `.\gradlew.bat runSmokeClient --console=plain` | `.local/smoke-client/` |
-| `.\gradlew.bat runSmokeClient2 --console=plain` | `.local/smoke-client2/` |
+| `.\gradlew.bat runClient --console=plain` | `runClient/21.1.248/`，Dev1 |
+| `.\gradlew.bat runClient2 --console=plain` | `runClient2/21.1.248/`，Dev2 |
+| `.\gradlew.bat runServer --console=plain` | `runServer/1.21.1-neoforge-21.1.248/` |
+
 
 服务端和两个客户端分别在不同终端启动。首次服务端启动按提示处理该运行目录的 EULA 和 `server.properties`。仅在本机联调时，开发账号使用允许离线账号的测试服，并绑定 `server-ip=127.0.0.1`；通过该目录配置的端口连接。不同游戏版本使用独立世界和配置，不把较新版本存档交给较老版本加载。
 
-隔离客户端可直接连接测试服，例如已将 smoke-server 端口配置为 25579 时：
+最低版本验证使用 `.\gradlew.bat build '-Pneo_version=21.1.219'`（PowerShell 必须为该参数加引号）。运行任务同样接受 `-Pneo_version`，运行目录按加载器版本隔离。正式发布 JAR 仅由 248 构建，再把同一份 JAR 放入 219 和 248 的普通实例验证。
 
-```powershell
-.\gradlew.bat runSmokeClient '-PsmokeServerAddress=127.0.0.1:25579' --console=plain
-.\gradlew.bat runSmokeClient2 '-PsmokeServerAddress=127.0.0.1:25579' --console=plain
-```
-
-进入既有隔离单人世界可用 `'-PsmokeWorldName=世界目录名'`，目录位于 `.local/smoke-client/saves/`。它与 `smokeServerAddress` 二选一。
+进入既有隔离单人世界可用 `'-PsmokeWorldName=世界目录名'`，世界位于 `runClient/<NeoForge版本>/saves/`。多人连接由游戏界面填写测试服地址。
 
 IDE 导入根 Gradle 工程及 included build；断点可以同时设在适配器和 core。需要远程附加调试时：
 
@@ -250,10 +243,10 @@ git -C core rev-parse HEAD
 git add -- core src gradle.properties CHANGELOG.md docs README.md README_ZH.md
 git diff --cached --submodule=short
 git diff --cached --check
-git commit -m 'feat: adapt entity opacity on Minecraft 1.21.1 Fabric'
+git commit -m 'feat: adapt entity opacity on Minecraft 1.21.1 NeoForge'
 
-git switch 1.21.1-fabric
-git pull --ff-only origin 1.21.1-fabric
+git switch 1.21.1-neoforge
+git pull --ff-only origin 1.21.1-neoforge
 git merge --ff-only codex/entity-opacity-1.21.1
 git submodule update --init --recursive
 git status --short
@@ -266,19 +259,19 @@ git -C core status --short
 
 发布构建要求 Halo/core **两个工作树干净**，当前 core HEAD 等于 Halo **已提交**的 gitlink，而且该精确提交能从 core 的 `origin` 获取。因此必须先提交并推送 core，再提交 Halo 指针，最后运行 `-Prelease=true`；仅暂存 `core` 不够。正式检查失败时，不用去掉参数或只重命名 `.dev` 文件来发布。
 
-检查 `build/libs/` 中的成品以及 JAR 内 `fabric.mod.json`、`halo-build.json`：功能版本应为预定版本，适配修订正确，`development=false`，`coreCommit` 与 `coreLock` 一致，`haloCommit` 对应本次构建提交。最终 Halo 提交改变后要重新构建，避免成品内记录旧提交。
+检查 `build/libs/` 中的成品以及 JAR 内 `META-INF/neoforge.mods.toml`、`halo-build.json`：功能版本应为预定版本，适配修订正确，`development=false`，`coreCommit` 与 `coreLock` 一致，`haloCommit` 对应本次构建提交。最终 Halo 提交改变后要重新构建，避免成品内记录旧提交。
 
 ### 4.4 推送 Halo 分支，按需要发布版本标签
 
 ```powershell
-git push origin 1.21.1-fabric
+git push origin 1.21.1-neoforge
 ```
 
 查看该提交的 CI 结果。需要正式发布成品时，再创建唯一的目标平台标签，例如：
 
 ```powershell
-git tag -a v1.4.0-fabric-1.21.1-adapter.1 -m 'Halo 1.4.0 for Minecraft 1.21.1 Fabric, adapter 1'
-git push origin refs/tags/v1.4.0-fabric-1.21.1-adapter.1
+git tag -a v1.4.0-neoforge-1.21.1-adapter.1 -m 'Halo 1.4.0 for Minecraft 1.21.1 NeoForge, adapter 1'
+git push origin refs/tags/v1.4.0-neoforge-1.21.1-adapter.1
 ```
 
 当前 [Halo CI](.github/workflows/gradle.yml) 会递归检出子模块；主线分支/PR 触发构建，`v*` 标签触发正式构建并自动创建 GitHub Release、上传 JAR。只需要备份源码时推送分支即可；正式标签推送也是发布动作。core 的 CI 独立运行构建，不能替代 Halo 的平台验证。
@@ -287,7 +280,7 @@ git push origin refs/tags/v1.4.0-fabric-1.21.1-adapter.1
 
 ```powershell
 git -C core ls-remote origin refs/heads/main refs/tags/v1.4.0 'refs/tags/v1.4.0^{}'
-git ls-remote origin refs/heads/1.21.1-fabric refs/tags/v1.4.0-fabric-1.21.1-adapter.1 'refs/tags/v1.4.0-fabric-1.21.1-adapter.1^{}'
+git ls-remote origin refs/heads/1.21.1-neoforge refs/tags/v1.4.0-neoforge-1.21.1-adapter.1 'refs/tags/v1.4.0-neoforge-1.21.1-adapter.1^{}'
 git status --short --branch
 git -C core status --short --branch
 ```

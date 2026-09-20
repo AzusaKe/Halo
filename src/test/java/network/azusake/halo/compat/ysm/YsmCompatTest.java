@@ -4,7 +4,6 @@ import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.physics.HeadFrameMath;
-import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector4f;
@@ -14,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.UUID;
+import net.minecraft.world.phys.Vec3;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,7 +33,7 @@ class YsmCompatTest {
     @Test
     @DisplayName("version gate accepts only the verified YSM release")
     void exactVersionGate() {
-        assertTrue(YsmVersionGate.isSupportedVersion("2.6.5-fabric+mc1.21.1"));
+        assertTrue(YsmVersionGate.isSupportedVersion("2.6.5-neoforge+mc1.21.1"));
         assertFalse(YsmVersionGate.isSupportedVersion("2.6.5"));
         assertFalse(YsmVersionGate.isSupportedVersion("2.6.6-fabric+mc1.21.1"));
         assertFalse(YsmVersionGate.isSupportedVersion(null));
@@ -72,9 +72,9 @@ class YsmCompatTest {
 
         Matrix4f nonFiniteHead = new Matrix4f().m00(Float.NaN);
         assertNull(YsmHeadMath.toAnchorPose(
-            nonFiniteHead, Vec3d.ZERO, Vec3d.ZERO, new Matrix4f()));
+            nonFiniteHead, Vec3.ZERO, Vec3.ZERO, new Matrix4f()));
         assertNull(YsmHeadMath.toAnchorPose(
-            new Matrix4f(), Vec3d.ZERO, Vec3d.ZERO, new Matrix4f().scale(0f)));
+            new Matrix4f(), Vec3.ZERO, Vec3.ZERO, new Matrix4f().scale(0f)));
     }
 
     @Test
@@ -84,9 +84,9 @@ class YsmCompatTest {
         float pitch = -20f;
         float roll = 42f;
         HeadFrameMath.HeadFrame frame = HeadFrameMath.of(yaw, pitch, roll);
-        Matrix4f matrix = matrixFromFrame(frame, new Vec3d(2, 3, 4));
-        Vec3d localOffset = new Vec3d(0.2, 0.3, -0.1);
-        Vec3d camera = new Vec3d(10, 60, -5);
+        Matrix4f matrix = matrixFromFrame(frame, new Vec3(2, 3, 4));
+        Vec3 localOffset = new Vec3(0.2, 0.3, -0.1);
+        Vec3 camera = new Vec3(10, 60, -5);
 
         AnchorPose anchor = YsmHeadMath.toAnchorPose(matrix, localOffset, camera, new Matrix4f());
 
@@ -103,11 +103,11 @@ class YsmCompatTest {
     @DisplayName("view-space Head matrix is restored to world orientation")
     void viewSpaceRestoration() {
         HeadFrameMath.HeadFrame frame = HeadFrameMath.of(-70f, 25f, -30f);
-        Matrix4f world = matrixFromFrame(frame, new Vec3d(3, 2, -1));
+        Matrix4f world = matrixFromFrame(frame, new Vec3(3, 2, -1));
         Matrix4f view = new Matrix4f().rotate(new Quaternionf().rotationYXZ(0.4f, -0.2f, 0.1f));
         Matrix4f viewSpace = new Matrix4f(view).mul(world);
 
-        AnchorPose anchor = YsmHeadMath.toAnchorPose(viewSpace, Vec3d.ZERO, Vec3d.ZERO, view);
+        AnchorPose anchor = YsmHeadMath.toAnchorPose(viewSpace, Vec3.ZERO, Vec3.ZERO, view);
 
         assertNotNull(anchor);
         assertDirection(frame.forward(), anchor, new AnchorVec3(0, 0, 1));
@@ -137,8 +137,8 @@ class YsmCompatTest {
     @DisplayName("previous-frame capture is restored with its producing camera transform")
     void previousCaptureKeepsCameraFrame() {
         UUID uuid = UUID.randomUUID();
-        Vec3d expectedWorld = new Vec3d(13, 4, -8);
-        Vec3d captureCamera = new Vec3d(10, 2, -5);
+        Vec3 expectedWorld = new Vec3(13, 4, -8);
+        Vec3 captureCamera = new Vec3(10, 2, -5);
         Matrix4f captureView = new Matrix4f().rotateY(0.65f).rotateX(-0.2f);
         Matrix4f cameraRelativeWorld = new Matrix4f().translate(
             (float) (expectedWorld.x - captureCamera.x),
@@ -151,7 +151,7 @@ class YsmCompatTest {
         YsmHeadCapture.advanceFrameForTests();
 
         YsmHeadCapture.CapturedHead previous = YsmHeadCapture.getPrevious(uuid);
-        AnchorPose anchor = YsmHeadMath.toAnchorPose(previous, Vec3d.ZERO);
+        AnchorPose anchor = YsmHeadMath.toAnchorPose(previous, Vec3.ZERO);
         assertNotNull(anchor);
         assertEquals(expectedWorld.x, anchor.position().x(), EPS);
         assertEquals(expectedWorld.y, anchor.position().y(), EPS);
@@ -199,7 +199,7 @@ class YsmCompatTest {
         }
     }
 
-    private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3d origin) {
+    private static Matrix4f matrixFromFrame(HeadFrameMath.HeadFrame frame, Vec3 origin) {
         Matrix4f matrix = new Matrix4f();
         matrix.m00((float) frame.right().x);
         matrix.m01((float) frame.right().y);

@@ -32,12 +32,12 @@ class YsmReleaseSignatureTest {
         assertTrue(Files.isRegularFile(jar), "YSM test jar does not exist: " + jar);
 
         try (ZipFile zip = new ZipFile(jar.toFile())) {
-            String metadata = text(zip, "fabric.mod.json");
-            assertTrue(metadata.contains("\"version\": \"" + YsmV265Symbols.SUPPORTED_VERSION + "\""));
+            String metadata = text(zip, "META-INF/neoforge.mods.toml");
+            assertTrue(metadata.contains(YsmV265Symbols.SUPPORTED_VERSION));
 
             ClassNode renderer = classNode(zip, YsmV265Symbols.GEO_RENDERER);
             assertTrue(hasMethod(renderer, YsmV265Symbols.RENDER_METHOD,
-                YsmV265Symbols.RENDER_DESCRIPTOR_INTERMEDIARY),
+                YsmV265Symbols.RENDER_DESCRIPTOR_NEOFORGE),
                 "missing pinned YSM render method");
             ClassNode model = classNode(zip, YsmV265Symbols.ANIMATED_GEO_MODEL);
             assertTrue(hasMethod(model, YsmV265Symbols.HEAD_BONES_GETTER,

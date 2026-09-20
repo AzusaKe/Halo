@@ -1,18 +1,18 @@
 package network.azusake.halo.render;
 
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.util.BufferAllocator;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.VertexFormat;
 
 /** Owns the 1.21 BufferAllocator used for one immutable GPU upload. */
 final class MeshUploadBuffer implements AutoCloseable {
-    private final BufferAllocator allocator;
+    private final ByteBufferBuilder allocator;
 
     MeshUploadBuffer(int capacity) {
-        allocator = new BufferAllocator(capacity);
+        allocator = new ByteBufferBuilder(capacity);
     }
 
-    BufferBuilder begin(VertexFormat.DrawMode mode, VertexFormat format) {
+    BufferBuilder begin(VertexFormat.Mode mode, VertexFormat format) {
         return new BufferBuilder(allocator, mode, format);
     }
 

@@ -1,14 +1,5 @@
 package network.azusake.halo.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.text.Text;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
@@ -16,6 +7,15 @@ import network.azusake.halo.util.HaloIdMatcher;
 
 import java.util.List;
 import java.util.UUID;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 
 /** Client-only searchable selector for a server-locked halo-scepter target. */
 public final class HaloScepterScreen extends Screen {
@@ -28,7 +28,7 @@ public final class HaloScepterScreen extends Screen {
     private final UUID targetUuid;
     private final String targetName;
 
-    private TextFieldWidget searchField;
+    private EditBox searchField;
     private HaloListWidget haloList;
     private int panelLeft;
     private int panelRight;
@@ -38,7 +38,7 @@ public final class HaloScepterScreen extends Screen {
     private boolean closeSent;
 
     public HaloScepterScreen(int targetEntityId, UUID targetUuid, String targetName) {
-        super(Text.translatable("screen.halo.halo_scepter.title"));
+        super(Component.translatable("screen.halo.halo_scepter.title"));
         this.targetEntityId = targetEntityId;
         this.targetUuid = targetUuid;
         this.targetName = targetName;
@@ -52,29 +52,29 @@ public final class HaloScepterScreen extends Screen {
         panelTop = PANEL_MARGIN;
         panelBottom = height - PANEL_MARGIN;
 
-        searchField = new TextFieldWidget(
-            textRenderer,
+        searchField = new EditBox(
+            font,
             panelLeft + 14,
             panelTop + 43,
             panelWidth - 28,
             20,
-            Text.translatable("screen.halo.halo_scepter.search")
+            Component.translatable("screen.halo.halo_scepter.search")
         );
         searchField.setMaxLength(128);
-        searchField.setPlaceholder(Text.translatable("screen.halo.halo_scepter.search_hint"));
-        searchField.setChangedListener(this::rebuildList);
-        addDrawableChild(searchField);
+        searchField.setHint(Component.translatable("screen.halo.halo_scepter.search_hint"));
+        searchField.setResponder(this::rebuildList);
+        addRenderableWidget(searchField);
 
         int listTop = panelTop + 70;
         int listBottom = panelBottom - 34;
-        haloList = new HaloListWidget(client, panelWidth - 28, listBottom - listTop, listTop, ROW_HEIGHT);
+        haloList = new HaloListWidget(minecraft, panelWidth - 28, listBottom - listTop, listTop, ROW_HEIGHT);
         haloList.setX(panelLeft + 14);
-        addDrawableChild(haloList);
+        addRenderableWidget(haloList);
 
-        addDrawableChild(ButtonWidget.builder(
-            Text.translatable("gui.halo.close"),
-            button -> close()
-        ).dimensions(width / 2 - 50, panelBottom - 27, 100, 20).build());
+        addRenderableWidget(Button.builder(
+            Component.translatable("gui.halo.close"),
+            button -> onClose()
+        ).bounds(width / 2 - 50, panelBottom - 27, 100, 20).build());
 
         rebuildList("");
         setInitialFocus(searchField);
@@ -98,37 +98,37 @@ public final class HaloScepterScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        Entity target = client == null || client.world == null
+        Entity target = minecraft == null || minecraft.level == null
             ? null
-            : client.world.getEntityById(targetEntityId);
+            : minecraft.level.getEntity(targetEntityId);
         boolean valid = target instanceof LivingEntity living
             && living.isAlive()
-            && targetUuid.equals(target.getUuid());
+            && targetUuid.equals(target.getUUID());
         if (valid) {
             missingTargetTicks = 0;
         } else if (++missingTargetTicks > 10) {
-            if (client != null && client.player != null) {
-                client.player.sendMessage(
-                    Text.translatable("message.halo.halo_scepter.invalid_target"), true
+            if (minecraft != null && minecraft.player != null) {
+                minecraft.player.displayClientMessage(
+                    Component.translatable("message.halo.halo_scepter.invalid_target"), true
                 );
             }
-            close();
+            onClose();
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
         context.fill(panelLeft, panelTop, panelRight, panelBottom, 0xE0101520);
         context.fill(panelLeft, panelTop, panelRight, panelTop + 1, 0xFF4F6A78);
         context.fill(panelLeft, panelBottom - 1, panelRight, panelBottom, 0xFF090C10);
 
-        context.drawCenteredTextWithShadow(
-            textRenderer, title, width / 2, panelTop + 10, 0x7FE8FF
+        context.drawCenteredString(
+            font, title, width / 2, panelTop + 10, 0x7FE8FF
         );
-        context.drawCenteredTextWithShadow(
-            textRenderer,
-            Text.translatable("screen.halo.halo_scepter.target", targetName),
+        context.drawCenteredString(
+            font,
+            Component.translatable("screen.halo.halo_scepter.target", targetName),
             width / 2,
             panelTop + 26,
             0xD5DDE5
@@ -137,11 +137,11 @@ public final class HaloScepterScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
 
         if (haloList.children().isEmpty()) {
-            Text empty = HaloJsonLoader.getDefinitions().isEmpty()
-                ? Text.translatable("screen.halo.halo_scepter.no_definitions")
-                : Text.translatable("screen.halo.halo_scepter.no_results");
-            context.drawCenteredTextWithShadow(
-                textRenderer,
+            Component empty = HaloJsonLoader.getDefinitions().isEmpty()
+                ? Component.translatable("screen.halo.halo_scepter.no_definitions")
+                : Component.translatable("screen.halo.halo_scepter.no_results");
+            context.drawCenteredString(
+                font,
                 empty,
                 width / 2,
                 (panelTop + panelBottom) / 2,
@@ -151,14 +151,14 @@ public final class HaloScepterScreen extends Screen {
     }
 
     @Override
-    protected void applyBlur(float delta) {
+    protected void renderBlurredBackground(float delta) {
         // Keep the selector crisp instead of blurring the world framebuffer.
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         sendCloseOnce();
-        super.close();
+        super.onClose();
     }
 
     @Override
@@ -168,7 +168,7 @@ public final class HaloScepterScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
@@ -179,9 +179,9 @@ public final class HaloScepterScreen extends Screen {
         }
     }
 
-    private final class HaloListWidget extends AlwaysSelectedEntryListWidget<HaloEntry> {
+    private final class HaloListWidget extends ObjectSelectionList<HaloEntry> {
 
-        private HaloListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
+        private HaloListWidget(Minecraft client, int width, int height, int top, int itemHeight) {
             super(client, width, height, top, itemHeight);
         }
 
@@ -201,15 +201,15 @@ public final class HaloScepterScreen extends Screen {
         }
 
         @Override
-        protected int getScrollbarX() {
+        protected int getScrollbarPosition() {
             return getRowRight() + 3;
         }
 
-        @Override protected void drawMenuListBackground(DrawContext context) {}
-        @Override protected void drawHeaderAndFooterSeparators(DrawContext context) {}
+        @Override protected void renderListBackground(GuiGraphics context) {}
+        @Override protected void renderListSeparators(GuiGraphics context) {}
     }
 
-    private final class HaloEntry extends AlwaysSelectedEntryListWidget.Entry<HaloEntry> {
+    private final class HaloEntry extends ObjectSelectionList.Entry<HaloEntry> {
 
         private final Identifier identifier;
 
@@ -218,13 +218,13 @@ public final class HaloScepterScreen extends Screen {
         }
 
         @Override
-        public Text getNarration() {
-            return Text.literal(identifier.toString());
+        public Component getNarration() {
+            return Component.literal(identifier.toString());
         }
 
         @Override
         public void render(
-            DrawContext context,
+            GuiGraphics context,
             int index,
             int y,
             int x,
@@ -237,11 +237,11 @@ public final class HaloScepterScreen extends Screen {
         ) {
             int color = hovered ? 0xA0335668 : (index % 2 == 0 ? 0x70303B46 : 0x5027313A);
             context.fill(x, y, x + entryWidth, y + entryHeight - 2, color);
-            context.drawTextWithShadow(
-                textRenderer,
+            context.drawString(
+                font,
                 identifier.toString(),
                 x + 7,
-                y + (entryHeight - textRenderer.fontHeight) / 2 - 1,
+                y + (entryHeight - font.lineHeight) / 2 - 1,
                 hovered ? 0x9EEBFF : 0xE6EDF3
             );
         }

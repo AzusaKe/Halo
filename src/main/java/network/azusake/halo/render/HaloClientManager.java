@@ -1,6 +1,6 @@
 package network.azusake.halo.render;
 
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import network.azusake.halo.client.HaloLocalManager;
 import network.azusake.halo.client.HaloPhaseTracker;
 import network.azusake.halo.platform.HaloClientState;
@@ -13,9 +13,9 @@ public final class HaloClientManager {
 
     public void restoreLocalOwnership() {
         if (!HaloPhaseTracker.getInstance().shouldIntercept()) return;
-        var client = MinecraftClient.getInstance();
-        if (client.world == null || client.getNetworkHandler() == null) return;
-        String key = HaloLocalManager.serverKeyFromAddress(client.getNetworkHandler().getConnection().getAddress());
+        var client = Minecraft.getInstance();
+        if (client.level == null || client.getConnection() == null) return;
+        String key = HaloLocalManager.serverKeyFromAddress(client.getConnection().getConnection().getRemoteAddress());
         if (key != null) HaloLocalManager.getInstance().restoreInto(key, HaloClientState.get());
     }
 }

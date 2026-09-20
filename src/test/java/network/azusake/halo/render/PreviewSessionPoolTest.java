@@ -10,6 +10,7 @@ import network.azusake.halo.core.runtime.PreviewSession;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+
 class PreviewSessionPoolTest {
     private final UUID wearer = new UUID(0,1);
     private final Object screen = new Object(), world = new Object();
