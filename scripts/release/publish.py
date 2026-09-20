@@ -85,15 +85,18 @@ def request(method, url, *, headers=None, data=None, binary=False, public_downlo
         raise PublishError(f"{method} {urllib.parse.urlsplit(url).path}: network failure ({type(error).__name__}); no automatic retry") from None
 
 
-def multipart(field, metadata, filename, content, file_field="file"):
+def multipart(field, metadata, filename, content, file_field="file", attachments=()):
     boundary = "halo-" + uuid.uuid4().hex
     require(re.fullmatch(r"[A-Za-z0-9.+_-]+\.jar", filename), "Unsafe JAR filename")
     body = (
         f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"\r\nContent-Type: application/json\r\n\r\n'.encode()
         + canonical(metadata)
-        + f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="{file_field}"; filename="{filename}"\r\nContent-Type: application/java-archive\r\n\r\n'.encode()
-        + content + f"\r\n--{boundary}--\r\n".encode()
     )
+    for part, name, data in [(file_field, filename, content), *attachments]:
+        require(re.fullmatch(r"[A-Za-z0-9.+_-]+\.jar", name), "Unsafe attachment filename")
+        require(re.fullmatch(r"[a-z_]+", part), "Unsafe multipart field")
+        body += f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="{part}"; filename="{name}"\r\nContent-Type: application/java-archive\r\n\r\n'.encode() + data
+    body += f"\r\n--{boundary}--\r\n".encode()
     return body, f"multipart/form-data; boundary={boundary}"
 
 
@@ -163,7 +166,7 @@ def properties(text):
 def modrinth_version_number(plan):
     # Modrinth limits version_number to 32 characters; full Halo tags can exceed
     # that limit. Keep loader/game/revision in compact SemVer build metadata.
-    value = f'{plan["version"]}+{plan["loader"]}.{plan["game_versions"][0]}.a{plan["revision"]}'
+    value = f'{plan["version"]}+{plan["loader"]}.{plan.get("build_game", plan["game_versions"][0])}.a{plan["revision"]}'
     require(len(value) <= 32, "Modrinth version number exceeds 32 characters; choose a shorter version")
     return value
 
@@ -189,10 +192,52 @@ def inspect_jar(content, plan):
             location = "META-INF/mods.toml" if plan["loader"] == "forge" else "META-INF/neoforge.mods.toml"
             mods = tomllib.loads(read(location)).get("mods", [])
             require(any(m.get("modId") == "halo" and m.get("version") == expected_version for m in mods), "Forge/NeoForge mod identity/version mismatch")
+        minimum_java = 0
+        for entry in jar.infolist():
+            if entry.filename.startswith("network/azusake/halo/") and entry.filename.endswith(".class"):
+                with jar.open(entry) as stream:
+                    header = stream.read(8)
+                require(len(header) == 8 and header[:4] == b"\xca\xfe\xba\xbe", "Invalid Halo class header")
+                require(header[4:6] != b"\xff\xff", "Preview Java bytecode cannot be published by this workflow")
+                minimum_java = max(minimum_java, int.from_bytes(header[6:8], "big") - 44)
+        require(minimum_java >= 17, "No supported Halo bytecode found in the distribution")
+        plan["minimum_java"] = minimum_java
     return provenance
 
 
-def make_plan(gh, config, run_id):
+def normalize_options(options, plan):
+    require(isinstance(options, dict), "Release options must be a JSON object")
+    require(not (set(options) - {"game_versions", "java_versions", "include_sources"}), "Unknown release option")
+    games = options.get("game_versions", [plan["build_game"]])
+    java = options.get("java_versions", [plan["minimum_java"]])
+    sources = options.get("include_sources", False)
+    require(isinstance(games, list) and 0 < len(games) <= 100 and all(isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9_.+-]+", v) for v in games), "Specify exact Minecraft version names, not ranges or wildcards")
+    require(len(set(games)) == len(games), "Duplicate Minecraft version")
+    require(isinstance(java, list) and 0 < len(java) <= 20 and all(type(v) is int and plan["minimum_java"] <= v <= 99 for v in java), f'Java versions must be integers >= the JAR bytecode minimum {plan["minimum_java"]}')
+    require(len(set(java)) == len(java), "Duplicate Java version")
+    require(type(sources) is bool, "include_sources must be a boolean")
+    return {"game_versions": games, "java_versions": sorted(java), "include_sources": sources}
+
+
+def download_asset(gh, release, filename):
+    found = [asset for asset in gh.assets(release["id"]) if asset["name"] == filename]
+    require(len(found) == 1 and found[0]["state"] == "uploaded", f"Expected release JAR is not fully uploaded: {filename}")
+    require(0 < found[0]["size"] <= 64 * 1024 * 1024, "Invalid JAR asset size")
+    content = gh.download(release["tag_name"], filename)
+    sha256 = hashlib.sha256(content).hexdigest()
+    require(len(content) == found[0]["size"], "Release JAR size mismatch")
+    require(found[0].get("digest") == f"sha256:{sha256}", "Missing or mismatching GitHub asset digest")
+    return content, {"filename": filename, "sha256": sha256, "sha512": hashlib.sha512(content).hexdigest()}
+
+
+def inspect_sources(content):
+    with zipfile.ZipFile(io.BytesIO(content)) as jar:
+        names = jar.namelist()
+        require(any(name.endswith(".java") for name in names), "Sources JAR contains no Java sources")
+        require(not any(name.endswith(".class") for name in names), "Sources attachment contains compiled classes")
+
+
+def make_plan(gh, config, run_id, options=None):
     run = gh.api(f"/actions/runs/{run_id}")
     validate_run(run, config["repository"])
     tag = run["head_branch"]
@@ -217,24 +262,17 @@ def make_plan(gh, config, run_id):
     require(props.get("minecraft_version") == target["game"], "Build Minecraft version changed; review target config")
     require(props.get("adapter_revision") == values["revision"], "Tag revision does not match source")
     filename = f'halo-{target["game"]}-{target["loader"]}-{values["version"]}+adapter.{values["revision"]}.jar'
-    assets = gh.assets(release["id"])
-    found = [asset for asset in assets if asset["name"] == filename]
-    require(len(found) == 1 and found[0]["state"] == "uploaded", "Expected release JAR is not fully uploaded")
-    require(0 < found[0]["size"] <= 64 * 1024 * 1024, "Invalid JAR asset size")
-    content = gh.download(tag, filename)
-    sha256 = hashlib.sha256(content).hexdigest()
-    require(len(content) == found[0]["size"], "Release JAR size mismatch")
-    require(found[0].get("digest") == f"sha256:{sha256}", "Missing or mismatching GitHub asset digest")
+    content, asset = download_asset(gh, release, filename)
     version_type = "release"
     if release["prerelease"]:
         version_type = "alpha" if re.search(r"(?:^|[.-])alpha(?:[.-]|$)", values["version"]) else "beta"
     require(release["prerelease"] or "-" not in values["version"], "Prerelease version must be marked prerelease on GitHub")
     plan = {
-        "schema": 1, "repository": config["repository"], "source_run_id": int(run_id),
+        "schema": 2, "repository": config["repository"], "source_run_id": int(run_id),
         "source_run_attempt": run["run_attempt"], "tag": tag, "branch": target["branch"],
         "halo_sha": sha, "core_sha": core[0]["sha"], "version": values["version"],
-        "revision": values["revision"], "loader": target["loader"], "game_versions": [target["game"]],
-        "version_type": version_type, "filename": filename, "sha256": sha256,
+        "revision": values["revision"], "loader": target["loader"], "build_game": target["game"], "game_versions": [target["game"]],
+        "version_type": version_type, "filename": filename, "sha256": asset["sha256"],
         "sha512": hashlib.sha512(content).hexdigest(), "release_id": release["id"],
         "release_url": release["html_url"], "name": f'Halo {values["version"]} - {target["game"]} {target["loader"]} (Adapter {values["revision"]})',
         "changelog": release["body"], "modrinth_project": config["modrinth_project"],
@@ -244,7 +282,13 @@ def make_plan(gh, config, run_id):
     plan["notes_sha256"] = notes_digest(plan["changelog"])
     require(len(plan["name"]) <= 64 and len(plan["changelog"]) <= 65536, "Release title or changelog exceeds platform limits")
     inspect_jar(content, plan)
-    return plan, content
+    plan.update(normalize_options({} if options is None else options, plan))
+    files = {"main": content}
+    if plan["include_sources"]:
+        sources_name = filename.removesuffix(".jar") + "-sources.jar"
+        files["sources"], plan["sources"] = download_asset(gh, release, sources_name)
+        inspect_sources(files["sources"])
+    return plan, files
 
 
 def mr_headers(token):
@@ -264,6 +308,8 @@ def existing_modrinth(plan, token):
             expected_dependencies = {"P7dR8mSH"} if plan["loader"] == "fabric" else set()
             actual_dependencies = {dep["project_id"] for dep in version["dependencies"] if dep["dependency_type"] == "required"}
             require(actual_dependencies == expected_dependencies, "Existing Modrinth required dependencies differ")
+            if plan.get("include_sources"):
+                require(any(file["hashes"].get("sha512") == plan["sources"]["sha512"] and file.get("file_type") == "sources-jar" and not file.get("primary") for file in version["files"]), "Existing Modrinth version lacks the selected sources attachment; do not duplicate the main version")
             return {"id": version["id"], "url": f'https://modrinth.com/mod/{plan["modrinth_project"]}/version/{version["id"]}', "status": "already_present"}
     return None
 
@@ -277,11 +323,12 @@ def platform_metadata(platform, plan, token):
             "dependencies": ([{"project_id": "P7dR8mSH", "dependency_type": "required"}] if plan["loader"] == "fabric" else []),
             "game_versions": plan["game_versions"], "version_type": plan["version_type"],
             "loaders": [plan["loader"]], "featured": False, "project_id": plan["modrinth_project"],
-            "file_parts": ["file"], "primary_file": "file",
+            "file_parts": ["file", "sources"] if plan.get("include_sources") else ["file"], "primary_file": "file",
+            "file_types": {"sources": "sources-jar"} if plan.get("include_sources") else {},
         }
     # Resolve exact platform version IDs; never label 26.3 as a neighbouring release.
     versions = request("GET", "https://minecraft.curseforge.com/api/game/versions", headers={"X-Api-Token": token})
-    names = plan["game_versions"] + [{"fabric": "Fabric", "forge": "Forge", "neoforge": "NeoForge"}[plan["loader"]]]
+    names = plan["game_versions"] + [{"fabric": "Fabric", "forge": "Forge", "neoforge": "NeoForge"}[plan["loader"]]] + [f"Java {version}" for version in plan.get("java_versions", [])]
     ids = []
     for name in names:
         matches = [v["id"] for v in versions if v["name"] == name]
@@ -294,9 +341,12 @@ def platform_metadata(platform, plan, token):
     }
 
 
-def upload(platform, plan, content, metadata, token):
+def upload(platform, plan, content, metadata, token, *, sources_only=False):
     field = "data" if platform == "modrinth" else "metadata"
-    body, content_type = multipart(field, metadata, plan["filename"], content)
+    filename = plan["sources"]["filename"] if sources_only else plan["filename"]
+    raw = content["sources" if sources_only else "main"]
+    attachments = [("sources", plan["sources"]["filename"], content["sources"])] if platform == "modrinth" and plan.get("include_sources") else []
+    body, content_type = multipart(field, metadata, filename, raw, attachments=attachments)
     if platform == "modrinth":
         response = request("POST", "https://api.modrinth.com/v2/version", headers={**mr_headers(token), "Content-Type": content_type}, data=body)
         require(response.get("id"), "Modrinth response did not contain a version ID")
@@ -306,21 +356,30 @@ def upload(platform, plan, content, metadata, token):
     return {"id": response["id"], "url": f'https://authors.curseforge.com/#/projects/{plan["curseforge_project"]}/files/{response["id"]}', "status": "uploaded_review_may_be_pending"}
 
 
-def identity(plan, platform):
+def identity(plan, platform, role="main", parent_id=None):
     # CI run IDs/attempts can change on reruns; immutable payload identity cannot.
     keys = ["tag", "halo_sha", "core_sha", "filename", "sha256", "loader", "game_versions", "version_type", "name", "changelog"]
     value = {key: plan[key] for key in keys}
     value["project"] = plan[f"{platform}_project"]
+    value["java_versions"] = plan.get("java_versions", [])
     if platform == "modrinth":
         value["version_number"] = modrinth_version_number(plan)
+        value["sources"] = plan.get("sources")
+    if role == "sources":
+        value["sources"] = plan["sources"]
+        value["parent_id"] = parent_id
     return hashlib.sha256(canonical(value)).hexdigest()
 
 
-def publish_one(gh, plan, content, platform, token, output):
+def publish_one(gh, plan, content, platform, token, output, *, role="main", parent_id=None):
     verify_current_notes(gh, plan)
-    fingerprint = identity(plan, platform)
-    receipt_name = f"halo-publish-{platform}.json"
-    pending_name = f"halo-publish-{platform}.pending.json"
+    require(role in ("main", "sources") and (role == "main" or platform == "curseforge"), "Invalid upload role")
+    if role == "sources":
+        require(type(parent_id) is int and parent_id > 0, "Sources upload requires a confirmed CurseForge parent file ID")
+    fingerprint = identity(plan, platform, role, parent_id)
+    record_key = platform if role == "main" else f"{platform}-sources"
+    receipt_name = f"halo-publish-{record_key}.json"
+    pending_name = f"halo-publish-{record_key}.pending.json"
     assets = {asset["name"]: asset for asset in gh.assets(plan["release_id"])}
     if receipt_name in assets:
         receipt = json.loads(gh.download(plan["tag"], receipt_name))
@@ -339,11 +398,12 @@ def publish_one(gh, plan, content, platform, token, output):
     # An interrupted POST may have succeeded. CurseForge's documented Upload
     # API offers no file-hash lookup: stop for reconciliation rather than repeat.
     require(pending_name not in assets, f"Unresolved {platform} upload intent. Inspect the platform and recover the receipt; do not blindly rerun the upload. See docs/release-automation.md")
-    metadata = platform_metadata(platform, plan, token)
+    metadata = ({"parentFileID": parent_id, "displayName": plan["name"] + " (sources)", "changelog": plan["changelog"], "changelogType": "markdown", "releaseType": plan["version_type"]} if role == "sources" else platform_metadata(platform, plan, token))
     verify_current_notes(gh, plan)
-    intent = gh.record(plan["release_id"], pending_name, {"identity": fingerprint, "tag": plan["tag"], "sha256": plan["sha256"], "source_run_id": plan["source_run_id"]})
+    selected_file = plan["sources"] if role == "sources" else plan
+    intent = gh.record(plan["release_id"], pending_name, {"identity": fingerprint, "tag": plan["tag"], "filename": selected_file["filename"], "sha256": selected_file["sha256"], "source_run_id": plan["source_run_id"]})
     try:
-        result = upload(platform, plan, content, metadata, token)
+        result = upload(platform, plan, content, metadata, token, sources_only=role == "sources")
     except ApiError as error:
         # A definite request rejection is retryable after fixing its cause.
         if error.status in (400, 401, 403, 404, 413, 422):
@@ -363,6 +423,9 @@ def main(argv=None):
     parser.add_argument("--platform", choices=["both", "modrinth", "curseforge"], default="both")
     parser.add_argument("--publish", action="store_true", help="Actually upload; omitted means read-only preview")
     parser.add_argument("--notes-sha256", default="", help="SHA-256 of the final edited Release body; required with --publish")
+    options_group = parser.add_mutually_exclusive_group()
+    options_group.add_argument("--options-json", default="{}", help="Exact game_versions, java_versions and include_sources options")
+    options_group.add_argument("--options-file", type=Path, help="Read release options from a UTF-8 JSON file")
     parser.add_argument("--output", type=Path, default=Path(".local/halo-publish"))
     args = parser.parse_args(argv)
     args.output.mkdir(parents=True, exist_ok=True)
@@ -370,9 +433,11 @@ def main(argv=None):
     gh = GitHub(config["repository"], os.environ.get("GH_TOKEN", ""))
     results = {}
     try:
-        plan, content = make_plan(gh, config, args.run_id)
+        options = json.loads(args.options_file.read_text(encoding="utf-8") if args.options_file else args.options_json)
+        plan, content = make_plan(gh, config, args.run_id, options)
         (args.output / "plan.json").write_bytes(canonical(plan))
         print(f'Verified {plan["tag"]}: {plan["filename"]} (SHA-256 {plan["sha256"]})')
+        print(json.dumps({key: plan.get(key) for key in ("game_versions", "java_versions", "include_sources")}, ensure_ascii=False))
         platforms = ["modrinth", "curseforge"] if args.platform == "both" else [args.platform]
         if not args.publish:
             results = {platform: {"status": "dry_run", "project": plan[f"{platform}_project"]} for platform in platforms}
@@ -385,6 +450,14 @@ def main(argv=None):
                     results[platform] = publish_one(gh, plan, content, platform, os.environ.get(f"{platform.upper()}_TOKEN", ""), args.output)
                 except (PublishError, ValueError, KeyError) as error:
                     results[platform] = {"status": "failed", "error": str(error)}
+                if platform == "curseforge" and plan.get("include_sources"):
+                    if results[platform]["status"] == "failed":
+                        results["curseforge_sources"] = {"status": "blocked", "error": "Main file did not complete"}
+                    else:
+                        try:
+                            results["curseforge_sources"] = publish_one(gh, plan, content, platform, os.environ.get("CURSEFORGE_TOKEN", ""), args.output, role="sources", parent_id=results[platform]["id"])
+                        except (PublishError, ValueError, KeyError) as error:
+                            results["curseforge_sources"] = {"status": "failed", "error": str(error)}
     except (PublishError, ValueError, KeyError, zipfile.BadZipFile) as error:
         results["preflight"] = {"status": "failed", "error": str(error)}
     (args.output / "results.json").write_bytes(canonical(results))

@@ -20,6 +20,7 @@ def plan_fixture(loader="fabric"):
         "version_type": "release", "name": "Halo", "changelog": "Release notes",
         "sha256": "c" * 64, "sha512": "d" * 128, "release_id": 1, "source_run_id": 2,
         "source_run_attempt": 1, "modrinth_project": "k2fEt5RO", "curseforge_project": "1582156",
+        "build_game": "1.20.1", "minimum_java": 17, "java_versions": [17], "include_sources": False,
     }
 
 
@@ -31,6 +32,7 @@ def jar_fixture(plan, **changes):
     }
     result = io.BytesIO()
     with zipfile.ZipFile(result, "w") as jar:
+        jar.writestr("network/azusake/halo/Example.class", b"\xca\xfe\xba\xbe\x00\x00\x00\x3d")
         jar.writestr("halo-build.json", json.dumps(provenance))
         if plan["loader"] == "fabric":
             jar.writestr("fabric.mod.json", json.dumps({"id": "halo", "version": "2.4.2+adapter.1", "depends": {"fabric-api": "*"}}))
@@ -118,7 +120,7 @@ class ReleaseValidationTests(unittest.TestCase):
     def test_modrinth_version_limit_preserves_platform_identity(self):
         numbers = []
         for target in self.config["targets"]:
-            plan = {**plan_fixture(), "loader": target["loader"], "game_versions": [target["game"]]}
+            plan = {**plan_fixture(), "loader": target["loader"], "build_game": target["game"], "game_versions": [target["game"]]}
             numbers.append(p.modrinth_version_number(plan))
         self.assertEqual(len(set(numbers)), 9)
         self.assertTrue(all(len(number) <= 32 for number in numbers))
@@ -249,7 +251,7 @@ class SourceBuildTests(unittest.TestCase):
     def test_full_preflight_selects_binary_not_sources(self):
         plan, content = p.make_plan(self, self.config, 2)
         self.assertEqual(plan["filename"], self.plan["filename"])
-        self.assertEqual(content, self.content)
+        self.assertEqual(content, {"main": self.content})
 
     def test_moved_tag_and_wrong_branch_rejected(self):
         self.tag_sha = "e" * 40
@@ -357,8 +359,111 @@ class FinalNotesTests(unittest.TestCase):
     def test_both_platform_payloads_use_the_final_body(self, request):
         request.return_value = [{"version": "1.20.1"}]
         self.assertEqual(p.platform_metadata("modrinth", plan_fixture(), "token")["changelog"], "Release notes")
-        request.return_value = [{"id": 1, "name": "1.20.1"}, {"id": 2, "name": "Fabric"}]
+        request.return_value = [{"id": 1, "name": "1.20.1"}, {"id": 2, "name": "Fabric"}, {"id": 3, "name": "Java 17"}]
         self.assertEqual(p.platform_metadata("curseforge", plan_fixture(), "token")["changelog"], "Release notes")
+
+
+class PublishingOptionsTests(unittest.TestCase):
+    def setUp(self):
+        self.plan = plan_fixture()
+        self.plan["include_sources"] = True
+        self.plan["sources"] = {"filename": "halo-1.20.1-fabric-2.4.2+adapter.1-sources.jar", "sha256": "e" * 64, "sha512": "f" * 128}
+
+    def test_explicit_games_java_and_sources(self):
+        options = {"game_versions": ["26.1", "26.1.1", "26.1.2"], "java_versions": [25, 26], "include_sources": True}
+        self.assertEqual(p.normalize_options(options, {**self.plan, "minimum_java": 25}), options)
+        self.assertEqual(p.normalize_options({}, self.plan), {"game_versions": ["1.20.1"], "java_versions": [17], "include_sources": False})
+
+    def test_invalid_or_incompatible_options_rejected(self):
+        for options in [[], {"unknown": 1}, {"game_versions": []}, {"game_versions": ["1.20.*"]}, {"game_versions": ["1.20.1", "1.20.1"]}, {"java_versions": [16]}, {"java_versions": [True]}, {"java_versions": [17, 17]}, {"include_sources": "true"}]:
+            with self.subTest(options=options), self.assertRaises(p.PublishError):
+                p.normalize_options(options, self.plan)
+
+    def test_bytecode_minimum_is_read_from_the_jar(self):
+        plan = plan_fixture()
+        p.inspect_jar(jar_fixture(plan), plan)
+        self.assertEqual(plan["minimum_java"], 17)
+        with self.assertRaises(p.PublishError):
+            p.normalize_options({"java_versions": [21]}, {**plan, "minimum_java": 25})
+
+    def test_version_identity_does_not_depend_on_compatibility_list_order(self):
+        one = p.modrinth_version_number(self.plan)
+        two = p.modrinth_version_number({**self.plan, "game_versions": ["1.20.2", "1.20.1"]})
+        self.assertEqual(one, two)
+
+    @patch.object(p, "request")
+    def test_modrinth_sources_are_secondary_and_typed(self, request):
+        request.return_value = [{"version": "1.20.1"}]
+        metadata = p.platform_metadata("modrinth", self.plan, "token")
+        self.assertEqual(metadata["file_parts"], ["file", "sources"])
+        self.assertEqual(metadata["primary_file"], "file")
+        self.assertEqual(metadata["file_types"], {"sources": "sources-jar"})
+        self.assertNotIn("java_versions", metadata)  # Modrinth has no such field.
+        request.return_value = {"id": "version"}
+        p.upload("modrinth", self.plan, {"main": b"BINARY", "sources": b"SOURCE"}, metadata, "token")
+        body = request.call_args.kwargs["data"]
+        self.assertIn(b'name="file";', body)
+        self.assertIn(b'name="sources";', body)
+        self.assertIn(b"BINARY", body)
+        self.assertIn(b"SOURCE", body)
+
+    @patch.object(p, "request")
+    def test_curseforge_resolves_minecraft_loader_and_java_tags(self, request):
+        request.return_value = [{"id": 1, "name": "1.20.1"}, {"id": 2, "name": "Fabric"}, {"id": 3, "name": "Java 17"}, {"id": 4, "name": "Java 21"}]
+        metadata = p.platform_metadata("curseforge", {**self.plan, "java_versions": [17, 21]}, "token")
+        self.assertEqual(metadata["gameVersions"], [1, 2, 3, 4])
+        with self.assertRaisesRegex(p.PublishError, "Java 25"):
+            p.platform_metadata("curseforge", {**self.plan, "java_versions": [25]}, "token")
+
+    @patch.object(p, "upload", return_value={"id": 999, "status": "uploaded"})
+    def test_curseforge_sources_link_parent_without_game_versions(self, upload):
+        gh = FakeGitHub()
+        with tempfile.TemporaryDirectory() as tmp:
+            result = p.publish_one(gh, self.plan, {"main": b"jar", "sources": b"source"}, "curseforge", "token", Path(tmp), role="sources", parent_id=123)
+            self.assertEqual(result["id"], 999)
+            metadata = upload.call_args.args[3]
+            self.assertEqual(metadata["parentFileID"], 123)
+            self.assertNotIn("gameVersions", metadata)
+            self.assertTrue(upload.call_args.kwargs["sources_only"])
+            p.publish_one(gh, self.plan, {}, "curseforge", "token", Path(tmp), role="sources", parent_id=123)
+            upload.assert_called_once()
+            with self.assertRaisesRegex(p.PublishError, "conflicts"):
+                p.publish_one(gh, self.plan, {}, "curseforge", "token", Path(tmp), role="sources", parent_id=456)
+
+    @patch.object(p, "upload", side_effect=p.PublishError("timeout"))
+    def test_source_timeout_has_its_own_pending_record(self, upload):
+        gh = FakeGitHub()
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(p.PublishError):
+                p.publish_one(gh, self.plan, {}, "curseforge", "token", Path(tmp), role="sources", parent_id=123)
+            self.assertIn("halo-publish-curseforge-sources.pending.json", gh.records)
+            self.assertNotIn("halo-publish-curseforge.pending.json", gh.records)
+            with self.assertRaisesRegex(p.PublishError, "Unresolved"):
+                p.publish_one(gh, self.plan, {}, "curseforge", "token", Path(tmp), role="sources", parent_id=123)
+            upload.assert_called_once()
+
+    def test_main_curseforge_receipt_survives_optional_source_selection(self):
+        without = {**self.plan, "include_sources": False}
+        without.pop("sources")
+        self.assertEqual(p.identity(without, "curseforge"), p.identity(self.plan, "curseforge"))
+        self.assertNotEqual(p.identity(without, "modrinth"), p.identity(self.plan, "modrinth"))
+
+    def test_sources_archive_cannot_be_a_binary(self):
+        with self.assertRaises(p.PublishError):
+            p.inspect_sources(jar_fixture(self.plan))
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as jar:
+            jar.writestr("network/azusake/halo/Example.java", "class Example {}")
+        p.inspect_sources(buf.getvalue())
+
+    @patch.dict(os.environ, {"GH_TOKEN": "fake"})
+    @patch.object(p, "publish_one", side_effect=[{"id": 123, "status": "uploaded"}, p.PublishError("sources failed")])
+    def test_source_failure_preserves_successful_primary_result(self, publish_one):
+        with patch.object(p, "make_plan", return_value=(self.plan, {})), tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(p.main(["--run-id", "2", "--platform", "curseforge", "--publish", "--notes-sha256", p.notes_digest(self.plan["changelog"]), "--output", tmp]), 1)
+            results = json.loads((Path(tmp) / "results.json").read_text())
+            self.assertEqual(results["curseforge"]["id"], 123)
+            self.assertEqual(results["curseforge_sources"]["status"], "failed")
 
 
 if __name__ == "__main__":

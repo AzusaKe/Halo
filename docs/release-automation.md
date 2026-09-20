@@ -36,7 +36,7 @@ CI 完成和 Release 创建本身不再触发上传，避免抢在 agent 整理�
 1. 既有 CI 执行正式构建和相关检查，创建 GitHub Release。
 2. agent 等待整个源 CI 成功，包括所有平台构建矩阵成员；编写最终说明并更新 GitHub Release。
 3. agent 使用本地定稿文件触发发布。发布器核对正文哈希、源 workflow、run attempt、标签 SHA、目标维护分支祖先关系和 core gitlink。
-4. 只选取完整文件名匹配的正式 JAR，排除源码包等附属产物。
+4. 以完整文件名匹配的正式 JAR 为主下载文件；根据发布选项额外选择对应的 `-sources.jar`，分别核对 Release asset 哈希。
 5. 核对 GitHub asset 的 SHA-256、JAR 中的 `halo-build.json`、模组 ID 和版本。
 6. 上传前逐平台重新读取 Release，确认正文仍与定稿快照一致；分别上传并保留每个平台的结果，某个平台失败不阻止另一个平台尝试。
 7. 在 Actions Summary 和 artifact 中输出计划、平台状态和可用链接。
@@ -66,7 +66,41 @@ Modrinth 的版本号上限为 32 个字符，因此采用紧凑格式，例如 
 
 Fabric 版本声明 Fabric API 为必需依赖，Forge/NeoForge 不额外声明 Fabric API。core 已合并到 JAR，不作为需要玩家另行安装的依赖。
 
-兼容版本采用每个分支的精确构建基线。`26.1-fabric` 的标签用 `26.1`，成品和平台兼容版本用 `26.1.2`；源文档注明完整三版本运行验收仍待完成，因此此配置不扩展为全部 `26.1.x`。平台尚未登记某个 Minecraft 版本或加载器时，该项失败，不自动替换成相邻版本。
+### agent 可指定的版本和文件选项
+
+通过 `--options-file` 提供 UTF-8 JSON 文件，例如：
+
+```json
+{
+  "game_versions": ["26.1", "26.1.1", "26.1.2"],
+  "java_versions": [25],
+  "include_sources": true
+}
+```
+
+这个多版本例子仅演示参数格式，不构成三版本已经验收的声明。agent 必须依据人类指示和目标分支验证记录选择实际值，不能从“可编译”推断兼容范围。
+
+| 选项 | 默认值 | 平台处理 |
+| --- | --- | --- |
+| `game_versions` | 分支的精确构建基线 | Modrinth / CurseForge 都支持显式列表；不接受通配符和范围表达式 |
+| `java_versions` | 从 Halo 类文件读取的最低 Java 字节码版本 | CurseForge 映射为 `Java 17`、`Java 21`、`Java 25` 等平台标签；找不到标签则失败，不替换成其他版本 |
+| `include_sources` | `false` | `true` 时验证并附加同一 Release 的源码 JAR；正式包始终为主文件 |
+
+Java 选项不能低于 JAR 的实际字节码最低要求，较高版本仍须有兼容性验证。发布选项只控制上传元数据，不重新编译成品，也不修改 JAR 内的 Minecraft/Java 依赖声明。
+
+Modrinth 当前 Fabric / Forge / NeoForge API 没有独立 Java 版本标签，不能发送一个虚构的 `java_versions` 字段。agent 应在**定稿前**把 Java 要求写入发布说明，并保持成品中的 Java 依赖正确；上传器保留这份最终说明原文，不在定稿后偷偷追加文字。当前接口字段可见 [Modrinth 创建版本文档](https://docs.modrinth.com/api/operations/createversion/) 和 [加载器字段列表](https://api.modrinth.com/v3/tag/loader)。
+
+Modrinth 将主文件和源码文件放在同一次创建版本请求中，主文件固定为 `primary_file=file`，源码文件标记 `file_types.sources=sources-jar`。CurseForge 先上传正式包，再使用其文件 ID 作为 `parentFileID` 上传源码附件；附件不重复指定 `gameVersions`，由父文件关联版本信息。两个平台都不会把源码包设为玩家默认安装文件。
+
+实际触发示例：
+
+```powershell
+python scripts/release/dispatch.py --run-id 35518369319 --notes-file .local/release-notes.md --options-file .local/release-options.json --platform both --publish
+```
+
+该示例假设 GitHub 正文已更新为定稿文件，且 `GH_TOKEN` 已按前文注入。`dispatch.py` 将选项解析为确定的值并传给工作流，不传本地文件路径。agent 可以按一次人类指令为 9 个分支分别生成选项、修改正文并触发，无需人类逐个平台填写表单。
+
+未指定选项时，兼容版本采用每个分支的精确构建基线。`26.1-fabric` 的标签用 `26.1`，成品和默认平台兼容版本用 `26.1.2`；源文档注明完整三版本运行验收仍待完成，因此默认不扩展为全部 `26.1.x`。平台尚未登记某个 Minecraft 版本或加载器时，该项失败，不自动替换成相邻版本。
 
 ## 手动预览与补发
 
@@ -76,6 +110,7 @@ GitHub Actions 中选择 **Publish Halo to mod platforms**，在默认分支运�
 - `platform`：`both`、`modrinth` 或 `curseforge`。
 - `dry_run`：默认 `true`，只读检查；只有明确选择 `false` 才上传。
 - `notes_sha256`：真实上传必须提供最终正文的 SHA-256；建议使用上面的 `dispatch.py` 自动填写。只读预览可留空。
+- `options_json`：上述发布选项 JSON，默认 `{}`。agent 使用 `dispatch.py --options-file` 时自动填写。
 
 例如下面的命令只检查既有 `2.4.2` / `26.2-neoforge` Release，不上传：
 
@@ -96,6 +131,8 @@ try {
 
 本地上传脚本需要同时传入 `--publish` 和 `--notes-sha256 <最终正文哈希>` 才会上传。真实上传还需要环境变量中的平台令牌，推荐通过 `dispatch.py` 交给 Actions Secrets 注入，避免在本机处理平台令牌。
 
+本地只读检查也支持 `publish.py --options-file <选项文件>`；输出的 `plan.json` 会列出 Minecraft/Java 版本、源码包选择及其 SHA-256/SHA-512。源码包缺失、哈希不符、没有 Java 源码或包含编译类时，预检失败，不退回为“只上传主包”。
+
 只读预览验证 GitHub CI 与正式成品，不验证平台令牌、上传 API 或审核结果。不能将预览通过写成发布验收通过。
 
 ## 去重、失败恢复和限制
@@ -107,9 +144,11 @@ try {
 
 附件只包含公开发布的标识和哈希，不包含令牌。平台名分别是 `modrinth` 和 `curseforge`。附件名称唯一，创建时不覆盖已有附件，这也用于阻止同一 Release 的并发重复上传。工作流对相同源 run 额外串行执行。
 
-回执的 identity 固定版本标签、Halo/core SHA、成品 SHA-256、目标项目、兼容版本、加载器、发布类型、名称和更新日志。CI 的 run ID 或 attempt 改变不影响 identity。有一致回执时直接跳过该平台；回执冲突时停止，不覆盖已发布文件。
+CurseForge 源码附件另存 `halo-publish-curseforge-sources.pending.json` 和 `halo-publish-curseforge-sources.json`，绑定父文件 ID 及源码包哈希。主包成功、源码包失败时保留主包回执，重新运行相同选项只补发缺失的源码包；上传结果不明时仍按下面的恢复规则处理。
 
-Modrinth 额外查询项目现有版本，以成品 SHA-512 检查是否已经上传，并核对加载器、游戏版本、发布类型、必需依赖和最终正文。已存在且一致的成品可以生成回执，不重复上传；已有平台正文不一致时停止并提示单独更新元数据，不以“文件已存在”冒充最终说明已经同步。
+回执的 identity 固定版本标签、Halo/core SHA、成品 SHA-256、目标项目、Minecraft/Java 版本、加载器、发布类型、名称和更新日志；源码附件还绑定其哈希。CI 的 run ID 或 attempt 改变不影响 identity。有一致回执时直接跳过该平台；回执冲突时停止，不覆盖已发布文件。补发应保留原版本选项；对已发布版本改变兼容标签或追加 Modrinth 源码文件属于现有版本编辑，不能制造重复主版本。
+
+Modrinth 额外查询项目现有版本，以成品 SHA-512 检查是否已经上传，并核对加载器、游戏版本、发布类型、必需依赖、最终正文以及所选源码附件。已存在且一致的成品可以生成回执，不重复上传；已有平台正文或附件不一致时停止并提示单独更新现有版本，不以“主文件已存在”冒充本次全部要求已完成。
 
 CurseForge 的文档化 Upload API 不提供按文件哈希查询现有上传的接口。因此：
 

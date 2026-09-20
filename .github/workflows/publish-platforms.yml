@@ -20,6 +20,10 @@ on:
         description: SHA-256 of the final edited Release body (required for real uploads)
         type: string
         default: ''
+      options_json:
+        description: 'Optional JSON: game_versions, java_versions, include_sources'
+        type: string
+        default: '{}'
 
 # Receipts and intent records are GitHub Release assets. Never run source from
 # the triggering tag with these permissions or with publishing credentials.
@@ -57,8 +61,9 @@ jobs:
           PUBLISH_PLATFORM: ${{ inputs.platform }}
           PUBLISH_DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           FINAL_NOTES_SHA256: ${{ inputs.notes_sha256 }}
+          RELEASE_OPTIONS_JSON: ${{ inputs.options_json }}
         run: |
-          args=(--run-id "$SOURCE_RUN_ID" --platform "$PUBLISH_PLATFORM" --output "$RUNNER_TEMP/halo-publish")
+          args=(--run-id "$SOURCE_RUN_ID" --platform "$PUBLISH_PLATFORM" --options-json "$RELEASE_OPTIONS_JSON" --output "$RUNNER_TEMP/halo-publish")
           if [ "$PUBLISH_DRY_RUN" = "false" ]; then args+=(--publish --notes-sha256 "$FINAL_NOTES_SHA256"); fi
           python scripts/release/publish.py "${args[@]}"
       - name: Save plan and platform results even on failure
