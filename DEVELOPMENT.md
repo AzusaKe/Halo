@@ -2,7 +2,7 @@
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
-本分支是 Halo 的 `26.2-neoforge` 适配器，仅面向 Minecraft 26.2；core 集成分支为 `main`，固定 2.4.1 / `295bc57`。功能基准为 `26.1-neoforge@5b20c238`，最低支持及构建基线为 NeoForge 26.2.0.59。另验证 NeoForge 26.2.0.88；本分支正在迁移，运行、网络及压测验收完成后才发布，所有 `*-flash` 分支保持冻结。
+本分支是 Halo 的 `26.2-neoforge` 适配器，仅面向 Minecraft 26.2；core 集成分支为 `main`，固定 2.4.1 / `295bc57`。功能基准为 `26.1-neoforge@5b20c238`，最低支持及构建基线为 NeoForge 26.2.0.59。另验证 NeoForge 26.2.0.88；本分支的迁移及用户验收已完成；定量压测按用户要求停止，未执行项目保留在迁移记录中，所有 `*-flash` 分支保持冻结。
 
 **常规流程：先定义功能的数据与规则 → 在 core 实现和验证 → 在主线实现适配器并联调 → 发布确定的 core 提交 → 提交主线的适配器及 core 指针 → 按需更新其他版本的指针和适配器 → 分别验收、推送和发布。** 不要求所有游戏版本同时跟进。
 

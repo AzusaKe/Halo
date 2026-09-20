@@ -1,8 +1,8 @@
-本分支面向 **Minecraft 26.2 NeoForge**，当前源码版本为 **2.4.1+adapter.1**，使用 HaloCore **2.4.1**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.2 迁移记录](docs/26.2-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 26.2 NeoForge**，发布版本为 **2.4.1+adapter.1**，使用 HaloCore **2.4.1**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.2 迁移记录](docs/26.2-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
-26.2 的原生与 Iris mesh 分别使用常驻 GPU 几何缓存。`-Dhalo.mesh.profile=true` 输出上传量与 CPU 提交统计，`-Dhalo.mesh.forceExpanded=true` 用于 Iris 展开路径对照；26.2 NeoForge 的实际运行与压测验收尚待完成，详见迁移记录。
+26.2 的原生与 Iris mesh 分别使用常驻 GPU 几何缓存。`-Dhalo.mesh.profile=true` 输出上传量与 CPU 提交统计，`-Dhalo.mesh.forceExpanded=true` 用于 Iris 展开路径对照；原生 OpenGL/Vulkan 与 Iris/EMF 视觉验收通过，用户确认测试通过且网络同步、持久化正常。定量压测按用户要求停止，不声明量化 FPS 提升；详见迁移记录。
 
 billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo renderer` 查询当前模式，`/halo renderer compatibility|cached` 切换并保存；命令只在客户端执行，无需服务器权限。下一帧同时作用于世界与物品栏预览，不重启动画或物理，OBJ mesh 不受影响。配置项为 `primitiveRenderBackend`，缺失或非法值恢复默认。详见[模式与验收记录](docs/render-optimization-verification.md)。
 
@@ -67,7 +67,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 - [x] **持久化**：通过实体 NBT 和世界持久状态，光环在世界重载和服务器重启后依然保留。实体加载时自动恢复。
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
 - [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
-- [ ] **LabPBR 兼容（目标版本待验收）**：非全亮 billboard/ring/mesh 使用 Iris 实体材质管线；目标版本的 IterationRP 材质通道尚待实测。POM 依赖光影包，本版本不额外声明 POM 支持；GUI 预览不使用世界 G-buffer。详见[迁移记录](docs/26.2-neoforge-migration.md)。
+- [x] **LabPBR 兼容**：非全亮 billboard/ring/mesh 使用 Iris 实体材质管线；用户已确认 IterationRP 0.8.22、0.8.28 的 PBR／平滑法线画面正常。POM 依赖光影包，本版本不额外声明 POM 支持；GUI 预览不使用世界 G-buffer。详见[迁移记录](docs/26.2-neoforge-migration.md)。
 - [x] **动画支持**：光环定义支持位置、旋转、缩放、透明度和发光动画通道，以及彼此独立的启动与关闭过渡时间线。
 - [x] **运行时调试配置**：`/halo config` 提供阻尼、距离限制、角动量和统一缩放的会话级覆写，用于个人微调与调试。本地模式作用于当前客户端，整合单人游戏通过进程内桥接作用于配对客户端；专用服务器不会持久化或向玩家分发这些值。位置和旋转偏移等永久摆放修改应写入具体光环定义。
 - [x] **资源包友好**：负责渲染的客户端从资源包 `assets/<namespace>/halo_definitions/` 读取定义及视觉素材。服务端数据包可在 `data/<namespace>/halo_definitions/` 注册定义 JSON，供服务端列出和选择，但 Halo 不会下发这些 JSON、纹理或模型；每个渲染客户端仍须安装匹配的资源包。修改任一来源后运行 `/reload`。

@@ -1,13 +1,15 @@
 # 更新记录
 
-## 2.4.1 — Minecraft 26.2 NeoForge — 开发中
+## 2.4.1 — Minecraft 26.2 NeoForge 首次正式版 — 2026-09-20
 
 - 以 26.1 NeoForge 完整功能和 HaloCore 2.4.1 为基线，最低 NeoForge 26.2.0.59，兼测 26.2.0.88，使用 Java 25。
 - 适配 26.2 绘制阶段、reverse-Z、OpenGL/Vulkan 和 Iris 接口；保留相机四元数及主帧/阴影/预览隔离。
 - 保留常驻 mesh、独立顶点流、索引复用、失败回退及 IterationRP 平滑法线修复；合并相邻同状态旧图元。
 - 同步 EMF 主体头部身份检查和物品栏首帧鼠标姿态修复。26.2 不提供 YSM 集成。
 - 保留旧存档兼容修复；定义、配置、网络及 API v2 不变。
-- 运行、网络及性能验收待完成，见 [迁移记录](docs/26.2-neoforge-migration.md)。
+- 原生 OpenGL/Vulkan、Iris/EMF 与 IterationRP 0.8.22/0.8.28 视觉验收通过；用户确认测试通过，网络同步和持久化正常。定量压测按用户要求停止，不声明量化性能提升；POM 未单独验证。
+
+正式版本：`2.4.1+adapter.1`；平台标签：`v2.4.1-neoforge-26.2-adapter.1`。详见 [迁移记录](docs/26.2-neoforge-migration.md)。
 
 ## 2.4.1 — Minecraft 26.1.2 NeoForge 首次正式版 — 2026-09-20
 
