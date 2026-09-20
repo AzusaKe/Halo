@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.4.1+adapter.2 — Minecraft 26.3 Fabric — 存档兼容修复 — 2026-09-20
+
+- 恢复 26.x 结构化 SavedData Codec 及 flash 兼容的 UUID 整数数组写出格式；同时兼容读取 flash 旧数组 UUID 与受影响构建写出的字符串 UUID。
+- 保持 `halo:world_data`、`Halos`、`UUID`、`Definition` 键及 `SAVED_DATA_MAP_DATA` 不变；受影响存档在下一次保存时自动转换为 flash 可读取格式。
+- 新增多记录、空列表、读取后修改并保存及 flash Codec 回退读取的兼容性回归测试；HaloCore 保持 2.4.1 / `295bc579ab8d63e6dba5642ebb9e889516e90105`。详情见 [迁移记录](docs/26.3-fabric-migration.md)。
+
+正式版本：`2.4.1+adapter.2`；平台标签为 `v2.4.1-fabric-26.3-adapter.2`。
+
 ## 2.4.1+adapter.1 — Minecraft 26.3 Fabric — 2026-09-19
 
 - 从 26.2 adapter.2 迁移到 RenderPearl，适配管线、缓冲、RenderPass、GLSL、鼠标输入、权杖和 EMF 3.3.6 接口；保留本体身份筛选及预览物理。
