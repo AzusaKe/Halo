@@ -287,6 +287,8 @@ git push origin refs/tags/v1.4.0-fabric-1.20.1-adapter.1
 
 当前 [Halo CI](.github/workflows/gradle.yml) 会递归检出子模块；主线分支/PR 触发构建，`v*` 标签触发正式构建并自动创建 GitHub Release、上传 JAR。只需要备份源码时推送分支即可；正式标签推送也是发布动作。core 的 CI 独立运行构建，不能替代 Halo 的平台验证。
 
+Modrinth / CurseForge 的集中发布入口、凭据配置、只读预览和失败补发见 [平台发布自动化](docs/release-automation.md)。该工作流部署在默认分支，监听 9 个维护分支的标签 CI 完成事件；启用 `HALO_AUTO_PUBLISH=true` 后，成功的合规标签构建将继续分发至两个平台。未启用时只通过手动入口发布，不把平台上传或 CI 成功当作游戏验收。
+
 推送后检查远端引用和 CI，而不仅看本地标签：
 
 ```powershell

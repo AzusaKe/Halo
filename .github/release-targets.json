@@ -1,0 +1,17 @@
+{
+  "repository": "AzusaKe/Halo",
+  "default_branch": "1.20.1-fabric",
+  "modrinth_project": "k2fEt5RO",
+  "curseforge_project": "1582156",
+  "targets": [
+    {"branch": "1.20.1-fabric", "loader": "fabric", "tag_game": "1.20.1", "game": "1.20.1"},
+    {"branch": "1.20.1-forge", "loader": "forge", "tag_game": "1.20.1", "game": "1.20.1"},
+    {"branch": "1.21.1-fabric", "loader": "fabric", "tag_game": "1.21.1", "game": "1.21.1"},
+    {"branch": "1.21.1-neoforge", "loader": "neoforge", "tag_game": "1.21.1", "game": "1.21.1"},
+    {"branch": "26.1-fabric", "loader": "fabric", "tag_game": "26.1", "game": "26.1.2"},
+    {"branch": "26.1-neoforge", "loader": "neoforge", "tag_game": "26.1.2", "game": "26.1.2"},
+    {"branch": "26.2-fabric", "loader": "fabric", "tag_game": "26.2", "game": "26.2"},
+    {"branch": "26.2-neoforge", "loader": "neoforge", "tag_game": "26.2", "game": "26.2"},
+    {"branch": "26.3-fabric", "loader": "fabric", "tag_game": "26.3", "game": "26.3"}
+  ]
+}

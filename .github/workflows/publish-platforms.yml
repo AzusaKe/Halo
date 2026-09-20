@@ -1,0 +1,73 @@
+name: Publish Halo to mod platforms
+
+on:
+  workflow_run:
+    workflows: ["Java CI with Gradle", "Forge 1.20.1 CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful tag build run ID (not a branch build)
+        type: string
+        required: true
+      platform:
+        description: Destination to publish or retry
+        type: choice
+        options: [both, modrinth, curseforge]
+        default: both
+      dry_run:
+        description: Validate and preview only; do not upload anything
+        type: boolean
+        default: true
+
+# Receipts and intent records are GitHub Release assets. Never run source from
+# the triggering tag with these permissions or with publishing credentials.
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: halo-platform-publish-${{ inputs.run_id || github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.repository == 'AzusaKe/Halo' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/1.20.1-fabric') ||
+       (github.event_name == 'workflow_run' && vars.HALO_AUTO_PUBLISH == 'true' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.conclusion == 'success' &&
+        startsWith(github.event.workflow_run.head_branch, 'v')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted publishing implementation
+        uses: actions/checkout@v4.1.7
+        with:
+          ref: 1.20.1-fabric
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validate release and publish selected destinations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          SOURCE_RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+          PUBLISH_PLATFORM: ${{ inputs.platform || 'both' }}
+          PUBLISH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: |
+          args=(--run-id "$SOURCE_RUN_ID" --platform "$PUBLISH_PLATFORM" --output "$RUNNER_TEMP/halo-publish")
+          if [ "$PUBLISH_DRY_RUN" = "false" ]; then args+=(--publish); fi
+          python scripts/release/publish.py "${args[@]}"
+      - name: Save plan and platform results even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: halo-publish-${{ inputs.run_id || github.event.workflow_run.id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/halo-publish/*.json
+          if-no-files-found: ignore
