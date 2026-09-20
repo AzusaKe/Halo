@@ -3,6 +3,7 @@ package network.azusake.halo.render;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.server.packs.resources.ResourceManager;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.render.ObjMeshLoader;
@@ -13,8 +14,6 @@ import network.azusake.halo.json.HaloJsonLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static network.azusake.halo.platform.PlatformTypes.game;
-
-import com.mojang.blaze3d.platform.NativeImage;
 
 /** Client loading stage. Rendering only reads the published immutable pair. */
 public final class HaloMeshResources {
@@ -46,7 +45,7 @@ public final class HaloMeshResources {
                 try (var input = resource.open(); var image = NativeImage.read(NativeImage.Format.RGBA, input)) {
                     boolean opaque = true;
                     outer: for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) {
-                        if ((image.getPixelRGBA(x, y) >>> 24) != 255) { opaque = false; break outer; }
+                        if ((image.getPixel(x, y) >>> 24) != 255) { opaque = false; break outer; }
                     }
                     info = new VisualResources.TextureInfo(image.getWidth(), image.getHeight(), opaque);
                 }

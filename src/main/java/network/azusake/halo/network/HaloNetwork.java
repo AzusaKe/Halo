@@ -19,21 +19,21 @@ import static network.azusake.halo.platform.PlatformTypes.core;
 
 /** Server-side CustomPayload transport for the unchanged Halo packet protocol. */
 public final class HaloNetwork {
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_SYNC = HaloPayloads.Sync.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_UPDATE = HaloPayloads.Update.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_DEFS_REPORT = HaloPayloads.DefsReport.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_SCEPTER_OPEN = HaloPayloads.ScepterOpen.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_SCEPTER_CLOSE_SCREEN = HaloPayloads.ScepterCloseScreen.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_SCEPTER_SELECT = HaloPayloads.ScepterSelect.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_SCEPTER_CLOSE = HaloPayloads.ScepterClose.ID.id();
-    public static final net.minecraft.resources.ResourceLocation CHANNEL_SCEPTER_REMOVE_SELF = HaloPayloads.ScepterRemoveSelf.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_SYNC = HaloPayloads.Sync.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_UPDATE = HaloPayloads.Update.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_DEFS_REPORT = HaloPayloads.DefsReport.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_HELLO = HaloPayloads.Hello.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_SCEPTER_OPEN = HaloPayloads.ScepterOpen.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_SCEPTER_CLOSE_SCREEN = HaloPayloads.ScepterCloseScreen.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_SCEPTER_SELECT = HaloPayloads.ScepterSelect.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_SCEPTER_CLOSE = HaloPayloads.ScepterClose.ID.id();
+    public static final net.minecraft.resources.Identifier CHANNEL_SCEPTER_REMOVE_SELF = HaloPayloads.ScepterRemoveSelf.ID.id();
 
     private HaloNetwork() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar("1").optional();
-        if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient()) {
+        if (net.neoforged.fml.loading.FMLEnvironment.getDist().isClient()) {
             HaloNetworkClient.registerReceivers(registrar);
         } else {
             // Register outbound codecs without resolving any client GUI classes.
@@ -53,11 +53,11 @@ public final class HaloNetwork {
             var buf = payload.buf();
             int count = buf.readInt();
             Set<Identifier> ids = new LinkedHashSet<>(count);
-            for (int i = 0; i < count; i++) ids.add(core(buf.readResourceLocation()));
+            for (int i = 0; i < count; i++) ids.add(core(buf.readIdentifier()));
             context.enqueueWork(() -> HaloJsonLoader.putClientReportedDefs(((ServerPlayer) context.player()).getUUID(), ids));
         });
         registrar.playToServer(HaloPayloads.ScepterSelect.ID, HaloPayloads.ScepterSelect.CODEC, (payload, context) -> {
-            Identifier definitionId = core(payload.buf().readResourceLocation());
+            Identifier definitionId = core(payload.buf().readIdentifier());
             context.enqueueWork(() -> HaloScepterService.select(((ServerPlayer) context.player()), definitionId));
         });
         registrar.playToServer(HaloPayloads.ScepterClose.ID, HaloPayloads.ScepterClose.CODEC, (payload, context) ->

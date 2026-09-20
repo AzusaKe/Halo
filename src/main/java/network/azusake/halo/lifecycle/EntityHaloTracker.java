@@ -171,7 +171,7 @@ public final class EntityHaloTracker {
         registered = true;
 
         NeoForge.EVENT_BUS.addListener((LivingDeathEvent event) -> {
-            if (!event.getEntity().level().isClientSide) cleanup(event.getEntity());
+            if (!event.getEntity().level().isClientSide()) cleanup(event.getEntity());
         });
 
         // ---- Player respawn → restore halo from world save ----
@@ -203,11 +203,11 @@ public final class EntityHaloTracker {
      */
     public static void markTeleport(LivingEntity entity) {
         UUID uuid = entity.getUUID();
-        if (entity.level().isClientSide) {
+        if (entity.level().isClientSide()) {
             network.azusake.halo.platform.IntegratedBridge.teleport.accept(uuid);
             return;
         }
-        if(entity.getServer()!=null && !entity.getServer().isDedicatedServer())
+        if(entity.level().getServer()!=null && !entity.level().getServer().isDedicatedServer())
             network.azusake.halo.platform.IntegratedBridge.teleport.accept(uuid);
         tracker.mark(uuid, System.currentTimeMillis());
 
@@ -308,7 +308,7 @@ public final class EntityHaloTracker {
     private static void onPlayerRespawn(ServerPlayer player) {
         UUID uuid = player.getUUID();
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) {
             return;
         }
@@ -324,7 +324,7 @@ public final class EntityHaloTracker {
      * @param entity the entity that just loaded
      */
     private static void restoreFromWorldSave(LivingEntity entity) {
-        MinecraftServer server = entity.getServer();
+        MinecraftServer server = entity.level().getServer();
         if (server == null) {
             return;
         }

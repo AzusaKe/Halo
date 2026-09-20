@@ -1,28 +1,30 @@
 package network.azusake.halo.mixin;
-
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.model.PlayerModel;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.player.PlayerModel;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.*;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.entity.LivingEntity;
 import network.azusake.halo.render.PlayerPreviewCapture;
+import network.azusake.halo.compat.emf.EmfHeadCapture;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-/** Posed vanilla head fallback when invisibility skips ModelPart.render entirely. */
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityPreviewPoseMixin {
-    @Inject(method = "render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/EntityModel;setupAnim(Lnet/minecraft/world/entity/Entity;FFFFF)V", shift = At.Shift.AFTER))
-    private void halo$posedHead(LivingEntity entity, float yaw, float delta, PoseStack matrices,
-                                MultiBufferSource vertices, int light, CallbackInfo ci) {
-        if (!PlayerPreviewCapture.isActive()) return;
-        var model = ((LivingEntityRenderer<?, ?>) (Object) this).getModel();
-        if (model instanceof PlayerModel<?> player && !player.young) {
-            PlayerPreviewCapture.capturePosedHead(entity, matrices, player.getHead());
-            network.azusake.halo.compat.emf.EmfHeadCapture.capturePreviewPose(entity, matrices, player.getHead());
+    @Inject(method="submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+        at=@At(value="INVOKE",target="Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V"))
+    private void halo$posedHead(LivingEntityRenderState state,PoseStack stack,SubmitNodeCollector collector,CameraRenderState camera,CallbackInfo ci){
+        if(!PlayerPreviewCapture.isActive()||!(state instanceof AvatarRenderState avatar))return;
+        var client=Minecraft.getInstance();
+        if(client.level==null||!(client.level.getEntity(avatar.id) instanceof LivingEntity entity))return;
+        Object candidate=((LivingEntityRenderer<?,?,?>)(Object)this).getModel();
+        if(candidate instanceof PlayerModel model){
+            network.azusake.halo.core.runtime.PreviewAnchorHost.beginEntityRender(entity.getUUID(),entity.getId());
+            try{model.setupAnim(avatar);PlayerPreviewCapture.capturePosedHead(entity,stack,model.getHead());EmfHeadCapture.capturePreviewPose(entity,stack,model.getHead());}
+            finally{network.azusake.halo.core.runtime.PreviewAnchorHost.endEntityRender();}
         }
     }
 }

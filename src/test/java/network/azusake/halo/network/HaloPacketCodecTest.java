@@ -1,8 +1,8 @@
 package network.azusake.halo.network;
 
 import java.util.*;
-import net.minecraft.network.FriendlyByteBuf;
 import io.netty.buffer.Unpooled;
+import net.minecraft.network.FriendlyByteBuf;
 import network.azusake.halo.core.Identifier;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;

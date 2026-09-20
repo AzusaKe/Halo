@@ -53,7 +53,7 @@ public final class HaloMod {
             EntityAnchorLoader.clearServerResources();
         });
 
-        if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient()) HaloModClient.init(modBus);
+        if (net.neoforged.fml.loading.FMLEnvironment.getDist().isClient()) HaloModClient.init(modBus);
         LOGGER.info("Halo mod initialized");
     }
 }

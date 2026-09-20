@@ -1,5 +1,6 @@
 package network.azusake.halo.physics;
 
+import net.minecraft.world.entity.Pose;
 import network.azusake.halo.core.Vec3d;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.DisplayName;
@@ -7,8 +8,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
-
-import net.minecraft.world.entity.Pose;
 
 /**
  * Unit tests for player anchor provider math: head-center computation,

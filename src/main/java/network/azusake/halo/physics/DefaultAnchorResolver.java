@@ -1,7 +1,9 @@
 package network.azusake.halo.physics;
 
-import net.minecraft.world.entity.LivingEntity;
+import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
+import net.minecraft.world.entity.LivingEntity;
 
 /** Internal Vanilla fallback for entities without a render-time capture. */
 public final class DefaultAnchorResolver {

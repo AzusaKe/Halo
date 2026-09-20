@@ -1,37 +1,16 @@
 package network.azusake.halo.mixin;
-
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.world.entity.LivingEntity;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.render.pip.GuiEntityRenderer;
+import net.minecraft.client.renderer.state.gui.pip.GuiEntityRenderState;
 import network.azusake.halo.render.PlayerPreviewRenderer;
-import org.joml.Quaternionf;
-import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-@Mixin(InventoryScreen.class)
-public abstract class InventoryScreenPreviewMixin {
-    @Unique private boolean halo$firstRender = true;
-
-    @Inject(method = "render", at = @At("RETURN"))
-    private void halo$discardInitialMousePose(GuiGraphics context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (!halo$firstRender) return;
-        halo$firstRender = false;
-        // Survival inventory stores its real mouse position only after drawing the first frame.
-        // Snap once more with that pose, then keep the normal persistent simulation.
-        PlayerPreviewRenderer.resetAutomaticMotion();
-    }
-
-    @Redirect(method = "renderEntityInInventory(Lnet/minecraft/client/gui/GuiGraphics;FFFLorg/joml/Vector3f;Lorg/joml/Quaternionf;Lorg/joml/Quaternionf;Lnet/minecraft/world/entity/LivingEntity;)V",
-        at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;runAsFancy(Ljava/lang/Runnable;)V"))
-    private static void halo$renderPreview(Runnable render, GuiGraphics context, float x, float y, float size,
-                                           Vector3f translation, Quaternionf rotation,
-                                           Quaternionf cameraRotation, LivingEntity entity) {
-        PlayerPreviewRenderer.renderPlayer(context, entity, java.util.List.of(x, y, size), () -> RenderSystem.runAsFancy(render));
+@Mixin(GuiEntityRenderer.class)
+public abstract class InventoryScreenPreviewMixin extends net.minecraft.client.gui.render.pip.PictureInPictureRenderer<GuiEntityRenderState> {
+    protected InventoryScreenPreviewMixin(net.minecraft.client.renderer.MultiBufferSource.BufferSource bufferSource) { super(bufferSource); }
+    @WrapMethod(method="renderToTexture(Lnet/minecraft/client/renderer/state/gui/pip/GuiEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;)V")
+    private void halo$preview(GuiEntityRenderState state,PoseStack stack,Operation<Void> original){
+        PlayerPreviewRenderer.renderPlayer(state,stack,()->{original.call(state,stack);bufferSource.endBatch();});
     }
 }

@@ -1,8 +1,8 @@
 package network.azusake.halo.platform;
 
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.runtime.ClientRuntime;
 
@@ -16,8 +16,8 @@ public final class HaloClientState {
     private static void warnMissingDefinition(Identifier id) {
         var client = Minecraft.getInstance();
         if (client.player != null) {
-            client.player.displayClientMessage(Component.translatable("message.halo.missing_definition",
-                Component.literal(id.toString()).withStyle(ChatFormatting.WHITE)).withStyle(ChatFormatting.YELLOW), false);
+            client.player.sendSystemMessage(Component.translatable("message.halo.missing_definition",
+                Component.literal(id.toString()).withStyle(ChatFormatting.WHITE)).withStyle(ChatFormatting.YELLOW));
         }
     }
 }

@@ -77,7 +77,7 @@ public final class HaloServerEvents {
                 "HaloServerEvents: player disconnected – uuid={}, name={}",
                 uuid, player.getName().getString()
             );
-            HaloManager.getInstance().removeHalo(uuid, player.getServer());
+            HaloManager.getInstance().removeHalo(uuid, player.level().getServer());
             HaloJsonLoader.removeClientReportedDefs(uuid);
             HaloScepterService.close(uuid);
         });

@@ -1,6 +1,7 @@
 package network.azusake.halo.compat.ysm.mixin;
 
 import network.azusake.halo.compat.ysm.YsmV265Symbols;
+import network.azusake.halo.compat.ysm.YsmAbiDetector;
 import network.azusake.halo.compat.ysm.YsmVersionGate;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -25,6 +26,12 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
                 LOGGER.warn("[YSM Compat] installed YSM version {} is unsupported; expected {}; capture disabled",
                     installed.get(), YsmV265Symbols.SUPPORTED_VERSION);
             }
+            if (apply) {
+                var incompatible = YsmAbiDetector.incompatibility();
+                apply = incompatible.isEmpty();
+                incompatible.ifPresent(reason -> LOGGER.warn(
+                    "[YSM Compat] installed YSM ABI is incompatible; world and preview capture disabled: {}", reason));
+            }
         } catch (Throwable error) {
             apply = false;
             LOGGER.warn("[YSM Compat] failed to inspect YSM; capture disabled", error);
@@ -33,7 +40,7 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
 
     @Override public String getRefMapperConfig() { return null; }
     @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        return apply && mixinClassName.endsWith("YsmGeoRendererNamedMixin");
+        return apply;
     }
     @Override public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {}
     @Override public List<String> getMixins() { return null; }
@@ -46,7 +53,7 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
         boolean present = false;
         for (var method : targetClass.methods) {
             if (!YsmV265Symbols.RENDER_METHOD.equals(method.name)
-                || !YsmV265Symbols.RENDER_DESCRIPTOR_NEOFORGE.equals(method.desc)) continue;
+                || !YsmV265Symbols.RENDER_DESCRIPTOR.equals(method.desc)) continue;
             for (var instruction : method.instructions) {
                 if (instruction instanceof MethodInsnNode call
                     && targetClass.name.equals(call.owner)

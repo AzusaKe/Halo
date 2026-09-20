@@ -19,7 +19,7 @@ base {
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
     withSourcesJar()
 }
 
@@ -67,10 +67,8 @@ dependencies {
 neoForge {
     version = project.neo_version
 
-    parchment {
-        minecraftVersion = project.parchment_minecraft_version
-        mappingsVersion = project.parchment_mappings_version
-    }
+    validateAccessTransformers = true
+    accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
 
     mods {
         halo {
@@ -129,7 +127,7 @@ tasks.named('processResources', ProcessResources).configure {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 21
+    options.release = 25
 }
 
 tasks.named('jar', Jar).configure {

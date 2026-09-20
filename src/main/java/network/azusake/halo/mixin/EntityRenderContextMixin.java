@@ -1,38 +1,29 @@
 package network.azusake.halo.mixin;
-
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
-import net.minecraft.world.entity.Entity;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.player.PlayerModel;
+import net.minecraft.client.renderer.*;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.world.entity.LivingEntity;
 import network.azusake.halo.physics.RenderHeadCapture;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-/** Brackets every entity render attempt so API v2 can reject auxiliary passes. */
-@Mixin(EntityRenderDispatcher.class)
+@Mixin(ModelFeatureRenderer.class)
 public abstract class EntityRenderContextMixin {
-
-    @Inject(
-        method = "render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
-        at = @At("HEAD")
-    )
-    private void halo$beginAnchorRender(
-        Entity entity, double x, double y, double z, float yaw, float tickDelta,
-        PoseStack matrices, MultiBufferSource vertexConsumers, int light, CallbackInfo ci
-    ) {
-        RenderHeadCapture.beginEntityRender(entity, matrices, tickDelta);
-    }
-
-    @Inject(
-        method = "render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
-        at = @At("RETURN")
-    )
-    private void halo$endAnchorRender(
-        Entity entity, double x, double y, double z, float yaw, float tickDelta,
-        PoseStack matrices, MultiBufferSource vertexConsumers, int light, CallbackInfo ci
-    ) {
-        RenderHeadCapture.endEntityRender();
+    @WrapMethod(method="renderModel")
+    private void halo$drawScope(SubmitNodeStorage.ModelSubmit<?> submit, RenderType type, VertexConsumer vertices,
+        OutlineBufferSource outline, MultiBufferSource.BufferSource crumbling, Operation<Void> original){
+        if(submit.state() instanceof network.azusake.halo.physics.EntityRenderSnapshot.Holder holder
+            && holder.halo$snapshot() != null && holder.halo$snapshot().living()) {
+            var snapshot = holder.halo$snapshot();
+            var model = submit.model() instanceof PlayerModel playerModel ? playerModel : null;
+            var previous=RenderHeadCapture.suspendForPreview();
+            RenderHeadCapture.beginDraw(snapshot,model);
+            try{original.call(submit,type,vertices,outline,crumbling);}
+            finally{RenderHeadCapture.endEntityRender();RenderHeadCapture.restoreContext(previous);}
+        }else original.call(submit,type,vertices,outline,crumbling);
     }
 }

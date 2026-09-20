@@ -50,3 +50,9 @@ type="optional"
 versionRange="[0,)"
 ordering="AFTER"
 side="CLIENT"
+
+[[accessTransformers]]
+file="META-INF/accesstransformer.cfg"
+
+[features.halo]
+javaVersion="[25,)"

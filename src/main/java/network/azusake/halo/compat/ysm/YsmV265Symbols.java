@@ -1,45 +1,58 @@
 package network.azusake.halo.compat.ysm;
 
-/** Symbols verified from the official 2.6.5 Minecraft 1.21.1 NeoForge jar. */
+/** Symbols verified against ysm-2.6.5-neoforge+mc26.1-hotfix.jar. */
 public final class YsmV265Symbols {
     public static final String MOD_ID = "yes_steve_model";
-    public static final String SUPPORTED_VERSION = "2.6.5-neoforge+mc1.21.1";
-    public static final String EXPECTED_SHA1 = "18bec74a5b7f3778ce162ddbbbd5555aff0eda2e";
+    /** The hotfix artifact reports this value in NeoForge mod metadata. */
+    public static final String SUPPORTED_VERSION = "2.6.5-neoforge+mc26.1";
+    public static final String RELEASE_FILE = "ysm-2.6.5-neoforge+mc26.1-hotfix.jar";
 
     public static final String GEO_RENDERER =
-        "com.elfmcys.yesstevemodel.ooo0000oO0O0ooOO0ooOO0o0";
-    public static final String ANIMATED_GEO_MODEL =
-        "com.elfmcys.yesstevemodel.o0ooO0ooO00oo0o00Oo00000";
-    public static final String ANIMATABLE =
-        "com.elfmcys.yesstevemodel.OoO0oo0o0o0oOoo0oOOO0Ooo";
-    public static final String BONE =
-        "com.elfmcys.yesstevemodel.ooOO0OoOoO0o0o00oO0oo00o";
+        "com.elfmcys.yesstevemodel.o0o00OO0oOo0o0O00o00oooO";
+    public static final String RENDER_DATA =
+        "com.elfmcys.yesstevemodel.oo0oo0O0O0oo00OO00000Oo0";
+    public static final String RAW_MODEL =
+        "com.elfmcys.yesstevemodel.oooOoOoo000OoOo0OOoO0oO0";
+    public static final String RAW_BONE =
+        "com.elfmcys.yesstevemodel.Oo0ooO0oOooo000oOo0Ooooo";
+    public static final String ANIMATED_BONE =
+        "com.elfmcys.yesstevemodel.oo0Oooo0o00OOOoooOOo0oOO";
 
-    public static final String RENDER_METHOD = "oOo0OO0O0o000OO0O000oo0o";
-    public static final String HEAD_BONES_GETTER = "oO0O000o0oooOOO0O0oooOO0";
-    public static final String HEAD_BONES_DESCRIPTOR = "()Ljava/util/List;";
-    public static final String BONE_FLOAT_GETTER_DESCRIPTOR = "()F";
-
-    public static final String ROTATION_X = "oOo0OO0O0o000OO0O000oo0o";
-    public static final String ROTATION_Y = "oOoo00O0o0oO0o0oO00OO0O0";
-    public static final String ROTATION_Z = "OO000o0ooOooooOOOOO0Ooo0";
-    public static final String POSITION_X = "OOo0o0000Ooo0o00OO0oOOoO";
-    public static final String POSITION_Y = "Oo0O0OoOo0O0oOoo0000O0oO";
-    public static final String POSITION_Z = "O0o0OoOOooOo0O0OOoo0Oo00";
-    public static final String SCALE_X = "OoooO0OO0000O00oo0Oo00OO";
-    public static final String SCALE_Y = "oOOO00ooO0oOOoOOo0OoOOOo";
-    public static final String SCALE_Z = "ooOooOO0oO00o00o0o0oOOoO";
-    public static final String PIVOT_X = "OOo0O00Ooo00O0Ooo0OoOo0o";
-    public static final String PIVOT_Y = "OO0Oo0O00OOOo0oOo0oooooO";
-    public static final String PIVOT_Z = "O0O0Oo0Oooo0OOoOOO0ooo0O";
-
-    public static final String RENDER_DESCRIPTOR_NEOFORGE =
-        "(Lcom/elfmcys/yesstevemodel/o0ooO0ooO00oo0o00Oo00000;"
-            + "Lcom/elfmcys/yesstevemodel/OoO0oo0o0o0oOoo0oOOO0Ooo;"
-            + "FLnet/minecraft/client/renderer/RenderType;"
+    public static final String RENDER_METHOD = "OO0OoO00ooOOo0o00O000OoO";
+    public static final String RENDER_DESCRIPTOR =
+        "(Lcom/elfmcys/yesstevemodel/oo0oo0O0O0oo00OO00000Oo0;"
+            + "Lcom/elfmcys/yesstevemodel/O0o0O0O00ooo0ooo000o0ooo;"
             + "Lcom/mojang/blaze3d/vertex/PoseStack;"
-            + "Lnet/minecraft/client/renderer/MultiBufferSource;I"
-            + "Lcom/mojang/blaze3d/vertex/VertexConsumer;IIFFFF)V";
+            + "Lnet/minecraft/client/renderer/SubmitNodeCollector;"
+            + "Lnet/minecraft/client/renderer/rendertype/RenderType;)V";
+
+    public static final String DATA_MODEL_FIELD = "o0Oo00O0Ooo00oOo0O000Ooo";
+    /** Direct native-order snapshot of the animated model's 12 floats per bone. */
+    public static final String DATA_ATTRIBUTES_BUFFER_FIELD = "O000O0000O00000oo0o0OooO";
+    public static final String MODEL_BONES_GETTER = "OO0OoO00ooOOo0o00O000OoO";
+    public static final String BONE_NAME_GETTER = "OO0OoO00ooOOo0o00O000OoO";
+    public static final String BONE_ID_GETTER = "O0oo00O0OoooOOOO00ooO000";
+    /**
+     * The hotfix raw-bone constructor stores pivot first and initial rotation second.
+     * AnimatedBone copies the latter into attribute slots 0..2 while retaining the former as
+     * immutable locator pivots. Keep these mappings explicit: all six methods return float and a
+     * descriptor-only signature test cannot distinguish their semantics.
+     */
+    public static final String PIVOT_X = "o0oo0000oooOo0ooOOOo0OOo";
+    public static final String PIVOT_Y = "O0OoOoO0oo0O00O0ooo0o0OO";
+    public static final String PIVOT_Z = "OOOOoooo000OO0Ooo0o00ooO";
+    public static final String INITIAL_ROTATION_X = "OOoO0ooOO0OOoo0OOOoOo000";
+    public static final String INITIAL_ROTATION_Y = "o0Oo00O0Ooo00oOo0O000Ooo";
+    public static final String INITIAL_ROTATION_Z = "O000O0000O00000oo0o0OooO";
+
+    /**
+     * Raw chain used by AnimatedGeoModel's head getter in the 26.1 hotfix.
+     *
+     * <p>This is intentionally pinned instead of inferred from bone names. YSM models commonly
+     * end this locator at a control bone such as MHead, so requiring the terminal bone to be named
+     * Head incorrectly rejects otherwise valid models.</p>
+     */
+    public static final String HEAD_LOCATOR_FIELD = "O00o00ooOo0O0ooOoOO0o0OO";
 
     private YsmV265Symbols() {}
 }

@@ -2,11 +2,11 @@
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
-本分支是 Halo 的 `1.21.1-neoforge` 适配器，core 的集成分支是 `main`；功能基准来自 `1.21.1-fabric` 的 `d09d864`，最低支持 NeoForge 21.1.219，开发和发布构建基线为 21.1.248。已验收的 mesh 正式版为 2.1.0，早期重构基准为双方的 `v1.3.1`。开始任务时应检查实际分支。所有 `*-flash` 分支保持冻结。
+本分支是 Halo 的 `26.1-neoforge` 适配器，仅面向 Minecraft 26.1.2；core 集成分支为 `main`，固定 2.4.1 / `295bc57`。功能基准为 `1.21.1-neoforge@b5e457d`，最低支持及构建基线为 NeoForge 26.1.2.95。本分支已由用户批准正式发布，所有 `*-flash` 分支保持冻结。
 
 **常规流程：先定义功能的数据与规则 → 在 core 实现和验证 → 在主线实现适配器并联调 → 发布确定的 core 提交 → 提交主线的适配器及 core 指针 → 按需更新其他版本的指针和适配器 → 分别验收、推送和发布。** 不要求所有游戏版本同时跟进。
 
-文中的 `entity-opacity`（根据实体状态调整光环透明度）仍是完整流程示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。本适配器的迁移边界和验证结果见 [1.21.1 NeoForge 迁移记录](docs/1.21.1-neoforge-migration.md)。
+文中的 `entity-opacity`（根据实体状态调整光环透明度）仍是完整流程示例。2.0.0 的原生 mesh 功能与正式发布验收见 [mesh 验收记录](docs/mesh-verification.md)；以下 1.4.0 等版本发布命令仍是流程示例。本适配器的迁移边界和验证结果见 [26.1 NeoForge 迁移记录](docs/26.1-neoforge-migration.md)。
 
 ## 阅读路线
 
@@ -121,7 +121,7 @@ flowchart LR
 
 ### 3.1 先验证核心行为，再做联合构建
 
-1.21.1 适配器使用 Java 21、Gradle wrapper 8.13 和固定 ModDevGradle 2.0.144；core 源码仍以 Java 17 为契约基线。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
+26.1.2 适配器使用 Java 25、Gradle wrapper 9.5.1 和固定 ModDevGradle 2.0.144；core 源码仍以 Java 17 为契约基线。始终使用仓库的 wrapper。以下命令从 Halo 根目录执行：
 
 ```powershell
 # 快速重放与功能相关的 core 用例；测试类按实际改动选择。
@@ -142,14 +142,14 @@ flowchart LR
 
 | 命令 | 当前主线的运行目录 |
 | --- | --- |
-| `.\gradlew.bat runClient --console=plain` | `runClient/21.1.248/`，Dev1 |
-| `.\gradlew.bat runClient2 --console=plain` | `runClient2/21.1.248/`，Dev2 |
-| `.\gradlew.bat runServer --console=plain` | `runServer/1.21.1-neoforge-21.1.248/` |
+| `.\gradlew.bat runClient --console=plain` | `runClient/26.1.2.95/`，Dev1 |
+| `.\gradlew.bat runClient2 --console=plain` | `runClient2/26.1.2.95/`，Dev2 |
+| `.\gradlew.bat runServer --console=plain` | `runServer/26.1.2-neoforge-26.1.2.95/` |
 
 
 服务端和两个客户端分别在不同终端启动。首次服务端启动按提示处理该运行目录的 EULA 和 `server.properties`。仅在本机联调时，开发账号使用允许离线账号的测试服，并绑定 `server-ip=127.0.0.1`；通过该目录配置的端口连接。不同游戏版本使用独立世界和配置，不把较新版本存档交给较老版本加载。
 
-最低版本验证使用 `.\gradlew.bat build '-Pneo_version=21.1.219'`（PowerShell 必须为该参数加引号）。运行任务同样接受 `-Pneo_version`，运行目录按加载器版本隔离。正式发布 JAR 仅由 248 构建，再把同一份 JAR 放入 219 和 248 的普通实例验证。
+当前仅以 NeoForge 26.1.2.95 验证和发布；不声明 26.1、26.1.1 或更低 NeoForge 兼容。运行任务支持 `-Pneo_version`，但修改构建版本需要另行验收。
 
 进入既有隔离单人世界可用 `'-PsmokeWorldName=世界目录名'`，世界位于 `runClient/<NeoForge版本>/saves/`。多人连接由游戏界面填写测试服地址。
 
@@ -243,10 +243,10 @@ git -C core rev-parse HEAD
 git add -- core src gradle.properties CHANGELOG.md docs README.md README_ZH.md
 git diff --cached --submodule=short
 git diff --cached --check
-git commit -m 'feat: adapt entity opacity on Minecraft 1.21.1 NeoForge'
+git commit -m 'feat: adapt entity opacity on Minecraft 26.1.2 NeoForge'
 
-git switch 1.21.1-neoforge
-git pull --ff-only origin 1.21.1-neoforge
+git switch 26.1-neoforge
+git pull --ff-only origin 26.1-neoforge
 git merge --ff-only codex/entity-opacity-1.21.1
 git submodule update --init --recursive
 git status --short
@@ -264,14 +264,14 @@ git -C core status --short
 ### 4.4 推送 Halo 分支，按需要发布版本标签
 
 ```powershell
-git push origin 1.21.1-neoforge
+git push origin 26.1-neoforge
 ```
 
 查看该提交的 CI 结果。需要正式发布成品时，再创建唯一的目标平台标签，例如：
 
 ```powershell
-git tag -a v1.4.0-neoforge-1.21.1-adapter.1 -m 'Halo 1.4.0 for Minecraft 1.21.1 NeoForge, adapter 1'
-git push origin refs/tags/v1.4.0-neoforge-1.21.1-adapter.1
+git tag -a v1.4.0-neoforge-26.1.2-adapter.1 -m 'Halo 1.4.0 for Minecraft 26.1.2 NeoForge, adapter 1'
+git push origin refs/tags/v1.4.0-neoforge-26.1.2-adapter.1
 ```
 
 当前 [Halo CI](.github/workflows/gradle.yml) 会递归检出子模块；主线分支/PR 触发构建，`v*` 标签触发正式构建并自动创建 GitHub Release、上传 JAR。只需要备份源码时推送分支即可；正式标签推送也是发布动作。core 的 CI 独立运行构建，不能替代 Halo 的平台验证。
@@ -280,7 +280,7 @@ git push origin refs/tags/v1.4.0-neoforge-1.21.1-adapter.1
 
 ```powershell
 git -C core ls-remote origin refs/heads/main refs/tags/v1.4.0 'refs/tags/v1.4.0^{}'
-git ls-remote origin refs/heads/1.21.1-neoforge refs/tags/v1.4.0-neoforge-1.21.1-adapter.1 'refs/tags/v1.4.0-neoforge-1.21.1-adapter.1^{}'
+git ls-remote origin refs/heads/26.1-neoforge refs/tags/v1.4.0-neoforge-26.1.2-adapter.1 'refs/tags/v1.4.0-neoforge-26.1.2-adapter.1^{}'
 git status --short --branch
 git -C core status --short --branch
 ```

@@ -4,7 +4,7 @@ import java.util.UUID;
 
 
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.minecraft.client.Minecraft;
 
 import network.azusake.halo.client.HaloPhaseTracker;
@@ -56,18 +56,18 @@ public final class HaloNetworkClient {
     public static void sendScepterSelection(Identifier definitionId) {
         if (!canSend(HaloPayloads.ScepterSelect.ID)) return;
         var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
-        buf.writeResourceLocation(game(definitionId));
-        PacketDistributor.sendToServer(new HaloPayloads.ScepterSelect(buf));
+        buf.writeIdentifier(game(definitionId));
+        ClientPacketDistributor.sendToServer(new HaloPayloads.ScepterSelect(buf));
     }
 
     public static void sendScepterClose() {
         if (canSend(HaloPayloads.ScepterClose.ID))
-            PacketDistributor.sendToServer(new HaloPayloads.ScepterClose(new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer())));
+            ClientPacketDistributor.sendToServer(new HaloPayloads.ScepterClose(new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer())));
     }
 
     public static void sendScepterRemoveSelf() {
         if (canSend(HaloPayloads.ScepterRemoveSelf.ID))
-            PacketDistributor.sendToServer(new HaloPayloads.ScepterRemoveSelf(new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer())));
+            ClientPacketDistributor.sendToServer(new HaloPayloads.ScepterRemoveSelf(new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer())));
     }
 
     public static void sendDefsReport() {
@@ -75,7 +75,7 @@ public final class HaloNetworkClient {
         var definitions = HaloJsonLoader.getDefinitions();
         var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         buf.writeInt(definitions.size());
-        for (Identifier id : definitions.keySet()) buf.writeResourceLocation(game(id));
-        PacketDistributor.sendToServer(new HaloPayloads.DefsReport(buf));
+        for (Identifier id : definitions.keySet()) buf.writeIdentifier(game(id));
+        ClientPacketDistributor.sendToServer(new HaloPayloads.DefsReport(buf));
     }
 }

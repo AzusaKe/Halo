@@ -1,6 +1,8 @@
-本分支面向 **Minecraft 1.21.1 NeoForge**，当前源码版本为 **2.4.1+adapter.1**，使用 HaloCore **2.4.1**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [1.21.1 迁移记录](docs/1.21.1-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 26.1.2 NeoForge**，当前源码版本为 **2.4.1+adapter.1**，使用 HaloCore **2.4.1**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.1.2 迁移记录](docs/26.1-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
+
+26.1.2 的原生与 Iris mesh 分别使用常驻 GPU 几何缓存。`-Dhalo.mesh.profile=true` 输出上传量与 CPU 提交统计，`-Dhalo.mesh.forceExpanded=true` 用于 Iris 展开路径对照；用户已确认当前版本可正式发布；受控 A/A 和 A/B 帧耗时测量未执行。
 
 billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo renderer` 查询当前模式，`/halo renderer compatibility|cached` 切换并保存；命令只在客户端执行，无需服务器权限。下一帧同时作用于世界与物品栏预览，不重启动画或物理，OBJ mesh 不受影响。配置项为 `primitiveRenderBackend`，缺失或非法值恢复默认。详见[模式与验收记录](docs/render-optimization-verification.md)。
 
@@ -18,7 +20,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 </h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-26.1.2-green.svg)
 ![模组加载器](https://img.shields.io/badge/Mod%20Loader-NeoForge-orange.svg)
 
 中文 | [English](README.md)
@@ -49,7 +51,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-当前源码分支面向 Minecraft 1.21.1 NeoForge；其他游戏版本与加载器通过各自适配分支维护。
+当前源码分支面向 Minecraft 26.1.2 NeoForge；其他游戏版本与加载器通过各自适配分支维护。
 
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
@@ -65,7 +67,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 - [x] **持久化**：通过实体 NBT 和世界持久状态，光环在世界重载和服务器重启后依然保留。实体加载时自动恢复。
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
 - [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
-- [ ] **LabPBR 兼容——1.21.1 视觉签收待完成**：1.21.1 世界路径已把未遮罩、非全亮的 `billboard`、`ring` 与 OBJ `mesh` 提交到原生实体 RenderLayer，使 Iris 可收集同名 `_n.png`／`_s.png`。本分支已使用 NeoForge Iris 1.8.14-beta.1 与 IterationRP Alpha 0.8.22 检查材质程序和平滑法线匹配，用户确认光影下的光环及 EMF/YSM 预览正常；固定诊断资源的逐通道对照未单独记录，因此不标记为完整兼容。POM 仍取决于光影包，不能由实体材质通路自动推出。
+- [x] **LabPBR 兼容**：非全亮 billboard/ring/mesh 使用 Iris 实体材质管线；IterationRP 下的 PBR 加载已由用户确认。POM 依赖光影包，本版本不额外声明 POM 支持；GUI 预览不使用世界 G-buffer。详见[迁移记录](docs/26.1-neoforge-migration.md)。
 - [x] **动画支持**：光环定义支持位置、旋转、缩放、透明度和发光动画通道，以及彼此独立的启动与关闭过渡时间线。
 - [x] **运行时调试配置**：`/halo config` 提供阻尼、距离限制、角动量和统一缩放的会话级覆写，用于个人微调与调试。本地模式作用于当前客户端，整合单人游戏通过进程内桥接作用于配对客户端；专用服务器不会持久化或向玩家分发这些值。位置和旋转偏移等永久摆放修改应写入具体光环定义。
 - [x] **资源包友好**：负责渲染的客户端从资源包 `assets/<namespace>/halo_definitions/` 读取定义及视觉素材。服务端数据包可在 `data/<namespace>/halo_definitions/` 注册定义 JSON，供服务端列出和选择，但 Halo 不会下发这些 JSON、纹理或模型；每个渲染客户端仍须安装匹配的资源包。修改任一来源后运行 `/reload`。
@@ -90,13 +92,13 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ## 安装
 
-1. 为 Minecraft 1.21.1 安装 [NeoForge](https://neoforged.net/)。最低支持 **21.1.219**，开发和发布构建基线为 **21.1.248**。
-2. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 下载对应的 **Halo NeoForge 1.21.1** JAR。
+1. 为 Minecraft 26.1.2 安装 [NeoForge](https://neoforged.net/)。最低支持 **26.1.2.95**，开发和发布构建基线为 **26.1.2.95**。
+2. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 下载对应的 **Halo NeoForge 26.1.2** JAR。
 3. 将 Halo JAR 放入实例的 `mods` 文件夹并启动 NeoForge。成品已包含 HaloCore。
 
 ### NeoForge / Forge
 
-本分支提供原生 NeoForge 适配器。其他加载器应使用对应的 Halo 构建。当前迁移证据和待签收项目见 [迁移记录](docs/1.21.1-neoforge-migration.md)。
+本分支提供原生 NeoForge 适配器。其他加载器应使用对应的 Halo 构建。迁移记录和实际验证范围见 [迁移记录](docs/26.1-neoforge-migration.md)。
 
 <a id="使用方法"></a>
 
@@ -156,7 +158,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ### YSM 兼容
 
-Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的。本分支仅支持 **YSM `2.6.5-neoforge+mc1.21.1`**。未安装 YSM、关闭功能或安装其他版本时，Halo 会安全回退到标准实体锚点。只有负责渲染 YSM 模型的客户端需要安装 YSM；Halo 的服务端同步不要求安装 YSM。
+Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的。本分支仅支持 **YSM `2.6.5-neoforge+mc26.1 (hotfix)`**。未安装 YSM、关闭功能或安装其他版本时，Halo 会安全回退到标准实体锚点。只有负责渲染 YSM 模型的客户端需要安装 YSM；Halo 的服务端同步不要求安装 YSM。
 
 开启 YSM 头部 locator 锚点的方法：
 
@@ -306,7 +308,7 @@ Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的�
 
 ### 前置条件
 
-- **JDK 21** — Minecraft 1.21.1 所需（HaloCore 仍保持 Java 17 兼容）
+- **JDK 25** — Minecraft 26.1.2 所需（HaloCore 仍保持 Java 17 兼容）
 - 互联网连接（Gradle 从 Maven 仓库下载依赖）
 
 <a id="构建"></a>
@@ -314,12 +316,12 @@ Halo 的 Yes Steve Model（YSM）兼容功能是可选且精确锁定版本的�
 ### 构建
 
 ```bash
-git clone --branch 1.21.1-neoforge --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 26.1-neoforge --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.21.1-neoforge-2.4.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.1.2-neoforge-2.4.1+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
@@ -341,8 +343,8 @@ cd Halo
 ./gradlew runServer --console=plain
 ```
 
-客户端使用 `runClient/21.1.248/`，第二客户端使用 `runClient2/21.1.248/`；本分支的专用服务端独立使用
-`runServer/1.21.1-neoforge-21.1.248/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
+客户端使用 `runClient/26.1.2.95/`，第二客户端使用 `runClient2/26.1.2.95/`；本分支的专用服务端独立使用
+`runServer/26.1.2-neoforge-26.1.2.95/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
 `eula.txt`，并在 `server.properties` 中设置端口等参数。开发账号联机需要测试服务器允许离线账号；
 本机测试可将 `server-ip` 设为 `127.0.0.1`。控制台输入 `stop` 可正常保存并关闭服务器。
 
@@ -374,7 +376,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 欢迎对 Halo 进行贡献！如果你有想法、建议或想报告 Bug，请在 [GitHub 仓库](https://github.com/AzusaKe/Halo) 提交 Issue。如果你想贡献代码，请 Fork 仓库并提交 Pull Request。
 
-- **开发环境**：Minecraft 1.21.1 + NeoForge 21.1.248 (minimum 21.1.219) + JDK 21
+- **开发环境**：Minecraft 26.1.2 + NeoForge 26.1.2.95 (minimum 26.1.2.95) + JDK 25
 - **IDE**：推荐 IntelliJ IDEA（配合 Minecraft Development 插件）或 VS Code
 
 <a id="许可证"></a>

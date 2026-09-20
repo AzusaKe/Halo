@@ -1,8 +1,8 @@
 package network.azusake.halo.compat.emf;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.model.geom.ModelPart;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.phys.Vec3;
 import network.azusake.halo.api.v2.*;
 import org.joml.Matrix4f;
@@ -14,6 +14,8 @@ final class EmfPreviewCapture {
     private static boolean reportedFailure;
     private static final ThreadLocal<Boolean> POSE_ONLY = ThreadLocal.withInitial(() -> false);
     private static final VertexConsumer DISCARD = new VertexConsumer() {
+        public VertexConsumer setColor(int color) { return this; }
+        public VertexConsumer setLineWidth(float width){return this;}
         public VertexConsumer addVertex(float x, float y, float z) { return this; }
         public VertexConsumer setColor(int r, int g, int b, int a) { return this; }
         public VertexConsumer setUv(float u, float v) { return this; }

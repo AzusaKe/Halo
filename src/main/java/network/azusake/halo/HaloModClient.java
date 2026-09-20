@@ -13,7 +13,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
-import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.event.GameShuttingDownEvent;
@@ -40,7 +40,6 @@ public final class HaloModClient {
         HaloPhaseTracker.getInstance();
         network.azusake.halo.json.HaloJsonLoader.registerClientResources(modBus);
         network.azusake.halo.json.EntityAnchorLoader.registerClientResources(modBus);
-        network.azusake.halo.render.HaloMeshShader.register(modBus);
         HaloRenderListener.register();
         HaloClientManager.getInstance();
         new NeoForgeHaloCommandInterceptor().register();
@@ -49,7 +48,7 @@ public final class HaloModClient {
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.render.HaloRenderer.getInstance().shutdown();
         });
-        modBus.addListener((RegisterClientReloadListenersEvent event) -> event.registerReloadListener(
+        modBus.addListener((AddClientReloadListenersEvent event) -> event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "defs_report_trigger"),
             new SimplePreparableReloadListener<Void>() {
                 @Override protected Void prepare(ResourceManager manager, ProfilerFiller profiler) { return null; }
                 @Override protected void apply(Void ignored, ResourceManager manager, ProfilerFiller profiler) {

@@ -1,21 +1,22 @@
 package network.azusake.halo.client;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 import network.azusake.halo.core.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import network.azusake.halo.json.HaloJsonLoader;
 import network.azusake.halo.network.HaloNetworkClient;
 import network.azusake.halo.util.HaloIdMatcher;
 
 import java.util.List;
 import java.util.UUID;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.ObjectSelectionList;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 
 /** Client-only searchable selector for a server-locked halo-scepter target. */
 public final class HaloScepterScreen extends Screen {
@@ -108,8 +109,8 @@ public final class HaloScepterScreen extends Screen {
             missingTargetTicks = 0;
         } else if (++missingTargetTicks > 10) {
             if (minecraft != null && minecraft.player != null) {
-                minecraft.player.displayClientMessage(
-                    Component.translatable("message.halo.halo_scepter.invalid_target"), true
+                minecraft.player.sendOverlayMessage(
+                    Component.translatable("message.halo.halo_scepter.invalid_target")
                 );
             }
             onClose();
@@ -117,42 +118,39 @@ public final class HaloScepterScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
-        context.fill(panelLeft, panelTop, panelRight, panelBottom, 0xE0101520);
-        context.fill(panelLeft, panelTop, panelRight, panelTop + 1, 0xFF4F6A78);
-        context.fill(panelLeft, panelBottom - 1, panelRight, panelBottom, 0xFF090C10);
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        graphics.fill(panelLeft, panelTop, panelRight, panelBottom, 0xE0101520);
+        graphics.fill(panelLeft, panelTop, panelRight, panelTop + 1, 0xFF4F6A78);
+        graphics.fill(panelLeft, panelBottom - 1, panelRight, panelBottom, 0xFF090C10);
 
-        context.drawCenteredString(
-            font, title, width / 2, panelTop + 10, 0x7FE8FF
-        );
-        context.drawCenteredString(
+        graphics.centeredText(font, title, width / 2, panelTop + 10, 0xFF7FE8FF);
+        graphics.centeredText(
             font,
             Component.translatable("screen.halo.halo_scepter.target", targetName),
             width / 2,
             panelTop + 26,
-            0xD5DDE5
+            0xFFD5DDE5
         );
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(graphics, mouseX, mouseY, delta);
 
         if (haloList.children().isEmpty()) {
             Component empty = HaloJsonLoader.getDefinitions().isEmpty()
                 ? Component.translatable("screen.halo.halo_scepter.no_definitions")
                 : Component.translatable("screen.halo.halo_scepter.no_results");
-            context.drawCenteredString(
+            graphics.centeredText(
                 font,
                 empty,
                 width / 2,
                 (panelTop + panelBottom) / 2,
-                0x8B98A5
+                0xFF8B98A5
             );
         }
     }
 
+    /** Keep the vanilla darkening layer without the configurable menu blur. */
     @Override
-    protected void renderBlurredBackground(float delta) {
-        // Keep the selector crisp instead of blurring the world framebuffer.
+    protected void extractBlurredBackground(GuiGraphicsExtractor graphics) {
     }
 
     @Override
@@ -187,8 +185,8 @@ public final class HaloScepterScreen extends Screen {
 
         private void setIdentifiers(List<Identifier> identifiers) {
             clearEntries();
-            for (Identifier identifier : identifiers) {
-                addEntry(new HaloEntry(identifier));
+            for (int index = 0; index < identifiers.size(); index++) {
+                addEntry(new HaloEntry(identifiers.get(index), index));
             }
             setScrollAmount(0.0);
             setSelected(null);
@@ -196,25 +194,31 @@ public final class HaloScepterScreen extends Screen {
 
         @Override
         public int getRowWidth() {
-            // Keep the 3px gap and the whole 6px scrollbar inside the list's mouse hitbox.
             return width - 14;
         }
 
         @Override
-        protected int getScrollbarPosition() {
+        protected int scrollBarX() {
             return getRowRight() + 3;
         }
 
-        @Override protected void renderListBackground(GuiGraphics context) {}
-        @Override protected void renderListSeparators(GuiGraphics context) {}
+        @Override
+        protected void extractListBackground(GuiGraphicsExtractor graphics) {
+        }
+
+        @Override
+        protected void extractListSeparators(GuiGraphicsExtractor graphics) {
+        }
     }
 
     private final class HaloEntry extends ObjectSelectionList.Entry<HaloEntry> {
 
         private final Identifier identifier;
+        private final int index;
 
-        private HaloEntry(Identifier identifier) {
+        private HaloEntry(Identifier identifier, int index) {
             this.identifier = identifier;
+            this.index = index;
         }
 
         @Override
@@ -223,32 +227,27 @@ public final class HaloScepterScreen extends Screen {
         }
 
         @Override
-        public void render(
-            GuiGraphics context,
-            int index,
-            int y,
-            int x,
-            int entryWidth,
-            int entryHeight,
+        public void extractContent(
+            GuiGraphicsExtractor graphics,
             int mouseX,
             int mouseY,
             boolean hovered,
             float tickDelta
         ) {
             int color = hovered ? 0xA0335668 : (index % 2 == 0 ? 0x70303B46 : 0x5027313A);
-            context.fill(x, y, x + entryWidth, y + entryHeight - 2, color);
-            context.drawString(
+            graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight() - 2, color);
+            graphics.text(
                 font,
                 identifier.toString(),
-                x + 7,
-                y + (entryHeight - font.lineHeight) / 2 - 1,
-                hovered ? 0x9EEBFF : 0xE6EDF3
+                getX() + 7,
+                getY() + (getHeight() - font.lineHeight) / 2 - 1,
+                hovered ? 0xFF9EEBFF : 0xFFE6EDF3
             );
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (button != 0) {
+        public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+            if (event.button() != 0) {
                 return false;
             }
             haloList.setSelected(this);

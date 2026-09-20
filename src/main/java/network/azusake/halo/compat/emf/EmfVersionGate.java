@@ -1,72 +1,68 @@
 package network.azusake.halo.compat.emf;
 
-import net.neoforged.fml.loading.LoadingModList;
+import net.neoforged.fml.ModList;
+
 
 import java.util.Optional;
 
-/** Applies the 3.1.1 lower bound without imposing an upper EMF version limit. */
+/** Minimum-version check shared by the optional EMF Mixin plugin and diagnostics. */
 public final class EmfVersionGate {
+
+    private static final int[] MIN_SUPPORTED = {3, 1, 1};
 
     private EmfVersionGate() {
     }
 
     public static boolean isSupportedVersion(String version) {
-        int[] actual = parseCore(version);
-        int[] minimum = parseCore(Emf1211Symbols.MIN_SUPPORTED_VERSION);
-        if (actual == null || minimum == null) {
-            return false;
-        }
-        for (int index = 0; index < minimum.length; index++) {
-            if (actual[index] != minimum[index]) {
-                return actual[index] > minimum[index];
-            }
-        }
-        return true;
+        int[] parsed = parse(version);
+        return parsed != null && compare(parsed, MIN_SUPPORTED) >= 0;
     }
 
     public static Optional<String> installedVersion() {
-        LoadingModList loadingMods = LoadingModList.get();
-        if (loadingMods == null) {
-            return Optional.empty();
-        }
-        var modFile = loadingMods.getModFileById(Emf1211Symbols.MOD_ID);
-        if (modFile == null) {
-            return Optional.empty();
-        }
-        return modFile.getMods().stream()
-            .filter(mod -> Emf1211Symbols.MOD_ID.equals(mod.getModId()))
-            .map(mod -> mod.getVersion().toString())
-            .findFirst();
+        var loading = net.neoforged.fml.loading.LoadingModList.get();
+        if (loading == null) return Optional.empty();
+        var file = loading.getModFileById(Emf261Symbols.MOD_ID);
+        if (file == null) return Optional.empty();
+        return file.getMods().stream().filter(m -> m.getModId().equals(Emf261Symbols.MOD_ID))
+            .map(m -> m.getVersion().toString()).findFirst();
     }
 
-    private static int[] parseCore(String version) {
+    public static boolean isSupportedInstalledVersion() {
+        return installedVersion().map(EmfVersionGate::isSupportedVersion).orElse(false);
+    }
+
+    private static int[] parse(String version) {
         if (version == null || version.isBlank()) {
             return null;
         }
-        String core = version.trim();
-        int suffix = core.indexOf('-');
-        if (suffix >= 0) {
-            core = core.substring(0, suffix);
-        }
-        suffix = core.indexOf('+');
-        if (suffix >= 0) {
-            core = core.substring(0, suffix);
-        }
-        String[] parts = core.split("\\.");
-        if (parts.length < 2 || parts.length > 3) {
+
+        String core = version.trim().split("[+-]", 2)[0];
+        String[] components = core.split("\\.");
+        if (components.length == 0 || components.length > 3) {
             return null;
         }
-        int[] result = new int[]{0, 0, 0};
+
+        int[] parsed = {0, 0, 0};
         try {
-            for (int index = 0; index < parts.length; index++) {
-                if (parts[index].isBlank()) {
+            for (int index = 0; index < components.length; index++) {
+                if (components[index].isEmpty()) {
                     return null;
                 }
-                result[index] = Integer.parseInt(parts[index]);
+                parsed[index] = Integer.parseInt(components[index]);
             }
-            return result;
+            return parsed;
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private static int compare(int[] left, int[] right) {
+        for (int index = 0; index < 3; index++) {
+            int result = Integer.compare(left[index], right[index]);
+            if (result != 0) {
+                return result;
+            }
+        }
+        return 0;
     }
 }

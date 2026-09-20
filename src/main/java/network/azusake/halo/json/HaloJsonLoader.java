@@ -5,9 +5,9 @@ import network.azusake.halo.data.HaloDefinition;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import net.neoforged.bus.api.IEventBus;
 import network.azusake.halo.core.Identifier;
 import org.slf4j.Logger;
@@ -69,8 +69,8 @@ public final class HaloJsonLoader {
             return;
         }
         serverRegistered = true;
-        NeoForge.EVENT_BUS.addListener((AddReloadListenerEvent event) ->
-            event.addListener(new ServerListener()));
+        NeoForge.EVENT_BUS.addListener((AddServerReloadListenersEvent event) ->
+            event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "halo_definitions"), new ServerListener()));
 
         LOG.info("HaloJsonLoader registered for SERVER_DATA");
     }
@@ -88,8 +88,8 @@ public final class HaloJsonLoader {
             return;
         }
         clientRegistered = true;
-        modBus.addListener((RegisterClientReloadListenersEvent event) ->
-            event.registerReloadListener(new ClientListener()));
+        modBus.addListener((AddClientReloadListenersEvent event) ->
+            event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "halo_definitions_client"), new ClientListener()));
 
         LOG.info("HaloJsonLoader registered for CLIENT_RESOURCES");
     }

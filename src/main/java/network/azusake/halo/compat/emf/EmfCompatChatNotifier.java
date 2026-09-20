@@ -20,7 +20,7 @@ public final class EmfCompatChatNotifier {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> {
             var client = net.minecraft.client.Minecraft.getInstance();
             if (client.player != null && EmfCompatDiagnostics.markChatReported()) {
-                client.player.displayClientMessage(Component.literal(EmfCompatDiagnostics.USER_ERROR_MESSAGE), false);
+                client.player.sendSystemMessage(Component.literal(EmfCompatDiagnostics.USER_ERROR_MESSAGE));
             }
         });
     }

@@ -1,17 +1,11 @@
 // Source pinning is exclusively the Git submodule entry. No branch-following dependency resolution.
 def gitOutput = { File directory, List<String> arguments ->
-    def output = new ByteArrayOutputStream()
-    def errors = new ByteArrayOutputStream()
-    try {
-        def result = exec {
-            workingDir directory
-            commandLine(['git'] + arguments)
-            standardOutput output
-            errorOutput errors
-            ignoreExitValue true
-        }
-        result.exitValue == 0 ? output.toString('UTF-8').trim() : ''
-    } catch (Exception ignored) { '' }
+    def result = providers.exec {
+        workingDir directory
+        commandLine(['git'] + arguments)
+        ignoreExitValue true
+    }
+    result.result.get().exitValue == 0 ? result.standardOutput.asText.get().trim() : ''
 }
 
 def coreDir = file('core')
@@ -21,7 +15,7 @@ def committedLink = gitOutput(projectDir, ['ls-tree', 'HEAD', 'core'])
 def coreLock = committedLink.startsWith('160000 ') ? committedLink.split(/\s+/)[2] : ''
 def coreDirty = !gitOutput(coreDir, ['status', '--porcelain', '--untracked-files=normal']).isEmpty()
 def haloDirty = !gitOutput(projectDir, ['status', '--porcelain', '--untracked-files=normal']).isEmpty()
-def development = coreDirty || haloDirty || !coreLock || coreLock != coreCommit
+def development = providers.gradleProperty('development_build').map { it.toBoolean() }.getOrElse(false) || coreDirty || haloDirty || !coreLock || coreLock != coreCommit
 ext.releaseBuild = providers.gradleProperty('release').map { it.toBoolean() }.getOrElse(false)
 if (development && !releaseBuild) version = "${version}.dev"
 
@@ -46,16 +40,16 @@ tasks.register('verifyCoreLock') {
             throw new GradleException('Remote verification directory escaped the task temporary directory.')
         }
         try {
-            exec {
+            providers.exec {
                 workingDir remoteRepo
                 commandLine 'git', 'init', '--bare', '--quiet'
-            }
-            def fetched = exec {
+            }.result.get()
+            def fetched = providers.exec {
                 workingDir remoteRepo
                 commandLine 'git', 'fetch', '--quiet', '--depth=1', '--no-tags', '--no-recurse-submodules', remoteUrl, coreCommit
                 ignoreExitValue true
             }
-            if (fetched.exitValue != 0 || gitOutput(remoteRepo, ['rev-parse', '--verify', 'FETCH_HEAD^{commit}']) != coreCommit) {
+            if (fetched.result.get().exitValue != 0 || gitOutput(remoteRepo, ['rev-parse', '--verify', 'FETCH_HEAD^{commit}']) != coreCommit) {
                 throw new GradleException('The pinned core commit cannot be fetched from origin. Push core first and check remote access before releasing Halo.')
             }
         } finally {

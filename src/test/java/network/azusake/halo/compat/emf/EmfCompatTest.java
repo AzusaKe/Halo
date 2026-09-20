@@ -4,25 +4,24 @@ import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.physics.HeadFrameMath;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import net.minecraft.client.model.geom.ModelPart;
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.List;
 import java.util.Map;
 
 import java.util.UUID;
-import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.world.phys.Vec3;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import com.mojang.blaze3d.vertex.PoseStack;
 
 class EmfCompatTest {
 

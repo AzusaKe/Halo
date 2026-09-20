@@ -1,12 +1,11 @@
 package network.azusake.halo.item;
 
 import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
-import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import network.azusake.halo.HaloMod;
 
@@ -16,9 +15,10 @@ public final class HaloItems {
     private static final DeferredRegister.Items ITEMS =
         DeferredRegister.createItems(HaloMod.MOD_ID);
 
-    public static final DeferredHolder<Item, Item> HALO_SCEPTER = ITEMS.register(
+    public static final DeferredItem<HaloScepterItem> HALO_SCEPTER = ITEMS.registerItem(
         "halo_scepter",
-        () -> new HaloScepterItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE))
+        HaloScepterItem::new,
+        properties -> properties.stacksTo(1).rarity(Rarity.RARE)
     );
 
     private HaloItems() {

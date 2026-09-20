@@ -63,7 +63,7 @@ final class HaloScepterInteractions {
         if (!event.getEntity().getMainHandItem().is(HaloItems.HALO_SCEPTER.get())) {
             return;
         }
-        if (!event.getEntity().level().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+        if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof ServerPlayer player) {
             HaloScepterService.remove(player, event.getTarget(), player.isShiftKeyDown());
         }
         event.setCanceled(true);
@@ -73,7 +73,7 @@ final class HaloScepterInteractions {
         if (!event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
             return;
         }
-        if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ServerPlayer player) {
             HaloScepterService.open(player, player.isShiftKeyDown() ? player : event.getTarget());
         }
         consume(event);
@@ -83,7 +83,7 @@ final class HaloScepterInteractions {
         if (!event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
             return;
         }
-        if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ServerPlayer player) {
             HaloScepterService.open(player, player.isShiftKeyDown() ? player : event.getTarget());
         }
         consume(event);
@@ -113,7 +113,7 @@ final class HaloScepterInteractions {
     private static boolean openSelf(PlayerInteractEvent event) {
         if (!event.getEntity().isShiftKeyDown()
             || !event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) return false;
-        if (!event.getLevel().isClientSide && event.getEntity() instanceof ServerPlayer player) {
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ServerPlayer player) {
             HaloScepterService.open(player, player);
         }
         return true;

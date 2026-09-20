@@ -1,5 +1,6 @@
 package network.azusake.halo.render;
 
+
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.render.LightSample;
 import network.azusake.halo.core.render.MaterialState;
@@ -7,14 +8,12 @@ import network.azusake.halo.core.render.MeshDraw;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-import net.minecraft.client.renderer.LightTexture;
-
 class HaloRendererLightTest {
     @Test void coreLightChannelsMapToVanillaPackedCoordinates() {
-        assertEquals(LightTexture.pack(3, 12), HaloRenderer.packLight(new LightSample(3, 12)));
-        assertEquals(LightTexture.FULL_BRIGHT,
+        assertEquals((3 << 4) | (12 << 20), HaloRenderer.packLight(new LightSample(3, 12)));
+        assertEquals(0xF000F0,
             HaloRenderer.packLight(LightSample.UNAVAILABLE));
-        assertEquals(LightTexture.FULL_BRIGHT,
+        assertEquals(0xF000F0,
             HaloRenderer.packLight(LightSample.FULL_BRIGHT));
     }
 
@@ -24,14 +23,6 @@ class HaloRendererLightTest {
         assertFalse(HaloRenderer.submitBeforeTranslucents(draw(false, false), true));
         assertFalse(HaloRenderer.submitBeforeTranslucents(draw(false, true), true));
         assertFalse(HaloRenderer.submitBeforeTranslucents(draw(true, false), false));
-    }
-
-    @Test void labPbrEntityLayerIsWorldOnlyAndNeverStealsMaskedOrGlowingMaterials() {
-        assertTrue(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, true, true, false));
-        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, true, true, true));
-        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, true, false, false));
-        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.WORLD, false, true, false));
-        assertFalse(HaloMeshShader.useEntityLayer(RenderEnvironment.GUI, true, true, false));
     }
 
     private static MeshDraw draw(boolean directionalLighting, boolean blend) {

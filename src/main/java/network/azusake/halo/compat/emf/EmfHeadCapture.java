@@ -4,18 +4,19 @@ import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorSource;
 import network.azusake.halo.api.v2.HaloAnchorApi;
 import network.azusake.halo.physics.RenderHeadCapture;
+import net.minecraft.client.model.geom.ModelPart;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.mojang.blaze3d.vertex.PoseStack;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.Vec3;
 
 /**
  * Per-frame capture of the head part rendered by Entity Model Features.
@@ -84,14 +85,14 @@ public final class EmfHeadCapture {
             return;
         }
 
-        LivingEntity entity = RenderHeadCapture.getCurrentEntity();
+        var entity = RenderHeadCapture.currentEntity();
         CaptureFrame frame = captureFrame;
-        if (!(entity instanceof Player) || frame == null || matrices == null
-            || RenderHeadCapture.isAuxiliaryYsmPass()) {
+        if ((entity == null || !entity.player()) || frame == null || matrices == null
+            || RenderHeadCapture.isAuxiliaryPass()) {
             return;
         }
 
-        UUID uuid = entity.getUUID();
+        UUID uuid = entity.uuid();
         if (CURRENT.containsKey(uuid)) {
             return;
         }

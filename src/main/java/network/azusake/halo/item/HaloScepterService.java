@@ -1,14 +1,14 @@
 package network.azusake.halo.item;
 
-import net.minecraft.core.registries.Registries;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.Level;
+import net.minecraft.network.chat.Component;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.config.HaloModConfigStore;
 import network.azusake.halo.manager.HaloManager;
@@ -35,14 +35,14 @@ public final class HaloScepterService {
         SESSIONS.open(
             player.getUUID(),
             target.getUUID(),
-            network.azusake.halo.platform.PlatformTypes.core(target.level().dimension().location())
+            network.azusake.halo.platform.PlatformTypes.core(target.level().dimension().identifier())
         );
         HaloNetwork.sendScepterOpen(player, target);
     }
 
     public static void select(ServerPlayer player, Identifier definitionId) {
         HaloScepterSessionStore.Session session = SESSIONS.get(player.getUUID());
-        LivingEntity target=session==null?null:resolveTarget(player.getServer(),session);
+        LivingEntity target=session==null?null:resolveTarget(network.azusake.halo.platform.PlatformTypes.server(player),session);
         var failure=network.azusake.halo.core.runtime.ScepterPolicy.select(session!=null,hasPermission(player),
             isHoldingScepter(player),target!=null);
         if(failure!=null){deny(player,failure,target);close(player.getUUID());HaloNetwork.sendScepterClose(player);return;}
@@ -53,8 +53,8 @@ public final class HaloScepterService {
 
     public static void remove(ServerPlayer player, Entity requestedTarget, boolean selfTarget) {
         Entity resolved=selfTarget?player:requestedTarget;
-        boolean hasWorldData = resolved != null && player.getServer() != null
-            && HaloWorldSaveData.get(player.getServer().overworld()).contains(resolved.getUUID());
+        boolean hasWorldData = resolved != null && network.azusake.halo.platform.PlatformTypes.server(player) != null
+            && HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(player).overworld()).contains(resolved.getUUID());
         var failure=network.azusake.halo.core.runtime.ScepterPolicy.remove(hasPermission(player),
             player.getMainHandItem().is(HaloItems.HALO_SCEPTER),resolved instanceof LivingEntity && resolved.isAlive(),
             selfTarget,resolved==null?Double.POSITIVE_INFINITY:player.distanceToSqr(resolved),
@@ -65,8 +65,8 @@ public final class HaloScepterService {
         HaloManager.getInstance().hideHaloOn(target);
         feedback(player, "message.halo.halo_scepter.removed", target.getDisplayName());
         var selected = HaloManager.getInstance().selection(target.getUUID());
-        if (selected != null) player.displayClientMessage(Component.literal("[Halo] Source '" + selected.sourceId()
-            + "' remains selected at priority " + selected.priority()), true);
+        if (selected != null) player.sendOverlayMessage(Component.literal("[Halo] Source '" + selected.sourceId()
+            + "' remains selected at priority " + selected.priority()));
     }
 
     public static void close(UUID playerUuid) {
@@ -88,7 +88,7 @@ public final class HaloScepterService {
             ServerPlayer player = server.getPlayerList().getPlayer(session.playerUuid());
             LivingEntity target = resolveTarget(server, session);
             boolean valid = network.azusake.halo.core.runtime.ScepterPolicy.sessionValid(
-                player!=null && player.isAlive(),player!=null && player.level().dimension().location().toString().equals(session.worldId().toString()),target!=null);
+                player!=null && player.isAlive(),player!=null && player.level().dimension().identifier().toString().equals(session.worldId().toString()),target!=null);
             if (!valid) {
                 SESSIONS.close(session.playerUuid());
                 if (player != null) {
@@ -116,7 +116,7 @@ public final class HaloScepterService {
     }
 
     private static boolean hasPermission(ServerPlayer player) {
-        return player.hasPermissions(HaloModConfigStore.getPermissionLevel());
+        return player.permissions().hasPermission(new net.minecraft.server.permissions.Permission.HasCommandLevel(net.minecraft.server.permissions.PermissionLevel.byId(HaloModConfigStore.getPermissionLevel())));
     }
 
     private static boolean isHoldingScepter(ServerPlayer player) {
@@ -125,7 +125,7 @@ public final class HaloScepterService {
     }
 
     private static void feedback(ServerPlayer player, String key, Object... args) {
-        player.displayClientMessage(Component.translatable(key, args), true);
+        player.sendOverlayMessage(Component.translatable(key, args));
     }
     private static void deny(ServerPlayer player,network.azusake.halo.core.runtime.ScepterPolicy.Failure failure,Entity target) {
         String key="message.halo.halo_scepter."+failure.name().toLowerCase(java.util.Locale.ROOT);

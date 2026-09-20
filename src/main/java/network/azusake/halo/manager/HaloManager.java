@@ -12,11 +12,12 @@ import network.azusake.halo.core.runtime.ServerRuntime;
 import network.azusake.halo.data.*;
 import network.azusake.halo.lifecycle.HaloWorldSaveData;
 import network.azusake.halo.network.HaloNetwork;
-import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.network.chat.Component;
+
 import java.util.*;
 
 /** Server facade joining the platform store/transport to core source arbitration. */
@@ -71,47 +72,47 @@ public final class HaloManager {
     }
 
     public void showHaloOn(LivingEntity entity, Identifier definition) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
-        HaloWorldSaveData.get(entity.getServer().overworld()).set(entity.getUUID(), definition);
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
+        HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).set(entity.getUUID(), definition);
         worldDataSource.set(entity.getUUID(), definition.toString());
         sourceHost.activate(entity.getUUID());
         syncMirror(entity);
     }
 
-    public void showHaloOn(LivingEntity entity, net.minecraft.resources.ResourceLocation definition) {
+    public void showHaloOn(LivingEntity entity, net.minecraft.resources.Identifier definition) {
         showHaloOn(entity, network.azusake.halo.platform.PlatformTypes.core(definition));
     }
 
     /** Activate all retained candidates, then restore Halo's own persisted candidate if present. */
     public void restore(LivingEntity entity) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
-        Identifier id = HaloWorldSaveData.get(entity.getServer().overworld()).get(entity.getUUID());
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
+        Identifier id = HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).get(entity.getUUID());
         if (id != null) worldDataSource.set(entity.getUUID(), id.toString());
         else sourceHost.activate(entity.getUUID());
         syncMirror(entity);
     }
 
     public void entityLoaded(LivingEntity entity) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer()); sourceHost.activate(entity.getUUID()); syncMirror(entity);
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity)); sourceHost.activate(entity.getUUID()); syncMirror(entity);
     }
 
     public void hideHaloOn(LivingEntity entity) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
-        HaloWorldSaveData.get(entity.getServer().overworld()).remove(entity.getUUID());
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
+        HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).remove(entity.getUUID());
         worldDataSource.clear(entity.getUUID());
         syncMirror(entity);
     }
 
     public void died(LivingEntity entity, boolean player) {
-        if (entity.getServer() == null) return;
-        bind(entity.getServer());
+        if (network.azusake.halo.platform.PlatformTypes.server(entity) == null) return;
+        bind(network.azusake.halo.platform.PlatformTypes.server(entity));
         if (player) sourceHost.deactivate(entity.getUUID());
         else {
-            HaloWorldSaveData.get(entity.getServer().overworld()).remove(entity.getUUID());
+            HaloWorldSaveData.get(network.azusake.halo.platform.PlatformTypes.server(entity).overworld()).remove(entity.getUUID());
             sourceHost.forget(entity.getUUID());
         }
         HaloEntityData.removeHalo(entity);
@@ -177,10 +178,10 @@ public final class HaloManager {
     public ServerRuntime.Selection selection(UUID entity) { return runtime == null ? null : runtime.selection(entity); }
 
     public void notifyPriorityConflicts(ServerPlayer player) {
-        if (!player.hasPermissions(HaloModConfigStore.getPermissionLevel()) || sourceHost == null) return;
+        if (!player.permissions().hasPermission(new net.minecraft.server.permissions.Permission.HasCommandLevel(net.minecraft.server.permissions.PermissionLevel.byId(HaloModConfigStore.getPermissionLevel()))) || sourceHost == null) return;
         sourceHost.priorities().entries().values().stream()
             .filter(entry -> entry.status() == HaloSourceHost.PriorityStatus.DISABLED_CONFLICT)
-            .forEach(entry -> player.displayClientMessage(priorityConflictMessage(entry), false));
+            .forEach(entry -> player.sendSystemMessage(priorityConflictMessage(entry)));
     }
 
     private void syncPriorityFileAndWarnings() {
@@ -196,8 +197,8 @@ public final class HaloManager {
                     Component message = priorityConflictMessage(entry);
                     HaloMod.LOGGER.warn(message.getString());
                     if (server != null) server.getPlayerList().getPlayers().stream()
-                        .filter(player -> player.hasPermissions(HaloModConfigStore.getPermissionLevel()))
-                        .forEach(player -> player.displayClientMessage(message, false));
+                        .filter(player -> player.permissions().hasPermission(new net.minecraft.server.permissions.Permission.HasCommandLevel(net.minecraft.server.permissions.PermissionLevel.byId(HaloModConfigStore.getPermissionLevel()))))
+                        .forEach(player -> player.sendSystemMessage(message));
                 }
             });
         reportedConflicts.retainAll(currentConflicts);

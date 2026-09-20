@@ -3,13 +3,12 @@ package network.azusake.halo.json;
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.data.EntityAnchorProfile;
 import com.google.gson.JsonElement;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import net.neoforged.bus.api.IEventBus;
 import network.azusake.halo.core.Identifier;
 import org.slf4j.Logger;
@@ -61,8 +60,8 @@ public final class EntityAnchorLoader {
             return;
         }
         serverRegistered = true;
-        NeoForge.EVENT_BUS.addListener((AddReloadListenerEvent event) ->
-            event.addListener(new ServerListener()));
+        NeoForge.EVENT_BUS.addListener((AddServerReloadListenersEvent event) ->
+            event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "entity_anchors"), new ServerListener()));
         LOG.info("EntityAnchorLoader registered for SERVER_DATA");
     }
 
@@ -74,8 +73,8 @@ public final class EntityAnchorLoader {
             return;
         }
         clientRegistered = true;
-        modBus.addListener((RegisterClientReloadListenersEvent event) ->
-            event.registerReloadListener(new ClientListener()));
+        modBus.addListener((AddClientReloadListenersEvent event) ->
+            event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "entity_anchors_client"), new ClientListener()));
         LOG.info("EntityAnchorLoader registered for CLIENT_RESOURCES");
     }
 
@@ -96,14 +95,14 @@ public final class EntityAnchorLoader {
 
     private static void reload(ResourceManager manager, Set<Identifier> sourceSet) {
         Map<Identifier, EntityAnchorProfile> loaded = new LinkedHashMap<>();
-        Map<net.minecraft.resources.ResourceLocation, net.minecraft.server.packs.resources.Resource> resources = manager.listResources(
+        Map<net.minecraft.resources.Identifier, net.minecraft.server.packs.resources.Resource> resources = manager.listResources(
             PROFILES_PATH,
             id -> id.getPath().endsWith(".json")
         );
 
         LOG.info("Found {} entity anchor profile(s) to load", resources.size());
 
-        for (Map.Entry<net.minecraft.resources.ResourceLocation, net.minecraft.server.packs.resources.Resource> entry : resources.entrySet()) {
+        for (Map.Entry<net.minecraft.resources.Identifier, net.minecraft.server.packs.resources.Resource> entry : resources.entrySet()) {
             var fileId = entry.getKey();
             try (var input = entry.getValue().open()) {
                 EntityAnchorProfile profile = EntityAnchorParser.parse(new String(

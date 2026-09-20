@@ -1,10 +1,12 @@
 package network.azusake.halo.render;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import net.minecraft.client.model.geom.ModelPart;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
+import network.azusake.halo.api.v2.AnchorPose;
+import network.azusake.halo.api.v2.AnchorVec3;
 import network.azusake.halo.api.v2.*;
 import network.azusake.halo.core.runtime.PreviewAnchorHost;
 import network.azusake.halo.core.runtime.PreviewAnchorScope;
@@ -49,10 +51,10 @@ public final class PlayerPreviewCapture implements AutoCloseable {
         return pose == null ? null : new PreviewAnchorPose(pose.position().x(), pose.position().y(), pose.position().z(), pose.rotation());
     }
 
-    public static void capture(LivingEntity wearer, PoseStack matrices, ModelPart part) {
+    public static void capture(java.util.UUID uuid, int runtimeId, PoseStack matrices, ModelPart part) {
         PlayerPreviewCapture scope = current();
         // Replaced model parts need their own compat provider. Do not guess their anchor.
-        if (scope == null || scope.wearer != wearer || part.getClass() != ModelPart.class
+        if (scope == null || !scope.wearer.getUUID().equals(uuid) || scope.wearer.getId() != runtimeId || part.getClass() != ModelPart.class
                 || !part.visible || part.skipDraw || scope.anchors.hasFallback(PreviewAnchorScope.Fallback.RENDERED)) return;
         var pose = PreviewHeadMath.toAnchor(scope.root, new RenderHeadCapture.CapturedHead(
             new Matrix4f(matrices.last().pose()), part.x, part.y, part.z,

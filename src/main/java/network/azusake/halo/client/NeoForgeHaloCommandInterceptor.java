@@ -4,7 +4,9 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 
 
-import net.minecraft.commands.Commands;
+import com.mojang.brigadier.arguments.ArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.minecraft.commands.CommandSourceStack;
@@ -16,10 +18,10 @@ import network.azusake.halo.util.HaloIdMatcher;
 
 
 /**
- * Fabric implementation of {@link HaloCommandInterceptor}.
+ * NeoForge implementation of {@link HaloCommandInterceptor}.
  *
  * <p>Registers a client-side {@code /halo} command tree via
- * {@link ClientCommandRegistrationCallback}.  The executor checks the current
+ * {@link RegisterClientCommandsEvent}. The executor checks the current
  * phase and either handles ownership commands locally (LOCAL phase) or forwards them
  * to the server (MULTIPLAYER phase / singleplayer). Renderer selection always stays local.</p>
  *
@@ -29,6 +31,15 @@ import network.azusake.halo.util.HaloIdMatcher;
 public final class NeoForgeHaloCommandInterceptor implements HaloCommandInterceptor {
 
     private volatile boolean registered;
+
+    // Client tree construction needs only Brigadier; Commands initializes server permission registries.
+    private static LiteralArgumentBuilder<CommandSourceStack> literal(String name) {
+        return LiteralArgumentBuilder.literal(name);
+    }
+
+    private static <T> RequiredArgumentBuilder<CommandSourceStack, T> argument(String name, ArgumentType<T> type) {
+        return RequiredArgumentBuilder.argument(name, type);
+    }
 
     @Override
     public void register() {
@@ -62,111 +73,111 @@ public final class NeoForgeHaloCommandInterceptor implements HaloCommandIntercep
     void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher,
                           net.minecraft.commands.CommandBuildContext registryAccess) {
 
-        var haloNode = Commands.literal("halo")
+        var haloNode = literal("halo")
             .then(RendererCommandTree.command(NeoForgeHaloCommandInterceptor::renderer))
             .executes(ctx -> executeLocal("halo"))
-            .then(Commands.literal("list")
+            .then(literal("list")
                 .executes(ctx -> executeLocal("halo list"))
             )
-            .then(Commands.literal("dump")
+            .then(literal("dump")
                 .executes(ctx -> executeLocal("halo dump"))
             )
-            .then(Commands.literal("show")
+            .then(literal("show")
                 .executes(ctx -> executeLocal("halo show"))
-                .then(Commands.literal("@s")
+                .then(literal("@s")
                     .executes(ctx -> executeLocal("halo show @s"))
-                    .then(Commands.argument("definition", net.minecraft.commands.arguments.ResourceLocationArgument.id())
+                    .then(argument("definition", net.minecraft.commands.arguments.IdentifierArgument.id())
                         .suggests(DEFINITION_SUGGESTIONS)
                         .executes(ctx -> {
-                            String def = ctx.getArgument("definition", net.minecraft.resources.ResourceLocation.class).toString();
+                            String def = ctx.getArgument("definition", net.minecraft.resources.Identifier.class).toString();
                             return executeLocal("halo show @s " + def);
                         })
                     )
                 )
-                .then(Commands.argument("target", net.minecraft.commands.arguments.EntityArgument.entity())
+                .then(argument("target", net.minecraft.commands.arguments.EntityArgument.entity())
                     .executes(ctx -> executeLocal("halo show"))
-                    .then(Commands.argument("definition", net.minecraft.commands.arguments.ResourceLocationArgument.id())
+                    .then(argument("definition", net.minecraft.commands.arguments.IdentifierArgument.id())
                         .suggests(DEFINITION_SUGGESTIONS)
                         .executes(ctx -> {
                             String target = ctx.getInput().split(" ")[2];
-                            String def = ctx.getArgument("definition", net.minecraft.resources.ResourceLocation.class).toString();
+                            String def = ctx.getArgument("definition", net.minecraft.resources.Identifier.class).toString();
                             return executeLocal("halo show " + target + " " + def);
                         })
                     )
                 )
             )
-            .then(Commands.literal("hide")
+            .then(literal("hide")
                 .executes(ctx -> executeLocal("halo hide"))
-                .then(Commands.literal("@s")
+                .then(literal("@s")
                     .executes(ctx -> executeLocal("halo hide @s"))
                 )
-                .then(Commands.argument("target", net.minecraft.commands.arguments.EntityArgument.entity())
+                .then(argument("target", net.minecraft.commands.arguments.EntityArgument.entity())
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo hide " + target);
                     })
                 )
             )
-            .then(Commands.literal("config")
+            .then(literal("config")
                 .executes(ctx -> executeLocal("halo config"))
-                .then(Commands.literal("linear-damping")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
+                .then(literal("linear-damping")
+                    .then(argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config linear-damping " + v);
                         })
                     )
                 )
-                .then(Commands.literal("angular-damping")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
+                .then(literal("angular-damping")
+                    .then(argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config angular-damping " + v);
                         })
                     )
                 )
-                .then(Commands.literal("max-linear-distance")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.01))
+                .then(literal("max-linear-distance")
+                    .then(argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.01))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config max-linear-distance " + v);
                         })
                     )
                 )
-                .then(Commands.literal("max-angular-degrees")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
+                .then(literal("max-angular-degrees")
+                    .then(argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config max-angular-degrees " + v);
                         })
                     )
                 )
-                .then(Commands.literal("scale")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.1))
+                .then(literal("scale")
+                    .then(argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.1))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config scale " + v);
                         })
                     )
                 )
-                .then(Commands.literal("allow-angular-momentum")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
+                .then(literal("allow-angular-momentum")
+                    .then(argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
                         .executes(ctx -> {
                             boolean v = com.mojang.brigadier.arguments.BoolArgumentType.getBool(ctx, "value");
                             return executeLocal("halo config allow-angular-momentum " + v);
                         })
                     )
                 )
-                .then(Commands.literal("angular-momentum-factor")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
+                .then(literal("angular-momentum-factor")
+                    .then(argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.0, 1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config angular-momentum-factor " + v);
                         })
                     )
                 )
-                .then(Commands.literal("max-angular-momentum-degrees")
-                    .then(Commands.argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
+                .then(literal("max-angular-momentum-degrees")
+                    .then(argument("value", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(1.0))
                         .executes(ctx -> {
                             double v = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
                             return executeLocal("halo config max-angular-momentum-degrees " + v);
@@ -174,28 +185,28 @@ public final class NeoForgeHaloCommandInterceptor implements HaloCommandIntercep
                     )
                 )
             )
-            .then(Commands.literal("reload")
+            .then(literal("reload")
                 .executes(ctx -> executeLocal("halo reload"))
             )
-            .then(Commands.literal("active")
+            .then(literal("active")
                 .executes(ctx -> executeLocal("halo active"))
             )
-            .then(Commands.literal("inspect")
+            .then(literal("inspect")
                 .executes(ctx -> executeLocal("halo inspect"))
-                .then(Commands.literal("@s")
+                .then(literal("@s")
                     .executes(ctx -> executeLocal("halo inspect @s"))
                 )
-                .then(Commands.argument("target", net.minecraft.commands.arguments.EntityArgument.entity())
+                .then(argument("target", net.minecraft.commands.arguments.EntityArgument.entity())
                     .executes(ctx -> {
                         String target = ctx.getInput().split(" ")[2];
                         return executeLocal("halo inspect " + target);
                     })
                 )
             )
-            .then(Commands.literal("save")
+            .then(literal("save")
                 .executes(ctx -> executeLocal("halo save"))
             )
-            .then(Commands.literal("debug")
+            .then(literal("debug")
                 .executes(ctx -> executeLocal("halo debug"))
             );
 
@@ -225,7 +236,7 @@ public final class NeoForgeHaloCommandInterceptor implements HaloCommandIntercep
             // LOCAL phase: handle on the client
             String result = HaloLocalCommandHandler.handle(command);
             if (result != null && client.player != null) {
-                client.player.displayClientMessage(Component.literal(result), false);
+                client.player.sendSystemMessage(Component.literal(result));
             }
             return 0;
         }

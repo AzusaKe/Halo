@@ -14,7 +14,7 @@ public final class HaloPacketCodec {
     public static FriendlyByteBuf encodeSnapshot(Map<UUID, Identifier> snapshot) {
         var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         buf.writeInt(snapshot.size());
-        snapshot.forEach((uuid, id) -> { HaloNetwork.writeUuid(buf, uuid); buf.writeResourceLocation(game(id)); });
+        snapshot.forEach((uuid, id) -> { HaloNetwork.writeUuid(buf, uuid); buf.writeIdentifier(game(id)); });
         return buf;
     }
 
@@ -22,7 +22,7 @@ public final class HaloPacketCodec {
         int count = buf.readInt();
         if (count < 0 || count > buf.readableBytes() / 17) throw new IllegalArgumentException("Invalid halo snapshot count");
         var values = new LinkedHashMap<UUID, Identifier>();
-        for (int i = 0; i < count; i++) values.put(HaloNetwork.readUuid(buf), core(buf.readResourceLocation()));
+        for (int i = 0; i < count; i++) values.put(HaloNetwork.readUuid(buf), core(buf.readIdentifier()));
         return Map.copyOf(values);
     }
 
@@ -30,11 +30,11 @@ public final class HaloPacketCodec {
         var buf = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         HaloNetwork.writeUuid(buf, uuid);
         buf.writeBoolean(attach);
-        buf.writeResourceLocation(game(definition));
+        buf.writeIdentifier(game(definition));
         return buf;
     }
 
     public static Update decodeUpdate(FriendlyByteBuf buf) {
-        return new Update(HaloNetwork.readUuid(buf), buf.readBoolean(), core(buf.readResourceLocation()));
+        return new Update(HaloNetwork.readUuid(buf), buf.readBoolean(), core(buf.readIdentifier()));
     }
 }

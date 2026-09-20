@@ -1,14 +1,16 @@
 package network.azusake.halo.physics;
 
+import network.azusake.halo.data.EntityAnchorProfile;
 import network.azusake.halo.data.PoseAnchor;
 import network.azusake.halo.json.EntityAnchorLoader;
-import net.minecraft.client.Camera;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Pose;
 import network.azusake.halo.anchor.AnchorPoseMath;
 import network.azusake.halo.api.v2.AnchorPose;
 import network.azusake.halo.api.v2.AnchorVec3;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import network.azusake.halo.core.Identifier;
 import network.azusake.halo.core.Vec3d;
 import org.slf4j.Logger;
@@ -51,27 +53,19 @@ public final class PlayerAnchorProvider {
     }
 
     public AnchorPose resolve(LivingEntity entity, float tickDelta) {
-        // 1. Interpolated foot position & head yaw/pitch
+        Camera camera = getLocalFirstPersonCamera(entity);
+        if (camera != null) {
+            // Use the rendered camera basis directly, including roll and camera effects.
+            return new AnchorPose(new AnchorVec3(camera.position().x, camera.position().y, camera.position().z),
+                CameraAnchorMath.rotation(camera.rotation()));
+        }
         double x = entity.xo + (entity.getX() - entity.xo) * tickDelta;
         double y = entity.yo + (entity.getY() - entity.yo) * tickDelta;
         double z = entity.zo + (entity.getZ() - entity.zo) * tickDelta;
         Vec3d footPos = new Vec3d(x, y, z);
-
         float yaw = getInterpolatedHeadYaw(entity, tickDelta);
         float pitch = entity.xRotO + (entity.getXRot() - entity.xRotO) * tickDelta;
-        Camera firstPersonCamera = getLocalFirstPersonCamera(entity);
-        if (firstPersonCamera != null) {
-            yaw = firstPersonCamera.getYRot();
-            pitch = firstPersonCamera.getXRot();
-        }
         float roll = getHeadRoll(entity);
-
-        if (firstPersonCamera != null) {
-            // The local first-person camera is the rendered head.  Entity
-            // interpolation omits camera bob and can lag independently,
-            // causing shader-pass captures to orbit or jump around the player.
-            return pose(network.azusake.halo.platform.PlatformTypes.core(firstPersonCamera.getPosition()), yaw, pitch, roll);
-        }
 
         // 2. Pose key → PoseAnchor
         String poseKey = resolvePoseKey(entity);
@@ -92,7 +86,7 @@ public final class PlayerAnchorProvider {
      * but the local player's head follows the camera, so its roll is inherited
      * from the actual camera rotation.  The 1.21.1 {@link Camera} exposes no
      * {@code getRoll()}; a roll (when present, e.g. from a camera mod) is folded
-     * into {@link Camera#rotation()}, so it is recovered by stripping the
+     * into {@link Camera#getRotation()}, so it is recovered by stripping the
      * camera's own yaw/pitch component.  Other entities (including remote
      * players) always get 0.
      */
@@ -105,10 +99,10 @@ public final class PlayerAnchorProvider {
         if (camera == null) {
             return 0f;
         }
-        float roll = CameraRollMath.recoverRollDeg(camera.getYRot(), camera.getXRot(), camera.rotation());
+        float roll = CameraRollMath.recoverRollDeg(camera.yRot(), camera.xRot(), camera.rotation());
         if (Math.abs(roll) > 0.001f) {
             LOGGER.debug("Local player head roll recovered from camera: {} deg (camera yaw={}, pitch={})",
-                roll, camera.getYRot(), camera.getXRot());
+                roll, camera.yRot(), camera.xRot());
         }
         return roll;
     }
@@ -121,7 +115,7 @@ public final class PlayerAnchorProvider {
             return null;
         }
         Camera camera = client.gameRenderer.getMainCamera();
-        return camera != null && camera.getEntity() == entity ? camera : null;
+        return camera != null && camera.entity() == entity ? camera : null;
     }
 
     // ------------------------------------------------------------------

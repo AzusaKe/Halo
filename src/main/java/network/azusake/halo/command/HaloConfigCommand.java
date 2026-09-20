@@ -16,14 +16,14 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.commands.arguments.ResourceLocationArgument;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.commands.arguments.IdentifierArgument;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.network.chat.Component;
 import network.azusake.halo.core.Identifier;
 
 import java.util.LinkedHashSet;
@@ -69,7 +69,7 @@ public final class HaloConfigCommand {
      */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         var haloNode = literal("halo")
-            .requires(source -> source.hasPermission(HaloModConfigStore.getPermissionLevel()));
+            .requires(source -> source.permissions().hasPermission(new net.minecraft.server.permissions.Permission.HasCommandLevel(net.minecraft.server.permissions.PermissionLevel.byId(HaloModConfigStore.getPermissionLevel()))));
 
         // --- /halo list ---
         haloNode.then(literal("list")
@@ -111,10 +111,10 @@ public final class HaloConfigCommand {
         );
 
         // --- /halo show <entity> <definition> ---
-        // Use IdentifierArgumentType which allows ':' in unquoted input, unlike word()/string()
+        // Use IdentifierArgument which allows ':' in unquoted input, unlike word()/string()
         haloNode.then(literal("show")
             .then(argument("target", EntityArgument.entity())
-                .then(argument("definition", ResourceLocationArgument.id())
+                .then(argument("definition", IdentifierArgument.id())
                     .suggests(HaloConfigCommand::suggestDefinitions)
                     .executes(HaloConfigCommand::showHalo)
                 )
@@ -131,7 +131,7 @@ public final class HaloConfigCommand {
         var priorityNode = literal("priority");
         priorityNode.then(literal("list").executes(HaloConfigCommand::listPriorities));
         priorityNode.then(literal("set")
-            .then(argument("source", ResourceLocationArgument.id())
+            .then(argument("source", IdentifierArgument.id())
                 .suggests(HaloConfigCommand::suggestSources)
                 .then(argument("priority", IntegerArgumentType.integer())
                     .executes(HaloConfigCommand::setPriority))));
@@ -236,7 +236,7 @@ public final class HaloConfigCommand {
     }
 
     private static int setPriority(CommandContext<CommandSourceStack> ctx) {
-        String id = ResourceLocationArgument.getId(ctx, "source").toString();
+        String id = IdentifierArgument.getId(ctx, "source").toString();
         int priority = IntegerArgumentType.getInteger(ctx, "priority");
         HaloManager.getInstance().setPriority(id, priority);
         var entry = HaloManager.getInstance().prioritySnapshot().entries().get(id);
@@ -386,7 +386,7 @@ public final class HaloConfigCommand {
             return 0;
         }
 
-        Identifier defId = network.azusake.halo.platform.PlatformTypes.core(ResourceLocationArgument.getId(ctx, "definition"));
+        Identifier defId = network.azusake.halo.platform.PlatformTypes.core(IdentifierArgument.getId(ctx, "definition"));
 
         // (no namespace fallback — the server is a thin authority that accepts any
         // valid identifier; the namespace comes directly from tab-completion)
