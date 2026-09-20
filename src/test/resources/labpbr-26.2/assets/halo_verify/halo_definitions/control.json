@@ -1,0 +1,78 @@
+{
+  "version": "1.1.0",
+  "id": "halo_verify:control",
+  "orientation_mode": "locked",
+  "positioning": {
+    "offset": [
+      0,
+      0.65,
+      0
+    ],
+    "scale": 1
+  },
+  "layers": [
+    {
+      "id": "billboard",
+      "position": [
+        -1.1,
+        0,
+        0
+      ],
+      "glowing": false,
+      "rotation": [
+        45,
+        0,
+        0
+      ],
+      "primitive": {
+        "type": "billboard",
+        "texture": "halo_verify:textures/control.png",
+        "size": [
+          0.8,
+          0.8
+        ]
+      }
+    },
+    {
+      "id": "ring",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "glowing": false,
+      "primitive": {
+        "type": "ring",
+        "texture": "halo_verify:textures/control.png",
+        "inner_texture": "halo_verify:textures/control.png",
+        "size": [
+          0.4,
+          0.16
+        ],
+        "segments": 64
+      }
+    },
+    {
+      "id": "mesh",
+      "position": [
+        1.1,
+        0,
+        0
+      ],
+      "glowing": false,
+      "primitive": {
+        "type": "mesh",
+        "model": "halo_verify:models/mesh.obj",
+        "texture": "halo_verify:textures/control.png",
+        "size": [
+          0.8,
+          0.15,
+          0.8
+        ],
+        "material": {
+          "double_sided": true
+        }
+      }
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 final class EmfPreviewCapture {
     private static boolean reportedCapture;
     private static boolean reportedFailure;
-    private static final ThreadLocal<Boolean> POSE_ONLY = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<ModelPart> POSE_ONLY = new ThreadLocal<>();
     private static final VertexConsumer DISCARD = new VertexConsumer() {
         public VertexConsumer setColor(int color) { return this; }
         public VertexConsumer setLineWidth(float width){return this;}
@@ -25,7 +25,8 @@ final class EmfPreviewCapture {
     };
     private EmfPreviewCapture() {}
 
-    static boolean isPoseOnly() { return POSE_ONLY.get(); }
+    static boolean isPoseOnly() { return POSE_ONLY.get() != null; }
+    static boolean isPoseOnlyHead(ModelPart part) { return POSE_ONLY.get() == part; }
 
     /**
      * EMF evaluates its animation in the part's render override. Reach that override once,
@@ -35,7 +36,7 @@ final class EmfPreviewCapture {
     static void capturePose(PoseStack matrices, ModelPart head) {
         var scope = HaloAnchorApi.currentPreviewContext();
         if (scope == null || scope.hasModelAnchor() || isPoseOnly()) return;
-        POSE_ONLY.set(true);
+        POSE_ONLY.set(head);
         matrices.pushPose();
         try {
             head.render(matrices, DISCARD, 0, 0, 0xFFFFFFFF);

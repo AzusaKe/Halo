@@ -21,9 +21,9 @@ public final class EmfVersionGate {
     public static Optional<String> installedVersion() {
         var loading = net.neoforged.fml.loading.LoadingModList.get();
         if (loading == null) return Optional.empty();
-        var file = loading.getModFileById(Emf261Symbols.MOD_ID);
+        var file = loading.getModFileById(Emf262Symbols.MOD_ID);
         if (file == null) return Optional.empty();
-        return file.getMods().stream().filter(m -> m.getModId().equals(Emf261Symbols.MOD_ID))
+        return file.getMods().stream().filter(m -> m.getModId().equals(Emf262Symbols.MOD_ID))
             .map(m -> m.getVersion().toString()).findFirst();
     }
 

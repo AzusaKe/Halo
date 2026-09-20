@@ -62,9 +62,15 @@ public final class RenderHeadCapture {
     }
     public static float getFrameTickDelta() { return frameTickDelta; }
     public static CapturedHead get(UUID uuid) { return CAPTURES.get(uuid); }
+    /** Identity, not the PlayerModel type, separates the body from cape/armor feature draws. */
+    public static boolean isPlayerHead(ModelPart part) {
+        Context context = CONTEXT.get();
+        return context != null && context.model() != null
+            && context.model() == context.entity().playerModel() && part == context.model().getHead();
+    }
     public static void capture(PoseStack matrices, ModelPart part) {
         Context context = CONTEXT.get();
-        if (context == null || context.model() == null || part != context.model().getHead()) return;
+        if (!isPlayerHead(part)) return;
         var entity = context.entity();
         if (HaloAnchorApi.isPreviewRendering()) {
             PlayerPreviewCapture.capture(entity.uuid(), entity.runtimeId(), matrices, part); return;

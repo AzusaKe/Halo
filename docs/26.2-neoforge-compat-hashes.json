@@ -1,0 +1,30 @@
+[
+  {
+    "project": "iris",
+    "version": "1.11.4+26.2-neoforge",
+    "file": "iris-neoforge-1.11.4+mc26.2.jar",
+    "sha512": "d163ae2b7ece209d4b56dc4e95dc7873c076a20c851bf625ec6e27909a07f2a73838a4336311afcfa8701d7a3bc28108aee3a27d4b926f48ab903e2582bd7e6a",
+    "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/k55HdONq/iris-neoforge-1.11.4%2Bmc26.2.jar"
+  },
+  {
+    "project": "sodium",
+    "version": "mc26.2-0.9.2-neoforge",
+    "file": "sodium-neoforge-0.9.2+mc26.2.jar",
+    "sha512": "15fb941bd58abe3e57b53eb91f070f00e9a5178c718d50cbae588986e4cd8349c5a2ef4f6c84cc4887320d85ec561aa2094214723f502fddd3aeb493c80b5c39",
+    "url": "https://cdn.modrinth.com/data/AANobbMI/versions/DmnNKsfS/sodium-neoforge-0.9.2%2Bmc26.2.jar"
+  },
+  {
+    "project": "entity-model-features",
+    "version": "3.3.8-neoforge-26.2",
+    "file": "entity_model_features-3.3.8-26.2-neoforge.jar",
+    "sha512": "1c378258cff45685daf0d9b3b00dda4087835f68e82acb94430be31760a4aa39f46d38985a465cca45354c3f2ff6c019ca5c141bf3b690db3f5f71091c0656bc",
+    "url": "https://cdn.modrinth.com/data/4I1XuqiY/versions/pR1lBt4h/entity_model_features-3.3.8-26.2-neoforge.jar"
+  },
+  {
+    "project": "entitytexturefeatures",
+    "version": "7.2.4-neoforge-26.2",
+    "file": "entity_texture_features-7.2.4-26.2-neoforge.jar",
+    "sha512": "75fc7103b4a7b05901a825c3a00bf85f46d57abce4877f415e0e8899f0a80d69b3775c3e889fba80fa5ed799392c69fc531e8bc45205083de4cf400406df4d1d",
+    "url": "https://cdn.modrinth.com/data/BVzZfTc1/versions/uPdeEy2P/entity_texture_features-7.2.4-26.2-neoforge.jar"
+  }
+]

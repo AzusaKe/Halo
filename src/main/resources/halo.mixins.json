@@ -17,7 +17,9 @@
     "GuiPreviewBoundsMixin",
     "EntityRenderStateMixin",
     "EntityExtractionMixin",
-    "LevelRenderCompletionMixin"
+    "LevelRenderCompletionMixin",
+    "InventoryPreviewMouseMixin",
+    "LivingEntityModelCaptureMixin"
   ],
   "injectors": {
     "defaultRequire": 1

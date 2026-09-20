@@ -39,12 +39,12 @@ public final class HaloNetworkClient {
             int targetEntityId = buf.readInt();
             UUID targetUuid = HaloNetwork.readUuid(buf);
             String targetName = buf.readUtf(128);
-            Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(
+            Minecraft.getInstance().execute(() -> Minecraft.getInstance().gui.setScreen(
                 new HaloScepterScreen(targetEntityId, targetUuid, targetName)));
         });
         registrar.playToClient(HaloPayloads.ScepterCloseScreen.ID, HaloPayloads.ScepterCloseScreen.CODEC, (payload, context) ->
             Minecraft.getInstance().execute(() -> {
-                if (Minecraft.getInstance().screen instanceof HaloScepterScreen) Minecraft.getInstance().setScreen(null);
+                if (Minecraft.getInstance().gui.screen() instanceof HaloScepterScreen) Minecraft.getInstance().gui.setScreen(null);
             }));
     }
 

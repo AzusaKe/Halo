@@ -1,5 +1,6 @@
 package network.azusake.halo.render;
 
+import com.mojang.blaze3d.IndexType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
@@ -15,32 +16,38 @@ import java.util.*;
 final class HaloDrawSubmitter {
     private HaloDrawSubmitter() {}
     static void submitBatches(Minecraft client, List<DrawBatch> batches, RenderEnvironment environment, Matrix4f outer) {
-        for (DrawBatch batch : batches) {
-            if (batch.vertices().isEmpty()) continue;
-            var material = HaloMeshShader.material(batch, environment);
-            try (var allocator = new ByteBufferBuilder(java.lang.Math.max(256, batch.vertices().size() * 64))) {
-                var builder = new BufferBuilder(allocator, material.type().mode(), material.type().format());
-                for (var v : batch.vertices()) builder.addVertex(v.x(), v.y(), v.z())
-                    .setColor(v.red(), v.green(), v.blue(), v.alpha()).setUv(v.u(), v.v())
-                    .setOverlay(OverlayTexture.NO_OVERLAY).setLight(packLight(batch.light()))
-                    .setNormal(v.normalX(), v.normalY(), v.normalZ());
-                try (var mesh = builder.buildOrThrow()) {
-                    var format = mesh.drawState().format();
-                    var vertex = format.uploadImmediateVertexBuffer(mesh.vertexBuffer());
-                    MeshRenderMetrics.expandedDraw();
-                    MeshRenderMetrics.vertexUpload(mesh.vertexBuffer().remaining());
-                    var sequential = RenderSystem.getSequentialBuffer(mesh.drawState().mode());
-                    var index = sequential.getBuffer(mesh.drawState().indexCount());
-                    draw(batch, material, vertex, index, sequential.type(), mesh.drawState().indexCount(),
-                        outer, new MeshDrawWorkspace().normal(outer));
+        var normal = new MeshDrawWorkspace().normal(outer);
+        for (int start = 0; start < batches.size();) {
+            DrawBatch batch = batches.get(start);
+            int end = LegacyBatchRuns.end(batches, start);
+            int vertices = 0;
+            for (int i = start; i < end; i++) vertices += batches.get(i).vertices().size();
+            if (vertices != 0) {
+                var material = HaloMeshShader.material(batch, environment);
+                try (var allocator = new ByteBufferBuilder(java.lang.Math.max(256, vertices * 64))) {
+                    var builder = new BufferBuilder(allocator, material.type().primitiveTopology(), material.type().format());
+                    for (int i = start; i < end; i++) for (var v : batches.get(i).vertices())
+                        builder.addVertex(v.x(), v.y(), v.z())
+                            .setColor(v.red(), v.green(), v.blue(), v.alpha()).setUv(v.u(), v.v())
+                            .setOverlay(OverlayTexture.NO_OVERLAY).setLight(packLight(batch.light()))
+                            .setNormal(v.normalX(), v.normalY(), v.normalZ());
+                    try (var mesh = builder.buildOrThrow();
+                         var vertex = RenderSystem.getDevice().createBuffer(() -> "Halo transient vertices", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer())) {
+                        MeshRenderMetrics.expandedDraw();
+                        MeshRenderMetrics.vertexUpload(mesh.vertexBuffer().remaining());
+                        var sequential = RenderSystem.getSequentialBuffer(mesh.drawState().primitiveTopology());
+                        var index = sequential.getBuffer(mesh.drawState().indexCount());
+                        draw(batch, material, vertex, index, sequential.type(), mesh.drawState().indexCount(), outer, normal);
+                    }
                 }
             }
+            start = end;
         }
     }
     static void draw(DrawBatch batch, HaloMeshShader.Material material, GpuBuffer vertices, GpuBuffer indices,
-                     VertexFormat.IndexType indexType, int count, Matrix4f modelView, Matrix3f normal) {
+                     IndexType indexType, int count, Matrix4f modelView, Matrix3f normal) {
         HaloRenderDiagnostics.check("before-native-pass");
-        var textures = material.setup().getTextures();
+        var textures = material.type().prepare().textures();
         var target = material.type().outputTarget().getRenderTarget();
         var color = RenderSystem.outputColorTextureOverride != null ? RenderSystem.outputColorTextureOverride : target.getColorTextureView();
         var depth = target.useDepth ? (RenderSystem.outputDepthTextureOverride != null ? RenderSystem.outputDepthTextureOverride : target.getDepthTextureView()) : null;
@@ -57,16 +64,16 @@ final class HaloDrawSubmitter {
             bytes.putFloat(64, mask == null ? 0 : mask.offsetU()).putFloat(68, mask == null ? 0 : mask.offsetV())
                 .putFloat(72, light.block()).putFloat(76, light.sky());
             try (var uniforms = RenderSystem.getDevice().createBuffer(() -> "Halo material", GpuBuffer.USAGE_UNIFORM, bytes);
-                 var pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Halo", color, OptionalInt.empty(), depth, OptionalDouble.empty())) {
+                 var pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Halo", color, Optional.empty(), depth, OptionalDouble.empty())) {
                 pass.setPipeline(material.type().pipeline());
                 RenderSystem.bindDefaultUniforms(pass);
                 pass.setUniform("DynamicTransforms", transform);
                 pass.setUniform("HaloMaterial", uniforms);
                 var scissor=RenderSystem.getScissorStateForRenderTypeDraws();
                 if(scissor.enabled()) pass.enableScissor(scissor.x(),scissor.y(),scissor.width(),scissor.height());
-                for (var entry : textures.entrySet())
-                    pass.bindTexture(entry.getKey(), entry.getValue().textureView(), entry.getValue().sampler());
-                pass.setVertexBuffer(0, vertices); pass.setIndexBuffer(indices, indexType); pass.drawIndexed(0,0,count,1);
+                for (var entry : textures)
+                    pass.bindTexture(entry.name(), entry.textureView(), entry.sampler());
+                pass.setVertexBuffer(0, vertices.slice()); pass.setIndexBuffer(indices, indexType); pass.drawIndexed(count,1,0,0,0);
             }
         }
         HaloRenderDiagnostics.check("after-native-pass");

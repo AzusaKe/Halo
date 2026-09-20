@@ -4,30 +4,30 @@
 </h1>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC Version](https://img.shields.io/badge/Minecraft-26.1.2-green.svg)
+![MC Version](https://img.shields.io/badge/Minecraft-26.2-green.svg)
 ![Mod Loader](https://img.shields.io/badge/Mod%20Loader-NeoForge-orange.svg)
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 26.1.2 NeoForge**. The current source version is **2.4.1+adapter.1**, using HaloCore **2.4.1**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See the [26.1.2 migration record](docs/26.1-neoforge-migration.md), [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 26.2 NeoForge**. The current source version is **2.4.1+adapter.1**, using HaloCore **2.4.1**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See the [26.2 migration record](docs/26.2-neoforge-migration.md), [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 2.4.0 adds the loader-neutral server ownership source API. Accessory and integration mods can submit halo candidates by entity UUID; Halo selects one winner by source priority, while the built-in commands and Halo Scepter continue to edit only the persisted `halo:world_data` source. Priorities are stored in `halo_source_priorities.json` and can be changed without restarting through `/halo priority list|set|reload`. Integrations must also provide the referenced definitions and visual assets to rendering clients. See the [API guide](docs/en/API.md#6-server-ownership-source-api).
 
-26.1.2 retains native and Iris mesh geometry in separate GPU buffers. `-Dhalo.mesh.profile=true` enables upload/CPU submission counters; `-Dhalo.mesh.forceExpanded=true` provides the Iris comparison path. User acceptance is complete; controlled A/A and A/B frame-time measurements were not performed.
+26.2 retains native and Iris mesh geometry in separate GPU buffers. `-Dhalo.mesh.profile=true` enables upload/CPU submission counters; `-Dhalo.mesh.forceExpanded=true` provides the Iris comparison path. NeoForge 26.2 runtime and pressure-test acceptance is pending; see the migration record.
 
 Billboard/ring rendering defaults to `compatibility`, with adjacent batching and shared geometry.
 Use `/halo renderer` to query, or `/halo renderer compatibility|cached` to select and save a client-only
 backend. Switching applies to the world and inventory preview at the next frame, without resetting
 animation or physics. OBJ meshes are unaffected. See the [verification record](docs/render-optimization-verification.md).
 
-2.3.0 extends core's loader-neutral anchor API v2 with preview submission; YSM and EMF use that same public
+2.3.0 extends core's loader-neutral anchor API v2 with preview submission; EMF uses that same public
 interface. Providers only capture heads; Halo owns preview physics and drawing. See the
 [provider API](docs/en/API.md#preview-anchor-provider-api).
 
 Vanilla player previews now display the equipped halo, including survival and creative inventories.
 The preview uses the actual head as its physics anchor and shares all three primitives and visual animation
 with the world halo. `playerPreviewHaloEnabled` defaults to `true` in the client configuration (restart
-after editing). Built-in compatibility also captures YSM 2.6.5 and EMF 3.1.1+ (ABI-gated) player preview heads,
+after editing). Built-in compatibility also captures EMF 3.1.1+ (ABI-gated) player preview heads,
 using the same version/ABI gates as world rendering. EMF requires a resource pack that replaces the
 player model. See the [preview API](docs/en/API.md#preview-host-integration) and [implementation/verification record](docs/player-preview.md).
 `playerPreviewHaloPhysicsEnabled` defaults to `true`, using world-style physics with independent state
@@ -61,7 +61,7 @@ For contributors and coding agents, the [development guide](DEVELOPMENT.md) cove
 ## Introduction
 
 **Halo** is a decorative mod that adds "halos" to vanilla Minecraft entities. Halos smoothly follow entity head movements and are fully configurable through commands — no GUI required.
-This source branch builds for Minecraft 26.1.2 with NeoForge. Other game/loader versions use their own adapter branches.
+This source branch builds for Minecraft 26.2 with NeoForge. Other game/loader versions use their own adapter branches.
 
 
 > **The project is in early development. Functionality and performance may be unstable. We welcome issues and pull requests to help improve it!**
@@ -77,7 +77,7 @@ This source branch builds for Minecraft 26.1.2 with NeoForge. Other game/loader 
 - [x] **Persistent**: Halos survive world reloads and server restarts through entity NBT and world persistent state. Automatically restored on entity load.
 - [x] **Teleport-Aware**: When an entity teleports (or crosses dimensions), the halo instantly jumps to the new position — no sliding across the map.
 - [x] **Glow Effects**: The `animation.glow` channel drives each primitive's own self-illumination brightness (fullbright); set `glowing: false` on a group to make its primitives follow ambient light instead.
-- [x] **LabPBR Compatibility**: The world backend uses Iris entity material pipelines for non-glowing billboard/ring/mesh primitives. The user confirmed PBR loading under IterationRP. POM remains shader-dependent and is not additionally claimed by this release; GUI previews do not use the world G-buffer. See the [migration record](docs/26.1-neoforge-migration.md).
+- [ ] **LabPBR Compatibility (target validation pending)**: The world backend uses Iris entity material pipelines for non-glowing billboard/ring/mesh primitives. Target-version IterationRP material-channel validation is pending. POM remains shader-dependent and is not additionally claimed by this release; GUI previews do not use the world G-buffer. See the [migration record](docs/26.2-neoforge-migration.md).
 - [x] **Animation Support**: Halo definitions support position, rotation, scale, alpha, and glow animation channels, plus independent startup and shutdown transition timelines.
 - [x] **Runtime Debug Configuration**: `/halo config` provides session-scoped overrides for damping, distance limits, angular momentum, and uniform scale. It is intended for personal tuning and debugging: local mode applies it to the current client, integrated singleplayer bridges it to the paired client, and dedicated servers do not persist or distribute these values. Permanent placement changes, including position and rotation offsets, belong in each halo definition.
 - [x] **Resource Pack Friendly**: Rendering clients load definitions and visual assets from `assets/<namespace>/halo_definitions/` in resource packs. A server data pack may register definition JSON under `data/<namespace>/halo_definitions/` for server-side listing and selection, but Halo does not distribute that JSON, textures, or models; every rendering client still needs the matching resource pack. Run `/reload` after changing either source.
@@ -89,7 +89,7 @@ This source branch builds for Minecraft 26.1.2 with NeoForge. Other game/loader 
 
 ## Feature Status
 
-- [x] **Visible in Inventory**: Equipped halos render in survival and creative inventory player previews, with optional independent preview physics and vanilla/YSM/EMF head capture.
+- [x] **Visible in Inventory**: Equipped halos render in survival and creative inventory player previews, with optional independent preview physics and vanilla/EMF head capture.
 - [x] **More Animations**: Animation-driven `alpha` (opacity) and `glow` intensity channels, scale animations, and "intro animations"
 - [x] **OBJ Mesh Primitives**: Three-axis size, authored origins, grayscale alpha masks and U/V animation; see the [mesh authoring guide](docs/en/mesh.md).
 - [ ] **More Layer Fields**: Will add `thickness`, using sprite extrusion to give billboards depth — may affect performance with larger textures
@@ -102,13 +102,15 @@ This source branch builds for Minecraft 26.1.2 with NeoForge. Other game/loader 
 
 ## Installation
 
-1. Install [NeoForge](https://neoforged.net/) for Minecraft 26.1.2. The minimum supported loader is **26.1.2.95**; development and release builds use **26.1.2.95**.
-2. Download the matching **Halo NeoForge 26.1.2** JAR from [Releases](https://github.com/AzusaKe/Halo/releases).
+1. Install [NeoForge](https://neoforged.net/) for Minecraft 26.2. The minimum supported loader is **26.2.0.59**; development and release builds use **26.2.0.59**.
+2. Download the matching **Halo NeoForge 26.2** JAR from [Releases](https://github.com/AzusaKe/Halo/releases).
 3. Place the Halo JAR in the instance's `mods` folder and launch its NeoForge profile. HaloCore is already included.
 
 ### NeoForge / Forge
 
-This branch is a native NeoForge adapter. Other loaders use their corresponding Halo builds. Current migration evidence and outstanding acceptance tests are recorded in the [migration record](docs/26.1-neoforge-migration.md).
+For native Vulkan on NeoForge .59, set `earlyWindowControl = false` in `config/fml.toml` before selecting Vulkan and restarting; the early OpenGL loading window otherwise prevents Vulkan surface creation. Iris shader testing uses OpenGL.
+
+This branch is a native NeoForge adapter. Other loaders use their corresponding Halo builds. Current migration evidence and outstanding acceptance tests are recorded in the [migration record](docs/26.2-neoforge-migration.md).
 
 <a id="usage"></a>
 
@@ -168,31 +170,7 @@ Server commands require permission level 2 (operator) by default. `/halo rendere
 
 ### YSM Compatibility
 
-Halo's Yes Steve Model (YSM) integration is optional and version-pinned. This branch supports exactly **YSM `2.6.5-neoforge+mc26.1 (hotfix)`**. If YSM is missing, disabled, or a different version is installed, Halo safely uses its standard entity anchor instead. YSM is only needed on clients that render YSM models; the server does not need YSM for Halo synchronization.
-
-To enable YSM head-locator anchoring:
-
-1. Install the supported YSM version and launch the game once so Halo creates `config/halo-azusake/halo_mod_config.json`.
-2. Close the game and keep any existing keys in that file.
-3. Set the following fields, then restart the game:
-
-```json
-{
-  "commandPermissionLevel": 2,
-  "experimentalYsmAnchorEnabled": true,
-  "experimentalYsmHeadLocalOffset": [0.0, 0.0, 0.0]
-}
-```
-
-In multiplayer, **each rendering client** must enable this option in its own config; the setting is not synchronized by the server.
-
-`experimentalYsmHeadLocalOffset` fine-tunes the captured Head locator in head-local coordinates, in blocks, using `[right, up, back]`:
-
-- First value: positive moves right, negative moves left.
-- Second value: positive moves up, negative moves down.
-- Third value: positive moves backward, negative moves forward.
-
-Start at `[0.0, 0.0, 0.0]` and adjust in small `0.01`–`0.05` steps. For example, use `[0.0, 0.05, 0.0]` when the anchor is too low, or `[0.0, 0.0, 0.03]` when it is too far forward. This is a global YSM locator correction; per-halo placement should still be adjusted in the halo definition. Config changes require a game restart and are not applied by `/reload`.
+There is no YSM integration on Minecraft 26.2. Existing YSM-related configuration fields remain readable for cross-version data compatibility. EMF world and preview capture uses the public anchor API.
 
 <a id="custom-halo-definitions"></a>
 
@@ -318,7 +296,7 @@ Rendering definitions are JSON files stored in `assets/<namespace>/halo_definiti
 
 ### Prerequisites
 
-- **JDK 25** — Required for Minecraft 26.1.2 (HaloCore remains Java 17 compatible)
+- **JDK 25** — Required for Minecraft 26.2 (HaloCore remains Java 17 compatible)
 - Internet connection (Gradle downloads dependencies from Maven repositories)
 
 <a id="build"></a>
@@ -326,12 +304,12 @@ Rendering definitions are JSON files stored in `assets/<namespace>/halo_definiti
 ### Build
 
 ```bash
-git clone --branch 26.1-neoforge --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 26.2-neoforge --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-26.1.2-neoforge-2.4.1+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-26.2-neoforge-2.4.1+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 
@@ -353,8 +331,8 @@ The compiled JAR is under `build/libs/`; this source version builds `halo-26.1.2
 ./gradlew runServer --console=plain
 ```
 
-The client uses `runClient/26.1.2.95/`, the second client uses `runClient2/26.1.2.95/`, and this branch's dedicated server uses
-`runServer/26.1.2-neoforge-26.1.2.95/` for its own logs, configuration and world. On first launch, follow the
+The client uses `runClient/26.2.0.59/`, the second client uses `runClient2/26.2.0.59/`, and this branch's dedicated server uses
+`runServer/26.2-neoforge-26.2.0.59/` for its own logs, configuration and world. On first launch, follow the
 instructions for `eula.txt` in that directory and configure the port in `server.properties`.
 Development usernames require an offline-mode test server; bind `server-ip` to `127.0.0.1` for local
 testing. Enter `stop` in the console to save and shut down normally.
@@ -375,7 +353,7 @@ src/main/java/network/azusake/halo/
   client/, command/, item/    # UI, Brigadier and item inputs
   json/, config/, lifecycle/  # resource, file and world/NBT adapters
   network/                    # NeoForge optional payloads and existing byte codecs
-  physics/, compat/, mixin/   # game/model capture, EMF/YSM/Iris integration
+  physics/, compat/, mixin/   # game/model capture, EMF/Iris integration
   render/                     # frame assembly and GPU batch submission
 src/main/resources/           # built-in definitions, textures, recipes and translations
 src/testFixtures/             # frozen anchor API v2 ABI consumer
@@ -387,7 +365,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 Contributions to Halo are welcome! If you have ideas, suggestions, or want to report a bug, please submit an issue on the [GitHub repository](https://github.com/AzusaKe/Halo). If you want to contribute code, please fork the repository and submit a pull request.
 
-- **Development Environment**: Minecraft 26.1.2 + NeoForge 26.1.2.95 (minimum 26.1.2.95) + JDK 25
+- **Development Environment**: Minecraft 26.2 + NeoForge 26.2.0.59 (minimum 26.2.0.59) + JDK 25
 - **IDE**: Recommended IntelliJ IDEA (with Minecraft Development plugin) or VS Code
 
 <a id="license"></a>

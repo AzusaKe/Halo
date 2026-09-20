@@ -91,7 +91,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
                     // during resource reload or pipeline construction, and validate the actual layout.
                     java.util.function.Supplier<MeshData> build = () -> {
                         var builder = new BufferBuilder(allocator,
-                            layout.iris() && layout.sourceQuad() ? VertexFormat.Mode.QUADS : VertexFormat.Mode.TRIANGLES,
+                            layout.iris() && layout.sourceQuad() ? com.mojang.blaze3d.PrimitiveTopology.QUADS : com.mojang.blaze3d.PrimitiveTopology.TRIANGLES,
                             DefaultVertexFormat.ENTITY);
                         for (int corner = 0; corner < vertexCount; corner++) {
                             int vertex = layout.vertexAt(mesh, corner);
@@ -140,7 +140,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
                 index = dynamic;
             }
             HaloDrawSubmitter.draw(state, HaloMeshShader.material(state, environment), vertices, index,
-                VertexFormat.IndexType.INT, writer.indexCount(), matrix, normal);
+                com.mojang.blaze3d.IndexType.INT, writer.indexCount(), matrix, normal);
             MeshRenderMetrics.residentDraw();
         }
 

@@ -59,9 +59,9 @@ public final class PlayerAnchorProvider {
             return new AnchorPose(new AnchorVec3(camera.position().x, camera.position().y, camera.position().z),
                 CameraAnchorMath.rotation(camera.rotation()));
         }
-        double x = entity.xo + (entity.getX() - entity.xo) * tickDelta;
-        double y = entity.yo + (entity.getY() - entity.yo) * tickDelta;
-        double z = entity.zo + (entity.getZ() - entity.zo) * tickDelta;
+        double x = entity.xOld + (entity.getX() - entity.xOld) * tickDelta;
+        double y = entity.yOld + (entity.getY() - entity.yOld) * tickDelta;
+        double z = entity.zOld + (entity.getZ() - entity.zOld) * tickDelta;
         Vec3d footPos = new Vec3d(x, y, z);
         float yaw = getInterpolatedHeadYaw(entity, tickDelta);
         float pitch = entity.xRotO + (entity.getXRot() - entity.xRotO) * tickDelta;
@@ -95,7 +95,7 @@ public final class PlayerAnchorProvider {
         if (client == null || client.gameRenderer == null || entity != client.player) {
             return 0f;
         }
-        Camera camera = client.gameRenderer.getMainCamera();
+        Camera camera = client.gameRenderer.mainCamera();
         if (camera == null) {
             return 0f;
         }
@@ -114,7 +114,7 @@ public final class PlayerAnchorProvider {
             || !client.options.getCameraType().isFirstPerson()) {
             return null;
         }
-        Camera camera = client.gameRenderer.getMainCamera();
+        Camera camera = client.gameRenderer.mainCamera();
         return camera != null && camera.entity() == entity ? camera : null;
     }
 

@@ -47,7 +47,7 @@ class WorldFrameGateTest {
             int key = inject.values.indexOf("method");
             assertTrue(key >= 0);
             assertEquals(java.util.List.of("extract"), inject.values.get(key + 1),
-                "Minecraft 26.1 calls extract before render; a render-HEAD reset erases the captured frame");
+                "Minecraft 26.2 calls extract before render; a render-HEAD reset erases the captured frame");
         }
         assertEquals(1, resetHooks);
         // The independent GUI draw lifecycle must never invalidate the earlier world extraction.

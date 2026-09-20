@@ -36,12 +36,6 @@ final class HaloScepterInteractions {
         eventBus.addListener(
             EventPriority.HIGHEST,
             false,
-            PlayerInteractEvent.EntityInteractSpecific.class,
-            HaloScepterInteractions::onUseEntitySpecific
-        );
-        eventBus.addListener(
-            EventPriority.HIGHEST,
-            false,
             PlayerInteractEvent.RightClickBlock.class,
             HaloScepterInteractions::onUseBlock
         );
@@ -70,16 +64,6 @@ final class HaloScepterInteractions {
     }
 
     private static void onUseEntity(PlayerInteractEvent.EntityInteract event) {
-        if (!event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
-            return;
-        }
-        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ServerPlayer player) {
-            HaloScepterService.open(player, player.isShiftKeyDown() ? player : event.getTarget());
-        }
-        consume(event);
-    }
-
-    private static void onUseEntitySpecific(PlayerInteractEvent.EntityInteractSpecific event) {
         if (!event.getItemStack().is(HaloItems.HALO_SCEPTER.get())) {
             return;
         }
@@ -124,8 +108,4 @@ final class HaloScepterInteractions {
         event.setCancellationResult(InteractionResult.SUCCESS);
     }
 
-    private static void consume(PlayerInteractEvent.EntityInteractSpecific event) {
-        event.setCanceled(true);
-        event.setCancellationResult(InteractionResult.SUCCESS);
-    }
 }

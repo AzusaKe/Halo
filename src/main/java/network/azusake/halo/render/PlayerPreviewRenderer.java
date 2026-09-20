@@ -22,7 +22,7 @@ public final class PlayerPreviewRenderer {
     public static void beginFrame() {
         var client = net.minecraft.client.Minecraft.getInstance();
         if (!HaloModConfigStore.get().isPlayerPreviewHaloEnabled()) { VIEWS.close(); return; }
-        VIEWS.beginFrame(client.screen, client.level, motionOptions(), System.nanoTime());
+        VIEWS.beginFrame(client.gui.screen(), client.level, motionOptions(), System.nanoTime());
     }
     public static void endFrame() { VIEWS.endFrame(); }
     public static void resetAutomaticMotion() { VIEWS.resetMotion(); }

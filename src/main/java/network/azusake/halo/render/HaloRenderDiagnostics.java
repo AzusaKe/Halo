@@ -13,7 +13,8 @@ final class HaloRenderDiagnostics {
     private HaloRenderDiagnostics() {}
 
     static void check(String stage) {
-        if (!ENABLED) return;
+        if (!ENABLED || !"OpenGL".equals(com.mojang.blaze3d.systems.RenderSystem.getDevice()
+                .getDeviceInfo().backendName())) return;
         int first = GL11C.glGetError();
         if (first == GL11C.GL_NO_ERROR) return;
         errors++;

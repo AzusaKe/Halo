@@ -48,13 +48,18 @@ public final class HaloModClient {
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.render.HaloRenderer.getInstance().shutdown();
         });
-        modBus.addListener((AddClientReloadListenersEvent event) -> event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "defs_report_trigger"),
+        modBus.addListener((AddClientReloadListenersEvent event) -> {
+            var report = net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "defs_report_trigger");
+            event.addListener(report,
             new SimplePreparableReloadListener<Void>() {
                 @Override protected Void prepare(ResourceManager manager, ProfilerFiller profiler) { return null; }
                 @Override protected void apply(Void ignored, ResourceManager manager, ProfilerFiller profiler) {
                     Minecraft.getInstance().execute(HaloNetworkClient::sendDefsReport);
                 }
-            }));
+            });
+            event.addDependency(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "halo_definitions_client"), report);
+            event.addDependency(net.minecraft.resources.Identifier.fromNamespaceAndPath("halo", "entity_anchors_client"), report);
+        });
 
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> {
             network.azusake.halo.render.HaloMeshResources.refreshDefinitions();
@@ -76,12 +81,14 @@ public final class HaloModClient {
             HaloNetworkClient.sendDefsReport();
         });
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> {
+            Minecraft.getInstance().execute(() -> {
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.platform.HaloClientState.get().clearAllClientHalos();
             network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
             AnchorCaptureCoordinator.clearCaptures();
             network.azusake.halo.render.HaloRenderer.getInstance().clearWorld();
             HaloPhaseTracker.getInstance().resetToLocal();
+            });
         });
         LOGGER.info("Halo client initialized");
     }

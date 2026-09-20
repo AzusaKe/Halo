@@ -13,17 +13,16 @@ import network.azusake.halo.physics.RenderHeadCapture;
 import org.spongepowered.asm.mixin.Mixin;
 @Mixin(ModelFeatureRenderer.class)
 public abstract class EntityRenderContextMixin {
-    @WrapMethod(method="renderModel")
-    private void halo$drawScope(SubmitNodeStorage.ModelSubmit<?> submit, RenderType type, VertexConsumer vertices,
-        OutlineBufferSource outline, MultiBufferSource.BufferSource crumbling, Operation<Void> original){
+    @WrapMethod(method="prepareModel")
+    private void halo$drawScope(ModelFeatureRenderer.Submit<?> submit, Operation<Void> original){
         if(submit.state() instanceof network.azusake.halo.physics.EntityRenderSnapshot.Holder holder
             && holder.halo$snapshot() != null && holder.halo$snapshot().living()) {
             var snapshot = holder.halo$snapshot();
             var model = submit.model() instanceof PlayerModel playerModel ? playerModel : null;
             var previous=RenderHeadCapture.suspendForPreview();
             RenderHeadCapture.beginDraw(snapshot,model);
-            try{original.call(submit,type,vertices,outline,crumbling);}
+            try{original.call(submit);}
             finally{RenderHeadCapture.endEntityRender();RenderHeadCapture.restoreContext(previous);}
-        }else original.call(submit,type,vertices,outline,crumbling);
+        }else original.call(submit);
     }
 }
