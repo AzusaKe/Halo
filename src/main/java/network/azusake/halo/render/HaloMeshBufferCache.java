@@ -80,6 +80,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
         private ByteBuffer indexBytes;
         private IntBuffer indexInts;
         private final MeshIndexUpload uploaded = new MeshIndexUpload();
+        private final float[] sortView = new float[16];
 
         ResidentBuffer(TriangleMesh mesh, MeshIndexWriter writer, MeshVertexLayout layout) {
             this.writer = writer;
@@ -128,7 +129,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
         void draw(DrawBatch state, Matrix4f matrix, Matrix3f normal, boolean sort, boolean mirrored, RenderEnvironment environment) {
             GpuBuffer index = mirrored ? mirroredSource : source;
             if (sort) {
-                long revision = writer.prepareBackToFrontTransform(matrix.m02(), matrix.m12(), matrix.m22(), matrix.m32());
+                long revision = writer.prepareBackToFrontView(matrix.get(sortView), environment == RenderEnvironment.WORLD);
                 if (!uploaded.matches(revision, mirrored)) {
                     indexInts.clear();
                     layout.sortedIndices(writer, indexInts, mirrored);
