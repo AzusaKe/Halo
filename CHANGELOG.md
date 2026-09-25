@@ -1,5 +1,12 @@
 # 更新记录
 
+## 2.4.2+adapter.2 — 上传暂存缓冲原生内存释放修复 — 2026-09-26
+
+- 1.20.1 没有 `BufferAllocator`/`ByteBufferBuilder`，上传暂存的原生内存只能由 Halo 显式释放；原实现释放后仍把地址留在 `BufferBuilder` 中，ModernFix 一类会读取同一 buffer 的清理路径因此对同一块内存二次释放，在 jemalloc 内以 `EXCEPTION_ACCESS_VIOLATION` 结束进程。
+- `MeshUploadBuffer.close()` 改为先把 buffer 从 builder 取出（新增 `BufferBuilderStorageAccessor.halo$setStorage`）再释放，释放因此幂等且不再留下悬垂地址；显式释放这一优化保持不变，删除释放会造成每代次原生暂存泄漏。
+- lit 流按实际写入的角数预分配暂存容量：QUADS 模式每个四边形写四角而索引扩展为六个，原按索引数预分配必然触发 `BufferBuilder` 增长，而增长经 `MemoryTracker.realloc` 在包装器背后释放初始块。新增容量回归检查。
+- 联合构建通过（JDK 17；core 与 Halo 既有测试全部通过，`YsmReleaseSignatureTest` 仍因未提供外部 YSM 包而跳过），开发客户端加载 ModernFix 后可启动并保持稳定；用户整合包规模的大网格场景复现与验收由用户执行。
+
 ## 2.4.2 — 半透明 mesh 三角面排序修复 — 2026-09-20
 
 - 接入 HaloCore 2.4.2，固定提交 `1d3cf90478011c1e6f956f1b7dc978d00e796099`，本平台版本 `2.4.2+adapter.1`。
