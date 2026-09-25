@@ -366,9 +366,7 @@ def curseforge_version_id(versions, name):
                     # Deterministic tie-break: newest CurseForge id is the current revision.
                     matches = [max(release, key=lambda entry: int(entry.get("id") or 0))]
     require(len(matches) == 1, "CurseForge game/loader version not found or ambiguous: "
-        + name + " candidates=" + repr([
-            {"id": v.get("id"), "name": v.get("name"), "slug": v.get("slug"), "type": type_name(v)}
-            for v in matches]))
+        + name + " candidates=" + repr(matches))
     return matches[0]["id"]
 
 
