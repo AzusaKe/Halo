@@ -343,7 +343,10 @@ def platform_metadata(platform, plan, token):
         }
     # Resolve exact platform version IDs; never label 26.3 as a neighbouring release.
     versions = request("GET", "https://minecraft.curseforge.com/api/game/versions", headers={"X-Api-Token": token})
-    names = plan["game_versions"] + [{"fabric": "Fabric", "forge": "Forge", "neoforge": "NeoForge"}[plan["loader"]]] + [f"Java {version}" for version in plan.get("java_versions", [])]
+    names = plan["game_versions"] + [
+        "Client", "Server",
+        {"fabric": "Fabric", "forge": "Forge", "neoforge": "NeoForge"}[plan["loader"]],
+    ] + [f"Java {version}" for version in plan.get("java_versions", [])]
     ids = []
     for name in names:
         ids.append(curseforge_version_id(versions, name))
