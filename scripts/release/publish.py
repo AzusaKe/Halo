@@ -347,11 +347,13 @@ def platform_metadata(platform, plan, token):
     ids = []
     for name in names:
         ids.append(curseforge_version_id(versions, name))
-    return {
+    payload = {
         "changelog": plan["changelog"], "changelogType": "markdown", "displayName": plan["name"],
         "gameVersions": ids, "releaseType": plan["version_type"],
-        "relations": {"projects": ([{"slug": "fabric-api", "projectID": "306612", "type": "requiredDependency"}] if plan["loader"] == "fabric" else [])},
     }
+    if plan["loader"] == "fabric":
+        payload["relations"] = {"projects": [{"slug": "fabric-api", "projectID": "306612", "type": "requiredDependency"}]}
+    return payload
 
 
 def curseforge_version_id(versions, name):
