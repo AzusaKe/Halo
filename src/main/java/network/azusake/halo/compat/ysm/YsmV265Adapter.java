@@ -13,8 +13,51 @@ import java.util.List;
 public final class YsmV265Adapter {
 
     private static volatile Accessors accessors;
+    private static volatile MethodHandle baseRender;
 
     private YsmV265Adapter() {
+    }
+
+    /**
+     * Invoke YSM's base-model render (interface default) from a {@code @Redirect}.
+     * Uses a MethodHandle so the redirected call site is not re-entered.
+     */
+    public static void invokeBaseRender(
+        Object owner,
+        Object animatedModel,
+        Object animatable,
+        float tickDelta,
+        Object renderLayer,
+        Object matrices,
+        Object vertexConsumers,
+        int textureIndex,
+        Object vertexConsumer,
+        int light,
+        int overlay,
+        float red,
+        float green,
+        float blue,
+        float alpha
+    ) throws Throwable {
+        MethodHandle handle = baseRender;
+        if (handle == null) {
+            synchronized (YsmV265Adapter.class) {
+                if (baseRender == null) {
+                    ClassLoader loader = owner.getClass().getClassLoader();
+                    Class<?> iface = Class.forName(YsmV265Symbols.GEO_RENDERER, false, loader);
+                    baseRender = MethodHandles.publicLookup().findVirtual(
+                        iface,
+                        YsmV265Symbols.RENDER_METHOD,
+                        MethodType.fromMethodDescriptorString(
+                            YsmV265Symbols.RENDER_DESCRIPTOR_FORGE, loader));
+                }
+                handle = baseRender;
+            }
+        }
+        handle.bindTo(owner).invoke(
+            animatedModel, animatable, tickDelta, renderLayer, matrices,
+            vertexConsumers, textureIndex, vertexConsumer, light, overlay,
+            red, green, blue, alpha);
     }
 
     /**

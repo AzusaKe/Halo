@@ -1,5 +1,15 @@
 # 更新记录
 
+## 2.4.2 Forge adapter.2 — YSM 兼容 `Args$1` 崩溃修复 — 2026-09-26
+
+- 修复安装 Yes Steve Model 时创建/读取世界崩溃：`@ModifyArgs` 生成的 Mixin 合成类 `org.spongepowered.asm.synthetic.args.Args$1` 在 Forge 1.20.1 `ModuleClassLoader` 上无法解析，YSM 资源重载构造渲染器子类时抛出 `NoClassDefFoundError`。
+- YSM 捕获改为在基模型调用点使用 `@Redirect` 取 model 与 `PoseStack`，再经 `MethodHandle` 调用原接口默认渲染方法；不再生成 `Args` 合成类，采样点与原先一致（含身体/头部 yaw）。
+- 改动仅限 `compat/ysm`；EMF/Iris 兼容、core 指针 `1d3cf90478011c1e6f956f1b7dc978d00e796099`（2.4.2）及存档/协议不变。
+- 自动测试全部通过；用户在安装 YSM 的整合包中复测：创建新世界、进入旧世界、YSM 玩家与实体头部 yaw/pitch 光环锚点均正常。
+- 说明：整合包若夹带旧版 `experimentalYsmAnchorEnabled=false` 配置会关闭 YSM 精确锚点；本版行为与配置门控一致，需 `true` 才启用实验锚点。
+
+正式版本：`2.4.2+adapter.2`；平台标签为 `v2.4.2-forge-1.20.1-adapter.2`，成品名为 `halo-1.20.1-forge-2.4.2+adapter.2.jar`。
+
 ## 2.4.2 — 半透明 mesh 三角面排序修复 — 2026-09-20
 
 - 接入 HaloCore 2.4.2，固定提交 `1d3cf90478011c1e6f956f1b7dc978d00e796099`，本平台版本 `2.4.2+adapter.1`。

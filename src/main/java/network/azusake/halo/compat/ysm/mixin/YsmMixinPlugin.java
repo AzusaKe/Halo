@@ -12,7 +12,6 @@ import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 /** Applies the optional YSM Mixin only to the one verified release. */
@@ -71,19 +70,26 @@ public final class YsmMixinPlugin implements IMixinConfigPlugin {
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
         String suffix;
-        if (YsmV265Symbols.LIVING_GEO_RENDERER.equals(targetClassName)) suffix = "$halo$captureYsmHead";
-        else if (YsmV265Symbols.ENTITY_GEO_RENDERER.equals(targetClassName)) suffix = "$halo$captureYsmEntityHead";
-        else return;
+        if (YsmV265Symbols.LIVING_GEO_RENDERER.equals(targetClassName)) {
+            suffix = "$halo$captureYsmHead";
+        } else if (YsmV265Symbols.ENTITY_GEO_RENDERER.equals(targetClassName)) {
+            suffix = "$halo$captureYsmEntityHead";
+        } else {
+            return;
+        }
         boolean captureHookPresent = false;
         search:
-        for (var method : targetClass.methods) {
-            for (var instruction : method.instructions) {
+        for (MethodNode method : targetClass.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
                 if (instruction instanceof MethodInsnNode invocation
-                    && targetClass.name.equals(invocation.owner)
                     && invocation.name.contains(suffix)) {
                     captureHookPresent = true;
                     break search;
                 }
+            }
+            if (method.name.contains(suffix)) {
+                captureHookPresent = true;
+                break search;
             }
         }
 
