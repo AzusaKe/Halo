@@ -442,6 +442,19 @@ class PublishingOptionsTests(unittest.TestCase):
         with self.assertRaisesRegex(p.PublishError, "Java 25"):
             p.platform_metadata("curseforge", {**self.plan, "java_versions": [25]}, "token")
 
+    @patch.object(p, "request")
+    def test_curseforge_fabric_relation_uses_integer_project_id(self, request):
+        """CurseForge rejects a string projectID with errorCode 1002 on the metadata field."""
+        request.return_value = [{"id": 1, "name": "1.20.1"}, {"id": 2, "name": "Fabric"}, {"id": 3, "name": "Java 17"}, {"id": 5, "name": "Client"}, {"id": 6, "name": "Server"}, {"id": 7, "name": "Forge"}]
+        fabric = p.platform_metadata("curseforge", {**self.plan, "java_versions": [17]}, "token")
+        relation = fabric["relations"]["projects"][0]
+        self.assertEqual(relation["slug"], "fabric-api")
+        self.assertEqual(relation["type"], "requiredDependency")
+        self.assertIsInstance(relation["projectID"], int)
+        self.assertEqual(relation["projectID"], 306612)
+        forge = p.platform_metadata("curseforge", {**self.plan, "loader": "forge", "java_versions": [17]}, "token")
+        self.assertNotIn("relations", forge)
+
     @patch.object(p, "upload", return_value={"id": 999, "status": "uploaded"})
     def test_curseforge_sources_link_parent_without_game_versions(self, upload):
         gh = FakeGitHub()

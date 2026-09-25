@@ -355,7 +355,7 @@ def platform_metadata(platform, plan, token):
         "gameVersions": ids, "releaseType": plan["version_type"],
     }
     if plan["loader"] == "fabric":
-        payload["relations"] = {"projects": [{"slug": "fabric-api", "projectID": "306612", "type": "requiredDependency"}]}
+        payload["relations"] = {"projects": [{"slug": "fabric-api", "projectID": 306612, "type": "requiredDependency"}]}
     return payload
 
 
