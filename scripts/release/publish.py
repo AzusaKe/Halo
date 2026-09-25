@@ -331,14 +331,33 @@ def platform_metadata(platform, plan, token):
     names = plan["game_versions"] + [{"fabric": "Fabric", "forge": "Forge", "neoforge": "NeoForge"}[plan["loader"]]] + [f"Java {version}" for version in plan.get("java_versions", [])]
     ids = []
     for name in names:
-        matches = [v["id"] for v in versions if v["name"] == name]
-        require(len(matches) == 1, f"CurseForge game/loader version not found or ambiguous: {name}")
-        ids.extend(matches)
+        ids.append(curseforge_version_id(versions, name))
     return {
         "changelog": plan["changelog"], "changelogType": "markdown", "displayName": plan["name"],
         "gameVersions": ids, "releaseType": plan["version_type"],
         "relations": {"projects": ([{"slug": "fabric-api", "projectID": "306612", "type": "requiredDependency"}] if plan["loader"] == "fabric" else [])},
     }
+
+
+def curseforge_version_id(versions, name):
+    """Pick one CurseForge game-version id; names can collide across game types."""
+    matches = [v for v in versions if v.get("name") == name]
+    require(matches, f"CurseForge game/loader version not found: {name}")
+    if len(matches) > 1:
+        slug = name.replace(".", "-").replace(" ", "-").lower()
+        by_slug = [v for v in matches if v.get("slug") == slug]
+        if len(by_slug) == 1:
+            matches = by_slug
+        else:
+            typed = [v for v in matches if v.get("gameVersionType") in ("Release", "Add-on", "Java")]
+            if len(typed) == 1:
+                matches = typed
+            else:
+                release = [v for v in matches if v.get("gameVersionType") == "Release"]
+                if len(release) == 1:
+                    matches = release
+    require(len(matches) == 1, f"CurseForge game/loader version not found or ambiguous: {name}")
+    return matches[0]["id"]
 
 
 def upload(platform, plan, content, metadata, token, *, sources_only=False):

@@ -201,6 +201,24 @@ class PublicationRecoveryTests(unittest.TestCase):
         with self.assertRaisesRegex(p.PublishError, "not found"):
             p.platform_metadata("curseforge", self.plan, "token")
 
+    def test_curseforge_version_disambiguates_by_slug(self):
+        versions = [
+            {"id": 10, "name": "1.20.1", "slug": "1-20-1", "gameVersionType": "Release"},
+            {"id": 11, "name": "1.20.1", "slug": "other-1-20-1", "gameVersionType": "Release"},
+            {"id": 20, "name": "Forge", "slug": "forge", "gameVersionType": "Add-on"},
+            {"id": 30, "name": "Java 17", "slug": "java-17", "gameVersionType": "Java"},
+        ]
+        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 10)
+        self.assertEqual(p.curseforge_version_id(versions, "Forge"), 20)
+        self.assertEqual(p.curseforge_version_id(versions, "Java 17"), 30)
+
+    def test_curseforge_version_prefers_release_type_when_slugs_collide(self):
+        versions = [
+            {"id": 41, "name": "1.20.1", "slug": "1-20-1", "gameVersionType": "Snapshot"},
+            {"id": 42, "name": "1.20.1", "slug": "1-20-1", "gameVersionType": "Release"},
+        ]
+        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 42)
+
     def test_multipart_uses_metadata_and_binary_without_corruption(self):
         raw = b"\x00\xff\r\n\x80"
         body, content_type = p.multipart("metadata", {"changelog": "中文"}, self.plan["filename"], raw)
