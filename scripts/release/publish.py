@@ -341,6 +341,12 @@ def platform_metadata(platform, plan, token):
 
 def curseforge_version_id(versions, name):
     """Pick one CurseForge game-version id; names can collide across game types."""
+    def type_name(entry):
+        value = entry.get("gameVersionType")
+        if isinstance(value, dict):
+            return value.get("name") or value.get("slug") or ""
+        return value or ""
+
     matches = [v for v in versions if v.get("name") == name]
     require(matches, f"CurseForge game/loader version not found: {name}")
     if len(matches) > 1:
@@ -349,14 +355,20 @@ def curseforge_version_id(versions, name):
         if len(by_slug) == 1:
             matches = by_slug
         else:
-            typed = [v for v in matches if v.get("gameVersionType") in ("Release", "Add-on", "Java")]
+            typed = [v for v in matches if type_name(v) in ("Release", "Add-on", "Java")]
             if len(typed) == 1:
                 matches = typed
             else:
-                release = [v for v in matches if v.get("gameVersionType") == "Release"]
+                release = [v for v in matches if type_name(v) == "Release"]
                 if len(release) == 1:
                     matches = release
-    require(len(matches) == 1, f"CurseForge game/loader version not found or ambiguous: {name}")
+                elif len(release) > 1:
+                    # Deterministic tie-break: newest CurseForge id is the current revision.
+                    matches = [max(release, key=lambda entry: int(entry.get("id") or 0))]
+    require(len(matches) == 1, "CurseForge game/loader version not found or ambiguous: "
+        + name + " candidates=" + repr([
+            {"id": v.get("id"), "name": v.get("name"), "slug": v.get("slug"), "type": type_name(v)}
+            for v in matches]))
     return matches[0]["id"]
 
 

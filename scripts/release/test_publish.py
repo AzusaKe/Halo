@@ -219,6 +219,13 @@ class PublicationRecoveryTests(unittest.TestCase):
         ]
         self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 42)
 
+    def test_curseforge_version_accepts_object_type_and_ties_break_by_id(self):
+        versions = [
+            {"id": 51, "name": "1.20.1", "slug": "a", "gameVersionType": {"id": 1, "name": "Release"}},
+            {"id": 52, "name": "1.20.1", "slug": "b", "gameVersionType": {"id": 1, "name": "Release"}},
+        ]
+        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 52)
+
     def test_multipart_uses_metadata_and_binary_without_corruption(self):
         raw = b"\x00\xff\r\n\x80"
         body, content_type = p.multipart("metadata", {"changelog": "中文"}, self.plan["filename"], raw)
