@@ -203,28 +203,30 @@ class PublicationRecoveryTests(unittest.TestCase):
 
     def test_curseforge_version_disambiguates_by_slug(self):
         versions = [
-            {"id": 10, "name": "1.20.1", "slug": "1-20-1", "gameVersionType": "Release"},
-            {"id": 11, "name": "1.20.1", "slug": "other-1-20-1", "gameVersionType": "Release"},
-            {"id": 20, "name": "Forge", "slug": "forge", "gameVersionType": "Add-on"},
-            {"id": 30, "name": "Java 17", "slug": "java-17", "gameVersionType": "Java"},
+            {"id": 10, "name": "1.20.1", "slug": "1-20-1", "gameVersionTypeID": 1},
+            {"id": 11, "name": "1.20.1", "slug": "other-1-20-1", "gameVersionTypeID": 1},
+            {"id": 20, "name": "Forge", "slug": "forge", "gameVersionTypeID": 512},
+            {"id": 30, "name": "Java 17", "slug": "java-17", "gameVersionTypeID": 6},
         ]
         self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 10)
         self.assertEqual(p.curseforge_version_id(versions, "Forge"), 20)
         self.assertEqual(p.curseforge_version_id(versions, "Java 17"), 30)
 
-    def test_curseforge_version_prefers_release_type_when_slugs_collide(self):
+    def test_curseforge_version_prefers_java_release_type_id(self):
         versions = [
-            {"id": 41, "name": "1.20.1", "slug": "1-20-1", "gameVersionType": "Snapshot"},
-            {"id": 42, "name": "1.20.1", "slug": "1-20-1", "gameVersionType": "Release"},
+            {"id": 9990, "name": "1.20.1", "slug": "1-20-1", "gameVersionTypeID": 75125},
+            {"id": 9993, "name": "1.20.1", "slug": "1-20-1", "gameVersionTypeID": 615},
+            {"id": 9994, "name": "1.20.1", "slug": "1-20-1", "gameVersionTypeID": 1},
         ]
-        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 42)
+        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 9994)
 
     def test_curseforge_version_accepts_object_type_and_ties_break_by_id(self):
         versions = [
-            {"id": 51, "name": "1.20.1", "slug": "a", "gameVersionType": {"id": 1, "name": "Release"}},
-            {"id": 52, "name": "1.20.1", "slug": "b", "gameVersionType": {"id": 1, "name": "Release"}},
+            {"id": 51, "name": "1.20.1", "slug": "a", "gameVersionTypeID": 2},
+            {"id": 52, "name": "1.20.1", "slug": "b", "gameVersionTypeID": 2},
         ]
-        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 52)
+        with self.assertRaisesRegex(p.PublishError, "ambiguous"):
+            p.curseforge_version_id(versions, "1.20.1")
 
     def test_multipart_uses_metadata_and_binary_without_corruption(self):
         raw = b"\x00\xff\r\n\x80"

@@ -341,11 +341,9 @@ def platform_metadata(platform, plan, token):
 
 def curseforge_version_id(versions, name):
     """Pick one CurseForge game-version id; names can collide across game types."""
-    def type_name(entry):
-        value = entry.get("gameVersionType")
-        if isinstance(value, dict):
-            return value.get("name") or value.get("slug") or ""
-        return value or ""
+    def type_id(entry):
+        value = entry.get("gameVersionTypeID", entry.get("gameVersionTypeId"))
+        return int(value) if value is not None else None
 
     matches = [v for v in versions if v.get("name") == name]
     require(matches, f"CurseForge game/loader version not found: {name}")
@@ -353,18 +351,14 @@ def curseforge_version_id(versions, name):
         slug = name.replace(".", "-").replace(" ", "-").lower()
         by_slug = [v for v in matches if v.get("slug") == slug]
         if len(by_slug) == 1:
-            matches = by_slug
-        else:
-            typed = [v for v in matches if type_name(v) in ("Release", "Add-on", "Java")]
-            if len(typed) == 1:
-                matches = typed
-            else:
-                release = [v for v in matches if type_name(v) == "Release"]
-                if len(release) == 1:
-                    matches = release
-                elif len(release) > 1:
-                    # Deterministic tie-break: newest CurseForge id is the current revision.
-                    matches = [max(release, key=lambda entry: int(entry.get("id") or 0))]
+            return by_slug[0]["id"]
+        # Minecraft Java Release versions use gameVersionTypeID 1; loaders/Java tags use other ids.
+        java_release = [v for v in matches if type_id(v) == 1]
+        if len(java_release) == 1:
+            return java_release[0]["id"]
+        addon = [v for v in matches if type_id(v) in (512, 615)]
+        if name.lower() in {"fabric", "forge", "neoforge"} and len(addon) == 1:
+            return addon[0]["id"]
     require(len(matches) == 1, "CurseForge game/loader version not found or ambiguous: "
         + name + " candidates=" + repr(matches))
     return matches[0]["id"]
