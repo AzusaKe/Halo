@@ -84,13 +84,18 @@ def request(method, url, *, headers=None, data=None, binary=False, public_downlo
         detail = ""
         try:
             raw = error.read(4096)
-            payload = json.loads(raw.decode("utf-8", "replace")) if raw else None
-            if isinstance(payload, dict):
-                detail = str(payload.get("error") or payload.get("message") or payload.get("description") or "")[:240]
+            text = raw.decode("utf-8", "replace").strip()
+            try:
+                payload = json.loads(text)
+                if isinstance(payload, dict):
+                    text = str(payload.get("error") or payload.get("message") or payload.get("description") or text)
+            except Exception:
+                pass
+            text = re.sub(r"\s+", " ", text)
+            detail = f" ({text[:240]})" if text else ""
         except Exception:
             detail = ""
-        suffix = f" ({detail})" if detail else ""
-        raise ApiError(method, url, error.code, suffix) from None
+        raise ApiError(method, url, error.code, detail) from None
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         raise PublishError(f"{method} {urllib.parse.urlsplit(url).path}: network failure ({type(error).__name__}); no automatic retry") from None
 
