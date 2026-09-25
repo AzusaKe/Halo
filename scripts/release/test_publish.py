@@ -438,7 +438,7 @@ class PublishingOptionsTests(unittest.TestCase):
     def test_curseforge_resolves_minecraft_loader_and_java_tags(self, request):
         request.return_value = [{"id": 1, "name": "1.20.1"}, {"id": 2, "name": "Fabric"}, {"id": 3, "name": "Java 17"}, {"id": 4, "name": "Java 21"}, {"id": 5, "name": "Client"}, {"id": 6, "name": "Server"}]
         metadata = p.platform_metadata("curseforge", {**self.plan, "java_versions": [17, 21]}, "token")
-        self.assertEqual(metadata["gameVersions"], [1, 2, 3, 4])
+        self.assertEqual(metadata["gameVersions"], [1, 5, 6, 2, 3, 4])
         with self.assertRaisesRegex(p.PublishError, "Java 25"):
             p.platform_metadata("curseforge", {**self.plan, "java_versions": [25]}, "token")
 
