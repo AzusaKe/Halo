@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.4.2 Forge adapter.3 — 上传暂存缓冲原生内存释放修复 — 2026-09-26
+
+- 1.20.1 没有 `BufferAllocator`/`ByteBufferBuilder`，上传暂存的原生内存只能由 Halo 显式释放；原实现释放后仍把地址留在 `BufferBuilder` 中，ModernFix 一类会读取同一 buffer 的清理路径因此对同一块内存二次释放，在 jemalloc 内以 `EXCEPTION_ACCESS_VIOLATION` 结束进程。用户整合包中已复现该崩溃（三次 `hs_err_pid*.log` 均为 `jemalloc.dll` 访问违例，栈顶为 `UnsafeBufferHelper.free → BufferBuilder.finalize`）。
+- `MeshUploadBuffer.close()` 改为先把 buffer 从 builder 取出（新增 `BufferBuilderStorageAccessor.halo$setStorage`）再释放，释放因此幂等且不再留下悬垂地址；显式释放这一优化保持不变，删除释放会造成每代次原生暂存泄漏。
+- lit 流按实际写入的角数预分配暂存容量：QUADS 模式每个四边形写四角而索引扩展为六个，原按索引数预分配必然触发 `BufferBuilder` 增长，而增长经 `MemoryTracker.realloc` 在包装器背后释放初始块。新增容量回归检查。
+- 主线 1.20.1 Fabric `9189553` 已完成同一修复并取得用户验收；本分支仅平台映射差异（Mojang official mapping、`getVertexSize()`、`VertexFormat.Mode`）。core 指针 `1d3cf90478011c1e6f956f1b7dc978d00e796099`（2.4.2）及存档/协议不变。
+- 联合构建通过（JDK 17）；用户整合包规模的大网格场景复现与验收由用户执行。
+
 ## 2.4.2 Forge adapter.2 — YSM 兼容 `Args$1` 崩溃修复 — 2026-09-26
 
 - 修复安装 Yes Steve Model 时创建/读取世界崩溃：`@ModifyArgs` 生成的 Mixin 合成类 `org.spongepowered.asm.synthetic.args.Args$1` 在 Forge 1.20.1 `ModuleClassLoader` 上无法解析，YSM 资源重载构造渲染器子类时抛出 `NoClassDefFoundError`。

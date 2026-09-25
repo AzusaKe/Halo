@@ -195,16 +195,19 @@ final class HaloMeshBufferCache implements AutoCloseable {
 
         private void uploadLitVertices(TriangleMesh mesh) {
             var format = DefaultVertexFormat.NEW_ENTITY;
+            // Iris derives extended entity attributes such as tangents from each
+            // consecutive triangle while BufferBuilder ends. An indexed unique-
+            // vertex stream does not preserve those triangle boundaries, so the
+            // lit stream deliberately expands to authored triangle-corner order.
+            // Billboards retain their original four-corner construction here so Iris
+            // derives the same quad midpoint UV/tangent attributes before indexing.
+            // QUADS mode writes one vertex per corner and expands 4 indices per quad into 6,
+            // so size the staging buffer for what the loop actually writes. Growing the builder
+            // would realloc (and free) the initial block behind MeshUploadBuffer's back.
+            int corners = sourceQuad ? mesh.vertexCount() * 3 / 2 : indices.indexCount();
             try (var builder = new MeshUploadBuffer(Math.max(256,
-                Math.multiplyExact(indices.indexCount(), format.getVertexSize())))) {
+                Math.multiplyExact(corners, format.getVertexSize())))) {
                 builder.begin(sourceQuad ? VertexFormat.Mode.QUADS : VertexFormat.Mode.TRIANGLES, format);
-                // Iris derives extended entity attributes such as tangents from each
-                // consecutive triangle while BufferBuilder ends. An indexed unique-
-                // vertex stream does not preserve those triangle boundaries, so the
-                // lit stream deliberately expands to authored triangle-corner order.
-                // Billboards retain their original four-corner construction here so Iris
-                // derives the same quad midpoint UV/tangent attributes before indexing.
-                int corners = sourceQuad ? mesh.vertexCount() : indices.indexCount();
                 for (int corner = 0; corner < corners; corner++) {
                     int vertex = sourceQuad ? corner : mesh.index(corner);
                     builder.vertex(mesh.x(vertex), mesh.y(vertex), mesh.z(vertex))
