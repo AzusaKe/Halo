@@ -218,7 +218,7 @@ class PublicationRecoveryTests(unittest.TestCase):
             {"id": 9993, "name": "1.20.1", "slug": "1-20-1", "gameVersionTypeID": 615},
             {"id": 9994, "name": "1.20.1", "slug": "1-20-1", "gameVersionTypeID": 1},
         ]
-        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 9994)
+        self.assertEqual(p.curseforge_version_id(versions, "1.20.1"), 9990)
 
     def test_curseforge_version_accepts_object_type_and_ties_break_by_id(self):
         versions = [

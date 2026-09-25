@@ -369,11 +369,13 @@ def curseforge_version_id(versions, name):
         by_slug = [v for v in matches if v.get("slug") == slug]
         if len(by_slug) == 1:
             return by_slug[0]["id"]
-        # Minecraft Java Release versions use gameVersionTypeID 1; loaders/Java tags use other ids.
-        java_release = [v for v in matches if type_id(v) == 1]
-        if len(java_release) == 1:
-            return java_release[0]["id"]
-        addon = [v for v in matches if type_id(v) in (512, 615)]
+        # Minecraft Java versions currently use type 75125; legacy Release is 1.
+        # Type 1 ids can be rejected as "invalid dependency" on modern CurseForge.
+        for preferred in (75125, 1):
+            typed = [v for v in matches if type_id(v) == preferred]
+            if len(typed) == 1:
+                return typed[0]["id"]
+        addon = [v for v in matches if type_id(v) in (512, 615, 68441)]
         if name.lower() in {"fabric", "forge", "neoforge"} and len(addon) == 1:
             return addon[0]["id"]
     require(len(matches) == 1, "CurseForge game/loader version not found or ambiguous: "
