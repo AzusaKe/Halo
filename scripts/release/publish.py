@@ -32,10 +32,11 @@ class PublishError(Exception):
 
 
 class ApiError(PublishError):
-    def __init__(self, method, url, status):
+    def __init__(self, method, url, status, detail=""):
         self.status = status
-        # Do not include response bodies, authorization headers or query values.
-        super().__init__(f"{method} {urllib.parse.urlsplit(url).path}: HTTP {status}")
+        self.detail = detail
+        # Do not include raw response bodies, authorization headers or query values.
+        super().__init__(f"{method} {urllib.parse.urlsplit(url).path}: HTTP {status}{detail}")
 
 
 def require(condition, message):
@@ -80,7 +81,16 @@ def request(method, url, *, headers=None, data=None, binary=False, public_downlo
         require(len(raw) <= 64 * 1024 * 1024, "Response exceeds the 64 MiB publisher limit")
         return raw if binary else (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as error:
-        raise ApiError(method, url, error.code) from None
+        detail = ""
+        try:
+            raw = error.read(4096)
+            payload = json.loads(raw.decode("utf-8", "replace")) if raw else None
+            if isinstance(payload, dict):
+                detail = str(payload.get("error") or payload.get("message") or payload.get("description") or "")[:240]
+        except Exception:
+            detail = ""
+        suffix = f" ({detail})" if detail else ""
+        raise ApiError(method, url, error.code, suffix) from None
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         raise PublishError(f"{method} {urllib.parse.urlsplit(url).path}: network failure ({type(error).__name__}); no automatic retry") from None
 
