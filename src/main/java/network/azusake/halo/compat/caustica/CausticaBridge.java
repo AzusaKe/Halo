@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 /** Optional boundary: default Halo classes never resolve a Caustica API type. */
 public final class CausticaBridge {
     static final Logger LOG=LoggerFactory.getLogger("HaloCaustica");
-    public static final boolean ENABLED=Boolean.getBoolean("halo.caustica.experimental");
+    public static final boolean ENABLED=CausticaActivation.ENABLED;
     private static volatile CausticaSession session;
     private static volatile boolean capturing;
     private CausticaBridge() { }
@@ -20,8 +20,10 @@ public final class CausticaBridge {
     public static void beginCapture() {
         if(!ENABLED || session==null)return;
         var client=Minecraft.getInstance();
-        var runtime=dev.comfyfluffy.caustica.minecraft.client.CausticaClientComposition.current().runtime();
-        capturing=client.level!=null && runtime.frameActive() && !runtime.requiresSourceWorldFallback();
+        var composition=dev.comfyfluffy.caustica.minecraft.client.CausticaClientComposition.current();
+        var runtime=composition.runtime();
+        capturing=client.level!=null && composition.vulkanBackend().currentOrNull()!=null
+                && runtime.frameActive() && !runtime.requiresSourceWorldFallback();
         if(!capturing)return;
         var camera=client.gameRenderer.mainCamera();
         float delta=client.getDeltaTracker().getGameTimeDeltaPartialTick(false);

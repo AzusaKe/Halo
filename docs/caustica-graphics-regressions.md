@@ -7,6 +7,35 @@ Halo 基线 `9a722a19bd1cbbc84c6cb69bea5e7f2f79daa579`，core 基线
 Caustica 为未修改的 `rewrite@0cc9d0af4f4118cd26b830084a14f2bafc0d904d`。
 隔离实例及原始证据放在 `F:/codex-cache/caustica/validation`。
 
+## 自动启用与显式关闭
+
+后续入口调整：默认允许兼容，不再要求 `-Dhalo.caustica.experimental=true`。
+启动策略在不引用 Minecraft/Caustica 的独立类中求值，Mixin 插件与会话注册使用同一策略。
+Mixin 仍仅在 Caustica 已安装时应用；`-Dhalo.caustica.experimental=false` 同时禁止钩子与会话注册，
+该参数需要在启动前设置。原先显式 `true` 的启动方式保持有效。
+
+实际提交还须具备世界会话、Caustica 已初始化的 Vulkan 光追后端、当前帧 `frameActive()`，
+并且不需要 `requiresSourceWorldFallback()`。安装模组或普通 Vulkan 绘制本身不会选择 RT 提交。
+RT 开关与原版回退沿用现有逐帧分流，GUI 预览和 core 逻辑不变。
+
+新增隔离类加载检查：默认设置下屏蔽全部 Caustica/Vulkan 类，普通帧钩子仍可加载并返回非 RT；
+Caustica API 存在时不加参数自动注册世界贡献，显式关闭后不注册。
+本轮筛选执行 Caustica 相关 9 项测试，零失败、错误或跳过；构建、许可证/隔离打包、
+core 合包来源及旧锚点 API 检查通过，二进制和源码开发包均已重新生成。
+agent 没有自行重启用户正在运行的游戏；用户随后确认自动入口验收通过。
+
+## 主视图中的半透明像素显示为实心
+
+用户在自动入口验收后报告：三图元的半透明像素显示为完全不透明。
+源码确认 Halo 已计算并上传 alpha，非不透明命令使用 `Stochastic(1/255)`；
+Caustica 明确将 GUIDE/PRIMARY 命中改为阈值接受，其余辐射/阴影射线才进行随机覆盖。
+这是原计划已注明的主视图透明近似限制，不是普通 alpha 混合已受支持。
+也不能仅通过提高 cutoff 获得连续透明；物理玻璃透射会改变材质语义。
+
+issue 草稿与最小复现仅保存在本地 `F:/codex-cache/caustica/validation/issues/primary-alpha/`，
+按用户要求不提交到仓库，也不发布外部 issue。
+本轮没有修改 Caustica，也没有默认引入空间/时间抖动近似；新最小用例尚未单独运行。
+
 ## 日间场景全白
 
 测试脚本曾在正午设置 `exposure.mode=manual`、`exposure.manual-ev=0`，导致场景曝光饱和。
@@ -182,7 +211,7 @@ core 独立 build（Java 21 运行、Java 17 编译契约）通过；目标联�
 使用可逆镜像/非均匀变换，避免编译器删除未消费的法线路径。编译检查本身不执行 GPU shader。
 性能采样因画面回归暂缓，完整配对采样尚未执行。专用服、缺少 Caustica 的实际加载、EMF、
 全部换维度/重载及透明覆盖组合仍需独立记录，不能用本次两项回归替代。
-本记录不代表发布验收，没有推送、标签或 Release，也没有发布外部 issue。
+本记录不代表 Halo 平台发布验收；实验分支已推送，未创建 Halo 标签或 Release，也没有发布外部 issue。
 实际实例已经恢复修正版，留下 Toki、Yuuka 与独立 Seia halo 组供查看，保持自动曝光和正常合成视图。
 性能恢复前应把 `halo_rt_bench` 全部恢复为 Invisible/Marker，并回到固定测试镜头；
 本次近距离材质截图场景不能直接与旧性能样本混用。

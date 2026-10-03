@@ -2,7 +2,7 @@
 
 ## 2.5.0 实验开发版 — Caustica 光追后端 — 2026-10-03
 
-- 锁定 HaloCore 开发提交 `bc2b7b5e24ff51919f3177bfeb4d75bd4c55fe24`，适配修订 1；通过 `-Dhalo.caustica.experimental=true` 启用。
+- 锁定 HaloCore 开发提交 `bc2b7b5e24ff51919f3177bfeb4d75bd4c55fe24`，适配修订 1；自动检测 Caustica 的 Vulkan 光追后端与实际 RT 帧状态，使用 `-Dhalo.caustica.experimental=false` 可在启动时关闭兼容。
 - 接入未修改的 Caustica `rewrite@0cc9d0af`（Java API 0.8.0、Shader ABI 6），为 billboard、ring 和 OBJ mesh 提交共享几何与保留式世界实例。
 - 在加载阶段准备纹理、LabPBR 输入和几何，异步替换资源；使用实际 RT 帧状态选择后端，保留原绘制及 GUI 预览路径。
 - 修复实体退出跟踪范围后实例不恢复、金属基础色及 Seia 平滑法线造成的黑边和恒色区域；保留式法线支持小缩放、镜像和非均匀缩放。

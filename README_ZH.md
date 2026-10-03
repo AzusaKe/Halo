@@ -1,6 +1,6 @@
 本分支面向 **Minecraft 26.2 NeoForge**，开发 **2.5.0 / 适配修订 1** 的 Caustica 实验后端；最近发布基线为 **2.4.2+adapter.1**。HaloCore 通过 `core` Git 子模块锁定，玩家安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.2 迁移记录](docs/26.2-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
-通过 `-Dhalo.caustica.experimental=true` 启用实验后端，Caustica 需独立安装。Caustica 版权所有 (c) 2026 ComfyFluffy 及贡献者，采用 **LGPL-3.0-or-later**；Halo 和 HaloCore 保留 **MIT**。Halo 在 `META-INF/halo/` 附带兼容声明及 GPL/LGPL 全文，不打包 Caustica 实现或原生库。详见[许可证与分发边界](docs/caustica-licensing.md)和[实际验证范围](docs/caustica-graphics-regressions.md)。
+独立安装 Caustica 并使用 Minecraft 的 Vulkan 后端。当 Caustica 已初始化 Vulkan 光追后端、当前帧正在进行 RT 渲染且无需原版世界回退时，Halo 自动使用实验兼容后端，无需额外 JVM 参数。`-Dhalo.caustica.experimental=false` 可在启动时关闭兼容，原先的 `true` 参数仍然有效；原版绘制及 GUI 预览沿用既有路径。Caustica 版权所有 (c) 2026 ComfyFluffy 及贡献者，采用 **LGPL-3.0-or-later**；Halo 和 HaloCore 保留 **MIT**。Halo 在 `META-INF/halo/` 附带兼容声明及 GPL/LGPL 全文，不打包 Caustica 实现或原生库。详见[许可证与分发边界](docs/caustica-licensing.md)和[实际验证范围](docs/caustica-graphics-regressions.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
