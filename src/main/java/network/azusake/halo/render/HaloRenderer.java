@@ -61,8 +61,26 @@ public final class HaloRenderer {
     public void clearIdlePhases(){HaloClientState.get().renderer().clearIdlePhases();}
     public void renderHalos(PoseStack matrices,Camera camera,float tickDelta){
         if(!OptionalIrisPassDetector.isMainPass()||!submissions.begin(RenderHeadCapture.getFrameId()))return;
+        network.azusake.halo.compat.caustica.CausticaBridge.vanillaFrame();
+        FrameScene scene=collectScene(matrices,camera,tickDelta);
+        if(scene==null)return;
+        var runtime=HaloClientState.get();var assets=HaloMeshResources.snapshot();
+        FrameOutput output = runtime.renderFrame(scene);
+
+        var outer = new Matrix4f(RenderSystem.getModelViewMatrixCopy());
+        boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
+        submissions.publish(new Pending(output,assets.visuals(),outer,shaderPack));
+        if(Minecraft.getInstance().hasSingleplayerServer())IntegratedBridge.publishDiagnostics(runtime.diagnostics());
+    }
+    /** Called once after Caustica's posed-entity capture, before its scene snapshot is consumed. */
+    public SceneFrame renderRetainedScene(Camera camera,float tickDelta) {
+        if(!submissions.begin(RenderHeadCapture.getFrameId()))return null;
+        FrameScene scene=collectScene(new PoseStack(),camera,tickDelta);
+        return scene==null?null:HaloClientState.get().renderScene(scene);
+    }
+    private FrameScene collectScene(PoseStack matrices,Camera camera,float tickDelta) {
         Minecraft client=Minecraft.getInstance();
-        if(client.level==null) return;
+        if(client.level==null) return null;
         MeshRenderMetrics.frame();
         if(previousWorld!=client.level) {
             previousWorld=client.level;worldToken++;
@@ -92,7 +110,7 @@ public final class HaloRenderer {
                 entity.isAlive(),living.isSleeping(),entity.isInvisible(),captured==null?fallback:captured,fallback));
         }
         var up=camera.upVector();var right=camera.leftVector();
-        FrameScene scene=new FrameScene(worldToken,System.currentTimeMillis(),System.nanoTime(),
+        return new FrameScene(worldToken,System.currentTimeMillis(),System.nanoTime(),
             new FrameScene.CameraSample(core(camera.position()),
                 new network.azusake.halo.core.Vec3d(up.x(),up.y(),up.z()),
                 new network.azusake.halo.core.Vec3d(right.x(),right.y(),right.z())),
@@ -109,12 +127,6 @@ public final class HaloRenderer {
                     client.level.getBrightness(LightLayer.BLOCK, block),
                     client.level.getBrightness(LightLayer.SKY, block));
             }, primitiveMode);
-        FrameOutput output = runtime.renderFrame(scene);
-
-        var outer = new Matrix4f(RenderSystem.getModelViewMatrixCopy());
-        boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
-        submissions.publish(new Pending(output,assets.visuals(),outer,shaderPack));
-        if(client.hasSingleplayerServer())IntegratedBridge.publishDiagnostics(runtime.diagnostics());
     }
     public void submitSolidStage() {
         if (!OptionalIrisPassDetector.isMainPass()) return;

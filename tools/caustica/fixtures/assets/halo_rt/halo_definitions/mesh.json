@@ -1,0 +1,35 @@
+{
+  "orientation_mode": "locked",
+  "positioning": {
+    "offset": [
+      0,
+      0.4,
+      0
+    ],
+    "scale": 1
+  },
+  "startup": {},
+  "shutdown": {},
+  "display_in_invisible": true,
+  "id": "halo_rt:mesh",
+  "layers": [
+    {
+      "glowing": false,
+      "primitive": {
+        "type": "mesh",
+        "model": "mika:models/halo/mika_halo_3d_obj.obj",
+        "texture": "mika:textures/halo/ch0069_halo.png",
+        "size": [
+          1.2,
+          1.2,
+          1.2
+        ],
+        "preserve_proportions": true,
+        "material": {
+          "double_sided": true,
+          "effects": []
+        }
+      }
+    }
+  ]
+}

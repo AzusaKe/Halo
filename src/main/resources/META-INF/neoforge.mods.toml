@@ -45,3 +45,13 @@ file="META-INF/accesstransformer.cfg"
 
 [features.halo]
 javaVersion="[25,)"
+
+[[mixins]]
+config="halo-caustica.mixins.json"
+
+[[dependencies.halo]]
+modId="caustica"
+type="optional"
+versionRange="[0.1.0]"
+ordering="AFTER"
+side="CLIENT"

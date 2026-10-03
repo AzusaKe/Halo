@@ -69,11 +69,11 @@ public final class HaloModClient {
             if (!(event.getLevel() instanceof net.minecraft.client.multiplayer.ClientLevel)) return;
             var entity = event.getEntity();
             var runtime = network.azusake.halo.platform.HaloClientState.get();
-            if (entity instanceof net.minecraft.world.entity.LivingEntity living && !living.isAlive()) {
-                runtime.died(entity.getUUID(), entity instanceof net.minecraft.world.entity.player.Player);
-            } else {
-                runtime.unload(entity.getUUID());
-            }
+            // isAlive() also becomes false when Minecraft removes a healthy untracked client entity.
+            // Only confirmed dying state revokes non-player ownership; unload preserves the authority replica.
+            network.azusake.halo.platform.ClientDepartures.depart(runtime,entity.getUUID(),
+                entity instanceof net.minecraft.world.entity.player.Player,
+                entity instanceof net.minecraft.world.entity.LivingEntity living && living.isDeadOrDying());
             AnchorCaptureCoordinator.clearEntity(entity.getUUID());
         });
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> {

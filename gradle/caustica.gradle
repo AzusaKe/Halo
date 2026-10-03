@@ -1,0 +1,34 @@
+// This experimental adapter compiles against one inspected rewrite artifact; runtime supplies it.
+def causticaJar = file(providers.gradleProperty('causticaJar').getOrElse('F:/Caustica/build/libs/caustica-0.1.0-neoforge.jar'))
+def lock = new groovy.json.JsonSlurper().parse(file('gradle/caustica-lock.json'))
+dependencies {
+    compileOnly files(causticaJar)
+    compileOnly 'org.lwjgl:lwjgl-vma:3.4.1'
+    testImplementation files(causticaJar)
+    testRuntimeOnly 'org.lwjgl:lwjgl-vma:3.4.1'
+}
+tasks.register('verifyCausticaArtifact') {
+    inputs.file(causticaJar)
+    doLast {
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        causticaJar.withInputStream { stream ->
+            byte[] buffer = new byte[65536]
+            int size
+            while ((size = stream.read(buffer)) > 0) digest.update(buffer, 0, size)
+        }
+        if (digest.digest().encodeHex().toString() != lock.jarSha256) {
+            throw new GradleException('Caustica artifact differs from the inspected rewrite. Review its ABI and update caustica-lock.json deliberately.')
+        }
+    }
+}
+tasks.named('compileJava') { dependsOn 'verifyCausticaArtifact' }
+tasks.register('verifyCausticaIsolation') {
+    dependsOn 'jar'
+    doLast {
+        new java.util.jar.JarFile(tasks.named('jar').get().archiveFile.get().asFile).withCloseable { jar ->
+            if (jar.stream().anyMatch { it.name.startsWith('dev/comfyfluffy/caustica/') || it.name.startsWith('org/lwjgl/') })
+                throw new GradleException('Halo must not bundle Caustica or LWJGL classes')
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verifyCausticaIsolation' }

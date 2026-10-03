@@ -60,6 +60,7 @@ public final class HaloMeshResources {
         Snapshot next = new Snapshot(definitions, visuals);
         HaloRenderer.getInstance().reloadPrimitiveBuffers(next, false);
         published = next;
+        network.azusake.halo.compat.caustica.CausticaBridge.resourcesChanged();
     }
 
     private static void preloadLegacy(DefinitionSnapshot definitions) {
@@ -85,5 +86,6 @@ public final class HaloMeshResources {
         Snapshot next = new Snapshot(definitions, visuals);
         HaloRenderer.getInstance().reloadPrimitiveBuffers(next, false);
         published = next;
+        network.azusake.halo.compat.caustica.CausticaBridge.resourcesChanged();
     }
 }

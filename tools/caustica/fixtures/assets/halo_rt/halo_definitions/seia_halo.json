@@ -1,0 +1,88 @@
+{
+  "id": "halo_rt:seia_halo",
+  "version": "1.1.0",
+  "orientation_mode": "sync",
+  "layers": [
+    {
+      "id": "seia_",
+      "position": [
+        0.0,
+        -3.6700000762939453,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": 1.0,
+      "animation": {},
+      "children": [
+        {
+          "id": "halo",
+          "position": [
+            0.0,
+            0.0,
+            -0.0
+          ],
+          "rotation": [
+            0.0,
+            -0.0,
+            0.0
+          ],
+          "scale": 1.0,
+          "animation": {},
+          "children": [],
+          "primitives": [
+            {
+              "type": "mesh",
+              "model": "model:models/halo/seia_mesh_import_halo.obj",
+              "texture": "model:textures/halo/ch0295_halo.png",
+              "size": [
+                1.0,
+                1.0,
+                1.0
+              ],
+              "preserve_proportions": true,
+              "scale": 1.0,
+              "material": {
+                "double_sided": true,
+                "effects": []
+              }
+            }
+          ],
+          "glowing": false,
+          "inherit_alpha": true,
+          "inherit_glow": true
+        }
+      ]
+    }
+  ],
+  "animation": {},
+  "positioning": {
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": 0.4599999785423279
+  },
+  "allow_angular_momentum": false,
+  "hide_on_sleep": true,
+  "display_in_invisible": true,
+  "damping": {
+    "linearFactor": 1.0,
+    "angularFactor": 0.10000000149011612,
+    "maxLinearDistance": 3.0,
+    "maxAngularDegrees": 180.0,
+    "angularMomentumFactor": 0.30000001192092896,
+    "maxAngularMomentumDegrees": 45.0
+  },
+  "startup": {},
+  "shutdown": {},
+  "sync_offset": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

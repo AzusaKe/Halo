@@ -1,0 +1,30 @@
+{
+  "orientation_mode": "locked",
+  "positioning": {
+    "offset": [
+      0,
+      0.4,
+      0
+    ],
+    "scale": 1
+  },
+  "startup": {},
+  "shutdown": {},
+  "display_in_invisible": true,
+  "id": "halo_rt:ring",
+  "layers": [
+    {
+      "glowing": false,
+      "primitive": {
+        "type": "ring",
+        "texture": "halo:textures/halo/ring_test_outer.png",
+        "inner_texture": "halo:textures/halo/ring_test_inner.png",
+        "size": [
+          0.6,
+          0.25
+        ],
+        "segments": 64
+      }
+    }
+  ]
+}

@@ -154,3 +154,5 @@ publishing {
 tasks.named('check') { dependsOn gradle.includedBuild('core').task(':check') }
 tasks.named('runServer') { standardInput = System.in }
 apply from: 'gradle/core-build.gradle'
+
+apply from: 'gradle/caustica.gradle'

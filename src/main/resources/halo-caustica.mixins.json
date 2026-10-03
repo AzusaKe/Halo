@@ -1,0 +1,1 @@
+{"required":true,"minVersion":"0.8","package":"network.azusake.halo.compat.caustica.mixin","compatibilityLevel":"JAVA_25","plugin":"network.azusake.halo.compat.caustica.mixin.CausticaMixinPlugin","client":["CausticaFrameMixin","CausticaEntityMixin"],"injectors":{"defaultRequire":1}}

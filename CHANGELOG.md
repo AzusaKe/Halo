@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.5.0 实验开发版 — Caustica 光追后端 — 2026-10-03
+
+- 锁定 HaloCore 开发提交 `bc2b7b5e24ff51919f3177bfeb4d75bd4c55fe24`，适配修订 1；通过 `-Dhalo.caustica.experimental=true` 启用。
+- 接入未修改的 Caustica `rewrite@0cc9d0af`（Java API 0.8.0、Shader ABI 6），为 billboard、ring 和 OBJ mesh 提交共享几何与保留式世界实例。
+- 在加载阶段准备纹理、LabPBR 输入和几何，异步替换资源；使用实际 RT 帧状态选择后端，保留原绘制及 GUI 预览路径。
+- 修复实体退出跟踪范围后实例不恢复、金属基础色及 Seia 平滑法线造成的黑边和恒色区域；保留式法线支持小缩放、镜像和非均匀缩放。
+- 透明覆盖、双面显示、发光及 POM 限制与已执行/未执行验证见 [画面回归记录](docs/caustica-graphics-regressions.md)。用户确认所观察画面测试通过；完整性能配对采样未执行，不声明正式发布验收通过。
+
 ## 2.4.2 — 半透明 mesh 三角面排序修复 — 2026-09-20
 
 - 接入 HaloCore 2.4.2，固定提交 `1d3cf90478011c1e6f956f1b7dc978d00e796099`，本平台版本 `2.4.2+adapter.1`。
