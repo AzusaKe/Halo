@@ -26,8 +26,12 @@ tasks.register('verifyCausticaIsolation') {
     dependsOn 'jar'
     doLast {
         new java.util.jar.JarFile(tasks.named('jar').get().archiveFile.get().asFile).withCloseable { jar ->
-            if (jar.stream().anyMatch { it.name.startsWith('dev/comfyfluffy/caustica/') || it.name.startsWith('org/lwjgl/') })
-                throw new GradleException('Halo must not bundle Caustica or LWJGL classes')
+            if (jar.stream().anyMatch { it.name.startsWith('dev/comfyfluffy/caustica/') || it.name.startsWith('org/lwjgl/') || it.name.startsWith('caustica/') || it.name.endsWith('.spv') })
+                throw new GradleException('Halo must not bundle Caustica/LWJGL implementations, Caustica natives, or linked SPIR-V')
+            ['COMPAT-NOTICES.txt', 'CAUSTICA-COPYING.txt', 'CAUSTICA-COPYING.LESSER.txt'].each { notice ->
+                if (jar.getEntry('META-INF/halo/' + notice) == null)
+                    throw new GradleException('Missing Caustica compatibility notice or license: ' + notice)
+            }
         }
     }
 }

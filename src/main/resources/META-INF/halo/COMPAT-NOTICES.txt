@@ -1,4 +1,25 @@
-Optional player-model integrations
+Optional integrations
+
+Caustica experimental ray tracing backend
+Copyright (c) 2026 ComfyFluffy and contributors.
+Project: https://github.com/ComfyFluffy/Caustica
+Inspected source: rewrite / 0cc9d0af4f4118cd26b830084a14f2bafc0d904d
+License: LGPL-3.0-or-later. Caustica and its use are covered by that license.
+The accompanying CAUSTICA-COPYING.txt and CAUSTICA-COPYING.LESSER.txt
+contain the GNU GPL v3 and LGPL v3 texts respectively.
+
+Halo calls and instruments a separately installed Caustica at runtime, and
+its shader sources import Caustica's runtime-provided shader API. Halo does
+not bundle Caustica's implementation, native libraries or compiled shaders.
+Halo's independently written application code and HaloCore remain MIT.
+
+Users may modify and replace Caustica with a version compatible with the
+Java/shader interfaces and experimental frame/entity hooks used by Halo.
+Halo does not prohibit library modification or reverse engineering for
+debugging such modifications. The build-time dependency hash records the
+inspected artifact; Halo does not enforce that hash on the installed mod.
+Caustica's third-party NVIDIA and Slang components retain their respective
+licenses; see its THIRD_PARTY_NOTICES.md when distributing Caustica itself.
 
 Entity Model Features (EMF)
 Copyright (c) 2022 and its contributors.
