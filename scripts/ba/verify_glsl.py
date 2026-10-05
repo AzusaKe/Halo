@@ -59,15 +59,20 @@ close(render(6,'halo',[0,0,0],[0,0,0,1],[.5,.5,1,0],1),[0,0,0],'halo near-black 
 close(render(1,'body',[.7,.8,.9],[0,0,.5,1],[.5,.5,1,0],1),[.7,.8,.9],'body fully lit base')
 close(render(4,'hair',[.1,.2,.3],[0,.5,0,1],[.5,.5,1,0],1),[.1,.2,.3],'hair Spec Alpha disables highlight')
 close(render(4,'hair',[.1,.2,.3],[0,.5,0,1],[.5,.5,1,0],0),[.075,.15,.225],'hair shadow HSV value .5 mix .5')
-close(render(1,'body',[.7,.8,.9],[0,0,.5,1],[.5,.5,1,0],-1,[2,2,2]),[1.4,1.6,1.8],'body brightness follows HDR environment')
-close(render(4,'hair',[.1,.2,.3],[0,.5,0,1],[.5,.5,1,0],-1,[2,2,2]),[.2,.4,.6],'hair brightness follows HDR environment')
-close(render(1,'body',[.7,.8,.9],[0,0,.5,1],[.5,.5,1,0],-1,[0,0,0]),[0,0,0],'body has no fixed emission in darkness')
-close(render(7,'unlit',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[8,4,2],[.2,.2,.2]),[.02,.04,.06],'unlit follows ambient without directional lighting')
+close(render(1,'body',[.7,.8,.9],[0,0,.5,1],[.5,.5,1,0],-1,[2,2,2],[2,2,2]),[1.4,1.6,1.8],'body emission follows overall environment brightness')
+close(render(4,'hair',[.1,.2,.3],[0,.5,0,1],[.5,.5,1,0],-1,[2,2,2],[2,2,2]),[.2,.4,.6],'hair emission follows overall environment brightness')
+close(render(1,'body',[.7,.8,.9],[0,0,.5,1],[.5,.5,1,0],-1,[0,0,0],[0,0,0]),[0,0,0],'body is adapted to total darkness')
+close(render(7,'unlit',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[8,4,2],[.2,.2,.2]),[.02,.04,.06],'unlit follows shared gain without directional lighting')
 close(render(8,'unlit',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[8,4,2],[0,0,0]),[0,0,0],'outline has no emission in total darkness')
 close(render(7,'unlit',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[0,0,0],[0,0,0]),[0,0,0],'eyes and mouth have no emission in total darkness')
 for exposure in [.1,1,2]:
     actual=render(6,'halo',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[0,0,0],[0,0,0],exposure)
     close(tuple(v*exposure for v in actual),[.002,.004,.006],'halo emission floor stays stable across exposure '+str(exposure))
+colored=[.2,.4,.8]
+gain=sum(v*w for v,w in zip(colored,[.2126,.7152,.0722]))
+for kind,profile,base,mask in [(1,'body',[.7,.8,.9],[0,0,.5,1]),(4,'hair',[.1,.2,.3],[0,.5,0,1]),(7,'unlit',[.1,.2,.3],[0,0,0,1])]:
+    close(render(kind,profile,base,mask,[.5,.5,1,0],-1,[8,4,2],colored),[v*gain for v in base],profile+' colored environment preserves artist chromaticity')
+close(render(1,'body',[.7,.8,.9],[0,0,.5,1],[.5,.5,1,0],-1,[8,8,8],[1,1,1]),[.7,.8,.9],'body does not receive a second diffuse multiply after toon palette selection')
 report={'renderer':context.info['GL_RENDERER'],'version':context.info['GL_VERSION'],'actual_glsl_compile_link':'passed','cases':checks}
 (ROOT/'.local/ba/delivery/glsl-results.json').write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))

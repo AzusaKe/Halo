@@ -1,7 +1,8 @@
 # BA 实验 / Fabric 1.20.1
 
 以下为 v1 实施与验证记录。后续环境亮度及高光修正见
-[v2 复测记录](ba-visual-fixes.md)，当前实验版本为 `2.5.0-ba.2`。
+[v2 复测记录](ba-visual-fixes.md)；最新自发光配色策略与正式版投影候选见
+[后续记录](ba-emission-and-shadow-followup.md)。当前为 `2.5.0-ba.2+adapter.2`。
 
 ## 基线与职责
 

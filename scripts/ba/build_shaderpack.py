@@ -49,10 +49,13 @@ def build():
                 # Native minimum-light floor becomes excessive on pale BA palettes at night.
                 text = text.replace("doIndirectLighting(AmbientLightColor, MinimumLightColor, lightmap.y)",
                     "doIndirectLighting(AmbientLightColor, HaloBA_type!=0 ? vec3(0.0) : MinimumLightColor, lightmap.y)")
-                # Isotropic local sky + block light for no-shadow parts, independent of camera/normal.
+                # Shared emission brightness: sky + average direct exposure + block light.
+                # Surface normal/shadow response belongs exclusively to the toon node input.
                 ambient = "vec3 baAmbient=Indirect_lighting;\n"
+                ambient += "vec3 baLpvPos=vec3(0.0);\n#ifdef IS_LPV_ENABLED\n baLpvPos=GetLpvPosition(feetPlayerPos);\n#endif\n"
                 ambient += "#ifdef OVERWORLD_SHADER\n if(HaloBA_type!=0) baAmbient=doIndirectLighting(averageSkyCol_Clouds/30.0,vec3(0.0),lightmap.y)"
-                ambient += "+doBlockLightLighting(vec3(TORCH_R,TORCH_G,TORCH_B),lightmap.x,exposure,feetPlayerPos,lpvPos);\n#endif\n"
+                ambient += "+0.5*(lightCol.rgb/80.0)*clamp((lightmap.y-0.8)*5.0,0.0,1.0)"
+                ambient += "+doBlockLightLighting(vec3(TORCH_R,TORCH_G,TORCH_B),lightmap.x,exposure,feetPlayerPos,baLpvPos);\n#endif\n"
                 text = text.replace(old, ambient + old + "\n if(HaloBA_type!=0) FinalColor=baEvaluate(Albedo,baMask,baSpec,Indirect_lighting+Direct_lighting,baAmbient,exposure,normalize(normal),-normalize(viewPos));")
                 text = text.replace("Emission(gl_FragData[0].rgb, Albedo, SpecularTex.b, exposure);", "if(HaloBA_type==0) Emission(gl_FragData[0].rgb, Albedo, SpecularTex.b, exposure);")
                 # Non-water/non-glass tag survives to composite without relighting the HDR result.
@@ -77,7 +80,7 @@ def build():
             dst.writestr(entry.filename, data)
         library = library.replace("uniform vec4 HaloBA_mask;", "uniform vec4 HaloBA_mask_default;")
         dst.writestr("shaders/lib/halo_ba.glsl",library)
-        dst.writestr("HALO-BA.txt", "Halo BA Experimental v2 (material contract v1), based on Bliss v2.1.2 release11 by X0nk and Chocapic13.\n"
+        dst.writestr("HALO-BA.txt", "Halo BA Experimental v3 (material contract v1), based on Bliss v2.1.2 release11 by X0nk and Chocapic13.\n"
             "https://github.com/X0nk/Bliss-Shader/tree/release11\n"
             "Original LICENSE.md and CREDITS.txt are retained. Local experiment; no monetizing links.\n")
     # Adapter uniform metadata is generated from the same exact table, not manually duplicated.
