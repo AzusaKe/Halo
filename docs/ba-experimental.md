@@ -2,7 +2,8 @@
 
 以下为 v1 实施与验证记录。后续环境亮度及高光修正见
 [v2 复测记录](ba-visual-fixes.md)；最新自发光配色策略与正式版投影候选见
-[后续记录](ba-emission-and-shadow-followup.md)。当前为 `2.5.0-ba.2+adapter.2`。
+[后续记录](ba-emission-and-shadow-followup.md)。当前为 `2.5.0-ba.2+adapter.3`，
+光环独立发光及全局倍率见 [v4 记录](ba-halo-global-emission.md)。
 
 ## 基线与职责
 

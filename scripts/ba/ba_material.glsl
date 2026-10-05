@@ -1,4 +1,5 @@
 // Halo BA contract v1. Raw companion RGBA; scene-linear color; no LabPBR decoding.
+#define HALO_BA_HALO_EMISSION 1.0 // [0.0 0.25 0.5 1.0 2.0 4.0]
 uniform int HaloBA_type;
 uniform int HaloBA_hasMask;
 uniform int HaloBA_hasSpec;
@@ -107,10 +108,11 @@ vec3 baEvaluate(vec3 base, vec4 mask, vec4 spec, vec3 illumination, vec3 ambient
     if(HaloBA_type>=1 && HaloBA_type<=3) return baBody(base,mask,light,n,incoming)*environment;
     if(HaloBA_type==4) return baHair(base,mask,spec,light,n,incoming)*environment;
     if(HaloBA_type==5) return baWeapon(base,mask,light,n,incoming)*environment;
-    // Convert halo emission to the host HDR scale. Keep a small exposure-compensated
-    // emission floor; the original .5 strength is still applied by baHalo.
+    // Halo suffix preset emits independently of local sky/block light. Normalize
+    // host exposure so daylight/night metering does not extinguish or overdrive it.
+    // Global shader option scales the original node emission (currently .5).
     if(HaloBA_type==6) return baHalo(base)*(HaloBA_fixedLight>=0.0 ? vec3(1.0)
-        : vec3(max(gain,0.04/max(exposure,0.0001))));
+        : vec3(HALO_BA_HALO_EMISSION/max(exposure,0.0001)));
     // No-shadow means independent of normal and cast shadows, not fixed HDR emission.
     // Eyes/mouth and outline retain their color while following local ambient brightness.
     return base*HaloBA_Strength*environment;

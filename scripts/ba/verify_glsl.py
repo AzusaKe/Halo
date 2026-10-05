@@ -67,12 +67,19 @@ close(render(8,'unlit',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[8,4,2],[0,0,0]),[0,0
 close(render(7,'unlit',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[0,0,0],[0,0,0]),[0,0,0],'eyes and mouth have no emission in total darkness')
 for exposure in [.1,1,2]:
     actual=render(6,'halo',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[0,0,0],[0,0,0],exposure)
-    close(tuple(v*exposure for v in actual),[.002,.004,.006],'halo emission floor stays stable across exposure '+str(exposure))
+    close(tuple(v*exposure for v in actual),[.05,.1,.15],'halo full emission stays stable across exposure '+str(exposure))
+for ambient in [[0,0,0],[1,1,1],[8,4,2]]:
+    close(render(6,'halo',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[8,4,2],ambient),[.05,.1,.15],'halo ignores local illumination '+str(ambient))
 colored=[.2,.4,.8]
 gain=sum(v*w for v,w in zip(colored,[.2126,.7152,.0722]))
 for kind,profile,base,mask in [(1,'body',[.7,.8,.9],[0,0,.5,1]),(4,'hair',[.1,.2,.3],[0,.5,0,1]),(7,'unlit',[.1,.2,.3],[0,0,0,1])]:
     close(render(kind,profile,base,mask,[.5,.5,1,0],-1,[8,4,2],colored),[v*gain for v in base],profile+' colored environment preserves artist chromaticity')
 close(render(1,'body',[.7,.8,.9],[0,0,.5,1],[.5,.5,1,0],-1,[8,8,8],[1,1,1]),[.7,.8,.9],'body does not receive a second diffuse multiply after toon palette selection')
+for emission in [0.0,.5,2.0]:
+    program=context.program(vertex_shader=vertex,fragment_shader=fragment.replace('#define HALO_BA_HALO_EMISSION 1.0', '#define HALO_BA_HALO_EMISSION '+str(emission)))
+    vao=context.vertex_array(program,[])
+    close(render(6,'halo',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[8,4,2],[0,0,0]),[v*emission for v in [.05,.1,.15]],'global halo emission option '+str(emission))
+    close(render(7,'unlit',[.1,.2,.3],[0,0,0,1],[.5,.5,1,0],-1,[8,4,2],[.2,.2,.2]),[.02,.04,.06],'halo global option leaves eye/mouth unchanged '+str(emission))
 report={'renderer':context.info['GL_RENDERER'],'version':context.info['GL_VERSION'],'actual_glsl_compile_link':'passed','cases':checks}
 (ROOT/'.local/ba/delivery/glsl-results.json').write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))

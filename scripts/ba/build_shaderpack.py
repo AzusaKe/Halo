@@ -63,7 +63,16 @@ def build():
                 data = text.encode()
             elif entry.filename == "shaders/shaders.properties":
                 # Classification is discrete even when the color target alpha blends.
+                text=data.decode().replace("\r", "")
+                text=text.replace("screen = \\\n", "screen = [HALO_BA] \\\n", 1)
+                text=re.sub(r"(?m)^(sliders\s*=)", r"\1 HALO_BA_HALO_EMISSION", text, count=1)
+                data=text.encode()
+                data += b"\nscreen.HALO_BA = HALO_BA_HALO_EMISSION\n"
                 data += b"\nblend.gbuffers_water.colortex7 = off\nblend.gbuffers_entities_translucent.colortex7 = off\n"
+            elif entry.filename == "shaders/lang/en_us.lang":
+                data += b"\nscreen.HALO_BA=Halo BA\noption.HALO_BA_HALO_EMISSION=Halo global emission\noption.HALO_BA_HALO_EMISSION.comment=Independent emission for BA halo suffix materials. Preserves node colors and strength; exposure compensated.\n"
+            elif entry.filename == "shaders/lang/zh_cn.lang":
+                data += "\nscreen.HALO_BA=Halo BA\noption.HALO_BA_HALO_EMISSION=光环全局自发光\noption.HALO_BA_HALO_EMISSION.comment=按 halo 后缀识别；保留节点颜色和强度，不随环境变暗，进行曝光补偿。\n".encode()
             elif entry.filename in ("shaders/dimensions/composite1.fsh", "shaders/dimensions/composite2.fsh", "shaders/dimensions/composite3.fsh"):
                 text=data.decode().replace("\r","")
                 # Material identity must not interpolate across transparent edges.
@@ -80,7 +89,7 @@ def build():
             dst.writestr(entry.filename, data)
         library = library.replace("uniform vec4 HaloBA_mask;", "uniform vec4 HaloBA_mask_default;")
         dst.writestr("shaders/lib/halo_ba.glsl",library)
-        dst.writestr("HALO-BA.txt", "Halo BA Experimental v3 (material contract v1), based on Bliss v2.1.2 release11 by X0nk and Chocapic13.\n"
+        dst.writestr("HALO-BA.txt", "Halo BA Experimental v4 (material contract v1), based on Bliss v2.1.2 release11 by X0nk and Chocapic13.\n"
             "https://github.com/X0nk/Bliss-Shader/tree/release11\n"
             "Original LICENSE.md and CREDITS.txt are retained. Local experiment; no monetizing links.\n")
     # Adapter uniform metadata is generated from the same exact table, not manually duplicated.
