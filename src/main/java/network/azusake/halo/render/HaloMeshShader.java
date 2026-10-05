@@ -66,7 +66,8 @@ public final class HaloMeshShader {
     }
 
     static boolean bind(MinecraftClient client, DrawBatch batch, MaterialState.Mesh material, RenderEnvironment environment) {
-        ShaderProgram shader = bind(client, batch.texture(), material, batch.light(), false,
+        // Expanded CPU geometry no longer carries the part transform. Preserve legacy fallback.
+        ShaderProgram shader = bind(client, batch.texture(), new MaterialState.Mesh(material.mask()), batch.light(), false,
             batch.directionalLighting(), false, environment);
         if (shader != null && batch.directionalLighting()) setNormalMatrix(shader, RenderSystem.getModelViewMatrix());
         return shader != null;
@@ -104,23 +105,26 @@ public final class HaloMeshShader {
             this.environment = environment;
             iris = environment == RenderEnvironment.WORLD && OptionalIrisPassDetector.hasShaderPack();
             cache = new MeshSubmissionCache<>(variant -> {
-                boolean lit = variant != 0;
-                ShaderProgram shader = iris ? IrisMeshBridge.currentProgram(lit, variant == 2)
+                boolean lit = variant != 0 || iris && IrisMeshBridge.renderingShadow;
+                ShaderProgram shader = iris && IrisMeshBridge.renderingShadow ? IrisMeshBridge.shadowProgram()
+                    : iris ? IrisMeshBridge.currentProgram(lit, variant == 2)
                     : lit ? litProgram : flatProgram;
                 return shader == null ? null : new PreparedProgram(shader, iris, lit);
             }, id -> client.getTextureManager().getTexture(game(id)));
         }
 
         PreparedProgram bind(network.azusake.halo.core.render.MeshDraw draw) {
-            PreparedProgram program = cache.program(draw.directionalLighting(), draw.blend());
+            boolean ba=iris && !IrisMeshBridge.renderingShadow && draw.material().ba()!=null && IrisMeshBridge.baProgram()!=null;
+            PreparedProgram program = ba ? new PreparedProgram(IrisMeshBridge.baProgram(),true,true)
+                : cache.program(draw.directionalLighting(), draw.blend());
             if (program == null) return null;
             if (iris) RenderSystem.depthMask(true);
             var mask = draw.material().mask();
             var base = draw.texture();
             RenderSystem.setShader(program);
             RenderSystem.setShaderTexture(0, cache.base(base).getGlId());
-            int maskSlot = iris && draw.directionalLighting() ? 3 : 1;
-            if (iris && draw.directionalLighting()) client.gameRenderer.getOverlayTexture().setupOverlayColor();
+            int maskSlot = iris && program.normalMatrix != null ? 3 : 1;
+            if (iris && program.normalMatrix != null) client.gameRenderer.getOverlayTexture().setupOverlayColor();
             RenderSystem.setShaderTexture(maskSlot, cache.mask(mask == null ? base : mask.texture()).getGlId());
             program.maskEnabled.set(mask == null ? 0 : 1);
             program.maskMode.set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
@@ -129,6 +133,7 @@ public final class HaloMeshShader {
             LightSample sample = draw.light().available() ? draw.light() : LightSample.FULL_BRIGHT;
             program.lightCoord.set(sample.block() << 4, sample.sky() << 4);
             program.legacyAlphaCutoff.set(0);
+            if (ba) HaloBaShader.bind(client, program.shader, draw.material().ba());
             return program;
         }
 
@@ -158,6 +163,7 @@ public final class HaloMeshShader {
         }
 
         @Override public ShaderProgram get() { return shader; }
+        boolean lit() { return normalMatrix != null; }
         void normal(Matrix3f matrix) { normalMatrix.set(matrix); }
     }
 
@@ -167,6 +173,9 @@ public final class HaloMeshShader {
         boolean iris = environment == RenderEnvironment.WORLD && OptionalIrisPassDetector.hasShaderPack();
         ShaderProgram shader = iris ? IrisMeshBridge.currentProgram(directionalLighting, translucent)
             : directionalLighting ? litProgram : flatProgram;
+        if (iris && IrisMeshBridge.renderingShadow) shader=IrisMeshBridge.shadowProgram();
+        else if (iris && material!=null && material.ba()!=null && IrisMeshBridge.baProgram()!=null)
+            shader=IrisMeshBridge.baProgram();
         if (shader == null) return null;
         // A shader pack may store translucent color separately and reconstruct its position
         // from depthtex0 during compositing/fog. Leaving only the background depth makes
@@ -178,7 +187,8 @@ public final class HaloMeshShader {
         if (iris) RenderSystem.depthMask(true);
         var mask = material == null ? null : material.mask();
         var baseTexture = texture == null ? WHITE_TEXTURE : texture;
-        RenderSystem.setShader(() -> shader);
+        ShaderProgram selected=shader;
+        RenderSystem.setShader(() -> selected);
         RenderSystem.setShaderTexture(0, client.getTextureManager().getTexture(game(baseTexture)).getGlId());
         int maskSlot = iris && directionalLighting ? 3 : 1;
         if (iris && directionalLighting) client.gameRenderer.getOverlayTexture().setupOverlayColor();
@@ -192,6 +202,7 @@ public final class HaloMeshShader {
         LightSample sample = light.available() ? light : LightSample.FULL_BRIGHT;
         shader.getUniformOrDefault(prefix + "LightCoord").set(sample.block() << 4, sample.sky() << 4);
         shader.getUniformOrDefault(prefix + "LegacyAlphaCutoff").set(legacyAlphaCutoff ? 1 : 0);
+        if (material!=null && material.ba()!=null) HaloBaShader.bind(client,shader,material.ba());
         return shader;
     }
 

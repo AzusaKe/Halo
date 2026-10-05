@@ -1,0 +1,136 @@
+{
+  "HaloBA_shadowfactor": 0.5,
+  "HaloBA_shadow_color0": [
+    0.0,
+    1.0,
+    0.053754836320877075,
+    1.0
+  ],
+  "HaloBA_shadow_color1_clamp": 0.009999999776482582,
+  "HaloBA_shadow_color1": [
+    0.0,
+    0.7940558195114136,
+    1.0,
+    1.0
+  ],
+  "HaloBA_shadow_color2_clamp": 0.25,
+  "HaloBA_shadow_color2": [
+    0.0,
+    0.006251709535717964,
+    1.0,
+    1.0
+  ],
+  "HaloBA_shadow_color3_clamp": 0.5,
+  "HaloBA_shadow_color3": [
+    1.0,
+    0.0,
+    0.39765745401382446,
+    1.0
+  ],
+  "HaloBA_shadow_color4_clamp": 0.75,
+  "HaloBA_shadow_color4": [
+    1.0,
+    0.03292066603899002,
+    0.0,
+    1.0
+  ],
+  "HaloBA_shadow_color5_clamp": 0.800000011920929,
+  "HaloBA_shadow_color5": [
+    0.5529927611351013,
+    1.0,
+    0.0,
+    1.0
+  ],
+  "HaloBA_From_Min": 0.0,
+  "HaloBA_From_Max": 0.4000000059604645,
+  "HaloBA_To_Max": 1.0,
+  "HaloBA_Fresnel": 0.7599999904632568,
+  "HaloBA_shadow_value": 0.10000000149011612,
+  "HaloBA_Value": 0.0,
+  "HaloBA_mask_default": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "HaloBA_mask_alpha": 0.5,
+  "HaloBA_highlightcolor_switch": 0,
+  "HaloBA_highlightcolor": [
+    0.35550662875175476,
+    0.35935094952583313,
+    0.4490315914154053,
+    1.0
+  ],
+  "HaloBA_shadowcolor_switch": 0,
+  "HaloBA_shadowcolor": [
+    0.07831520587205887,
+    0.08272314071655273,
+    0.13120660185813904,
+    1.0
+  ],
+  "HaloBA_AdjustiveHairShadow": 0.0,
+  "HaloBA_MaskGSensitivity": 1.399999976158142,
+  "HaloBA_SpecDirMultiplier_X": 0.41999998688697815,
+  "HaloBA_SpecDirMultiplier_Y": 0.0,
+  "HaloBA_SpecDirMultiplier_Z": 0.0,
+  "HaloBA_SpecTopMultiplier": 8.800000190734863,
+  "HaloBA_SpecTopLeveler": 7.800000190734863,
+  "HaloBA_SpecBotArea": 0.17000000178813934,
+  "HaloBA_SpecBotMultiplier": 34.60210037231445,
+  "HaloBA_Hardspec": 1,
+  "HaloBA_SpecClamp": 0.0,
+  "HaloBA_SpecStrength": 1.0,
+  "HaloBA_object_vector": 1,
+  "HaloBA_view_vector": 1,
+  "HaloBA_Rotation": [
+    0.007897905074059963,
+    -1.7628262042999268,
+    -0.6333768963813782
+  ],
+  "HaloBA_SpecHelperRotation": [
+    -0.2426898330450058,
+    0.19518619775772095,
+    0.7340428233146667,
+    0.6034776568412781
+  ],
+  "HaloBA_Emission_Strength": -0.5000001192092896,
+  "HaloBA_slect_color": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "HaloBA_replace_color": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "HaloBA_replace_clamp": 1000.0,
+  "HaloBA_replace_multiply": 1.0,
+  "HaloBA_Emission_Strength1": 1.0,
+  "HaloBA_mix_fac": 0.0,
+  "HaloBA_mix_color": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "HaloBA_Emission_Strength2": 1.0,
+  "HaloBA_spec_clamp": 0.0,
+  "HaloBA_spec_invert": 0.0,
+  "HaloBA_spec_multiply": 0.5,
+  "HaloBA_spec_mask": 0.30000001192092896,
+  "HaloBA_spec_color": [
+    0.01020833570510149,
+    0.055651504546403885,
+    0.15519386529922485,
+    1.0
+  ],
+  "HaloBA_shadow_factor": 0.75,
+  "HaloBA_AO_Value": 0.0,
+  "HaloBA_metallic": 0.0,
+  "HaloBA_roughness": 0.0,
+  "HaloBA_roughness_invert": 0.0,
+  "HaloBA_Strength": 1.0
+}

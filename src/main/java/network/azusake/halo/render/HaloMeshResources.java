@@ -51,10 +51,14 @@ public final class HaloMeshResources {
                 }
                 // Preload through Minecraft's owner during loading, never first-load a PNG inside a mesh draw.
                 MinecraftClient.getInstance().getTextureManager().getTexture(game(id));
+                if (id.getPath().endsWith("_mask.png") || id.getPath().endsWith("_spac.png"))
+                    MinecraftClient.getInstance().getTextureManager().getTexture(game(id)).setFilter(true, false);
                 return info;
             }
+            @Override public boolean exists(Identifier id) { return manager.getResource(game(id)).isPresent(); }
         }, problem -> LOG.warn("Skipping mesh asset {}: {}", problem.resource(), problem.message()));
-        VisualResources visuals = loader.load(definitions.assets());
+        VisualResources visuals = loader.load(definitions);
+        LOG.info("Mesh resource generation {}: {} BA material part(s)", visuals.generation(), visuals.baMaterials().size());
         HaloRenderer.getInstance().reloadMeshBuffers(visuals);
         preloadLegacy(definitions);
         Snapshot next = new Snapshot(definitions, visuals);
@@ -77,8 +81,8 @@ public final class HaloMeshResources {
         Snapshot previous = published;
         if (definitions == previous.definitions()) return;
         VisualResources visuals = previous.visuals();
-        if (!definitions.assets().equals(previous.definitions().assets()) && loader != null) {
-            visuals = loader.load(definitions.assets());
+        if (loader != null) {
+            visuals = loader.load(definitions);
             HaloRenderer.getInstance().reloadMeshBuffers(visuals);
         }
         preloadLegacy(definitions);

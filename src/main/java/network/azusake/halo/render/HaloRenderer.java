@@ -27,6 +27,9 @@ public final class HaloRenderer {
     private record DeferredMeshes(long generation, VisualResources visuals, List<MeshDraw> draws,
                                   Matrix4f modelView, Matrix4f projection, VertexSorter sorting) {}
     private DeferredMeshes deferredMeshes;
+    private DeferredMeshes lastMainMeshes;
+    private net.minecraft.util.math.Vec3d lastMainCamera;
+    private Object lastMainWorld;
     private HaloMeshBufferCache meshBuffers = HaloMeshBufferCache.empty();
     private HaloMeshBufferCache primitiveBuffers = HaloMeshBufferCache.empty();
     private PrimitiveRenderMode primitiveMode = PrimitiveRenderMode.COMPATIBILITY;
@@ -56,10 +59,11 @@ public final class HaloRenderer {
             primitiveBuffers = primitiveBuffers.updated(new VisualResources(snapshot.visuals().generation(), meshes, Map.of()), quads);
         }
     }
-    public void clearWorld() { previousWorld = null; deferredMeshes = null; }
+    public void clearWorld() { previousWorld = null; deferredMeshes = null; lastMainMeshes=null; lastMainWorld=null; }
     public void reloadMeshBuffers(VisualResources resources) {
         Runnable reload = () -> {
             deferredMeshes = null;
+            lastMainMeshes = null;
             HaloMeshBufferCache previous = meshBuffers;
             HaloMeshBufferCache replacement = previous.updated(resources);
             meshBuffers = replacement;
@@ -149,6 +153,9 @@ public final class HaloRenderer {
         Matrix4f meshModelView = new Matrix4f(RenderSystem.getModelViewMatrix());
         Matrix4f meshProjection = new Matrix4f(RenderSystem.getProjectionMatrix());
         VertexSorter meshSorting = RenderSystem.getVertexSorting();
+        lastMainMeshes=new DeferredMeshes(output.visualGeneration(),assets.visuals(),List.copyOf(output.meshes()),
+            new Matrix4f(meshModelView).mul(matrices.peek().getPositionMatrix()),meshProjection,meshSorting);
+        lastMainCamera=camera.getPos(); lastMainWorld=client.world;
         submitBatches(client, output.legacyBatches());
         HaloDrawSubmitter.submitPrimitives(client, output, primitiveBuffers, RenderEnvironment.WORLD);
         if (!solidLitMeshes.isEmpty()) {
@@ -167,7 +174,8 @@ public final class HaloRenderer {
         // sorted late path for real alpha blending. Vanilla keeps its previous late
         // submission too; only an active pack's opaque lit geometry must precede
         // Iris beginTranslucents(), which consumes the solid/deferred entity buffer.
-        return shaderPack && draw.directionalLighting() && !draw.blend();
+        return shaderPack && draw.directionalLighting() && !draw.blend()
+            && !(draw.material().ba()!=null && network.azusake.halo.compat.iris.IrisMeshBridge.baProgram()!=null);
     }
 
     /** Submit after entity buffers have been flushed, while the world shader pipeline is still active. */
@@ -194,6 +202,27 @@ public final class HaloRenderer {
     private void submitMeshes(MinecraftClient client, DeferredMeshes pending) {
         HaloDrawSubmitter.submitMeshes(client, new HaloDrawSubmitter.Submission(pending.generation(),
             pending.visuals(), pending.draws(), pending.modelView(), pending.projection()), meshBuffers, RenderEnvironment.WORLD);
+    }
+    /** Iris renders shadows before the current main pose exists. Reuse the latest completed pose. */
+    public void submitBaShadows(Matrix4f shadowView, Matrix4f shadowProjection) {
+        var client=MinecraftClient.getInstance(); var previous=lastMainMeshes;
+        if(previous==null || client.world!=lastMainWorld || previous.generation()!=HaloMeshResources.snapshot().visuals().generation()
+            || network.azusake.halo.compat.iris.IrisMeshBridge.shadowProgram()==null) return;
+        var now=client.gameRenderer.getCamera().getPos();
+        Matrix4f transform=new Matrix4f(shadowView).translate((float)(lastMainCamera.x-now.x),(float)(lastMainCamera.y-now.y),(float)(lastMainCamera.z-now.z))
+            .mul(new Matrix4f(previous.modelView()).invert());
+        List<MeshDraw> draws=new ArrayList<>();
+        for(var draw:previous.draws()) {
+            if(draw.material().ba()==null || !draw.material().ba().castsShadow()) continue;
+            float[] matrix=new Matrix4f(transform).mul(new Matrix4f().set(draw.localToView())).get(new float[16]);
+            draws.add(new MeshDraw(draw.model(),draw.texture(),matrix,draw.cull(),false,true,true,
+                draw.red(),draw.green(),draw.blue(),draw.alpha(),draw.mirrored(),draw.material(),draw.light(),true));
+        }
+        network.azusake.halo.compat.iris.IrisMeshBridge.renderingShadow=true;
+        try {
+            HaloDrawSubmitter.submitMeshes(client,new HaloDrawSubmitter.Submission(previous.generation(),previous.visuals(),draws,
+                new Matrix4f(),shadowProjection),meshBuffers,RenderEnvironment.WORLD);
+        } finally { network.azusake.halo.compat.iris.IrisMeshBridge.renderingShadow=false; }
     }
 
     private static void submitBatches(MinecraftClient client, List<DrawBatch> batches) {

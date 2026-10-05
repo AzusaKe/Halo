@@ -247,8 +247,8 @@ final class HaloMeshBufferCache implements AutoCloseable {
             Matrix4f modelView = workspace == null
                 ? new Matrix4f(outerModelView).mul(new Matrix4f().set(draw.localToView()))
                 : workspace.modelView(outerModelView, draw);
-            VertexBuffer selected = draw.directionalLighting() ? litVertices : flatVertices;
-            boolean expanded = draw.directionalLighting();
+            boolean expanded = prepared == null ? draw.directionalLighting() : prepared.lit();
+            VertexBuffer selected = expanded ? litVertices : flatVertices;
             selected.bind();
             if (draw.blend()) {
                 GlStateManager._glBindBuffer(ELEMENT_ARRAY_BUFFER,
@@ -270,10 +270,11 @@ final class HaloMeshBufferCache implements AutoCloseable {
                         ? draw.mirrored() ? litMirroredElements : litNormalElements
                         : draw.mirrored() ? flatMirroredElements : flatNormalElements);
             }
-            if (draw.directionalLighting()) {
+            if (expanded) {
                 if (prepared == null) HaloMeshShader.setNormalMatrix(shader, modelView);
                 else prepared.normal(workspace.normal(modelView));
             }
+            HaloBaShader.orientation(shader,draw.material().ba(),modelView);
             selected.draw(modelView, projection, shader);
             VertexBuffer.unbind();
         }

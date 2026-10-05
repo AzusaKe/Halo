@@ -9,6 +9,7 @@ import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL33;
 
 /** Restores caller-owned state after immediate submission, including exceptional exits. */
 final class HaloRenderState implements AutoCloseable {
@@ -27,8 +28,11 @@ final class HaloRenderState implements AutoCloseable {
     private final int arrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
     private final int elementBuffer = GL11.glGetInteger(GL15.GL_ELEMENT_ARRAY_BUFFER_BINDING);
     private final int activeTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
+    private final int drawFramebuffer=GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+    private final int readFramebuffer=GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
     private final int[] shaderTextures = new int[4];
-    private final int[] boundTextures = new int[4];
+    private final int[] boundTextures = new int[Math.min(32, GL11.glGetInteger(GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS))];
+    private final int[] boundSamplers = new int[boundTextures.length];
     private final float[][] genericColors;
 
     HaloRenderState() {
@@ -40,10 +44,11 @@ final class HaloRenderState implements AutoCloseable {
             GL20.glGetVertexAttribfv(1, GL20.GL_CURRENT_VERTEX_ATTRIB, genericColors[0]);
             GL20.glGetVertexAttribfv(2, GL20.GL_CURRENT_VERTEX_ATTRIB, genericColors[1]);
         }
-        for (int slot = 0; slot < 4; slot++) {
-            shaderTextures[slot] = RenderSystem.getShaderTexture(slot);
+        for (int slot = 0; slot < boundTextures.length; slot++) {
+            if (slot < shaderTextures.length) shaderTextures[slot] = RenderSystem.getShaderTexture(slot);
             RenderSystem.activeTexture(GL13.GL_TEXTURE0 + slot);
             boundTextures[slot] = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+            boundSamplers[slot]=GL11.glGetInteger(GL33.GL_SAMPLER_BINDING);
         }
         RenderSystem.activeTexture(activeTexture);
     }
@@ -56,12 +61,15 @@ final class HaloRenderState implements AutoCloseable {
         GlStateManager._glBindVertexArray(vao);
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, arrayBuffer);
         GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, elementBuffer);
-        for (int slot = 0; slot < 4; slot++) {
-            RenderSystem.setShaderTexture(slot, shaderTextures[slot]);
+        for (int slot = 0; slot < boundTextures.length; slot++) {
+            if (slot < shaderTextures.length) RenderSystem.setShaderTexture(slot, shaderTextures[slot]);
             RenderSystem.activeTexture(GL13.GL_TEXTURE0 + slot);
             GlStateManager._bindTexture(boundTextures[slot]);
+            GL33.glBindSampler(slot,boundSamplers[slot]);
         }
         RenderSystem.activeTexture(activeTexture);
+        GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,drawFramebuffer);
+        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,readFramebuffer);
         RenderSystem.setShader(() -> shader);
         GlStateManager._glUseProgram(program);
         RenderSystem.setShaderColor(color[0], color[1], color[2], color[3]);

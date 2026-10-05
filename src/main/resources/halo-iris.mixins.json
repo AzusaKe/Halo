@@ -2,6 +2,6 @@
     "required": false,
     "package": "network.azusake.halo.compat.iris.mixin",
     "compatibilityLevel": "JAVA_17",
-    "client": ["IrisMeshPipelineMixin"],
+    "client": ["IrisMeshPipelineMixin", "IrisMaterialSamplersMixin", "IrisBaSamplersMixin", "IrisBaShadowMixin"],
     "injectors": {"defaultRequire": 1}
 }

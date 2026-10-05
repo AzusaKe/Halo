@@ -25,6 +25,11 @@ public final class IrisMeshShaderSource {
     public static String patch(String path, String source) {
         return patch(path, source, false);
     }
+    public static String patchShadow(String path,String source) {
+        if(path.endsWith(".vsh") && !Pattern.compile("\\bin\\s+ivec2\\s+(iris_UV2|UV2)\\s*;").matcher(source).find())
+            source=declarations(source,"in ivec2 iris_UV2;\n");
+        return patch(path,source,true);
+    }
 
     public static String patch(String path, String source, boolean directionalLighting) {
         if (path.endsWith(".json")) return json(source, directionalLighting);
