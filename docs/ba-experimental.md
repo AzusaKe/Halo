@@ -1,5 +1,8 @@
 # BA 实验 / Fabric 1.20.1
 
+以下为 v1 实施与验证记录。后续环境亮度及高光修正见
+[v2 复测记录](ba-visual-fixes.md)，当前实验版本为 `2.5.0-ba.2`。
+
 ## 基线与职责
 
 Halo 从 `1.20.1-fabric@2cb61117b8e07e6710c3c39dfcd46544ab0d3dad`、core 从锁定的
@@ -74,7 +77,8 @@ halo 替换、混色及当前约 0.5 emission 来自实际活动节点。未连�
 
 用户指出白天过暗后，body/face/hair 的艺术色彩乘 Bliss 的直接+间接 HDR 光照，
 包含太阳/月亮、阴影、天空和方块光，不再作为固定自发光输出。
-这是有意的 MC 适配，不是 Blender lighting engine 的等价重现；halo 和实际 unlit 保留发光。
+这是有意的 MC 适配，不是 Blender lighting engine 的等价重现。
+v2 的 halo HDR 增益及无阴影部件环境亮度策略见后续记录。
 `-Dhalo.ba.fixedLight=0.2` 固定节点 light 并用单位环境增益对照公式；默认 -1 使用环境。
 固定曝光须在 Bliss 设置中另选手动曝光。
 

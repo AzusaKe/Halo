@@ -130,7 +130,8 @@ public final class HaloMeshShader {
             program.maskMode.set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
             program.maskThreshold.set(mask == null ? 0.5f : mask.threshold());
             program.maskOffset.set(mask == null ? 0f : mask.offsetU(), mask == null ? 0f : mask.offsetV());
-            LightSample sample = draw.light().available() ? draw.light() : LightSample.FULL_BRIGHT;
+            LightSample requested = draw.material().light(ba,draw.light());
+            LightSample sample = requested.available() ? requested : LightSample.FULL_BRIGHT;
             program.lightCoord.set(sample.block() << 4, sample.sky() << 4);
             program.legacyAlphaCutoff.set(0);
             if (ba) HaloBaShader.bind(client, program.shader, draw.material().ba());
@@ -199,7 +200,8 @@ public final class HaloMeshShader {
         shader.getUniformOrDefault(prefix + "MaskMode").set(mask != null && mask.mode() == MaterialState.MaskMode.STEP ? 1 : 0);
         shader.getUniformOrDefault(prefix + "MaskThreshold").set(mask == null ? 0.5f : mask.threshold());
         shader.getUniformOrDefault(prefix + "MaskOffset").set(mask == null ? 0f : mask.offsetU(), mask == null ? 0f : mask.offsetV());
-        LightSample sample = light.available() ? light : LightSample.FULL_BRIGHT;
+        LightSample requested=material==null ? light : material.light(shader==IrisMeshBridge.baProgram(),light);
+        LightSample sample = requested.available() ? requested : LightSample.FULL_BRIGHT;
         shader.getUniformOrDefault(prefix + "LightCoord").set(sample.block() << 4, sample.sky() << 4);
         shader.getUniformOrDefault(prefix + "LegacyAlphaCutoff").set(legacyAlphaCutoff ? 1 : 0);
         if (material!=null && material.ba()!=null) HaloBaShader.bind(client,shader,material.ba());

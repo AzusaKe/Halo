@@ -97,16 +97,21 @@ vec3 baWeaponNormal(vec3 n, vec3 viewPos, vec2 uv, vec4 mask) {
     vec3 gradient=(dFdx(mask.r)*r1+dFdy(mask.r)*r2)*0.001;
     return baSafeNormal(abs(det)*n+sign(det)*gradient); // active Bump invert=true
 }
-vec3 baEvaluate(vec3 base, vec4 mask, vec4 spec, vec3 illumination, vec3 n, vec3 incoming) {
+vec3 baEvaluate(vec3 base, vec4 mask, vec4 spec, vec3 illumination, vec3 ambient, float exposure, vec3 n, vec3 incoming) {
     float light=HaloBA_fixedLight>=0.0 ? HaloBA_fixedLight : dot(illumination*0.8,vec3(0.2126,0.7152,0.0722));
     // Toon thresholds choose the artist palette; the world irradiance supplies HDR brightness.
     // Without this conversion the palette acts as fixed emission and daylight exposure darkens it.
     // Fixed-light reference mode deliberately uses unit irradiance for Blender comparisons.
     vec3 environment=HaloBA_fixedLight>=0.0 ? vec3(1.0) : max(illumination,vec3(0.0));
+    vec3 ambientEnvironment=HaloBA_fixedLight>=0.0 ? vec3(1.0) : max(ambient,vec3(0.0));
     if(HaloBA_type>=1 && HaloBA_type<=3) return baBody(base,mask,light,n,incoming)*environment;
     if(HaloBA_type==4) return baHair(base,mask,spec,light,n,incoming)*environment;
     if(HaloBA_type==5) return baWeapon(base,mask,light,n,incoming)*environment;
-    if(HaloBA_type==6) return baHalo(base);
-    if(HaloBA_type==8) return base*HaloBA_Strength;
-    return base*HaloBA_Strength;
+    // Convert halo emission to the host HDR scale. Keep a small exposure-compensated
+    // emission floor; the original .5 strength is still applied by baHalo.
+    if(HaloBA_type==6) return baHalo(base)*(HaloBA_fixedLight>=0.0 ? vec3(1.0)
+        : max(ambientEnvironment,vec3(0.04/max(exposure,0.0001))));
+    // No-shadow means independent of normal and cast shadows, not fixed HDR emission.
+    // Eyes/mouth and outline retain their color while following local ambient brightness.
+    return base*HaloBA_Strength*ambientEnvironment;
 }

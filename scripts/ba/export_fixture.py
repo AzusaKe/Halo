@@ -114,7 +114,7 @@ for material, tris in triangles.items():
     layers.append({'primitives':[{'type':'mesh','model':'model:models/'+stem+'.obj',
         'texture':'model:textures/'+texture+'.png','preserve_proportions':True,
         'scale':1.6,'glowing':False,'material':{'double_sided':not is_outline and part!='weapon01'}}]})
-definition={'id':'model:arisu_ba','orientation_mode':'sync','layers':[{'position':[0,-1.65,0],'children':layers}],
+definition={'id':'model:arisu_ba','display_in_invisible':True,'orientation_mode':'sync','layers':[{'position':[0,-1.65,0],'children':layers}],
     'positioning':{'offset':[0,0,0],'scale':1},'damping':{'linearFactor':1,'angularFactor':1,'maxLinearDistance':0,'maxAngularDegrees':0}}
 base['assets/model/halo_definitions/arisu_ba.json']=json.dumps(definition,indent=2).encode()
 for filename,entries in [('Arisu BA Base v1.zip',base),('Arisu BA Companions v1.zip',overlay)]:

@@ -1,6 +1,6 @@
 package network.azusake.halo.render;
 
-import java.util.List;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.ShaderProgram;
 import network.azusake.halo.compat.iris.BaProgramUniforms;
@@ -9,7 +9,6 @@ import network.azusake.halo.core.render.BaMaterial;
 import network.azusake.halo.core.render.BaOrientation;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import static network.azusake.halo.platform.PlatformTypes.game;
 
 /** Upload the complete material on every draw, before Iris applies its dynamic samplers. */
@@ -37,12 +36,13 @@ final class HaloBaShader {
 
     static void orientation(ShaderProgram shader, BaMaterial material, Matrix4f modelView) {
         if (material==null || shader != IrisMeshBridge.baProgram()) return;
-        // Export B(x,y,z) -> M(x,z,-y). Camera quaternion maps view vectors to M world.
+        // Export B(x,y,z) -> M(x,z,-y). Invert the actual submitted view rotation.
         // BA_SPEC rotates Blender Incoming about Y by pi/2 before combining directions.
-        Matrix3f viewToWorld = new Matrix3f().rotation(MinecraftClient.getInstance().gameRenderer.getCamera().getRotation());
-        Matrix3f partToWorld = new Matrix3f(viewToWorld).mul(new Matrix3f(modelView));
+        // Camera.getRotation() describes camera +Z, not OpenGL view -Z. Its pitch sign
+        // and 180-degree yaw convention do not invert the actual submitted MC view.
+        Matrix3f viewToWorld = new Matrix3f(RenderSystem.getInverseViewRotationMatrix());
         try {
-            var sample=BaOrientation.sample(partToWorld.get(new float[9]),viewToWorld.get(new float[9]),material.parameters());
+            var sample=BaOrientation.fromView(new Matrix3f(modelView).get(new float[9]),viewToWorld.get(new float[9]),material.parameters());
             shader.getUniformOrDefault("HaloBA_viewToReference").set(new Matrix3f().set(sample.viewToReference()));
             float[] direction=sample.objectDirection();
             shader.getUniformOrDefault("HaloBA_objectDirection").set(direction[0],direction[1],direction[2]);
