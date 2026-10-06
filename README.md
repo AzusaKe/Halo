@@ -9,7 +9,31 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 1.20.1 Fabric**. The current source version is **2.4.2+adapter.1**, using HaloCore **2.4.2**. HaloCore is pinned in the `core` Git submodule; players still install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This is **Experimental/1.20.1-fabric**, targeting Minecraft 1.20.1 Fabric with
+**2.5.0-ba.2+adapter.3** and pinned HaloCore **2.5.0-ba.2**. It is separate from the
+mainline and is not a release. See the [experiment](docs/ba-experimental.md),
+[core contracts](core/README.md), and [development guide](DEVELOPMENT.md).
+
+## Evaluation decision (2026-10-06)
+
+The user accepted the BA experiment's tested visual behavior but decided **not to merge
+the BA character material implementation into either core or the platform mainline**.
+Halo is a halo mod, not an anime character mod; this feature would overshadow its purpose.
+The user also confirmed interference with existing LabPBR, producing incorrect ordinary
+materials. That regression remains unlocalized and unresolved; experimental visual
+acceptance does not constitute ordinary LabPBR compatibility approval.
+
+**Outlines and model shadows on the ground are useful mainline candidates, subject to
+independent extraction and adaptation.** Outlines currently require exported geometry
+shells; shadows depend on the BA-specific Iris path and the preceding main-frame pose,
+with a one-frame delay. Future work must remove their dependence on BA companions,
+character materials and this shader derivative, and validate ordinary halo meshes,
+AlphaMask, poses, culling, depth, LabPBR and shader fallback. This migration has not happened.
+
+The [experimental shader and its own license](experiments/ba/README.md) are preserved
+on this branch. **Arisu model, base and companion resource packs are not uploaded at the
+user's request**; the local test copies are retained. The shader is not licensed under
+Halo's MIT license.
 
 2.4.0 adds the loader-neutral server ownership source API. Accessory and integration mods can submit halo candidates by entity UUID; Halo selects one winner by source priority, while the built-in commands and Halo Scepter continue to edit only the persisted `halo:world_data` source. Priorities are stored in `halo_source_priorities.json` and can be changed without restarting through `/halo priority list|set|reload`. Integrations must also provide the referenced definitions and visual assets to rendering clients. See the [API guide](docs/en/API.md#6-server-ownership-source-api).
 

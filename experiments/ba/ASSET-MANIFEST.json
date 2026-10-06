@@ -1,0 +1,25 @@
+{
+  "recorded": "2026-10-06",
+  "shader_baseline": "Bliss v2.1.2 release11",
+  "source_blend_sha256": "902f66f44d44ddfdd9036213db1e91190973ee7af8c75a74e6b0710f2fdfde22",
+  "assets": [
+    {
+      "name": "Halo BA Experimental (Chocapic13' Shaders edit).zip",
+      "bytes": 1784907,
+      "sha256": "7f4eeb0798351e46f57e322a1c0a77508ef9704717e9dab913e94d39157ee6b4",
+      "status": "included"
+    },
+    {
+      "name": "Arisu BA Base v1.zip",
+      "bytes": 1908530,
+      "sha256": "32f521b932387e61b34e8a495999e72c9129f3a285d7e3f592bf889623f3f738",
+      "status": "local_only_user_requested_no_upload"
+    },
+    {
+      "name": "Arisu BA Companions v1.zip",
+      "bytes": 301780,
+      "sha256": "d6f1422c5dde4ea477fc14698d7756a44c1e09c2cc60ec6e94a46818a98b8138",
+      "status": "local_only_user_requested_no_upload"
+    }
+  ]
+}

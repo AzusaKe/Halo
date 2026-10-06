@@ -1,4 +1,25 @@
-本分支面向 **Minecraft 1.20.1 Fabric**，当前源码版本为 **2.4.2+adapter.1**，使用 HaloCore **2.4.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支为 **Experimental/1.20.1-fabric**，面向 Minecraft 1.20.1 Fabric，当前源码版本
+**2.5.0-ba.2+adapter.3**，使用子模块锁定的 HaloCore **2.5.0-ba.2**。
+主线保持独立，实验分支不代表正式版。请参阅[实验记录](docs/ba-experimental.md)、
+[core 接口契约](core/README.md)及[开发指南](DEVELOPMENT.md)。
+
+## 实验评估结论（2026-10-06）
+
+用户确认本轮 BA 材质测试通过，经评估决定**暂不将 BA 人物材质渲染合入 core 或
+适配器主线**。Halo 的定位是光环模组，不是二次元人物模组；该功能会喧宾夺主。
+此外，本次接入已被用户确认会影响原有 LabPBR，导致普通材质错误；此兼容问题尚未
+定位、修复或验收。实验程序可用不等于普通 LabPBR 回归通过，先前默认兼容的设计
+意图不作为实际通过的证据。
+
+**描边效果和模型向地面投影值得进入主线，但须独立拆分并适配。** 当前描边依赖
+导出的几何壳体；投影依赖 BA 专用 Iris 路径及上一主帧姿态，有一帧延迟。
+后续应使它们脱离 BA 伴生图、专用人物材质和本实验底包，验证普通光环 mesh、
+AlphaMask、姿态、剔除、深度及 LabPBR/光影回退，再分别评估所需 core 和平台契约。
+这是后续主线工作方向，本分支尚未完成该迁移。
+
+[随分支保存的实验光影及许可](experiments/ba/README.md)；
+**Arisu 模型、基础包及伴生贴图包按用户要求暂不上传**，仅保留本地验证资源。
+本分支光影使用自己的上游许可，不适用 Halo 的 MIT 许可。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 

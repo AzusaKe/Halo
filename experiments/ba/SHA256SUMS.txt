@@ -1,0 +1,3 @@
+7f4eeb0798351e46f57e322a1c0a77508ef9704717e9dab913e94d39157ee6b4  shaderpacks/Halo BA Experimental (Chocapic13' Shaders edit).zip
+98721f6336ca10e5d8ed3261687ba00452d55507395162dea1c5c9f2d74a43f0  licenses/Bliss-Chocapic13-LICENSE.md
+aacf8874d701254a25c2c5a268677c9e19d61cc5207426d1f2ab127f54a2bc3a  licenses/Bliss-CREDITS.txt

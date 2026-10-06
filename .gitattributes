@@ -2,3 +2,10 @@
 # (Windows checkouts with core.autocrlf would otherwise produce CRLF).
 gradlew text eol=lf
 *.sh    text eol=lf
+
+# Experimental archive checksums must survive Windows checkouts unchanged.
+experiments/ba/*.md       text eol=lf
+experiments/ba/*.json     text eol=lf
+experiments/ba/*.txt      text eol=lf
+experiments/ba/licenses/* text eol=lf
+experiments/ba/shaderpacks/*.zip binary
