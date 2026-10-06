@@ -123,7 +123,8 @@ public final class HaloRenderer {
                 entity.isAlive(),living.isSleeping(),entity.isInvisible(),captured==null?fallback:captured,fallback));
         }
         var up=camera.getUpVector();var right=camera.getLeftVector();
-        FrameScene scene=new FrameScene(worldToken,System.currentTimeMillis(),System.nanoTime(),
+        var frameTime = ReplayModRenderClock.sample();
+        FrameScene scene=new FrameScene(worldToken,frameTime.millis(),frameTime.nanos(),
             new FrameScene.CameraSample(core(camera.getPosition()),
                 new network.azusake.halo.core.Vec3d(up.x,up.y,up.z),
                 new network.azusake.halo.core.Vec3d(right.x,right.y,right.z)),
