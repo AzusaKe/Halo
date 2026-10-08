@@ -2,7 +2,6 @@ package network.azusake.halo.render;
 
 import network.azusake.halo.HaloMod;
 import network.azusake.halo.compat.emf.EmfHeadCapture;
-import network.azusake.halo.compat.ysm.YsmHeadCapture;
 import network.azusake.halo.physics.RenderHeadCapture;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -59,11 +58,6 @@ public final class HaloRenderListener {
                 Minecraft.getInstance().level
             );
             EmfHeadCapture.beginFrame(viewMatrix, context.getCamera().getPosition());
-            YsmHeadCapture.beginFrame(
-                viewMatrix,
-                context.getCamera().getPosition(),
-                context.getFrustum()
-            );
         });
 
         MinecraftForge.EVENT_BUS.addListener((RenderLevelStageEvent context) -> {

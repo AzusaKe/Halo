@@ -22,7 +22,7 @@ java {
     withSourcesJar()
 }
 
-base { archivesName = "${project.archives_base_name}-${project.minecraft_version}-forge" }
+base { archivesName = "${project.archives_base_name}-${project.minecraft_version}-forge-netease" }
 
 def coreProperties = new Properties()
 file('core/gradle.properties').withInputStream { coreProperties.load(it) }
@@ -83,13 +83,10 @@ minecraft {
 mixin {
     add sourceSets.main, 'halo.refmap.json'
     config 'halo.mixins.json'
-    config 'halo-ysm.mixins.json'
     config 'halo-emf.mixins.json'
     config 'halo-iris.mixins.json'
 }
 
-def ysmDevJarPath = System.getenv('HALO_YSM_DEV_JAR')
-def ysmDevFixtureEnabled = ysmDevJarPath != null && !ysmDevJarPath.isBlank()
 def oculusDevVersion = System.getenv('HALO_OCULUS_DEV_VERSION')
 def oculusDevFixtureEnabled = oculusDevVersion != null && !oculusDevVersion.isBlank()
 def embeddiumDevVersion = System.getenv('HALO_EMBEDDIUM_DEV_VERSION')
@@ -106,7 +103,6 @@ repositories {
             includeGroup 'org.apiguardian'
         }
     }
-    if (ysmDevFixtureEnabled) { flatDir { dirs file(ysmDevJarPath).parentFile } }
     if (oculusDevFixtureEnabled) {
         maven {
             url = 'https://api.modrinth.com/maven'
@@ -130,9 +126,6 @@ dependencies {
     implementation "network.azusake:halo-core:${coreVersion}"
     coreContents "network.azusake:halo-core:${coreVersion}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    if (ysmDevFixtureEnabled) {
-        runtimeOnly fg.deobf('halo.fixture:ysm:2.6.5-forge+mc1.20.1-release')
-    }
     if (oculusDevFixtureEnabled) {
         runtimeOnly fg.deobf("maven.modrinth:oculus:${oculusDevVersion}")
         if (embeddiumDevVersion != null && !embeddiumDevVersion.isBlank()) {
@@ -198,7 +191,7 @@ tasks.named('jar', Jar).configure {
             'Implementation-Title': project.name,
             'Implementation-Version': project.jar.archiveVersion,
             'Implementation-Vendor': mod_authors,
-            'MixinConfigs': 'halo.mixins.json,halo-ysm.mixins.json,halo-emf.mixins.json,halo-iris.mixins.json'
+            'MixinConfigs': 'halo.mixins.json,halo-emf.mixins.json,halo-iris.mixins.json'
         ])
     }
     from('LICENSE') { rename { "${it}_${archives_base_name}" } }

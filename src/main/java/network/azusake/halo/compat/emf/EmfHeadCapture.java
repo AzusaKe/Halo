@@ -53,7 +53,7 @@ public final class EmfHeadCapture {
     public static boolean isPreviewPoseOnly() { return EmfPreviewCapture.isPoseOnly(); }
 
     /**
-     * Advance the EMF capture buffers at the same point as the vanilla and YSM
+     * Advance the EMF capture buffers at the same point as the vanilla
      * buffers.  A capture keeps the view matrix and camera position that
      * produced it so a previous-frame anchor remains valid after camera motion.
      */
@@ -88,7 +88,7 @@ public final class EmfHeadCapture {
         LivingEntity entity = RenderHeadCapture.getCurrentEntity();
         CaptureFrame frame = captureFrame;
         if (!(entity instanceof Player) || frame == null || matrices == null
-            || RenderHeadCapture.isAuxiliaryYsmPass()) {
+            || RenderHeadCapture.isAuxiliaryPass()) {
             return;
         }
 

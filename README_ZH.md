@@ -1,14 +1,16 @@
-本分支面向 **Minecraft 1.20.1 Forge**，当前源码版本为 **2.4.2+adapter.1**，使用 HaloCore **2.4.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+> 网易测试适配：目标 Minecraft 1.20.1 / Forge 47.3.0；已移除 YSM 兼容。使用带 netease 名称的测试 JAR。构建检查与网易实际运行验收见 [适配记录](docs/netease-1.20.1-test.md)。下文国际版兼容记录不代表网易验收结果。
+
+本分支面向 **Minecraft 1.20.1 Forge**，当前源码版本为 **2.4.2+adapter.3**，使用 HaloCore **2.4.2**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
 billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo renderer` 查询当前模式，`/halo renderer compatibility|cached` 切换并保存；命令只在客户端执行，无需服务器权限。下一帧同时作用于世界与物品栏预览，不重启动画或物理，OBJ mesh 不受影响。配置项为 `primitiveRenderBackend`，缺失或非法值恢复默认。详见[模式与验收记录](docs/render-optimization-verification.md)。
 
-2.3.0 将预览锚点纳入 core 跨平台统一的 API v2，YSM／EMF 共用这条公开提交路径。兼容包只需提供真实头部，预览物理和绘制继续由 Halo 管理。见[锚点提供者 API](docs/zh/API.md#preview-anchor-provider-api)与[完整契约](docs/preview-anchor-api.md)。
+2.3.0 将预览锚点纳入 core 跨平台统一的 API v2，EMF 使用这条公开提交路径。兼容包只需提供真实头部，预览物理和绘制继续由 Halo 管理。见[锚点提供者 API](docs/zh/API.md#preview-anchor-provider-api)与[完整契约](docs/preview-anchor-api.md)。
 
 原版玩家预览现在会显示已佩戴光环，包括生存及创造物品栏。预览使用真实头部锚点，共享世界光环的三种图元和视觉动画。客户端配置 `playerPreviewHaloEnabled` 与 `playerPreviewHaloPhysicsEnabled` 均默认 `true`，每个预览独立模拟世界同款物理；将后者设为 `false` 可改为无阻尼的刚性随头。配置修改后重启生效。接入方法见[预览 API](docs/zh/API.md#preview-host-integration)，范围与实测记录见[玩家预览说明](docs/player-preview.md)。
 
-内置兼容包也支持 YSM 2.6.5 和 EMF 3.1.1+ 接管后的玩家预览头部，版本与 ABI 门槛沿用世界渲染。EMF 需要资源包实际替换玩家模型；仅安装 EMF 不能验证该兼容路径。
+本网易测试分支的内置兼容包支持 EMF 3.1.1+ 接管后的玩家预览头部，版本与 ABI 门槛沿用世界渲染。EMF 需要资源包实际替换玩家模型；仅安装 EMF 不能验证该兼容路径。
 
 人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
 
@@ -322,7 +324,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-forge-2.4.2+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-1.20.1-forge-2.4.2+adapter.3.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 

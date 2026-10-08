@@ -39,7 +39,7 @@ public final class RenderHeadCapture {
 
     private static final ThreadLocal<LivingEntity> CURRENT_ENTITY = new ThreadLocal<>();
     private static final ThreadLocal<PlayerModel<?>> CURRENT_MODEL = new ThreadLocal<>();
-    private static final ThreadLocal<Boolean> AUXILIARY_YSM_PASS =
+    private static final ThreadLocal<Boolean> AUXILIARY_PASS =
         ThreadLocal.withInitial(() -> false);
     private static final AnchorSource VANILLA_SOURCE = HaloAnchorApi.register("halo:vanilla");
     private static final Map<UUID, CapturedHead> CAPTURES = new ConcurrentHashMap<>();
@@ -59,39 +59,22 @@ public final class RenderHeadCapture {
     /** Saves platform capture context so nested or failed UI renders cannot corrupt their caller. */
     public record Context(LivingEntity entity, PlayerModel<?> model, boolean auxiliary) {}
     public static Context suspendForPreview() {
-        Context previous = new Context(CURRENT_ENTITY.get(), CURRENT_MODEL.get(), AUXILIARY_YSM_PASS.get());
+        Context previous = new Context(CURRENT_ENTITY.get(), CURRENT_MODEL.get(), AUXILIARY_PASS.get());
         CURRENT_ENTITY.remove();
         CURRENT_MODEL.remove();
-        AUXILIARY_YSM_PASS.set(true);
+        AUXILIARY_PASS.set(true);
         return previous;
     }
     public static void restoreContext(Context context) {
         if (context.entity() == null) CURRENT_ENTITY.remove(); else CURRENT_ENTITY.set(context.entity());
         if (context.model() == null) CURRENT_MODEL.remove(); else CURRENT_MODEL.set(context.model());
-        AUXILIARY_YSM_PASS.set(context.auxiliary());
+        AUXILIARY_PASS.set(context.auxiliary());
     }
 
     /** Called at the HEAD of {@code PlayerEntityRenderer.render}. */
     public static void begin(AbstractClientPlayer entity, PlayerModel<?> model) {
         CURRENT_ENTITY.set(entity);
         CURRENT_MODEL.set(model);
-    }
-
-    /**
-     * Bracket an entity-dispatcher render so optional renderer integrations can
-     * associate their model pass with any living entity, not only players.
-     */
-    public static void beginYsmEntity(Entity entity, PoseStack matrices) {
-        if (network.azusake.halo.api.v2.HaloAnchorApi.isPreviewRendering()) return;
-        CURRENT_MODEL.remove();
-        Matrix4f root = matrices == null ? null : matrices.last().pose();
-        if (entity instanceof LivingEntity living && matchesMainView(root)) {
-            CURRENT_ENTITY.set(living);
-            AUXILIARY_YSM_PASS.set(false);
-        } else {
-            CURRENT_ENTITY.remove();
-            AUXILIARY_YSM_PASS.set(entity instanceof LivingEntity);
-        }
     }
 
     /** Open the source-neutral render scope used by API v2 submissions. */
@@ -112,10 +95,10 @@ public final class RenderHeadCapture {
                 new AnchorVec3(position.x, position.y, position.z), mainPass);
             if (mainPass) {
                 CURRENT_ENTITY.set(living);
-                AUXILIARY_YSM_PASS.set(false);
+                AUXILIARY_PASS.set(false);
             } else {
                 CURRENT_ENTITY.remove();
-                AUXILIARY_YSM_PASS.set(true);
+                AUXILIARY_PASS.set(true);
             }
         }
     }
@@ -158,7 +141,7 @@ public final class RenderHeadCapture {
     public static void end() {
         CURRENT_ENTITY.remove();
         CURRENT_MODEL.remove();
-        AUXILIARY_YSM_PASS.remove();
+        AUXILIARY_PASS.remove();
     }
 
     /** Drop all captures from the previous frame; call before entity rendering. */
@@ -191,9 +174,9 @@ public final class RenderHeadCapture {
         return CURRENT_ENTITY.get();
     }
 
-    /** Whether the current YSM render was rejected for using a non-main root matrix. */
-    public static boolean isAuxiliaryYsmPass() {
-        return AUXILIARY_YSM_PASS.get();
+    /** Whether the current entity render was rejected for using a non-main root matrix. */
+    public static boolean isAuxiliaryPass() {
+        return AUXILIARY_PASS.get();
     }
 
     /**

@@ -98,7 +98,7 @@ tasks.register('verifyDistribution') {
             if (!names.contains('META-INF/mods.toml') || !names.contains('halo.refmap.json')) {
                 throw new GradleException('Forge metadata or Mixin refmap is missing from the final jar.')
             }
-            ['halo.mixins.json', 'halo-ysm.mixins.json', 'halo-emf.mixins.json', 'halo-iris.mixins.json'].each { configName ->
+            ['halo.mixins.json', 'halo-emf.mixins.json', 'halo-iris.mixins.json'].each { configName ->
                 def entry = archive.getEntry(configName)
                 if (entry == null) throw new GradleException("Missing Mixin config: ${configName}")
                 def config = new groovy.json.JsonSlurper().parseText(archive.getInputStream(entry).getText('UTF-8'))
@@ -106,8 +106,11 @@ tasks.register('verifyDistribution') {
                     throw new GradleException("Mixin config ${configName} does not declare halo.refmap.json")
                 }
             }
+            if (names.any { it.startsWith('network/azusake/halo/compat/ysm/') || it == 'halo-ysm.mixins.json' }) {
+                throw new GradleException('NetEase distribution must not contain YSM compatibility hooks.')
+            }
             def modsToml = archive.getInputStream(archive.getEntry('META-INF/mods.toml')).getText('UTF-8')
-            if (!modsToml.contains('versionRange="[47.4.0,48)"') || !modsToml.contains('displayTest="IGNORE_ALL_VERSION"')) {
+            if (!modsToml.contains('versionRange="[47.3.0,48)"') || !modsToml.contains('displayTest="IGNORE_ALL_VERSION"')) {
                 throw new GradleException('Forge compatibility metadata does not preserve the optional-peer/version contract.')
             }
             if (names.any { it.startsWith('network/azusake/halo/api/client/preview/') }) {
