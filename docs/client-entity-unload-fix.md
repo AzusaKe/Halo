@@ -1,0 +1,33 @@
+# 客户端实体卸载佩戴记录修复 — 1.20.1-forge
+
+2026-10-09；Halo 基线 `7481a6b85206a6ca2af464641e5a5a6b3f33542b`。
+core 固定 `1d3cf90478011c1e6f956f1b7dc978d00e796099` / 2.4.2，无源码或 gitlink 更改。
+适配修订 3 → 4；用户已于 2026-10-09 确认集中测试通过；提交后按主线/非主线发布范围分别处理。
+
+健康客户端实体移除后 isAlive() 为 false，原回调误调用 died 删除非玩家佩戴记录。
+当前用生命值死亡谓词 `isDeadOrDying()` 提供明确死亡事实，普通卸载仅调用 unload。
+绘制、物理和锚点仍清理，佩戴关系保留；返回后正常帧即可重建，不依赖新 attach 包。
+明确死亡的非玩家、玩家重生、hide、断开连接维持原有语义。
+
+## 验证
+
+- ClientDeparturesTest：三轮健康卸载/新 runtime ID 返回且没有再次 attach、非玩家死亡、玩家重生、hide 后返回、断开连接，共五项行为用例。
+- 联合构建通过；Halo 测试 132 项，失败/错误为 0，跳过 2 项；新增生命周期测试 5/5 通过。core 检查、合包及旧接口检查由 build 完成。
+- 游戏验证：用户于 2026-10-09 确认本轮集中测试通过。agent 未另外启动游戏；不将此结论扩大为无关渲染组合或性能验收。
+- Flashback 初始快照兼容：仍未实施，本修复不补齐录制起点缺失的数据。
+
+测试时保持服务端实体区块加载，只离开客户端实体追踪范围并返回；连续三轮且不重新佩戴、不 F3+T、不重连。
+再验证明确死亡、玩家重生、摘除后往返、换维度与重连，避免服务端重发 attach 掩盖客户端缺陷。
+
+跳过的外部签名检查：
+
+- network.azusake.halo.compat.emf.EmfReleaseSignatureTest: official Forge EMF 3.1.1 jar retains the pinned model-part ABI
+- network.azusake.halo.compat.ysm.YsmReleaseSignatureTest: official YSM 2.6.5 jar retains every pinned adapter signature
+
+## 2.5.0 构建更新
+
+用户随后要求追赶正式 core 2.5.0。当前工作树选用 `a22160a842e15fffb1bc03b5b189183557f6d510`，目标 `2.5.0+adapter.4.dev`；前述构建结果属于升级前的基线，新结果见 [升级记录](core-2.5.0-upgrade.md)及集中清单。生命周期源码和五项回归不变。
+
+## 验收与提交
+
+2026-10-09 用户确认本轮集中测试通过，并授权提交/推送。本分支采用 2.5.0 / `a22160a842e15fffb1bc03b5b189183557f6d510`，目标 `2.5.0+adapter.4`。五项客户端生命周期回归通过；外部签名检查的跳过项保留在上文。GitHub CI 及最终成品来源以提交后的发布记录为准。
