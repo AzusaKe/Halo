@@ -66,11 +66,11 @@ public class HaloModClient implements ClientModInitializer {
         ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             if (entity != null) {
                 var runtime = network.azusake.halo.platform.HaloClientState.get();
-                if (entity instanceof net.minecraft.world.entity.LivingEntity living && !living.isAlive()) {
-                    runtime.died(entity.getUUID(), entity instanceof net.minecraft.world.entity.player.Player);
-                } else {
-                    runtime.unload(entity.getUUID());
-                }
+                // Removal also makes healthy untracked entities report isAlive() == false.
+                // Only health-based death revokes ownership; untracking preserves the replica.
+                network.azusake.halo.platform.ClientDepartures.depart(runtime, entity.getUUID(),
+                    entity instanceof net.minecraft.world.entity.player.Player,
+                    entity instanceof net.minecraft.world.entity.LivingEntity living && living.isDeadOrDying());
                 AnchorCaptureCoordinator.clearEntity(entity.getUUID());
             }
         });
