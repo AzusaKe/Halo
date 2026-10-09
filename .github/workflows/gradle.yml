@@ -9,7 +9,7 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: ["1.21.1-neoforge"]
+    branches: ["1.21.1-neoforge", "replaymod/1.21.1-neoforge"]
     tags: ["v*"]
   pull_request:
     branches: ["1.21.1-neoforge"]
