@@ -1,4 +1,4 @@
-本分支面向 **Minecraft 26.2 NeoForge**，开发 **2.5.0 / 适配修订 1** 的 Caustica 实验后端；最近发布基线为 **2.4.2+adapter.1**。HaloCore 通过 `core` Git 子模块锁定，玩家安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.2 迁移记录](docs/26.2-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 26.2 NeoForge**，开发 **2.5.0 / 适配修订 1** 的 Caustica 实验后端；最近发布基线为 **2.5.0+adapter.2**。HaloCore 通过 `core` Git 子模块锁定，玩家安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.2 迁移记录](docs/26.2-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 独立安装 Caustica 并使用 Minecraft 的 Vulkan 后端。当 Caustica 已初始化 Vulkan 光追后端、当前帧正在进行 RT 渲染且无需原版世界回退时，Halo 自动使用实验兼容后端，无需额外 JVM 参数。`-Dhalo.caustica.experimental=false` 可在启动时关闭兼容，原先的 `true` 参数仍然有效；原版绘制及 GUI 预览沿用既有路径。Caustica 版权所有 (c) 2026 ComfyFluffy 及贡献者，采用 **LGPL-3.0-or-later**；Halo 和 HaloCore 保留 **MIT**。Halo 在 `META-INF/halo/` 附带兼容声明及 GPL/LGPL 全文，不打包 Caustica 实现或原生库。详见[许可证与分发边界](docs/caustica-licensing.md)和[实际验证范围](docs/caustica-graphics-regressions.md)。
 
@@ -301,7 +301,7 @@ cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.2-neoforge-2.4.2+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.2-neoforge-2.5.0+adapter.2.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 

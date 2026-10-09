@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.5.0+adapter.2 — 正式 core 2.5.0 与客户端卸载修复 — 2026-10-09
+
+- 精确选用正式 HaloCore v2.5.0 / `a22160a842e15fffb1bc03b5b189183557f6d510`，新增可选 ScenePort 场景输出和 core MIT 许可证打包；保留现有光栅接口，不让一个逻辑帧同时调用两条世界入口。
+- 健康实体退出客户端追踪范围仅清理绘制/物理/锚点，保留佩戴关系，返回后无需新 attach 包即可恢复；五项生命周期回归保留。
+- 网络协议、存档和既有 API 不变；本平台构建和五项生命周期回归通过，用户已确认本轮集中测试通过，详见 [升级记录](docs/core-2.5.0-upgrade.md)与[生命周期记录](docs/client-entity-unload-fix.md)。
+- Flashback 初始快照兼容仍未实施。
+
+
 ## 2.5.0 实验开发版 — Caustica 光追后端 — 2026-10-03
 
 - 锁定 HaloCore 开发提交 `bc2b7b5e24ff51919f3177bfeb4d75bd4c55fe24`，适配修订 1；自动检测 Caustica 的 Vulkan 光追后端与实际 RT 帧状态，使用 `-Dhalo.caustica.experimental=false` 可在启动时关闭兼容。

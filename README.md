@@ -9,7 +9,7 @@
 
 English | [中文](README_ZH.md)
 
-This branch targets **Minecraft 26.2 NeoForge** and develops the **2.5.0 / adapter 1** experimental Caustica backend. The latest published baseline is **2.4.2+adapter.1**. HaloCore is pinned in the `core` Git submodule; players install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See the [26.2 migration record](docs/26.2-neoforge-migration.md), [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
+This branch targets **Minecraft 26.2 NeoForge** and develops the **2.5.0 / adapter 1** experimental Caustica backend. The latest published baseline is **2.5.0+adapter.2**. HaloCore is pinned in the `core` Git submodule; players install one Halo jar. Flash branches remain frozen except for explicitly requested maintenance. See the [26.2 migration record](docs/26.2-neoforge-migration.md), [core architecture and development](docs/core-refactor.md), the [core contracts](core/README.md), and the [mesh authoring guide](docs/en/mesh.md).
 
 Install Caustica separately and use Minecraft's Vulkan backend. Halo automatically uses the experimental integration while Caustica has an initialized Vulkan RT backend and the current frame is actively ray traced without source-world fallback. No Halo JVM parameter is required; `-Dhalo.caustica.experimental=false` disables the integration at startup, and the earlier `true` setting remains supported. Vanilla drawing and GUI previews retain their existing paths. Caustica is copyright (c) 2026 ComfyFluffy and contributors, licensed under **LGPL-3.0-or-later**; Halo and HaloCore retain **MIT**. Halo includes the compatibility notice and GPL/LGPL texts in `META-INF/halo/`, without bundling Caustica implementation or native libraries. See the [license and distribution boundaries](docs/caustica-licensing.md) and [actual validation limits](docs/caustica-graphics-regressions.md).
 
@@ -311,7 +311,7 @@ cd Halo
 ./gradlew build
 ```
 
-The compiled JAR is under `build/libs/`; this source version builds `halo-26.2-neoforge-2.4.2+adapter.1.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
+The compiled JAR is under `build/libs/`; this source version builds `halo-26.2-neoforge-2.5.0+adapter.2.jar`. Builds from modified or unpinned worktrees carry a `.dev` suffix. See the [release checks](DEVELOPMENT.md).
 
 <a id="run-tests"></a>
 

@@ -1,8 +1,8 @@
 # Halo 项目开发指南
 
-## 当前维护版本：2.5.0 实验开发版
+## 当前维护版本：2.5.0
 
-本分支 `caustica/26.2-neoforge` 锁定 HaloCore `2.5.0` 开发提交 `bc2b7b5e24ff51919f3177bfeb4d75bd4c55fe24`，适配修订为 1。Caustica 实验后端及实际验证边界见 [画面回归记录](docs/caustica-graphics-regressions.md)。本轮没有发布标签或 Release；下文旧版本数字作为历史基线或流程示例保留。
+本轮开发工作树选用正式 HaloCore `v2.5.0` / `a22160a842e15fffb1bc03b5b189183557f6d510`，适配修订为 2，并保留客户端实体卸载修复。用户于 2026-10-09 确认集中测试通过；本轮提交记录此 core gitlink，目标版本为 `2.5.0+adapter.2`。升级、接口和验证边界见 [2.5.0 升级记录](docs/core-2.5.0-upgrade.md)。下文旧版本数字作为历史基线或流程示例保留。
 
 本文面向人类开发者和 coding agent，说明如何在 Halo / HaloCore 双仓库结构下开发功能、调试、验收、适配其他 Minecraft 版本并推送远端。详细类型契约以 [HaloCore README](core/README.md) 为准，架构背景见 [core-refactor.md](docs/core-refactor.md)。
 
