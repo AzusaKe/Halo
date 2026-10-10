@@ -179,9 +179,8 @@ def properties(text):
 
 
 def modrinth_version_number(plan):
-    # Modrinth limits version_number to 32 characters; full Halo tags can exceed
-    # that limit. Keep loader/game/revision in compact SemVer build metadata.
-    value = f'{plan["version"]}+{plan["loader"]}.{plan.get("build_game", plan["game_versions"][0])}.a{plan["revision"]}'
+    # Use the user's exact release tag; never silently compact or truncate it.
+    value = plan['tag']
     require(len(value) <= 32, "Modrinth version number exceeds 32 characters; choose a shorter version")
     return value
 
@@ -317,6 +316,8 @@ def existing_modrinth(plan, token):
         if version["version_number"] in (modrinth_version_number(plan), plan["tag"]) or matching_file:
             require(matching_file, "Modrinth version number exists with a different JAR")
             require(set(version["loaders"]) == {plan["loader"]} and set(version["game_versions"]) == set(plan["game_versions"]), "Existing Modrinth file has different compatibility metadata; review instead of duplicating")
+            require(version['version_number'] == modrinth_version_number(plan), 'Existing Modrinth version number differs; update metadata instead of duplicating')
+            require(version.get('name') == plan['name'], 'Existing Modrinth display name differs; update metadata instead of duplicating')
             require(version["version_type"] == plan["version_type"], "Existing Modrinth release type differs")
             require(version.get("changelog") == plan["changelog"], "Existing Modrinth notes differ; update platform metadata instead of duplicating the JAR")
             require(version.get("status") in ("listed", "archived", "unlisted"), "Existing Modrinth version is not published")
@@ -327,6 +328,18 @@ def existing_modrinth(plan, token):
                 require(any(file["hashes"].get("sha512") == plan["sources"]["sha512"] and file.get("file_type") == "sources-jar" and not file.get("primary") for file in version["files"]), "Existing Modrinth version lacks the selected sources attachment; do not duplicate the main version")
             return {"id": version["id"], "url": f'https://modrinth.com/mod/{plan["modrinth_project"]}/version/{version["id"]}', "status": "already_present"}
     return None
+
+
+def ensure_modrinth_environment(plan, token):
+    """V2 environment is project-wide: Halo requires clients and supports optional servers."""
+    url = f'https://api.modrinth.com/v2/project/{plan["modrinth_project"]}'
+    desired = {"client_side": "required", "server_side": "optional"}
+    project = request("GET", url, headers=mr_headers(token))
+    if all(project.get(key) == value for key, value in desired.items()):
+        return
+    request("PATCH", url, headers={**mr_headers(token), "Content-Type": "application/json"}, data=canonical(desired))
+    project = request("GET", url, headers=mr_headers(token))
+    require(all(project.get(key) == value for key, value in desired.items()), "Modrinth project environment did not match required client / optional server")
 
 
 def platform_metadata(platform, plan, token):
@@ -435,6 +448,7 @@ def publish_one(gh, plan, content, platform, token, output, *, role="main", pare
         pending = json.loads(gh.download(plan["tag"], pending_name))
         require(pending.get("identity") == fingerprint, "Existing upload intent conflicts with this release")
     if platform == "modrinth":
+        ensure_modrinth_environment(plan, token)
         existing = existing_modrinth(plan, token)
         if existing:
             receipt = {"identity": fingerprint, "result": existing}
@@ -443,7 +457,7 @@ def publish_one(gh, plan, content, platform, token, output, *, role="main", pare
     # An interrupted POST may have succeeded. CurseForge's documented Upload
     # API offers no file-hash lookup: stop for reconciliation rather than repeat.
     require(pending_name not in assets, f"Unresolved {platform} upload intent. Inspect the platform and recover the receipt; do not blindly rerun the upload. See docs/release-automation.md")
-    metadata = ({"parentFileID": parent_id, "displayName": plan["name"] + " (sources)", "changelog": plan["changelog"], "changelogType": "markdown", "releaseType": plan["version_type"]} if role == "sources" else platform_metadata(platform, plan, token))
+    metadata = ({"parentFileID": parent_id, "displayName": plan["name"], "changelog": plan["changelog"], "changelogType": "markdown", "releaseType": plan["version_type"]} if role == "sources" else platform_metadata(platform, plan, token))
     verify_current_notes(gh, plan)
     selected_file = plan["sources"] if role == "sources" else plan
     intent = gh.record(plan["release_id"], pending_name, {"identity": fingerprint, "tag": plan["tag"], "filename": selected_file["filename"], "sha256": selected_file["sha256"], "source_run_id": plan["source_run_id"]})

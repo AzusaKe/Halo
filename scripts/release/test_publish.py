@@ -120,12 +120,13 @@ class ReleaseValidationTests(unittest.TestCase):
     def test_modrinth_version_limit_preserves_platform_identity(self):
         numbers = []
         for target in self.config["targets"]:
-            plan = {**plan_fixture(), "loader": target["loader"], "build_game": target["game"], "game_versions": [target["game"]]}
+            plan = {**plan_fixture(), "loader": target["loader"], "build_game": target["game"], "game_versions": [target["game"]], "tag": f'v2.4.2-{target["loader"]}-{target["tag_game"]}-adapter.1'}
             numbers.append(p.modrinth_version_number(plan))
+            self.assertEqual(numbers[-1], plan['tag'])
         self.assertEqual(len(set(numbers)), 9)
         self.assertTrue(all(len(number) <= 32 for number in numbers))
         with self.assertRaisesRegex(p.PublishError, "32 characters"):
-            p.modrinth_version_number({**plan_fixture(), "version": "2.4.2-alpha.extremely.long.prerelease"})
+            p.modrinth_version_number({**plan_fixture(), "tag": "v2.4.2-alpha.extremely.long.prerelease-fabric-1.20.1-adapter.1"})
 
 
 class PublicationRecoveryTests(unittest.TestCase):
@@ -184,7 +185,8 @@ class PublicationRecoveryTests(unittest.TestCase):
 
     @patch.object(p, "upload")
     @patch.object(p, "existing_modrinth", return_value={"id": "existing", "status": "already_present"})
-    def test_modrinth_hash_recovery_after_interrupted_attempt(self, existing, upload):
+    @patch.object(p, "ensure_modrinth_environment")
+    def test_modrinth_hash_recovery_after_interrupted_attempt(self, environment, existing, upload):
         self.gh.records["halo-publish-modrinth.pending.json"] = {"identity": p.identity(self.plan, "modrinth")}
         self.assertEqual(self.publish("modrinth")["id"], "existing")
         upload.assert_not_called()
@@ -462,6 +464,7 @@ class PublishingOptionsTests(unittest.TestCase):
             result = p.publish_one(gh, self.plan, {"main": b"jar", "sources": b"source"}, "curseforge", "token", Path(tmp), role="sources", parent_id=123)
             self.assertEqual(result["id"], 999)
             metadata = upload.call_args.args[3]
+            self.assertEqual(metadata['displayName'], self.plan['name'])
             self.assertEqual(metadata["parentFileID"], 123)
             self.assertNotIn("gameVersions", metadata)
             self.assertTrue(upload.call_args.kwargs["sources_only"])
@@ -508,3 +511,27 @@ class PublishingOptionsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ModrinthEnvironmentTests(unittest.TestCase):
+    @patch.object(p, "request")
+    def test_already_correct_environment_is_read_only(self, request):
+        request.return_value = {"client_side": "required", "server_side": "optional"}
+        p.ensure_modrinth_environment(plan_fixture(), "token")
+        request.assert_called_once()
+        self.assertEqual(request.call_args.args[0], "GET")
+
+    @patch.object(p, "request")
+    def test_required_server_is_changed_and_read_back(self, request):
+        request.side_effect = [{"client_side": "required", "server_side": "required"}, None,
+                               {"client_side": "required", "server_side": "optional"}]
+        p.ensure_modrinth_environment(plan_fixture(), "token")
+        self.assertEqual([call.args[0] for call in request.call_args_list], ["GET", "PATCH", "GET"])
+        self.assertEqual(json.loads(request.call_args_list[1].kwargs["data"]),
+                         {"client_side": "required", "server_side": "optional"})
+
+    @patch.object(p, "request")
+    def test_failed_environment_update_blocks_publishing(self, request):
+        request.side_effect = [{"client_side": "required", "server_side": "required"}, None,
+                               {"client_side": "required", "server_side": "required"}]
+        with self.assertRaisesRegex(p.PublishError, "environment"):
+            p.ensure_modrinth_environment(plan_fixture(), "token")
