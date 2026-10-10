@@ -360,12 +360,14 @@ def platform_metadata(platform, plan, token):
         "Client", "Server",
         {"fabric": "Fabric", "forge": "Forge", "neoforge": "NeoForge"}[plan["loader"]],
     ] + [f"Java {version}" for version in plan.get("java_versions", [])]
-    ids = []
+    # The upload API resolves names in the project's dependency context. Global
+    # game/version IDs can refer to a different dependency even when names match.
+    available = {version.get("name") for version in versions}
     for name in names:
-        ids.append(curseforge_version_id(versions, name))
+        require(name in available, f"CurseForge game/loader version not found: {name}")
     payload = {
         "changelog": plan["changelog"], "changelogType": "markdown", "displayName": plan["name"],
-        "gameVersions": ids, "releaseType": plan["version_type"],
+        "gameVersionNames": names, "releaseType": plan["version_type"],
     }
     if plan["loader"] == "fabric":
         payload["relations"] = {"projects": [{"slug": "fabric-api", "projectID": 306612, "type": "requiredDependency"}]}

@@ -440,7 +440,8 @@ class PublishingOptionsTests(unittest.TestCase):
     def test_curseforge_resolves_minecraft_loader_and_java_tags(self, request):
         request.return_value = [{"id": 1, "name": "1.20.1"}, {"id": 2, "name": "Fabric"}, {"id": 3, "name": "Java 17"}, {"id": 4, "name": "Java 21"}, {"id": 5, "name": "Client"}, {"id": 6, "name": "Server"}]
         metadata = p.platform_metadata("curseforge", {**self.plan, "java_versions": [17, 21]}, "token")
-        self.assertEqual(metadata["gameVersions"], [1, 5, 6, 2, 3, 4])
+        self.assertEqual(metadata["gameVersionNames"], ["1.20.1", "Client", "Server", "Fabric", "Java 17", "Java 21"])
+        self.assertNotIn('gameVersions', metadata)
         with self.assertRaisesRegex(p.PublishError, "Java 25"):
             p.platform_metadata("curseforge", {**self.plan, "java_versions": [25]}, "token")
 
@@ -535,3 +536,17 @@ class ModrinthEnvironmentTests(unittest.TestCase):
                                {"client_side": "required", "server_side": "required"}]
         with self.assertRaisesRegex(p.PublishError, "environment"):
             p.ensure_modrinth_environment(plan_fixture(), "token")
+
+class CurseForgeContextTests(unittest.TestCase):
+    @patch.object(p, "request")
+    def test_foreign_dependency_ids_are_not_sent_to_the_project(self, request):
+        request.return_value = [
+            {"id": 12735, "name": "1.21.1", "gameVersionTypeID": 1},
+            {"id": 99999, "name": "1.21.1", "gameVersionTypeID": 75125},
+            {"id": 2, "name": "Client"}, {"id": 3, "name": "Server"},
+            {"id": 4, "name": "NeoForge"}, {"id": 5, "name": "Java 21"},
+        ]
+        plan = {**plan_fixture("neoforge"), "game_versions": ["1.21.1"], "java_versions": [21]}
+        metadata = p.platform_metadata("curseforge", plan, "token")
+        self.assertEqual(metadata["gameVersionNames"], ["1.21.1", "Client", "Server", "NeoForge", "Java 21"])
+        self.assertNotIn("gameVersions", metadata)

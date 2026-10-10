@@ -197,3 +197,5 @@ python -m unittest discover -s scripts/release -p 'test_*.py' -v
 ## 2026-10-10 本轮发布参数
 
 用户已审阅通过 GitHub changelog，并指定完整 tag 版本号、上述显示名、客户端与可选服务端、两平台 release 类型及同时上传主包和源码包。游戏版本按成品 JAR 定义解析并映射为平台已登记的正式版本；26.1 Fabric 声明 >=26.1 <26.2，因此本轮填写 26.1、26.1.1、26.1.2，26.1 NeoForge 则仅填写 26.1.2。Java 按 Halo 构建版本填 17/21/25。未改变已发布 tag 或 JAR；仅更新默认分支的发布器，47 项发布回归通过。
+
+CurseForge 的 2026-09-27 Upload API 支持 gameVersionNames。全局列表中同名 ID 可属于不被当前项目接受的依赖；本轮 1.21.1/26.x 遇到明确 HTTP 400 后改为按已登记的准确名称发送 Client、Server、加载器、Minecraft 和 Java，让服务端按项目依赖解析。不改 game version，不用邻近版本代替。该字段的来源为 https://support.curseforge.com/support/solutions/articles/9000197321-curseforge-upload-api 。已成功文件按回执保留，只重试明确拒绝的未成功文件。
