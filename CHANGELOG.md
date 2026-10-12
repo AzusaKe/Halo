@@ -1,12 +1,12 @@
 # 更新记录
 
-## 2.5.0+adapter.1 — Minecraft 26.3 NeoForge 迁移 — 验收中
+## 2.5.0+adapter.1 — Minecraft 26.3 NeoForge 迁移 — 待发布 — 2026-10-12
 
 - 从 26.2 NeoForge 完整功能基线迁移，精确保留 HaloCore 2.5.0 / `a22160a842e15fffb1bc03b5b189183557f6d510`；公开 API v2、定义、配置、存储和九类网络载荷保持原有契约。
 - 适配 RenderPearl 的资源准备与绘制阶段；常驻 native/Iris 几何及各自顶点布局保留，同帧透明实例和预览使用独立可复用索引槽，避免延迟提交覆盖。
 - 保留相机四元数、主帧/阴影/预览隔离、EMF 本体头部识别、Iris 平滑法线匹配、材质绑定与同帧 CPU 回退；加入默认关闭的准备/提交及上传 JFR 计数。
 - 构建最低/默认 NeoForge 为 `26.3.0.64-beta`，兼测 `.76` 原生；当前 Sodium 0.9.2/0.9.3-alpha.1 依赖 `.65` 起移除的方法，光影组合须使用 `.64-beta`。
-- 146 项适配器与 336 项 core 自动检查通过；原生 OpenGL/Vulkan、两版 IterationRP 与 EMF 的已执行项目由维护者确认正常。网络与定量压测尚待完成，本条不代表正式发布。详见 [迁移记录](docs/26.3-neoforge-migration.md)。
+- 146 项适配器与 336 项 core 自动检查通过；原生 OpenGL/Vulkan、两版 IterationRP 与 EMF 的已执行项目由维护者确认正常。维护者确认优化符合预期，并因静音模式要求暂停后续压测；现有 18 段录制仅作诊断，展开矩阵未录制。网络由维护者独立验收，标签与 Release 等待其后续发布指令。详见 [迁移记录](docs/26.3-neoforge-migration.md)。
 
 ## 2.5.0+adapter.2 — 正式 core 2.5.0 与客户端卸载修复 — 2026-10-09
 

@@ -2,7 +2,7 @@
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
-26.3 保留独立的原生/Iris 常驻 GPU 几何缓存，资源上传在 RenderPass 开始前完成。`-Dhalo.mesh.profile=true` 输出上传量与 CPU 统计，`-Dhalo.mesh.forceExpanded=true` 用于 Iris 展开路径对照。目标验收进行中，结果见迁移记录。Iris/Sodium 使用 **NeoForge 26.3.0.64-beta**；当前 Sodium 0.9.2/0.9.3-alpha.1 在 .65 及以上因加载器删除所需方法而无法启动，.76 原生路径独立验证。
+26.3 保留独立的原生/Iris 常驻 GPU 几何缓存，资源上传在 RenderPass 开始前完成。`-Dhalo.mesh.profile=true` 输出上传量与 CPU 统计，`-Dhalo.mesh.forceExpanded=true` 用于 Iris 展开路径对照。已执行的原生/Iris/EMF 检查通过，维护者确认优化符合预期，并因静音模式要求暂停后续压测；现有计时只作诊断。网络验收及发布等维护者后续指令，结果见迁移记录。Iris/Sodium 使用 **NeoForge 26.3.0.64-beta**；当前 Sodium 0.9.2/0.9.3-alpha.1 在 .65 及以上因加载器删除所需方法而无法启动，.76 原生路径独立验证。
 
 billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo renderer` 查询当前模式，`/halo renderer compatibility|cached` 切换并保存；命令只在客户端执行，无需服务器权限。下一帧同时作用于世界与物品栏预览，不重启动画或物理，OBJ mesh 不受影响。配置项为 `primitiveRenderBackend`，缺失或非法值恢复默认。详见[模式与验收记录](docs/render-optimization-verification.md)。
 
