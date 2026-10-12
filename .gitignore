@@ -6,6 +6,7 @@ out/
 
 # IDE
 .idea/
+.eclipse/
 *.iml
 *.iws
 *.ipr
@@ -35,6 +36,7 @@ logs/
 crash-reports/
 
 # Local dev tools (user-specific, not part of the mod)
+_verify_class/
 scripts/update-proxy.sh
 
 # Local containerized build (user-specific)
