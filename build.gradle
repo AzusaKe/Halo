@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'net.neoforged.moddev' version '2.0.144'
+    id 'net.neoforged.moddev' version '2.0.148'
     id 'maven-publish'
 }
 
@@ -78,18 +78,18 @@ neoForge {
     runs {
         client {
             client()
-            gameDirectory = file("runClient/${project.neo_version}")
-            programArguments.addAll '--width', '2560', '--height', '1600', '--username', 'Dev1'
+            gameDirectory = file(providers.gradleProperty("haloRunRoot").getOrElse("runClient") + "/${project.neo_version}")
+            programArguments.addAll '--width', '1920', '--height', '1080', '--username', 'Dev1'
             if (project.hasProperty('smokeWorldName')) programArguments.addAll '--quickPlaySingleplayer', project.property('smokeWorldName')
         }
         client2 {
             client()
-            gameDirectory = file("runClient2/${project.neo_version}")
-            programArguments.addAll '--width', '2560', '--height', '1600', '--username', 'Dev2'
+            gameDirectory = file(providers.gradleProperty("haloRunRoot").getOrElse("runClient2") + "/client2/${project.neo_version}")
+            programArguments.addAll '--width', '1920', '--height', '1080', '--username', 'Dev2'
         }
         server {
             server()
-            gameDirectory = file("runServer/${project.minecraft_version}-neoforge-${project.neo_version}")
+            gameDirectory = file(providers.gradleProperty("haloRunRoot").getOrElse("runServer") + "/server/${project.minecraft_version}-neoforge-${project.neo_version}")
             programArgument '--nogui'
         }
         configureEach {
@@ -106,7 +106,6 @@ def replaceProperties = [
     minecraft_version_range: project.minecraft_version_range,
     neo_version            : project.neo_version,
     neo_version_range      : project.neo_version_range,
-    loader_version_range   : project.loader_version_range,
     mod_id                 : project.mod_id,
     mod_name               : project.mod_name,
     mod_license            : project.mod_license,

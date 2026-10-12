@@ -8,7 +8,7 @@ import java.util.Optional;
 /** Minimum-version check shared by the optional EMF Mixin plugin and diagnostics. */
 public final class EmfVersionGate {
 
-    private static final int[] MIN_SUPPORTED = {3, 1, 1};
+    private static final int[] MIN_SUPPORTED = {3, 3, 6};
 
     private EmfVersionGate() {
     }
@@ -19,11 +19,13 @@ public final class EmfVersionGate {
     }
 
     public static Optional<String> installedVersion() {
-        var loading = net.neoforged.fml.loading.LoadingModList.get();
+        var loader = net.neoforged.fml.loading.FMLLoader.getCurrentOrNull();
+        if (loader == null) return Optional.empty();
+        var loading = loader.getLoadingModList();
         if (loading == null) return Optional.empty();
-        var file = loading.getModFileById(Emf262Symbols.MOD_ID);
+        var file = loading.getModFileById(Emf263Symbols.MOD_ID);
         if (file == null) return Optional.empty();
-        return file.getMods().stream().filter(m -> m.getModId().equals(Emf262Symbols.MOD_ID))
+        return file.getMods().stream().filter(m -> m.getModId().equals(Emf263Symbols.MOD_ID))
             .map(m -> m.getVersion().toString()).findFirst();
     }
 

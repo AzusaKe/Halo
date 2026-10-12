@@ -23,12 +23,16 @@ public final class HaloRenderer {
     private final FrameSubmission<Pending> submissions = new FrameSubmission<>();
     private HaloMeshBufferCache meshBuffers=HaloMeshBufferCache.empty(),primitiveBuffers=HaloMeshBufferCache.empty();
     private PrimitiveRenderMode primitiveMode=PrimitiveRenderMode.COMPATIBILITY;
-    private record Pending(FrameOutput output, VisualResources visuals, Matrix4f outer, boolean shaderPack) {}
+    private record Collected(FrameOutput output, VisualResources visuals, Matrix4f outer, boolean shaderPack) {}
+    private Collected collected;
+    private record Pending(HaloDrawSubmitter.PreparedSubmission early, HaloDrawSubmitter.PreparedSubmission late) {}
     public static HaloRenderer getInstance(){return INSTANCE;}
     public PrimitiveRenderMode primitiveMode(){return primitiveMode;}
     public void beginFrame(){
+        HaloDrawSubmitter.endFrame();
         HaloRenderListener.beginFrame();
         submissions.clear();
+        collected = null;
         boolean shaders=OptionalIrisPassDetector.hasShaderPack();
         if(shaders!=shaderVertexLayout) {
             shaderVertexLayout=shaders;
@@ -53,7 +57,7 @@ public final class HaloRenderer {
     public void rebuildMeshBuffersForShaderPipeline(){meshBuffers.close();primitiveBuffers.close();reloadMeshBuffers(HaloMeshResources.snapshot().visuals());reloadPrimitiveBuffers(HaloMeshResources.snapshot(),true);}
     public void shutdown(){meshBuffers.close();primitiveBuffers.close();clearWorld();}
     public void clearWorld(){
-        previousWorld=null;submissions.clear();
+        previousWorld=null;submissions.clear();collected=null;HaloDrawSubmitter.endFrame();
         MeshRenderMetrics.resetFrame();
         meshBuffers.close();primitiveBuffers.close();HaloMeshShader.clear();
     }
@@ -113,18 +117,26 @@ public final class HaloRenderer {
 
         var outer = new Matrix4f(RenderSystem.getModelViewMatrixCopy());
         boolean shaderPack = OptionalIrisPassDetector.hasShaderPack();
-        submissions.publish(new Pending(output,assets.visuals(),outer,shaderPack));
+        collected = new Collected(output, assets.visuals(), outer, shaderPack);
         if(client.hasSingleplayerServer())IntegratedBridge.publishDiagnostics(runtime.diagnostics());
+    }
+    public void prepareWorldBuffers() {
+        if (!OptionalIrisPassDetector.isMainPass() || collected == null) return;
+        var frame = collected;
+        collected = null;
+        var early = HaloDrawSubmitter.prepare(() -> submit(frame.output(), frame.visuals(), frame.outer(), frame.shaderPack(), RenderEnvironment.WORLD, false));
+        var late = HaloDrawSubmitter.prepare(() -> submit(frame.output(), frame.visuals(), frame.outer(), frame.shaderPack(), RenderEnvironment.WORLD, true));
+        submissions.publish(new Pending(early, late));
     }
     public void submitSolidStage() {
         if (!OptionalIrisPassDetector.isMainPass()) return;
         Pending pending = submissions.claimEarly();
-        if (pending != null) submit(pending.output(), pending.visuals(), pending.outer(), pending.shaderPack(), RenderEnvironment.WORLD, false);
+        if (pending != null) HaloDrawSubmitter.submit(pending.early());
     }
     public void submitDeferredMeshes() {
         if (!OptionalIrisPassDetector.isMainPass()) return;
         Pending pending = submissions.claimLate();
-        if (pending != null) submit(pending.output(), pending.visuals(), pending.outer(), pending.shaderPack(), RenderEnvironment.WORLD, true);
+        if (pending != null) HaloDrawSubmitter.submit(pending.late());
     }
     public void submitPreview(FrameOutput output,VisualResources visuals){var outer = new Matrix4f(RenderSystem.getModelViewMatrixCopy()); submit(output,visuals,outer,false,RenderEnvironment.GUI,false);submit(output,visuals,outer,false,RenderEnvironment.GUI,true);}
     private void submit(FrameOutput output,VisualResources visuals,Matrix4f outer,boolean shaderPack,RenderEnvironment environment,boolean late){

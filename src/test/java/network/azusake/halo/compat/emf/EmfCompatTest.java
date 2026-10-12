@@ -48,14 +48,14 @@ class EmfCompatTest {
     }
 
     @Test
-    @DisplayName("version gate uses 3.1.1 as a lower bound without an upper bound")
+    @DisplayName("version gate uses the 26.3 EMF ABI family minimum")
     void exactVersionGate() {
-        assertTrue(EmfVersionGate.isSupportedVersion("3.1.1"));
-        assertTrue(EmfVersionGate.isSupportedVersion("3.2.4"));
-        assertTrue(EmfVersionGate.isSupportedVersion("3.3.5"));
+        assertFalse(EmfVersionGate.isSupportedVersion("3.1.1"));
+        assertFalse(EmfVersionGate.isSupportedVersion("3.2.4"));
+        assertFalse(EmfVersionGate.isSupportedVersion("3.3.5"));
         assertTrue(EmfVersionGate.isSupportedVersion("3.3.6"));
         assertTrue(EmfVersionGate.isSupportedVersion("4.0.0"));
-        assertTrue(EmfVersionGate.isSupportedVersion("3.1.1+mc1.21.1"));
+        assertTrue(EmfVersionGate.isSupportedVersion("3.3.11+mc26.3"));
         assertFalse(EmfVersionGate.isSupportedVersion("3.1.0"));
         assertFalse(EmfVersionGate.isSupportedVersion("3.0.17"));
         assertFalse(EmfVersionGate.isSupportedVersion(null));

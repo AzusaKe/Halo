@@ -1,6 +1,6 @@
 package network.azusake.halo.compat.iris.mixin;
 import java.util.Map;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import network.azusake.halo.compat.iris.IrisMeshBridge;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;

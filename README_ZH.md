@@ -1,8 +1,8 @@
-本分支面向 **Minecraft 26.2 NeoForge**，本轮发布版本为 **2.5.0+adapter.2**，使用 HaloCore **2.5.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.2 迁移记录](docs/26.2-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
+本分支面向 **Minecraft 26.3 NeoForge**，本轮目标版本为 **2.5.0+adapter.1**，使用 HaloCore **2.5.0**。HaloCore 通过 `core` Git 子模块锁定，玩家仍只安装一个 Halo 成品。除明确要求的维护外，flash 分支保持冻结。请参阅 [26.3 迁移记录](docs/26.3-neoforge-migration.md)、[架构与协同开发说明](docs/core-refactor.md)、[core 接口契约](core/README.md)及 [mesh 作者指南](docs/zh/mesh.md)。
 
 2.4.0 新增了加载器无关的服务端佩戴来源 API。饰品或兼容模组可按实体 UUID 提交光环候选，Halo 按来源优先级选出唯一胜者；内置命令和光环权杖仍只修改持久化的 `halo:world_data` 来源。优先级保存在 `halo_source_priorities.json`，可通过 `/halo priority list|set|reload` 无重启调整。接入方还必须向负责渲染的客户端提供所引用的定义和视觉素材。详见[服务端佩戴来源 API](docs/zh/API.md#6-服务端佩戴来源-api)。
 
-26.2 的原生与 Iris mesh 分别使用常驻 GPU 几何缓存。`-Dhalo.mesh.profile=true` 输出上传量与 CPU 提交统计，`-Dhalo.mesh.forceExpanded=true` 用于 Iris 展开路径对照；原生 OpenGL/Vulkan 与 Iris/EMF 视觉验收通过，用户确认测试通过且网络同步、持久化正常。定量压测按用户要求停止，不声明量化 FPS 提升；详见迁移记录。
+26.3 保留独立的原生/Iris 常驻 GPU 几何缓存，资源上传在 RenderPass 开始前完成。`-Dhalo.mesh.profile=true` 输出上传量与 CPU 统计，`-Dhalo.mesh.forceExpanded=true` 用于 Iris 展开路径对照。目标验收进行中，结果见迁移记录。Iris/Sodium 使用 **NeoForge 26.3.0.64-beta**；当前 Sodium 0.9.2/0.9.3-alpha.1 在 .65 及以上因加载器删除所需方法而无法启动，.76 原生路径独立验证。
 
 billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo renderer` 查询当前模式，`/halo renderer compatibility|cached` 切换并保存；命令只在客户端执行，无需服务器权限。下一帧同时作用于世界与物品栏预览，不重启动画或物理，OBJ mesh 不受影响。配置项为 `primitiveRenderBackend`，缺失或非法值恢复默认。详见[模式与验收记录](docs/render-optimization-verification.md)。
 
@@ -10,7 +10,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 原版玩家预览现在会显示已佩戴光环，包括生存及创造物品栏。预览使用真实头部锚点，共享世界光环的三种图元和视觉动画。客户端配置 `playerPreviewHaloEnabled` 与 `playerPreviewHaloPhysicsEnabled` 均默认 `true`，每个预览独立模拟世界同款物理；将后者设为 `false` 可改为无阻尼的刚性随头。配置修改后重启生效。接入方法见[预览 API](docs/zh/API.md#preview-host-integration)，范围与实测记录见[玩家预览说明](docs/player-preview.md)。
 
-内置兼容包也支持 EMF 3.1.1+ (ABI-gated) 接管后的玩家预览头部，版本与 ABI 门槛沿用世界渲染。EMF 需要资源包实际替换玩家模型；仅安装 EMF 不能验证该兼容路径。
+内置兼容包也支持 EMF 3.3.6+ (ABI-gated) 接管后的玩家预览头部，版本与 ABI 门槛沿用世界渲染。EMF 需要资源包实际替换玩家模型；仅安装 EMF 不能验证该兼容路径。
 
 人类开发者与 coding agent 请从[项目开发指南](DEVELOPMENT.md)开始：其中包含新功能开发、调试验收、跨游戏版本适配，以及双仓库提交和发布流程。
 
@@ -20,7 +20,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 </h1>
 
 ![许可证](https://img.shields.io/badge/license-MIT-blue.svg)
-![MC版本](https://img.shields.io/badge/Minecraft-26.2-green.svg)
+![MC版本](https://img.shields.io/badge/Minecraft-26.3-green.svg)
 ![模组加载器](https://img.shields.io/badge/Mod%20Loader-NeoForge-orange.svg)
 
 中文 | [English](README.md)
@@ -51,7 +51,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 ## 简介
 
 **Halo** 是一个装饰性模组，为原版MC实体添加了“光环”这一外观。光环能够平滑地跟随实体头部运动，且支持完全通过命令配置——无需 GUI。
-当前源码分支面向 Minecraft 26.2 NeoForge；其他游戏版本与加载器通过各自适配分支维护。
+当前源码分支面向 Minecraft 26.3 NeoForge；其他游戏版本与加载器通过各自适配分支维护。
 
 
 > **项目仍处于早期开发阶段，功能和性能可能不稳定。欢迎提交 Issue 和 Pull Request 来帮助改进！**
@@ -67,7 +67,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 - [x] **持久化**：通过实体 NBT 和世界持久状态，光环在世界重载和服务器重启后依然保留。实体加载时自动恢复。
 - [x] **传送感知**：当实体传送（或跨维度）时，光环瞬间跳到新位置——不会在地图上滑过去。
 - [x] **发光效果**：`animation.glow` 动画直接驱动图元自身的自发光亮度（全亮度渲染）；将组的 `glowing` 设为 `false` 可让其图元跟随环境光照。
-- [x] **LabPBR 兼容**：非全亮 billboard/ring/mesh 使用 Iris 实体材质管线；用户已确认 IterationRP 0.8.22、0.8.28 的 PBR／平滑法线画面正常。POM 依赖光影包，本版本不额外声明 POM 支持；GUI 预览不使用世界 G-buffer。详见[迁移记录](docs/26.2-neoforge-migration.md)。
+- [ ] **LabPBR 目标验收**：保留非发光 billboard/ring/mesh 的 Iris 实体材质契约，26.3 实测结果见迁移记录；POM 和 GUI G-buffer 材质单独记录。
 - [x] **动画支持**：光环定义支持位置、旋转、缩放、透明度和发光动画通道，以及彼此独立的启动与关闭过渡时间线。
 - [x] **运行时调试配置**：`/halo config` 提供阻尼、距离限制、角动量和统一缩放的会话级覆写，用于个人微调与调试。本地模式作用于当前客户端，整合单人游戏通过进程内桥接作用于配对客户端；专用服务器不会持久化或向玩家分发这些值。位置和旋转偏移等永久摆放修改应写入具体光环定义。
 - [x] **资源包友好**：负责渲染的客户端从资源包 `assets/<namespace>/halo_definitions/` 读取定义及视觉素材。服务端数据包可在 `data/<namespace>/halo_definitions/` 注册定义 JSON，供服务端列出和选择，但 Halo 不会下发这些 JSON、纹理或模型；每个渲染客户端仍须安装匹配的资源包。修改任一来源后运行 `/reload`。
@@ -92,15 +92,15 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ## 安装
 
-1. 为 Minecraft 26.2 安装 [NeoForge](https://neoforged.net/)。最低支持 **26.2.0.59**，开发和发布构建基线为 **26.2.0.59**。
-2. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 下载对应的 **Halo NeoForge 26.2** JAR。
+1. 为 Minecraft 26.3 安装 [NeoForge](https://neoforged.net/)。最低支持 **26.3.0.64-beta**，开发和发布构建基线为 **26.3.0.64-beta**。
+2. 从 [Releases](https://github.com/AzusaKe/Halo/releases) 下载对应的 **Halo NeoForge 26.3** JAR。
 3. 将 Halo JAR 放入实例的 `mods` 文件夹并启动 NeoForge。成品已包含 HaloCore。
 
 ### NeoForge / Forge
 
-在 NeoForge .59 上使用原生 Vulkan 时，先在 `config/fml.toml` 设置 `earlyWindowControl = false`，再选择 Vulkan 并重启；早期 OpenGL 加载窗口会导致 Vulkan 窗口创建失败。Iris 光影使用 OpenGL。
+使用原生 Vulkan 时，先在 `config/fml.toml` 设置 `earlyWindowControl = false`，再选择 Vulkan 并重启；早期 OpenGL 加载窗口会导致 Vulkan 窗口创建失败。Iris 光影使用 OpenGL。
 
-本分支提供原生 NeoForge 适配器。其他加载器应使用对应的 Halo 构建。迁移记录和实际验证范围见 [迁移记录](docs/26.2-neoforge-migration.md)。
+本分支提供原生 NeoForge 适配器。其他加载器应使用对应的 Halo 构建。迁移记录和实际验证范围见 [迁移记录](docs/26.3-neoforge-migration.md)。
 
 <a id="使用方法"></a>
 
@@ -160,7 +160,7 @@ billboard/ring 默认使用优化后的 `compatibility` 渲染模式。`/halo re
 
 ### YSM 兼容
 
-Minecraft 26.2 不提供 YSM 兼容。为保持跨版本数据兼容，既有 YSM 配置字段继续可读；本分支通过公开锚点 API 接入 EMF 世界及预览捕获。
+Minecraft 26.3 不提供 YSM 兼容。为保持跨版本数据兼容，既有 YSM 配置字段继续可读；本分支通过公开锚点 API 接入 EMF 世界及预览捕获。
 
 <a id="自定义光环定义"></a>
 
@@ -286,7 +286,7 @@ Minecraft 26.2 不提供 YSM 兼容。为保持跨版本数据兼容，既有 YS
 
 ### 前置条件
 
-- **JDK 25** — Minecraft 26.2 所需（HaloCore 仍保持 Java 17 兼容）
+- **JDK 25** — Minecraft 26.3 所需（HaloCore 仍保持 Java 17 兼容）
 - 互联网连接（Gradle 从 Maven 仓库下载依赖）
 
 <a id="构建"></a>
@@ -294,12 +294,12 @@ Minecraft 26.2 不提供 YSM 兼容。为保持跨版本数据兼容，既有 YS
 ### 构建
 
 ```bash
-git clone --branch 26.2-neoforge --recurse-submodules https://github.com/AzusaKe/Halo.git
+git clone --branch 26.3-neoforge --recurse-submodules https://github.com/AzusaKe/Halo.git
 cd Halo
 ./gradlew build
 ```
 
-编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.2-neoforge-2.5.0+adapter.2.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
+编译好的 JAR 文件位于 `build/libs/`；当前源码版本生成 `halo-26.3-neoforge-2.5.0+adapter.1.jar`。工作树有改动或 core 未正确锁定时，构建名称带 `.dev` 后缀。正式发布需要完成双仓库锁定和验收。
 
 <a id="运行测试"></a>
 
@@ -321,8 +321,8 @@ cd Halo
 ./gradlew runServer --console=plain
 ```
 
-客户端使用 `runClient/26.2.0.59/`，第二客户端使用 `runClient2/26.2.0.59/`；本分支的专用服务端独立使用
-`runServer/26.2-neoforge-26.2.0.59/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
+客户端使用 `runClient/26.3.0.64-beta/`，第二客户端使用 `runClient2/client2/26.3.0.64-beta/`；本分支的专用服务端独立使用
+`runServer/server/26.3-neoforge-26.3.0.64-beta/`，其中保存它自己的日志、配置和世界。首次启动按提示处理该目录的
 `eula.txt`，并在 `server.properties` 中设置端口等参数。开发账号联机需要测试服务器允许离线账号；
 本机测试可将 `server-ip` 设为 `127.0.0.1`。控制台输入 `stop` 可正常保存并关闭服务器。
 
@@ -354,7 +354,7 @@ src/testFixtures/             # frozen anchor API v2 ABI consumer
 
 欢迎对 Halo 进行贡献！如果你有想法、建议或想报告 Bug，请在 [GitHub 仓库](https://github.com/AzusaKe/Halo) 提交 Issue。如果你想贡献代码，请 Fork 仓库并提交 Pull Request。
 
-- **开发环境**：Minecraft 26.2 + NeoForge 26.2.0.59 (minimum 26.2.0.59) + JDK 25
+- **开发环境**：Minecraft 26.3 + NeoForge 26.3.0.64-beta (minimum 26.3.0.64-beta) + JDK 25
 - **IDE**：推荐 IntelliJ IDEA（配合 Minecraft Development 插件）或 VS Code
 
 <a id="许可证"></a>

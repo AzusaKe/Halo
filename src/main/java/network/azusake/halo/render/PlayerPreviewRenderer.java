@@ -17,6 +17,12 @@ import network.azusake.halo.platform.HaloClientState;
 /** Internal Minecraft preview integration; public only for adapter lifecycle and Mixin hooks. */
 public final class PlayerPreviewRenderer {
     private static final PreviewSessionPool VIEWS = new PreviewSessionPool(options -> HaloClientState.get().openPreview(options));
+    private static final boolean DEBUG_PREVIEW = Boolean.getBoolean("halo.debugPreview");
+    private static final java.util.Set<String> DIAGNOSTICS = new java.util.HashSet<>();
+    private static void diagnose(String key, Object value) {
+        if (DEBUG_PREVIEW && DIAGNOSTICS.add(key))
+            org.slf4j.LoggerFactory.getLogger("halo").info("Preview {}: {}", key, value);
+    }
     private PlayerPreviewRenderer() {}
 
     public static void beginFrame() {
@@ -24,7 +30,7 @@ public final class PlayerPreviewRenderer {
         if (!HaloModConfigStore.get().isPlayerPreviewHaloEnabled()) { VIEWS.close(); return; }
         VIEWS.beginFrame(client.gui.screen(), client.level, motionOptions(), System.nanoTime());
     }
-    public static void endFrame() { VIEWS.endFrame(); }
+    public static void endFrame() { VIEWS.endFrame(); HaloDrawSubmitter.endFrame(); }
     public static void resetAutomaticMotion() { VIEWS.resetMotion(); }
     public static void clearAutomaticViews() { VIEWS.close(); PlayerPreviewCapture.clearAnchorScopes(); }
     private static PreviewOptions motionOptions() {
@@ -36,6 +42,7 @@ public final class PlayerPreviewRenderer {
         RenderSystem.assertOnRenderThread();
         if (!HaloModConfigStore.get().isPlayerPreviewHaloEnabled()) return;
         var output = session.render(frame);
+        if (DEBUG_PREVIEW) diagnose(output.legacyBatches().isEmpty() && output.meshes().isEmpty() && output.primitiveDraws().isEmpty() ? "empty output" : "visible output", "legacy=" + output.legacyBatches().size() + ", mesh=" + output.meshes().size() + ", cached=" + output.primitiveDraws().size());
         HaloRenderer.getInstance().submitPreview(output, frame.visuals());
     }
 
@@ -43,23 +50,29 @@ public final class PlayerPreviewRenderer {
      * Wrap a vanilla player renderer at its final preview root. Flushes model buffers before drawing
      * the halo. Invoked by the InventoryScreen.drawEntity adapter hook.
      */
-    public static void renderPlayer(GuiEntityRenderState state, PoseStack stack, Runnable renderEntity) {
+    public static HaloDrawSubmitter.PreparedSubmission preparePlayer(GuiEntityRenderState state, PoseStack stack, Runnable renderEntity) {
         var client=net.minecraft.client.Minecraft.getInstance();
+        diagnose("state", state.renderState().getClass().getName());
         if(!(state.renderState() instanceof AvatarRenderState avatar)||client.level==null
-            ||!(client.level.getEntity(avatar.id) instanceof Player entity)){renderEntity.run();return;}
+            ||!(client.level.getEntity(avatar.id) instanceof Player entity)){diagnose("skipped", state.renderState() instanceof AvatarRenderState a ? a.id : "not-avatar");renderEntity.run();return HaloDrawSubmitter.prepare(() -> {}); }
         Object viewIdentity=java.util.List.of(state.x0(),state.y0(),state.x1(),state.y1());
         Matrix4f root=new Matrix4f(stack.last().pose()).translate(state.translation()).rotate(state.rotation());
         try(var capture=PlayerPreviewCapture.open(entity,root)){
             renderEntity.run();
             var head=capture.head();
-            if(head==null||!entity.isAlive()||!HaloModConfigStore.get().isPlayerPreviewHaloEnabled())return;
+            diagnose("head", head);
+            if (DEBUG_PREVIEW) {
+                var definition = HaloClientState.get().assignments().get(entity.getUUID());
+                diagnose(definition == null ? "unassigned owner" : "assigned owner", definition);
+            }
+            if(head==null||!entity.isAlive()||!HaloModConfigStore.get().isPlayerPreviewHaloEnabled())return HaloDrawSubmitter.prepare(() -> {});
             var assets=HaloMeshResources.snapshot();
-            try(var lease=VIEWS.acquire(viewIdentity,entity.getUUID(),entity.getId(),motionOptions())){
+            return HaloDrawSubmitter.prepare(() -> { try(var lease=VIEWS.acquire(viewIdentity,entity.getUUID(),entity.getId(),motionOptions())){
                 draw(lease.session(),new PreviewFrame(entity.getUUID(),entity.getId(),head,
                     new FrameScene.CameraSample(new Vec3d(0,0,0),new Vec3d(0,-1,0),new Vec3d(1,0,0)),
                     root.get(new float[16]),System.currentTimeMillis(),VIEWS.frameNanos(),LightSample.FULL_BRIGHT,
                     id->true,assets.visuals(),PreviewFrame.Projection.ORTHOGRAPHIC,HaloRenderer.getInstance().primitiveMode()));
-            }
+            } });
         }
     }
 }

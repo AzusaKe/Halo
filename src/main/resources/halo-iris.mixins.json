@@ -6,7 +6,10 @@
     "IrisMeshPipelineMixin",
     "IrisShaderSourceMixin",
     "IrisPipelineSelectionMixin",
-    "IrisMaterialSamplersMixin"
+    "IrisMaterialSamplersMixin",
+    "IrisShaderSelectionMixin",
+    "IrisMaterialLayoutMixin",
+    "IrisMaterialBindingMixin"
   ],
   "injectors": {
     "defaultRequire": 1

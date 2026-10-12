@@ -1,11 +1,12 @@
 #version 330
-#moj_import <minecraft:dynamictransforms.glsl>
+#extension GL_ARB_separate_shader_objects : require
+#include <minecraft:dynamictransforms.glsl>
 uniform sampler2D Sampler0;
 uniform sampler2D HaloMask;
 layout(std140) uniform HaloMaterial { mat3 HaloNormal; vec4 HaloMaskParams; vec4 HaloOffsetLight; };
-in vec2 texCoord0;
-in vec4 vertexColor;
-out vec4 fragColor;
+layout(location = 0) in vec2 texCoord0;
+layout(location = 1) in vec4 vertexColor;
+layout(location = 0) out vec4 fragColor;
 void main() {
  vec4 color = texture(Sampler0, texCoord0) * vertexColor * ColorModulator;
  if (HaloMaskParams.x > 0.5) {

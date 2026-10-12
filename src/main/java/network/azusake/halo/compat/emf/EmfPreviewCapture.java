@@ -18,6 +18,7 @@ final class EmfPreviewCapture {
         public VertexConsumer setLineWidth(float width){return this;}
         public VertexConsumer addVertex(float x, float y, float z) { return this; }
         public VertexConsumer setColor(int r, int g, int b, int a) { return this; }
+        public VertexConsumer setUv3(float u, float v) { return this; }
         public VertexConsumer setUv(float u, float v) { return this; }
         public VertexConsumer setUv1(int u, int v) { return this; }
         public VertexConsumer setUv2(int u, int v) { return this; }

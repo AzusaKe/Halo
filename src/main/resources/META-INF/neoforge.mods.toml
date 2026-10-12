@@ -1,5 +1,3 @@
-modLoader="javafml"
-loaderVersion="${loader_version_range}"
 license="${mod_license}"
 logoFile="assets/halo/textures/halo/ring.png"
 

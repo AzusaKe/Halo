@@ -1,6 +1,6 @@
 package network.azusake.halo.render;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.renderer.texture.OverlayTexture;
@@ -49,6 +49,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
         private final MeshIndexWriter writer;
         private final LazyMeshResource<ResidentBuffer> nativeBuffer = new LazyMeshResource<>();
         private final LazyMeshResource<ResidentBuffer> irisBuffer = new LazyMeshResource<>();
+        private boolean nativePreparationFailed, irisPreparationFailed;
 
         MeshBuffer(TriangleMesh mesh, boolean sourceQuad) {
             this.mesh = mesh;
@@ -59,6 +60,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
         boolean draw(DrawBatch state, Matrix4f matrix, Matrix3f normal, boolean sort,
                      boolean mirrored, RenderEnvironment environment) {
             boolean iris = environment == RenderEnvironment.WORLD && OptionalIrisPassDetector.hasShaderPack();
+            if (iris ? irisPreparationFailed : nativePreparationFailed) return false;
             if (iris && Boolean.getBoolean("halo.mesh.forceExpanded")) return false;
             var slot = iris ? irisBuffer : nativeBuffer;
             var resident = slot.get(() -> new ResidentBuffer(mesh, writer, new MeshVertexLayout(iris, sourceQuad)),
@@ -66,7 +68,13 @@ final class HaloMeshBufferCache implements AutoCloseable {
                     "Cannot upload {} Halo mesh ({} triangles); using CPU fallback for this generation",
                     iris ? "Iris" : "native", mesh.triangleCount(), error));
             if (resident == null) return false;
-            resident.draw(state, matrix, normal, sort, mirrored, environment);
+            try {
+                resident.draw(state, matrix, normal, sort, mirrored, environment);
+            } catch (RuntimeException | OutOfMemoryError error) {
+                if (iris) irisPreparationFailed = true; else nativePreparationFailed = true;
+                org.slf4j.LoggerFactory.getLogger("halo").warn("Cannot prepare Halo mesh; using same-frame CPU fallback until reload", error);
+                return false;
+            }
             return true;
         }
 
@@ -76,10 +84,11 @@ final class HaloMeshBufferCache implements AutoCloseable {
     private static final class ResidentBuffer implements GenerationMeshCache.Owned {
         private final MeshIndexWriter writer;
         private final MeshVertexLayout layout;
-        private GpuBuffer vertices, source, mirroredSource, dynamic;
+        private GpuBuffer vertices, source, mirroredSource;
         private ByteBuffer indexBytes;
         private IntBuffer indexInts;
-        private final MeshIndexUpload uploaded = new MeshIndexUpload();
+        private record IndexSlot(GpuBuffer buffer, MeshIndexUpload uploaded) {}
+        private final FrameIndexSlots<IndexSlot> sortedSlots = new FrameIndexSlots<>(slot -> slot.buffer().close());
         private final float[] sortView = new float[16];
 
         ResidentBuffer(TriangleMesh mesh, MeshIndexWriter writer, MeshVertexLayout layout) {
@@ -92,7 +101,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
                     // during resource reload or pipeline construction, and validate the actual layout.
                     java.util.function.Supplier<MeshData> build = () -> {
                         var builder = new BufferBuilder(allocator,
-                            layout.iris() && layout.sourceQuad() ? com.mojang.blaze3d.PrimitiveTopology.QUADS : com.mojang.blaze3d.PrimitiveTopology.TRIANGLES,
+                            layout.iris() && layout.sourceQuad() ? com.mojang.renderpearl.api.pipeline.PrimitiveTopology.QUADS : com.mojang.renderpearl.api.pipeline.PrimitiveTopology.TRIANGLES,
                             DefaultVertexFormat.ENTITY);
                         for (int corner = 0; corner < vertexCount; corner++) {
                             int vertex = layout.vertexAt(mesh, corner);
@@ -108,14 +117,13 @@ final class HaloMeshBufferCache implements AutoCloseable {
                             throw new IllegalStateException("Unexpected native Halo vertex format");
                         vertices = RenderSystem.getDevice().createBuffer(() -> "Halo resident mesh", GpuBuffer.USAGE_VERTEX, data.vertexBuffer());
                         MeshRenderMetrics.vertexUpload(data.vertexBuffer().remaining());
+                        MeshRenderMetrics.geometryUpload();
                     }
                 }
                 indexBytes = MemoryUtil.memAlloc(java.lang.Math.multiplyExact(writer.indexCount(), Integer.BYTES));
                 indexInts = indexBytes.asIntBuffer();
                 source = indices(false);
                 mirroredSource = indices(true);
-                dynamic = RenderSystem.getDevice().createBuffer(() -> "Halo sorted indices",
-                    GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, indexBytes.capacity());
             } catch (RuntimeException | OutOfMemoryError error) { close(); throw error; }
         }
 
@@ -129,6 +137,11 @@ final class HaloMeshBufferCache implements AutoCloseable {
         void draw(DrawBatch state, Matrix4f matrix, Matrix3f normal, boolean sort, boolean mirrored, RenderEnvironment environment) {
             GpuBuffer index = mirrored ? mirroredSource : source;
             if (sort) {
+                var slot = sortedSlots.acquire(network.azusake.halo.physics.RenderHeadCapture.getFrameId(),
+                    () -> new IndexSlot(RenderSystem.getDevice().createBuffer(() -> "Halo sorted indices",
+                        GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, indexBytes.capacity()), new MeshIndexUpload()));
+                var dynamic = slot.buffer();
+                var uploaded = slot.uploaded();
                 long revision = writer.prepareBackToFrontView(matrix.get(sortView), environment == RenderEnvironment.WORLD);
                 if (!uploaded.matches(revision, mirrored)) {
                     indexInts.clear();
@@ -141,7 +154,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
                 index = dynamic;
             }
             HaloDrawSubmitter.draw(state, HaloMeshShader.material(state, environment), vertices, index,
-                com.mojang.blaze3d.IndexType.INT, writer.indexCount(), matrix, normal);
+                com.mojang.renderpearl.api.pipeline.IndexType.INT, writer.indexCount(), matrix, normal);
             MeshRenderMetrics.residentDraw();
         }
 
@@ -149,7 +162,7 @@ final class HaloMeshBufferCache implements AutoCloseable {
             if (vertices != null) vertices.close();
             if (source != null) source.close();
             if (mirroredSource != null) mirroredSource.close();
-            if (dynamic != null) dynamic.close();
+            sortedSlots.close();
             if (indexBytes != null) MemoryUtil.memFree(indexBytes);
         }
     }

@@ -3,6 +3,7 @@ import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
+import net.neoforged.neoforge.client.event.PrepareRenderBuffersEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import network.azusake.halo.physics.OptionalIrisPassDetector;
 import network.azusake.halo.physics.RenderHeadCapture;
@@ -28,7 +29,9 @@ public final class HaloRenderListener {
             HaloRenderer.getInstance().renderHalos(event.getPoseStack(),
                 Minecraft.getInstance().gameRenderer.mainCamera(), tickDelta);
         });
+        NeoForge.EVENT_BUS.addListener(PrepareRenderBuffersEvent.class, event ->
+            HaloRenderer.getInstance().prepareWorldBuffers());
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterOpaqueFeatures.class, event ->
-            HaloRenderer.getInstance().submitSolidStage());
+            HaloDrawSubmitter.withPass(event.getRenderPass(), () -> HaloRenderer.getInstance().submitSolidStage()));
     }
 }

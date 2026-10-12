@@ -11,7 +11,7 @@ import org.joml.Vector3fc;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 
-/** Keep head accessories inside the 26.2 offscreen preview texture without moving the player. */
+/** Keep head accessories inside the 26.3 offscreen preview texture without moving the player. */
 @Mixin(GuiGraphicsExtractor.class)
 public abstract class GuiPreviewBoundsMixin {
     @WrapMethod(method = "entity")
