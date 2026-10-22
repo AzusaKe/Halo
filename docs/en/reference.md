@@ -74,7 +74,8 @@ A halo definition JSON file contains the following top-level fields:
 - **Type**: `[yaw, pitch, roll]` triple (degrees)
 - **Required**: No
 - **Default**: `[0, 0, 0]`
-- **Description**: Only meaningful when `orientation_mode` is `"sync"`. Defines a fixed rotational offset between the halo and the entity's head. Uses Euler YXZ order.
+- **Description**: Only meaningful when `orientation_mode` is `"sync"`. Applies a fixed rotation around the head's local axes, using Euler YXZ order. Convert the initial `locked` basis into head-local space as `C`, then capture `R = sync_offset × C`; subsequent world rotation is `head rotation × R`. The offset does not depend on the head's initial world orientation. Its axes belong to the head.
+- **Reloading**: Changing the effective positioning offset, orientation mode or `sync_offset` reinitializes the equipped halo's position and orientation on the next valid frame, preserving ownership and animation progress. Texture-only or layer-only changes preserve motion. Teleporting still recaptures the basis. Rigid previews use the same local composition; physical previews retain independent motion state.
 
 ### `layers`
 
