@@ -1,5 +1,14 @@
 # 更新记录
 
+## 未发布 — 2.5.1 开发阶段：SYNC 与 LOCKED 朝向修复
+
+- SYNC 的 `sync_offset` 改为沿头部局部轴应用，修正首次佩戴时世界朝向影响主体旋转的问题。
+- 有效定位偏移、朝向模式和 SYNC 偏移变化后，世界／物理预览重新建立姿态；无关资源重载保留物理状态，佩戴关系和动画进度不重建。
+- 首先单独完成 SYNC 并在主线验证；随后修复内置 `mesh_demo` 在水平视线附近小幅慢速俯仰、静止后仍沿法线反向的问题：极点处改用头部前向，保留非极点规则和阻尼参数。
+- core 347 项测试通过；主线已执行两项修复的 15 场景游戏检查，包含持续慢速俯仰、充分静止和资源重载。各平台状态分别见 [2.5.1 验证表](docs/orientation-2.5.1-verification.md)，根因与行为见 [SYNC](docs/sync-orientation-fix.md)／[LOCKED](docs/locked-orientation-fix.md) 修复记录。
+
+
+
 ## 2.5.0+adapter.1 — Minecraft 26.3 NeoForge 迁移 — 待发布 — 2026-10-12
 
 - 从 26.2 NeoForge 完整功能基线迁移，精确保留 HaloCore 2.5.0 / `a22160a842e15fffb1bc03b5b189183557f6d510`；公开 API v2、定义、配置、存储和九类网络载荷保持原有契约。
