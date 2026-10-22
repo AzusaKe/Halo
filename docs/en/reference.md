@@ -387,6 +387,7 @@ Orientation mode controls how the halo rotates relative to the entity in space. 
 
 - The halo orientation **always points toward the player's head center**
 - Uses the player head's **spherical poles** (upper and lower poles) to determine the halo's rotation around its normal — the halo points stably toward these poles like a compass and won't rotate freely around its normal axis
+- For offsets directly above or below the head (including numerical proximity), head-up cannot determine spin. The halo's `+Z` then uses **head-forward**, avoiding a persistent reversal when pitch crosses horizontal. A zero offset uses the limiting convention of an offset above the head.
 - When `allow_angular_momentum` is `true`, the orientation toward the head center becomes a target — the actual orientation chases it with angular momentum inertia
 - Suitable for halos that need a stable orientation, such as the default `ring_default`
 
