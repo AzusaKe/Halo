@@ -39,6 +39,23 @@ SHA-256 为 `84575742d6c2ea63215c9544ed52e7a73b7b24c820eedb42947f8a43b1ae4ce8`�
 - `1.21.1-neoforge`：official YSM 2.6.5 jar retains every pinned adapter signature。
 - `26.1-neoforge`：officialHotfixRetainsPinnedContract()。
 
+## 实际构建与游戏依赖
+
+下表记录本轮默认构建和客户端实际使用的依赖；没有额外覆盖加载器版本。JDK 见上表，core 固定为 2.5.1。
+
+| 分支 | Minecraft | 加载器 | 配套 API | 映射 |
+| --- | --- | --- | --- | --- |
+| 1.20.1-fabric | 1.20.1 | Fabric Loader 0.15.11 | Fabric API 0.92.0+1.20.1 | 1.20.1+build.10 |
+| 1.20.1-forge | 1.20.1 | Forge 47.4.0 | — | Mojang 官方名称 |
+| 1.21.1-fabric | 1.21.1 | Fabric Loader 0.16.14 | Fabric API 0.116.15+1.21.1 | 1.21.1+build.3 |
+| 1.21.1-neoforge | 1.21.1 | NeoForge 21.1.248 | — | Parchment 2024.11.17 |
+| 26.1-fabric | 26.1.2 | Fabric Loader 0.19.3 | Fabric API 0.155.3+26.1.2 | Mojang 官方名称 |
+| 26.1-neoforge | 26.1.2 | NeoForge 26.1.2.95 | — | Mojang 官方名称 |
+| 26.2-fabric | 26.2 | Fabric Loader 0.19.3 | Fabric API 0.157.0+26.2 | Mojang 官方名称 |
+| 26.2-neoforge | 26.2 | NeoForge 26.2.0.59 | — | Mojang 官方名称 |
+| 26.3-fabric | 26.3 | Fabric Loader 0.19.5 | Fabric API 0.160.6+26.3 | Mojang 官方名称 |
+| 26.3-neoforge | 26.3 | NeoForge 26.3.0.64-beta | — | Mojang 官方名称 |
+
 ## 游戏用例与证据
 
 每个版本独立使用隔离测试世界副本，以对应加载器和 JDK 启动实际客户端。
