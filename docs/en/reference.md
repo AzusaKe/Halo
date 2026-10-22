@@ -74,7 +74,8 @@ A halo definition JSON file contains the following top-level fields:
 - **Type**: `[yaw, pitch, roll]` triple (degrees)
 - **Required**: No
 - **Default**: `[0, 0, 0]`
-- **Description**: Only meaningful when `orientation_mode` is `"sync"`. Defines a fixed rotational offset between the halo and the entity's head. Uses Euler YXZ order.
+- **Description**: Only meaningful when `orientation_mode` is `"sync"`. Applies a fixed rotation around the head's local axes, using Euler YXZ order. Convert the initial `locked` basis into head-local space as `C`, then capture `R = sync_offset × C`; subsequent world rotation is `head rotation × R`. The offset does not depend on the head's initial world orientation. Its axes belong to the head.
+- **Reloading**: Changing the effective positioning offset, orientation mode or `sync_offset` reinitializes the equipped halo's position and orientation on the next valid frame, preserving ownership and animation progress. Texture-only or layer-only changes preserve motion. Teleporting still recaptures the basis. Rigid previews use the same local composition; physical previews retain independent motion state.
 
 ### `layers`
 
@@ -386,6 +387,7 @@ Orientation mode controls how the halo rotates relative to the entity in space. 
 
 - The halo orientation **always points toward the player's head center**
 - Uses the player head's **spherical poles** (upper and lower poles) to determine the halo's rotation around its normal — the halo points stably toward these poles like a compass and won't rotate freely around its normal axis
+- For offsets directly above or below the head (including numerical proximity), head-up cannot determine spin. The halo's `+Z` then uses **head-forward**, avoiding a persistent reversal when pitch crosses horizontal. A zero offset uses the limiting convention of an offset above the head.
 - When `allow_angular_momentum` is `true`, the orientation toward the head center becomes a target — the actual orientation chases it with angular momentum inertia
 - Suitable for halos that need a stable orientation, such as the default `ring_default`
 
