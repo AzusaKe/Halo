@@ -6,7 +6,9 @@
 随后授权继续其余 9 个版本。该人工确认限于维护者的主线实测；其余平台在下表记录
 各自的自动定向游戏结果。10 条标准分支均完成联合构建与原生游戏验证。
 
-统一锁定 HaloCore **2.5.1 / `77cb1d62b3a3c8ce3ba2e56c8d16366e2518e433`**，保留各平台原 adapter revision。
+游戏验收基线为 HaloCore **2.5.1 / `77cb1d62b3a3c8ce3ba2e56c8d16366e2518e433`**。
+正式发布锁定 **`59e3bb2e3139b1c0982c0d992525bc3032b4c69b`**：后续提交仅将 core README／CHANGELOG 从开发阶段标记为正式 2.5.1，生产源码不变。
+根据维护者的发布指令，10 条分支的 adapter revision 统一重置为 **1**。
 SYNC 的独立 core 提交为 `4c43c38`，LOCKED 的后续独立提交为 `77cb1d6`；
 主线 SYNC 首次集成为 `0d81a89`。没有修改 JSON schema、存档、协议或公开 API。
 core 的 347 项测试与冻结旧调用方、平台边界检查通过。
@@ -93,5 +95,7 @@ EMF/Iris/YSM 组合、LabPBR 或性能压测全部通过。构建中的跳过项
 冻结和特殊适配分支保持原样。
 
 各分支分别提交 gitlink 和配套说明，固定同一 core SHA；只做本地提交和快进集成。
-没有推送、修改旧标签、创建发布标签或 GitHub Release。最终安装包、SHA-256 和
+以上本地验证阶段没有推送或创建标签／Release。2026-10-22 维护者授权发布准备，
+随后将按 core 在先、Halo 在后的顺序推送并创建 2.5.1 标签；云端构建及 Release
+审阅结果另行记录。旧标签保持不动。最终安装包、SHA-256 和
 每个平台 Halo SHA 记录于 `F:/codex-cache/halo-orientation-2.5.1/artifacts/manifest.json`。
