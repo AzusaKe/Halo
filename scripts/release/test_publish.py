@@ -75,13 +75,14 @@ class ReleaseValidationTests(unittest.TestCase):
     def setUp(self):
         self.config = json.loads((p.ROOT / ".github/release-targets.json").read_text())
 
-    def test_all_nine_targets_and_26_1_alias(self):
-        self.assertEqual(len(self.config["targets"]), 9)
+    def test_all_ten_targets_and_26_1_alias(self):
+        self.assertEqual(len(self.config["targets"]), 10)
         for target in self.config["targets"]:
             tag = f'v2.4.2-{target["loader"]}-{target["tag_game"]}-adapter.1'
             _, found = p.target_for(self.config, tag)
             self.assertEqual(found, target)
         self.assertEqual(p.target_for(self.config, "v2.4.2-fabric-26.1-adapter.1")[1]["game"], "26.1.2")
+        self.assertEqual(p.target_for(self.config, "v2.5.1-neoforge-26.3-adapter.1")[1]["branch"], "26.3-neoforge")
 
     def test_rejects_frozen_unknown_and_injected_tags(self):
         for tag in ["v2.4.2", "v2.4.2-fabric-26.2-adapter.1-flash", "v2.4.2-forge-26.3-adapter.1", "v2.4.2-fabric-26.2-adapter.1\n", "$(echo hello)"]:
@@ -123,7 +124,7 @@ class ReleaseValidationTests(unittest.TestCase):
             plan = {**plan_fixture(), "loader": target["loader"], "build_game": target["game"], "game_versions": [target["game"]], "tag": f'v2.4.2-{target["loader"]}-{target["tag_game"]}-adapter.1'}
             numbers.append(p.modrinth_version_number(plan))
             self.assertEqual(numbers[-1], plan['tag'])
-        self.assertEqual(len(set(numbers)), 9)
+        self.assertEqual(len(set(numbers)), 10)
         self.assertTrue(all(len(number) <= 32 for number in numbers))
         with self.assertRaisesRegex(p.PublishError, "32 characters"):
             p.modrinth_version_number({**plan_fixture(), "tag": "v2.4.2-alpha.extremely.long.prerelease-fabric-1.20.1-adapter.1"})

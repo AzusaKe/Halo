@@ -4,7 +4,7 @@
 
 ## 部署结构
 
-共享入口是默认分支 `1.20.1-fabric` 上的 [publish-platforms.yml](../.github/workflows/publish-platforms.yml)。agent 在目标标签 CI 成功、修改完 Release 正文后，通过 `workflow_dispatch` 触发发布。入口支持 [配置清单](../.github/release-targets.json) 中的 9 个维护分支，无需向各适配分支复制发布脚本。
+共享入口是默认分支 `1.20.1-fabric` 上的 [publish-platforms.yml](../.github/workflows/publish-platforms.yml)。agent 在目标标签 CI 成功、修改完 Release 正文后，通过 `workflow_dispatch` 触发发布。入口支持 [配置清单](../.github/release-targets.json) 中的 10 个维护分支，无需向各适配分支复制发布脚本。
 
 CI 完成和 Release 创建本身不再触发上传，避免抢在 agent 整理发布说明之前分发。触发时绑定最终正文的 SHA-256，工作流排队期间或平台预检期间正文发生变化，会停止该项上传。两个平台使用同一份经过校验的正文快照。
 
@@ -62,7 +62,7 @@ try {
 
 定稿使用精确 UTF-8 内容，包含换行；不自动去空白、规范化或截断。如果定稿后需要继续改正文，应停止尚未上传的任务并重新定稿。跨平台没有原子事务：若一个平台已完成，后续正文修改需要单独处理其平台元数据，不能宣称修改会撤回已经完成的上传。
 
-Modrinth 的版本号使用完整 GitHub tag，例如 `v2.5.0-neoforge-1.21.1-adapter.2`；本轮九个平台 tag 均不超过 32 字符。预检检查长度限制，超限时停止，不静默压缩或截断。两个平台的版本显示名使用 `Halo 2.5.0 - 1.20.1 fabric (Adapter 3)` 格式，加载器小写，不添加 Minecraft 前缀。
+Modrinth 的版本号使用完整 GitHub tag，例如 `v2.5.0-neoforge-1.21.1-adapter.2`；维护清单中十个平台的正式 tag 均不超过 32 字符。预检检查长度限制，超限时停止，不静默压缩或截断。两个平台的版本显示名使用 `Halo 2.5.0 - 1.20.1 fabric (Adapter 3)` 格式，加载器小写，不添加 Minecraft 前缀。
 
 Fabric 版本声明 Fabric API 为必需依赖，Forge/NeoForge 不额外声明 Fabric API。core 已合并到 JAR，不作为需要玩家另行安装的依赖。Modrinth v2 的环境为项目级设置：客户端 required、服务端 optional；真实上传前校验，必要时 PATCH 并读回确认。CurseForge 仍填写 Client 和 Server 标签。
 
@@ -98,7 +98,7 @@ Modrinth 将主文件和源码文件放在同一次创建版本请求中，主�
 python scripts/release/dispatch.py --run-id 35518369319 --notes-file .local/release-notes.md --options-file .local/release-options.json --platform both --publish
 ```
 
-该示例假设 GitHub 正文已更新为定稿文件，且 `GH_TOKEN` 已按前文注入。`dispatch.py` 将选项解析为确定的值并传给工作流，不传本地文件路径。agent 可以按一次人类指令为 9 个分支分别生成选项、修改正文并触发，无需人类逐个平台填写表单。
+该示例假设 GitHub 正文已更新为定稿文件，且 `GH_TOKEN` 已按前文注入。`dispatch.py` 将选项解析为确定的值并传给工作流，不传本地文件路径。agent 可以按一次人类指令为 10 个分支分别生成选项、修改正文并触发，无需人类逐个平台填写表单。
 
 未指定选项时，兼容版本采用每个分支的精确构建基线。`26.1-fabric` 的标签用 `26.1`，成品和默认平台兼容版本用 `26.1.2`；源文档注明完整三版本运行验收仍待完成，因此默认不扩展为全部 `26.1.x`。平台尚未登记某个 Minecraft 版本或加载器时，该项失败，不自动替换成相邻版本。
 
@@ -199,3 +199,7 @@ python -m unittest discover -s scripts/release -p 'test_*.py' -v
 用户已审阅通过 GitHub changelog，并指定完整 tag 版本号、上述显示名、客户端与可选服务端、两平台 release 类型及同时上传主包和源码包。游戏版本按成品 JAR 定义解析并映射为平台已登记的正式版本；26.1 Fabric 声明 >=26.1 <26.2，因此本轮填写 26.1、26.1.1、26.1.2，26.1 NeoForge 则仅填写 26.1.2。Java 按 Halo 构建版本填 17/21/25。未改变已发布 tag 或 JAR；仅更新默认分支的发布器，47 项发布回归通过。
 
 CurseForge 的 2026-09-27 Upload API 支持 gameVersionNames。全局列表中同名 ID 可属于不被当前项目接受的依赖；本轮 1.21.1/26.x 遇到明确 HTTP 400 后改为按已登记的准确名称发送 Client、Server、加载器、Minecraft 和 Java，让服务端按项目依赖解析。不改 game version，不用邻近版本代替。该字段的来源为 https://support.curseforge.com/support/solutions/articles/9000197321-curseforge-upload-api 。已成功文件按回执保留，只重试明确拒绝的未成功文件。
+
+## 2026-10-23 的 2.5.1 发布
+
+发布清单补充 `26.3-neoforge`，支持 10 条标准分支。使用已通过 CI 并经维护者审阅的 `v2.5.1-*-adapter.1` 标签与现有 Release 正文，按 JAR 内的 Minecraft 范围展开平台版本标签，Java 分别填写构建使用的 17／21／25。两平台均为 release，同时上传正式包及源码附件，Fabric 声明 Fabric API 必需依赖，其他加载器不额外添加依赖。发布器维护提交不改变已有标签、core 指针或任何成品。平台回执和最终审核状态另行记录。
