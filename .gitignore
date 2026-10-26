@@ -16,6 +16,7 @@ out/
 *.swp
 *.swo
 *~
+.eclipse/
 
 # OS
 .DS_Store
@@ -25,10 +26,13 @@ desktop.ini
 # Java
 *.class
 *.log
+_verify_class/
 
 # Minecraft / Fabric Loom
 run/
 runServer/
+runClient/
+runClient2/
 logs/
 crash-reports/
 
