@@ -81,15 +81,17 @@ public final class HaloNetworkClient {
                 int targetEntityId = buf.readInt();
                 UUID targetUuid = HaloNetwork.readUuid(buf);
                 String targetName = buf.readString(128);
-                client.execute(() -> client.setScreen(
-                    new HaloScepterScreen(targetEntityId, targetUuid, targetName)
-                ));
+                client.execute(() -> {
+                    if (!network.azusake.halo.replay.ReplayClient.isPlayback())
+                        client.setScreen(new HaloScepterScreen(targetEntityId, targetUuid, targetName));
+                });
             }
         );
 
         ClientPlayNetworking.registerGlobalReceiver(
             HaloNetwork.CHANNEL_SCEPTER_CLOSE_SCREEN,
             (client, handler, buf, responseSender) -> client.execute(() -> {
+                if (network.azusake.halo.replay.ReplayClient.isPlayback()) return;
                 if (client.currentScreen instanceof HaloScepterScreen) {
                     client.setScreen(null);
                 }
@@ -98,6 +100,7 @@ public final class HaloNetworkClient {
     }
 
     public static void sendScepterSelection(Identifier definitionId) {
+        if (network.azusake.halo.replay.ReplayClient.isPlayback()) return;
         if (!ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_SCEPTER_SELECT)) {
             return;
         }
@@ -107,12 +110,14 @@ public final class HaloNetworkClient {
     }
 
     public static void sendScepterClose() {
+        if (network.azusake.halo.replay.ReplayClient.isPlayback()) return;
         if (ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_SCEPTER_CLOSE)) {
             ClientPlayNetworking.send(HaloNetwork.CHANNEL_SCEPTER_CLOSE, PacketByteBufs.empty());
         }
     }
 
     public static void sendScepterRemoveSelf() {
+        if (network.azusake.halo.replay.ReplayClient.isPlayback()) return;
         if (ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_SCEPTER_REMOVE_SELF)) {
             ClientPlayNetworking.send(HaloNetwork.CHANNEL_SCEPTER_REMOVE_SELF, PacketByteBufs.empty());
         }
@@ -124,6 +129,7 @@ public final class HaloNetworkClient {
      * Safe to call at any time — silently no-ops when not connected to a world.
      */
     public static void sendDefsReport() {
+        if (network.azusake.halo.replay.ReplayClient.isPlayback()) return;
         if (!ClientPlayNetworking.canSend(HaloNetwork.CHANNEL_DEFS_REPORT)) {
             return; // not connected to a server — silently skip
         }

@@ -36,16 +36,27 @@ public final class HaloScepterScreen extends Screen {
     private int panelBottom;
     private int missingTargetTicks;
     private boolean closeSent;
+    private final network.azusake.halo.api.v2.replay.ReplayUiState replayUi;
+    private long recordingUiSession;
 
     public HaloScepterScreen(int targetEntityId, UUID targetUuid, String targetName) {
         super(Text.translatable("screen.halo.halo_scepter.title"));
         this.targetEntityId = targetEntityId;
         this.targetUuid = targetUuid;
         this.targetName = targetName;
+        this.replayUi = null;
     }
+
+    public HaloScepterScreen(network.azusake.halo.api.v2.replay.ReplayUiState state) {
+        super(Text.translatable("screen.halo.halo_scepter.title"));
+        targetEntityId=-1; targetUuid=state.target(); targetName=state.targetName(); replayUi=state;
+    }
+    public boolean isReplaySession(long session) { return replayUi!=null && replayUi.session()==session; }
 
     @Override
     protected void init() {
+        if(replayUi==null && recordingUiSession==0)
+            recordingUiSession=network.azusake.halo.replay.ReplayClient.uiOpened(targetUuid,targetName);
         int panelWidth = Math.min(PANEL_WIDTH, width - PANEL_MARGIN * 2);
         panelLeft = (width - panelWidth) / 2;
         panelRight = panelLeft + panelWidth;
@@ -94,6 +105,7 @@ public final class HaloScepterScreen extends Screen {
     }
 
     private void choose(Identifier definitionId) {
+        if (replayUi!=null) return;
         HaloNetworkClient.sendScepterSelection(definitionId);
     }
 
@@ -101,6 +113,7 @@ public final class HaloScepterScreen extends Screen {
     public void tick() {
         super.tick();
         searchField.tick();
+        if(replayUi!=null)return;
 
         Entity target = client == null || client.world == null
             ? null
@@ -162,6 +175,7 @@ public final class HaloScepterScreen extends Screen {
 
     @Override
     public void removed() {
+        if(replayUi==null)network.azusake.halo.replay.ReplayClient.uiClosed(recordingUiSession);
         sendCloseOnce();
         super.removed();
     }
@@ -172,6 +186,7 @@ public final class HaloScepterScreen extends Screen {
     }
 
     private void sendCloseOnce() {
+        if (replayUi!=null) return;
         if (!closeSent) {
             closeSent = true;
             HaloNetworkClient.sendScepterClose();

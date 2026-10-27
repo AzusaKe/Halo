@@ -204,6 +204,10 @@ public final class FabricHaloCommandInterceptor implements HaloCommandIntercepto
     /** Execute an ownership command locally or forward it according to the current phase. */
     private static int executeLocal(String command) {
         MinecraftClient client = MinecraftClient.getInstance();
+        if (network.azusake.halo.replay.ReplayClient.isPlayback()) {
+            if (client.player!=null) client.player.sendMessage(Text.literal("Halo: replay is read-only."),false);
+            return 0;
+        }
 
         if (HaloPhaseTracker.getInstance().shouldIntercept()) {
             // LOCAL phase: handle on the client

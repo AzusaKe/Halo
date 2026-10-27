@@ -12,6 +12,7 @@ public final class HaloClientManager {
     public static HaloClientManager getInstance() { return INSTANCE; }
 
     public void restoreLocalOwnership() {
+        if (network.azusake.halo.replay.ReplayClient.isPlayback()) return;
         if (!HaloPhaseTracker.getInstance().shouldIntercept()) return;
         var client = MinecraftClient.getInstance();
         if (client.world == null || client.getNetworkHandler() == null) return;

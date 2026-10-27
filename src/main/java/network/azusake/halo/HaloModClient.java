@@ -30,9 +30,11 @@ public class HaloModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
+        network.azusake.halo.replay.ReplayClient.initialize();
         network.azusake.halo.platform.IntegratedBridge.config = snapshot ->
             net.minecraft.client.MinecraftClient.getInstance().execute(() ->
-                network.azusake.halo.platform.HaloClientState.get().setConfig(snapshot.toConfig()));
+                { if (!network.azusake.halo.replay.ReplayClient.isPlayback())
+                    network.azusake.halo.platform.HaloClientState.get().setConfig(snapshot.toConfig()); });
         network.azusake.halo.platform.IntegratedBridge.teleport = uuid ->
             net.minecraft.client.MinecraftClient.getInstance().execute(() ->
                 network.azusake.halo.platform.HaloClientState.get().teleport(uuid));
@@ -55,6 +57,7 @@ public class HaloModClient implements ClientModInitializer {
         // Register the halo renderer with Fabric's world-render pipeline
         HaloRenderListener.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            network.azusake.halo.replay.ReplayClient.shutdown();
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.render.HaloRenderer.getInstance().shutdown();
         });
@@ -123,6 +126,7 @@ public class HaloModClient implements ClientModInitializer {
         // Only the client replica is cleared; HaloLocalManager (persistent)
         // retains local halos so they survive reconnects to the same server.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            network.azusake.halo.replay.ReplayClient.disconnect();
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.platform.HaloClientState.get().clearAllClientHalos();
             network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();

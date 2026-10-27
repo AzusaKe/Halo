@@ -623,3 +623,20 @@ Halo dependency.
 | `halo:update` | S2C | Incremental attach/remove |
 | `halo:defs_report` | C2S | Client reports local definition IDs |
 | `halo:hello` | S2C | Handshake — server has the mod installed |
+
+## Experimental replay API (2.6.0)
+
+`network.azusake.halo.api.v2.replay.HaloReplayApi` extends v2 additively. It requires a core
+containing this extension and a client adapter binding a `ReplayHost`; older v2 releases do not
+contain the new classes. Concrete recorder backends are under validation on Fabric 1.21.1.
+
+- `openRecording(backendId, listener)` subscribes to effective changes and captures full snapshots
+  with sequence watermarks. Close the explicit session when recording ends.
+- `openPlayback(backendId)` acquires exclusive control. Restore snapshots and apply events at their
+  container timestamps, then submit `frame` before client ticks/rendering; closing releases playback state.
+- Calls belong to the client thread. Time units are nanoseconds, zero is valid, and absent hosts return empty optionals.
+- Source time drives both playback and export animation/physics, including speed changes. Output identity deduplicates views.
+- Snapshots include ownership, closing visuals, relative progress and UI sessions, without game/recorder objects or wall timestamps.
+- `halo:replay` carries recording schema 1 inside replay files; it is never sent to the real server and does not replace online packets.
+
+See [replay compatibility notes](../replay-compat.md) and the core README for lifecycle and validation limits.
