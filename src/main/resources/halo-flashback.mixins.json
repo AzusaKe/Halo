@@ -1,0 +1,8 @@
+{
+  "required": false,
+  "package": "network.azusake.halo.compat.flashback.mixin",
+  "plugin": "network.azusake.halo.compat.flashback.mixin.FlashbackMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["FlashbackLifecycleMixin", "RecorderMixin", "ReplayReaderMixin", "ReplayServerMixin", "ExportJobMixin"],
+  "injectors": {"defaultRequire": 1}
+}

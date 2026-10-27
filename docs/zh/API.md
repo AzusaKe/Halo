@@ -2,7 +2,7 @@
 
 ## 从这里开始：接入 API v2
 
-本文以 **Halo 2.4.0、Minecraft 1.21.1 Fabric、Java 21** 为基准；加载器无关的 HaloCore API 仍保持 Java 17 兼容。其他已接入宿主可以复用中立接口，但旧版／冻结适配器不因此自动拥有预览能力。
+本文以 **Halo 2.4.0、Minecraft 1.20.1 Fabric、Java 17** 为基准。其他已接入宿主可以复用中立接口，但旧版／冻结适配器不因此自动拥有预览能力。
 API v2 为光环提供**头部锚点和服务端佩戴来源**，不负责动态注册物品或绘制任意几何。先用 `/halo list` 查找定义，再用 `/halo show @s <定义ID>` 佩戴一个由 Halo 管理的光环。
 
 阅读顺序：先完成[1. 依赖配置](#dependency-setup)。要接入饰品／职业等佩戴状态，直接阅读[6. 服务端佩戴来源](#server-ownership-source-api)；要接入模型锚点，继续阅读[2. 模型提供者](#provider-routing) → [3. 预览面板](#preview-host-integration) → [4. 接口参考](#api-v2-reference) → [5. 验证排错](#integration-checks)。[其他接口](#other-interfaces)位于 API v2 指南之后。
@@ -573,3 +573,18 @@ static String handle(String command)
 | `halo:update` | S2C | 增量 附加/移除 广播 |
 | `halo:defs_report` | C2S | 客户端报告本地可用的定义 ID |
 | `halo:hello` | S2C | 握手——宣告服务器已安装 mod |
+
+## 实验性回放 API（2.6.0）
+
+新增中立入口 `network.azusake.halo.api.v2.replay.HaloReplayApi`，原有 API v2 不变。
+它要求提供此扩展的 core 及绑定 `ReplayHost` 的客户端适配器；旧版同名 v2 命名空间不包含这些类。
+首轮具体录制后端在 1.21.1 Fabric 验证中，不能据接口存在宣称所有平台已支持录制器。
+
+- `openRecording(backendId, listener)`：显式会话读取完整快照并订阅有效变化；快照序号是增量水位。
+- `openPlayback(backendId)`：独占会话按容器时间执行 `restore`、`apply` 和 `frame`，关闭后释放回放状态。
+- 所有调用在客户端线程执行，时间单位为纳秒，源时间零点有效；无宿主时返回空 Optional。
+- 普通回放和导出均由录像源时间推进表现，倍速同步作用于动画与物理；输出帧身份用于同帧去重。
+- 快照包含所有佩戴、关闭中的表现、相对进度和 UI 会话；不携带 Minecraft/录制器对象或机器绝对时间。
+- `halo:replay` 是 schema 1 的录像内轨道，不发送给真实服务器，不替换现有在线网络协议。
+
+生命周期、恢复与验收边界见 [回放兼容开发记录](../replay-compat.md) 和 core README。

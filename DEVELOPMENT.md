@@ -1,5 +1,7 @@
 # Halo 项目开发指南
 
+回放扩展本轮发布 **2.6.0 / 1.21.1 Fabric adapter.1**；1.20.1 只在工作分支保存共享接入，不打标签。其他维护平台继续使用原锁定版本，详见 [回放验证记录](docs/replay-verification-2.6.0.md)。
+
 ## 当前维护版本：2.5.1+adapter.1（发布准备）
 
 本轮统一锁定 core `59e3bb2e3139b1c0982c0d992525bc3032b4c69b`，修复 SYNC 头部局部偏移及 LOCKED 小幅俯仰后持续翻转；适配修订随 core 版本升级统一重置为 1。逐平台状态见 [2.5.1 验证表](docs/orientation-2.5.1-verification.md)。以下 2.5.0 数字为修复前历史基线。

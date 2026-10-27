@@ -26,7 +26,9 @@
         "halo.mixins.json",
         "halo-ysm.mixins.json",
         "halo-emf.mixins.json",
-        "halo-iris.mixins.json"
+        "halo-iris.mixins.json",
+        "halo-replaymod.mixins.json",
+        "halo-flashback.mixins.json"
     ],
     "depends": {
         "fabricloader": ">=0.16.14",

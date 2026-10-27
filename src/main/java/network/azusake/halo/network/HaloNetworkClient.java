@@ -37,16 +37,20 @@ public final class HaloNetworkClient {
             int targetEntityId = buf.readInt();
             UUID targetUuid = HaloNetwork.readUuid(buf);
             String targetName = buf.readString(128);
-            context.client().execute(() -> context.client().setScreen(
-                new HaloScepterScreen(targetEntityId, targetUuid, targetName)));
+            context.client().execute(() -> {
+                if(!network.azusake.halo.replay.ReplayClient.isPlayback())
+                    context.client().setScreen(new HaloScepterScreen(targetEntityId,targetUuid,targetName));
+            });
         });
         ClientPlayNetworking.registerGlobalReceiver(HaloPayloads.ScepterCloseScreen.ID, (payload, context) ->
             context.client().execute(() -> {
+                if(network.azusake.halo.replay.ReplayClient.isPlayback())return;
                 if (context.client().currentScreen instanceof HaloScepterScreen) context.client().setScreen(null);
             }));
     }
 
     public static void sendScepterSelection(Identifier definitionId) {
+        if(network.azusake.halo.replay.ReplayClient.isPlayback())return;
         if (!ClientPlayNetworking.canSend(HaloPayloads.ScepterSelect.ID)) return;
         var buf = PacketByteBufs.create();
         buf.writeIdentifier(game(definitionId));
@@ -54,16 +58,19 @@ public final class HaloNetworkClient {
     }
 
     public static void sendScepterClose() {
+        if(network.azusake.halo.replay.ReplayClient.isPlayback())return;
         if (ClientPlayNetworking.canSend(HaloPayloads.ScepterClose.ID))
             ClientPlayNetworking.send(new HaloPayloads.ScepterClose(PacketByteBufs.create()));
     }
 
     public static void sendScepterRemoveSelf() {
+        if(network.azusake.halo.replay.ReplayClient.isPlayback())return;
         if (ClientPlayNetworking.canSend(HaloPayloads.ScepterRemoveSelf.ID))
             ClientPlayNetworking.send(new HaloPayloads.ScepterRemoveSelf(PacketByteBufs.create()));
     }
 
     public static void sendDefsReport() {
+        if(network.azusake.halo.replay.ReplayClient.isPlayback())return;
         if (!ClientPlayNetworking.canSend(HaloPayloads.DefsReport.ID)) return;
         var definitions = HaloJsonLoader.getDefinitions();
         var buf = PacketByteBufs.create();
