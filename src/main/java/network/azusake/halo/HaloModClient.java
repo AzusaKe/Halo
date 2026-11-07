@@ -31,6 +31,8 @@ public class HaloModClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
         network.azusake.halo.replay.ReplayClient.initialize();
+        network.azusake.halo.replay.ReplayTransport.register();
+        network.azusake.halo.compat.replaymod.ReplayModBackend.initialize();
         network.azusake.halo.platform.IntegratedBridge.config = snapshot ->
             net.minecraft.client.MinecraftClient.getInstance().execute(() ->
                 { if (!network.azusake.halo.replay.ReplayClient.isPlayback())

@@ -51,6 +51,8 @@ public final class HaloScepterScreen extends Screen {
         super(Text.translatable("screen.halo.halo_scepter.title"));
         targetEntityId=-1; targetUuid=state.target(); targetName=state.targetName(); replayUi=state;
     }
+    public boolean isReplayScreen() { return replayUi != null; }
+
     public boolean isReplaySession(long session) { return replayUi!=null && replayUi.session()==session; }
 
     @Override
@@ -176,6 +178,7 @@ public final class HaloScepterScreen extends Screen {
     @Override
     public void removed() {
         if(replayUi==null)network.azusake.halo.replay.ReplayClient.uiClosed(recordingUiSession);
+        else network.azusake.halo.replay.ReplayClient.replayUiDismissed(replayUi.session());
         sendCloseOnce();
         super.removed();
     }

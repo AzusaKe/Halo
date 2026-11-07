@@ -25,6 +25,9 @@ repositories {
 }
 
 dependencies {
+    // Optional recorder only for isolated startup checks; never bundled.
+    if (providers.gradleProperty('haloReplayTestMod').isPresent())
+        modLocalRuntime files(providers.gradleProperty('haloReplayTestMod').get())
     implementation "network.azusake:halo-core:${coreVersion}"
     coreContents "network.azusake:halo-core:${coreVersion}"
     // To change the versions see the gradle.properties file
@@ -72,6 +75,11 @@ jar {
 
 test {
     useJUnitPlatform()
+    ['HALO_REPLAYMOD_TEST_JAR', 'HALO_REPLAYMOD_LEGACY_TEST_JAR'].each { key ->
+        def fixture = providers.environmentVariable(key).getOrElse('')
+        inputs.property(key, fixture)
+        if (fixture) inputs.file(fixture)
+    }
     testLogging {
         events "passed", "skipped", "failed"
     }

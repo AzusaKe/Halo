@@ -26,7 +26,11 @@
         "halo.mixins.json",
         "halo-ysm.mixins.json",
         "halo-emf.mixins.json",
-        "halo-iris.mixins.json"
+        "halo-iris.mixins.json",
+        {
+            "config": "halo-replaymod.mixins.json",
+            "environment": "client"
+        }
     ],
     "depends": {
         "fabricloader": ">=0.15.0",
