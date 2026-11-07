@@ -40,6 +40,9 @@ public final class HaloModConfigStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static volatile HaloModConfig current = new HaloModConfig();
+    // Adapter-owned screen preference; deliberately absent from core's configuration DTO.
+    private static volatile boolean replayScepterUiEnabled;
+    private static final String REPLAY_UI_KEY = "replayScepterUiEnabled";
 
     private HaloModConfigStore() {
         // utility class
@@ -91,6 +94,11 @@ public final class HaloModConfigStore {
         return current.getCommandPermissionLevel();
     }
 
+    /** Local playback presentation only; never synchronized to a server or stored in a replay. */
+    public static boolean isReplayScepterUiEnabled() {
+        return replayScepterUiEnabled;
+    }
+
     /** Write the given config to the default location. */
     public static void save(HaloModConfig config) {
         save(config, defaultFile());
@@ -111,6 +119,7 @@ public final class HaloModConfigStore {
             }
             var updated = JsonParser.parseString(network.azusake.halo.core.ModConfigCodec.encode(config)).getAsJsonObject();
             for (var entry : updated.entrySet()) saved.add(entry.getKey(), entry.getValue());
+            applyClientDefaults(saved);
             Files.writeString(file, GSON.toJson(saved));
         } catch (IOException e) {
             HaloMod.LOGGER.warn("Failed to save Halo mod config {}: {}", file, e.getMessage());
@@ -118,18 +127,39 @@ public final class HaloModConfigStore {
     }
 
     private static HaloModConfig readOrCreate(Path file) {
+        replayScepterUiEnabled = false;
         try {
-            var decoded=network.azusake.halo.core.ModConfigCodec.decode(Files.exists(file)?Files.readString(file):null);
-            if(decoded.replacement()!=null) {
-                try {
-                    if(file.getParent()!=null)Files.createDirectories(file.getParent());
-                    Files.writeString(file,decoded.replacement());
-                } catch(IOException ex) { HaloMod.LOGGER.warn("Failed to save Halo mod config {}: {}",file,ex.getMessage()); }
+            String raw = Files.exists(file) ? Files.readString(file) : null;
+            var decoded = network.azusake.halo.core.ModConfigCodec.decode(raw);
+            String effective = decoded.replacement() != null ? decoded.replacement() : raw;
+            JsonObject document = null;
+            try {
+                var parsed = effective == null ? null : JsonParser.parseString(effective);
+                if (parsed != null && parsed.isJsonObject()) document = parsed.getAsJsonObject();
+            } catch (RuntimeException ignored) { /* Core already diagnosed invalid input. */ }
+            if (document != null) {
+                boolean clientDefaultsAdded = applyClientDefaults(document);
+                if (decoded.replacement() != null || clientDefaultsAdded) {
+                    try {
+                        if (file.getParent() != null) Files.createDirectories(file.getParent());
+                        Files.writeString(file, GSON.toJson(document));
+                    } catch (IOException ex) {
+                        HaloMod.LOGGER.warn("Failed to save Halo mod config {}: {}", file, ex.getMessage());
+                    }
+                }
             }
             return decoded.config();
-        } catch(IOException ex) {
-            HaloMod.LOGGER.warn("Failed to read Halo mod config {}: {}",file,ex.getMessage());
+        } catch (IOException ex) {
+            HaloMod.LOGGER.warn("Failed to read Halo mod config {}: {}", file, ex.getMessage());
             return new HaloModConfig();
         }
+    }
+
+    private static boolean applyClientDefaults(JsonObject document) {
+        JsonElement value = document.get(REPLAY_UI_KEY);
+        boolean valid = value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean();
+        replayScepterUiEnabled = valid && value.getAsBoolean();
+        if (!valid) document.addProperty(REPLAY_UI_KEY, false);
+        return !valid;
     }
 }

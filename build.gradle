@@ -38,6 +38,7 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter:5.9.2"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation "com.google.code.gson:gson:2.10"
+    testImplementation "org.ow2.asm:asm-tree:9.9.1"
 }
 
 processResources {
@@ -71,6 +72,11 @@ jar {
 }
 
 test {
+    for (fixture in ["HALO_REPLAYMOD_TEST_JAR", "HALO_FLASHBACK_TEST_JAR"]) {
+        def fixturePath = System.getenv(fixture)
+        inputs.property(fixture, fixturePath ?: "")
+        if (fixturePath) inputs.file(fixturePath)
+    }
     useJUnitPlatform()
     testLogging {
         events "passed", "skipped", "failed"

@@ -1,0 +1,17 @@
+{
+  "required": false,
+  "package": "network.azusake.halo.compat.replaymod.mixin",
+  "plugin": "network.azusake.halo.compat.replaymod.mixin.ReplayModMixinPlugin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "PacketListenerMixin",
+    "ReplayHandlerMixin",
+    "VideoRendererMixin",
+    "MarkerProcessorMixin",
+    "DimensionTrackerMixin",
+    "SquashFilterMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
