@@ -82,7 +82,7 @@ tasks.register('verifyDistribution') {
             def names = Collections.list(archive.entries()).collect { it.name }
             def duplicates = names.countBy { it }.findAll { key, count -> count > 1 }
             if (duplicates) throw new GradleException("Duplicate distribution entries: ${duplicates.keySet()}")
-            def forbidden = names.findAll { it.startsWith('net/minecraft/') || it.startsWith('com/google/gson/') || it.startsWith('org/joml/') }
+            def forbidden = names.findAll { it.startsWith('net/minecraft/') || it.startsWith('com/google/gson/') || it.startsWith('org/joml/') || it.startsWith('com/replaymod/') || it.startsWith('com/moulberry/flashback/') }
             if (forbidden) throw new GradleException('Distribution contains classes supplied by Minecraft: ' + forbidden.take(5))
             if (names.any { it.startsWith('network/azusake/halo/api/client/preview/') }) {
                 throw new GradleException('Removed Minecraft-specific preview API remains in the distribution.')

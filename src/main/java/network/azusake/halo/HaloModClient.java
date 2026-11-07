@@ -25,9 +25,14 @@ public class HaloModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("Halo client initializing...");
+        network.azusake.halo.replay.ReplayClient.initialize();
+        network.azusake.halo.replay.ReplayTransport.register();
+        network.azusake.halo.compat.replaymod.ReplayModBackend.initialize();
+        network.azusake.halo.compat.flashback.FlashbackBackend.initialize();
         network.azusake.halo.platform.IntegratedBridge.config = snapshot ->
             net.minecraft.client.Minecraft.getInstance().execute(() ->
-                network.azusake.halo.platform.HaloClientState.get().setConfig(snapshot.toConfig()));
+                { if (!network.azusake.halo.replay.ReplayClient.isPlayback())
+                    network.azusake.halo.platform.HaloClientState.get().setConfig(snapshot.toConfig()); });
         network.azusake.halo.platform.IntegratedBridge.teleport = uuid ->
             net.minecraft.client.Minecraft.getInstance().execute(() ->
                 network.azusake.halo.platform.HaloClientState.get().teleport(uuid));
@@ -49,6 +54,7 @@ public class HaloModClient implements ClientModInitializer {
         // Register the halo renderer with Fabric's world-render pipeline
         HaloRenderListener.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            network.azusake.halo.replay.ReplayClient.shutdown();
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.render.HaloRenderer.getInstance().shutdown();
         });
@@ -97,6 +103,7 @@ public class HaloModClient implements ClientModInitializer {
         // Fabric can dispatch disconnect from the network thread. Preview scopes, runtime
         // state and render caches must all be cleared on the client/render thread.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
+            network.azusake.halo.replay.ReplayClient.disconnect();
             network.azusake.halo.render.PlayerPreviewRenderer.clearAutomaticViews();
             network.azusake.halo.platform.HaloClientState.get().clearAllClientHalos();
             network.azusake.halo.platform.IntegratedBridge.clearDiagnostics();
