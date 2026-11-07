@@ -1,5 +1,14 @@
 # 更新记录
 
+## 2.6.0+adapter.1 — 26.1.2 Fabric 官方回放兼容 — 2026-11-07
+
+- 接入 官方 ReplayMod 26.1-2.6.28 与 Flashback 0.43.3（对应 MC 文件），复用 core API v2 统一宿主、schema 1 轨道、源时间和状态恢复；第三方差异留在各兼容适配包。
+- 普通回放与导出按录像源时间推进，暂停及重复视角不额外推进，连续跨过已覆盖快照保留惯性，seek 恢复相位并清除未来运动。保留 ReplayMod Full／Quick、marker 起点重写及导出边界。
+- 默认隐藏回放权杖 UI，客户端配置 `replayScepterUiEnabled=true` 可显式启用；播放／暂停可手动关闭当前会话，恢复播放不强制重开，导出始终隐藏。不向服务器写回回放状态。
+- 保留本平台既有绘制和输入架构，旧定义、存档、在线数据包与公开 API v2 保持兼容；玩家只安装一个 Halo 成品。
+- 固定 HaloCore **2.6.0 / 03f84db5**，本平台修订 **1**；core 364 项测试及平台相关自动检查通过，两个真实官方 fixture 的 ABI 用例实际运行。维护者于 2026-10-30 明确确认本平台测试通过；未逐项报告的多视角、光影和第三方模型组合不扩大声明。
+- 本轮已获提交和 GitHub 发布授权，正式标签 `v2.6.0-fabric-26.1-adapter.1`；交测与已知限制见 [本平台记录](docs/replay-verification-26.1.2.md)，全平台登记见 [发布记录](docs/replay-release-2.6.0.md)。
+
 ## 2.5.1+adapter.1 — SYNC 与 LOCKED 朝向修复 — 2026-10-22
 
 - 随 core 功能版本升级，将本平台 adapter revision 重置为 1；固定 HaloCore `59e3bb2e3139b1c0982c0d992525bc3032b4c69b`。

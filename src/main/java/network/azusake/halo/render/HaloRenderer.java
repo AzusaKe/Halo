@@ -49,6 +49,8 @@ public final class HaloRenderer {
     public IdlePhaseTracker.RenderState readLastRenderState(UUID uuid){return HaloClientState.get().renderer().readLastRenderState(uuid);}
     public void clearIdlePhases(){HaloClientState.get().renderer().clearIdlePhases();}
     public void renderHalos(PoseStack matrices,Camera camera,float tickDelta){
+        network.azusake.halo.replay.ReplayClient.prepare();
+        if(!network.azusake.halo.replay.ReplayClient.isReady())return;
         if(!OptionalIrisPassDetector.isMainPass()||completedFrame==RenderHeadCapture.getFrameId())return;
         completedFrame=RenderHeadCapture.getFrameId();
         Minecraft client=Minecraft.getInstance();

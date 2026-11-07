@@ -21,6 +21,51 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * loader (FabricLoader) dependency is touched.</p>
  */
 class HaloModConfigStoreTest {
+    @Test void replayUiDefaultsOffWithoutDroppingUnrelatedSettings() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        Files.writeString(configFile(), "{\"futureOption\":42,\"commandPermissionLevel\":3}");
+        HaloModConfigStore.load(configFile());
+        assertFalse(HaloModConfigStore.isReplayScepterUiEnabled());
+        assertFalse(persistedJson().get("replayScepterUiEnabled").getAsBoolean());
+        assertEquals(42, persistedJson().get("futureOption").getAsInt());
+        assertEquals(3, HaloModConfigStore.getPermissionLevel());
+    }
+
+    @Test void replayUiExplicitBooleansSurviveOrdinaryCoreConfigSaves() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        for (boolean enabled : new boolean[]{true, false}) {
+            Files.writeString(configFile(), "{\"replayScepterUiEnabled\":" + enabled + ",\"futureOption\":42}");
+            HaloModConfig config = HaloModConfigStore.load(configFile());
+            assertEquals(enabled, HaloModConfigStore.isReplayScepterUiEnabled());
+            config.setPrimitiveRenderBackend("cached");
+            HaloModConfigStore.save(config, configFile());
+            HaloModConfigStore.load(configFile());
+            assertEquals(enabled, HaloModConfigStore.isReplayScepterUiEnabled());
+            assertEquals(enabled, persistedJson().get("replayScepterUiEnabled").getAsBoolean());
+            assertEquals(42, persistedJson().get("futureOption").getAsInt());
+        }
+    }
+
+    @Test void invalidReplayUiValuesCannotEnableTheScreen() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        for (String invalid : new String[]{"null", "\"true\"", "1", "[]", "{}"}) {
+            Files.writeString(configFile(), "{\"replayScepterUiEnabled\":" + invalid + "}");
+            HaloModConfigStore.load(configFile());
+            assertFalse(HaloModConfigStore.isReplayScepterUiEnabled());
+            assertFalse(persistedJson().get("replayScepterUiEnabled").getAsBoolean());
+        }
+    }
+
+    @Test void failedConfigReloadDoesNotKeepPreviouslyEnabledReplayUi() throws Exception {
+        Files.createDirectories(configFile().getParent());
+        Files.writeString(configFile(), "{\"replayScepterUiEnabled\":true}");
+        HaloModConfigStore.load(configFile());
+        assertTrue(HaloModConfigStore.isReplayScepterUiEnabled());
+        Files.writeString(configFile(), "{broken json");
+        HaloModConfigStore.load(configFile());
+        assertFalse(HaloModConfigStore.isReplayScepterUiEnabled());
+    }
+
     @Test void backendSwitchPersistsWithoutDiscardingUnknownOrUnrelatedSettings() throws Exception {
         Files.createDirectories(configFile().getParent());
         Files.writeString(configFile(), "{\"futureOption\":{\"nested\":42},\"playerPreviewHaloEnabled\":false}");
