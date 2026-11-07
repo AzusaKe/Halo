@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 public final class ReplayClient {
     private static ReplayHost host;
     private static boolean preparing;
+    private static boolean updatingUi;
+    private static final ReplayUiPresentation uiPresentation = new ReplayUiPresentation();
     private static final java.util.List<Runnable> preparations=new java.util.ArrayList<>();
     private ReplayClient() {}
     public static void initialize() {
@@ -23,21 +25,33 @@ public final class ReplayClient {
     public static boolean isReady(){return !preparing;}
     public static long uiOpened(java.util.UUID target,String name) { return host==null?0:host.uiOpened(target,name); }
     public static void uiClosed(long session) { if(host!=null)host.uiClosed(session); }
-    public static void disconnect() { if(host!=null)host.disconnect(); }
+    public static void disconnect() { if(host!=null)host.disconnect(); uiPresentation.reset(); }
+    public static void replayUiDismissed(long session) {
+        if (!updatingUi && isPlayback()) uiPresentation.dismiss(session);
+    }
     public static void registerPreparation(Runnable preparation) { preparations.add(java.util.Objects.requireNonNull(preparation)); }
     public static void prepare() {
         for(var preparation:java.util.List.copyOf(preparations))preparation.run();
         if(host!=null && host.isPlayback())displayUi(host.uiState());
     }
-    public static void shutdown() { if(host!=null){host.close();host=null;} }
+    public static void shutdown() { if(host!=null){host.close();host=null;} uiPresentation.reset(); }
     private static void displayUi(ReplayUiState state) {
-        var client=MinecraftClient.getInstance();
-        boolean show=state.open() && host!=null && host.isPlayback() && host.mode()==ReplayPlaybackSession.Mode.PLAYBACK;
-        if(client.currentScreen instanceof HaloScepterScreen screen) {
-            if(show && screen.isReplaySession(state.session()))return;
-            client.setScreen(null);
+        var client = MinecraftClient.getInstance();
+        boolean playback = isPlayback();
+        boolean show = uiPresentation.shouldShow(state, playback,
+            playback ? host.mode() : ReplayPlaybackSession.Mode.PLAYBACK,
+            playback ? host.frameTime() : null,
+            network.azusake.halo.config.HaloModConfigStore.isReplayScepterUiEnabled());
+        updatingUi = true;
+        try {
+            if (client.currentScreen instanceof HaloScepterScreen screen && screen.isReplayScreen()) {
+                if (show && screen.isReplaySession(state.session())) return;
+                client.setScreen(null);
+            }
+            // Never replace recorder progress/error screens or ordinary gameplay selectors.
+            if (show && client.currentScreen == null) client.setScreen(new HaloScepterScreen(state));
+        } finally {
+            updatingUi = false;
         }
-        // Do not replace a recorder's loading, progress or error screen.
-        if(show && client.currentScreen==null)client.setScreen(new HaloScepterScreen(state));
     }
 }

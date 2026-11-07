@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.6.0+adapter.2 — 1.21.1 Fabric 官方回放兼容 UI 修复 — 2026-11-07
+
+- 回放权杖 UI 默认隐藏，可在客户端 `halo_mod_config.json` 设置 `replayScepterUiEnabled=true` 后重启显式启用，普通游玩和 UI 轨道录制保持原行为。
+- 显式启用时，播放或暂停均可 ESC／按钮关闭当前 UI 会话，恢复播放不强制重开；下一次录制的打开事件和 seek 新 epoch 可恢复显示。导出始终隐藏交互 UI，避免阻塞录制器控件和快捷键。
+- 修复完全位于客户端适配层，保持 core API v2、schema 1、定义、存档及在线协议不变，已有 Halo 轨道录像无需重录。
+- 固定 HaloCore **2.6.0 / 03f84db5**，本平台修订 **2**；core 364 项测试及平台相关自动检查通过，两个真实官方 fixture 的 ABI 用例实际运行。维护者于 2026-10-30 明确确认本平台测试通过；未逐项报告的多视角、光影和第三方模型组合不扩大声明。
+- 本轮已获提交和 GitHub 发布授权，正式标签 `v2.6.0-fabric-1.21.1-adapter.2`；交测与已知限制见 [本平台记录](docs/replay-ui-dev-verification.md)，全平台登记见 [发布记录](docs/replay-release-2.6.0.md)。
+
 ## 2.6.0+adapter.1 — Flashback 与 ReplayMod 回放兼容 — 2026-10-27
 
 - 接入可选 Flashback / ReplayMod 后端，以同一套 API v2 回放会话和 schema 1 轨道记录最终佩戴、启动/关闭进度及权杖实际开关；保持旧定义、存档、在线协议和既有 API v2 兼容。
